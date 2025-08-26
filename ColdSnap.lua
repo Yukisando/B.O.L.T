@@ -20,7 +20,7 @@ SlashCmdList["COLDSNAP"] = function(msg)
     if #args == 0 or args[1] == "help" then
         ColdSnap:Print("ColdSnap v" .. ColdSnap.version .. " - Quality of Life addon")
         print("  |cffFFFFFF/coldsnap help|r - Show this help")
-        print("  |cffFFFFFF/coldsnap config|r - Open configuration (future feature)")
+        print("  |cffFFFFFF/coldsnap config|r - Open configuration window")
         print("  |cffFFFFFF/coldsnap status|r - Show module status")
         print("  |cffFFFFFF/coldsnap toggle <module>|r - Toggle a module")
         print("  |cffFFFFFF/coldsnap reload|r - Reload the addon")
@@ -52,7 +52,11 @@ SlashCmdList["COLDSNAP"] = function(msg)
     elseif args[1] == "reload" then
         ReloadUI()
     elseif args[1] == "config" then
-        ColdSnap:Print("Configuration interface coming in a future update!")
+        if ColdSnap.modules.Config then
+            ColdSnap.modules.Config:ShowConfig()
+        else
+            ColdSnap:Print("Configuration module not loaded!")
+        end
     else
         ColdSnap:Print("Unknown command. Type '/coldsnap help' for available commands.")
     end

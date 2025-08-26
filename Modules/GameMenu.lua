@@ -228,12 +228,17 @@ function GameMenu:CreateReloadButton()
     -- Set button properties - smaller size for corner placement
     reloadButton:SetSize(28, 28)
     
-    -- Create the refresh icon using a simple text symbol
-    local fontString = reloadButton:CreateFontString(nil, "OVERLAY")
-    fontString:SetFont("Fonts\\FRIZQT__.TTF", 16, "OUTLINE")
-    fontString:SetPoint("CENTER")
-    fontString:SetTextColor(1, 0.82, 0, 1) -- Gold color
-    fontString:SetText("R") -- Simple "R" for Reload
+    -- Create the refresh icon using the standard WoW refresh texture
+    local iconTexture = reloadButton:CreateTexture(nil, "OVERLAY")
+    iconTexture:SetTexture("Interface\\Buttons\\UI-RefreshButton")
+    iconTexture:SetSize(20, 20)
+    iconTexture:SetPoint("CENTER")
+    
+    -- If the refresh texture doesn't exist, fallback to a different one
+    if not iconTexture:GetTexture() then
+        iconTexture:SetTexture("Interface\\Icons\\Ability_Rogue_Preparation")
+        iconTexture:SetTexCoord(0.1, 0.9, 0.1, 0.9) -- Crop the icon a bit
+    end
     
     -- Enable mouse interaction
     reloadButton:EnableMouse(true)

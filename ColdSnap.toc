@@ -13,6 +13,7 @@ Core\Utils.lua
 
 # Modules
 Modules\GameMenu.lua
+Modules\Config.lua
 
 # Main addon file
 ColdSnap.lua
