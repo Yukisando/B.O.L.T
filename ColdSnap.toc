@@ -1,0 +1,18 @@
+## Interface: 112000
+## Title: ColdSnap
+## Notes: Quality of life improvements and tweaks
+## Author: ColdSnap
+## Version: 1.0.0
+## SavedVariables: ColdSnapDB
+## SavedVariablesPerCharacter: ColdSnapCharDB
+
+# Core files
+Core\Core.lua
+Core\Database.lua
+Core\Utils.lua
+
+# Modules
+Modules\GameMenu.lua
+
+# Main addon file
+ColdSnap.lua

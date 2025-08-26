@@ -1,0 +1,177 @@
+-- ColdSnap Utility Functions
+-- Common helper functions used throughout the addon
+
+local ADDON_NAME, ColdSnap = ...
+
+-- Check if player is in any kind of group
+function ColdSnap:IsInGroup()
+    -- Check for delves
+    if C_PartyInfo and C_PartyInfo.IsDelveInProgress and C_PartyInfo.IsDelveInProgress() then
+        return true
+    end
+    
+    -- Check for instance groups
+    if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
+        return true
+    end
+    
+    -- Check for scenarios
+    if C_Scenario and C_Scenario.IsInScenario and C_Scenario.IsInScenario() then
+        return true
+    end
+    
+    -- Standard group check
+    return IsInGroup() or IsInRaid()
+end
+
+-- Check if player can leave group (not leader in certain situations)
+function ColdSnap:CanLeaveGroup()
+    if not self:IsInGroup() then
+        return false
+    end
+    
+    -- Always allow leaving if not the leader
+    if not UnitIsGroupLeader("player") then
+        return true
+    end
+    
+    -- If leader, check if there are other members
+    local numMembers = GetNumGroupMembers()
+    return numMembers > 1
+end
+
+-- Get group type string for display
+function ColdSnap:GetGroupTypeString()
+    -- Check for delves first
+    if C_PartyInfo and C_PartyInfo.IsDelveInProgress and C_PartyInfo.IsDelveInProgress() then
+        return "Delve"
+    end
+    
+    -- Check for scenarios
+    if C_Scenario and C_Scenario.IsInScenario and C_Scenario.IsInScenario() then
+        return "Scenario"
+    end
+    
+    -- Check for instance groups
+    if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
+        if IsInRaid(LE_PARTY_CATEGORY_INSTANCE) then
+            return "Instance Raid"
+        else
+            return "Instance Party"
+        end
+    end
+    
+    -- Standard group checks
+    if IsInRaid() then
+        return "Raid"
+    elseif IsInGroup() then
+        return "Party"
+    else
+        return nil
+    end
+end
+
+-- Safe leave group function
+function ColdSnap:LeaveGroup()
+    -- Check if we're in a delve first
+    if C_PartyInfo and C_PartyInfo.IsDelveInProgress and C_PartyInfo.IsDelveInProgress() then
+        self:Print("Leaving delve...")
+        C_PartyInfo.LeaveParty()
+        return
+    end
+    
+    -- Check if we're in LFG content
+    if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
+        self:Print("Leaving instance group...")
+        C_PartyInfo.LeaveParty(LE_PARTY_CATEGORY_INSTANCE)
+        return
+    end
+    
+    -- Check if we're in a scenario
+    if C_Scenario and C_Scenario.IsInScenario and C_Scenario.IsInScenario() then
+        self:Print("Leaving scenario...")
+        C_PartyInfo.LeaveParty()
+        return
+    end
+    
+    -- Check if we're in any special content that requires leaving the instance
+    local inInstance, instanceType = IsInInstance()
+    if inInstance and (instanceType == "party" or instanceType == "raid" or instanceType == "scenario") then
+        self:Print("Leaving instance and group...")
+        -- Use the more comprehensive leave function
+        if C_PartyInfo and C_PartyInfo.LeaveParty then
+            C_PartyInfo.LeaveParty()
+        else
+            LeaveParty()
+        end
+        return
+    end
+    
+    -- Standard group leaving logic
+    if not self:IsInGroup() then
+        self:Print("You are not in a group.")
+        return
+    end
+    
+    local groupType = self:GetGroupTypeString()
+    
+    if UnitIsGroupLeader("player") then
+        local numMembers = GetNumGroupMembers()
+        if numMembers > 1 then
+            -- Transfer leadership before leaving if possible
+            for i = 1, numMembers do
+                local unit = IsInRaid() and "raid" .. i or "party" .. i
+                if UnitExists(unit) and not UnitIsUnit(unit, "player") then
+                    PromoteToLeader(unit)
+                    break
+                end
+            end
+            -- Small delay to allow leadership transfer
+            C_Timer.After(0.5, function()
+                if C_PartyInfo and C_PartyInfo.LeaveParty then
+                    C_PartyInfo.LeaveParty()
+                else
+                    LeaveParty()
+                end
+                ColdSnap:Print("Left " .. (groupType or "group") .. ".")
+            end)
+        else
+            -- Solo in group, just leave
+            if C_PartyInfo and C_PartyInfo.LeaveParty then
+                C_PartyInfo.LeaveParty()
+            else
+                LeaveParty()
+            end
+            self:Print("Left " .. (groupType or "group") .. ".")
+        end
+    else
+        -- Not leader, just leave
+        if C_PartyInfo and C_PartyInfo.LeaveParty then
+            C_PartyInfo.LeaveParty()
+        else
+            LeaveParty()
+        end
+        self:Print("Left " .. (groupType or "group") .. ".")
+    end
+end
+
+-- Color text with class colors
+function ColdSnap:ColorText(text, color)
+    if type(color) == "string" then
+        return "|c" .. color .. text .. "|r"
+    elseif type(color) == "table" and color.r and color.g and color.b then
+        local hex = string.format("%02x%02x%02x", 
+            math.floor(color.r * 255), 
+            math.floor(color.g * 255), 
+            math.floor(color.b * 255))
+        return "|cff" .. hex .. text .. "|r"
+    else
+        return text
+    end
+end
+
+-- Check if a module is enabled
+function ColdSnap:IsModuleEnabled(moduleName)
+    local config = self:GetConfig(moduleName, "enabled")
+    return config ~= false -- Default to true if not set
+end
