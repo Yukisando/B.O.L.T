@@ -1,19 +1,20 @@
 ## Interface: 112000
 ## Title: ColdSnap
-## Notes: Quality of life improvements and tweaks
-## Author: ColdSnap
+## Notes: Quality of life improvements
+## Author: Yukisando
 ## Version: 1.0.0
 ## SavedVariables: ColdSnapDB
-## SavedVariablesPerCharacter: ColdSnapCharDB
+## X-Category: Interface Enhancements
+## X-Website: https://github.com/Yukisando/ColdSnap
+## X-Curse-Project-ID: [will be filled by CurseForge]
+## X-WoWI-ID: [will be filled by WoWInterface]
 
 # Core files
+ColdSnap.lua
 Core\Core.lua
 Core\Database.lua
 Core\Utils.lua
 
 # Modules
-Modules\GameMenu.lua
 Modules\Config.lua
-
-# Main addon file
-ColdSnap.lua
+Modules\GameMenu.lua
