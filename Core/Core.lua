@@ -15,6 +15,7 @@ ColdSnap.defaults = {
         gameMenu = {
             enabled = true,
             showLeaveGroup = true,
+            showReloadButton = true,
         }
     }
 }

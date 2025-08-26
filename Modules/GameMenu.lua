@@ -44,15 +44,19 @@ function GameMenu:HookGameMenu()
 end
 
 function GameMenu:UpdateGameMenu()
-    if not self.parent:GetConfig("gameMenu", "showLeaveGroup") then
+    if not self.parent:GetConfig("gameMenu", "enabled") then
         return
     end
     
-    -- Always show the reload button
-    self:ShowReloadButton()
+    -- Show reload button if enabled
+    if self.parent:GetConfig("gameMenu", "showReloadButton") then
+        self:ShowReloadButton()
+    else
+        self:HideReloadButton()
+    end
     
-    -- Check if player is in a group
-    if self.parent:IsInGroup() then
+    -- Check if player is in a group for leave group button
+    if self.parent:GetConfig("gameMenu", "showLeaveGroup") and self.parent:IsInGroup() then
         self:ShowLeaveGroupButton()
     else
         self:HideLeaveGroupButton()

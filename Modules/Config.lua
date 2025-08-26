@@ -69,20 +69,20 @@ function Config:CreateInterfaceOptionsPanel()
     end)
     yOffset = yOffset - 30
     
-    -- Description for Leave Group feature
-    local leaveGroupDesc = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    leaveGroupDesc:SetPoint("TOPLEFT", 70, yOffset)
-    leaveGroupDesc:SetText("Adds a Leave Group/Raid/Delve button below the ESC menu")
-    leaveGroupDesc:SetTextColor(0.8, 0.8, 0.8)
+    -- Show Reload UI Button
+    local reloadCheckbox = CreateFrame("CheckButton", "ColdSnapReloadCheckbox", panel, "InterfaceOptionsCheckButtonTemplate")
+    reloadCheckbox:SetPoint("TOPLEFT", 50, yOffset)
+    reloadCheckbox.Text:SetText("Show Reload UI Button")
+    reloadCheckbox:SetScript("OnShow", function()
+        reloadCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showReloadButton"))
+    end)
+    reloadCheckbox:SetScript("OnClick", function()
+        local enabled = reloadCheckbox:GetChecked()
+        self.parent:SetConfig(enabled, "gameMenu", "showReloadButton")
+        self.parent:Print("Reload UI button " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
+    end)
     yOffset = yOffset - 30
-    
-    -- Show Reload UI Button description
-    local reloadDesc = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    reloadDesc:SetPoint("TOPLEFT", 70, yOffset)
-    reloadDesc:SetText("Includes a Reload UI button in the top-right corner of the ESC menu")
-    reloadDesc:SetTextColor(0.8, 0.8, 0.8)
-    yOffset = yOffset - 50
-    
+       
     -- Future modules section
     local futureHeader = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     futureHeader:SetPoint("TOPLEFT", 20, yOffset)

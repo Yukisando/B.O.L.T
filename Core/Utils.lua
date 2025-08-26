@@ -5,23 +5,30 @@ local ADDON_NAME, ColdSnap = ...
 
 -- Check if player is in any kind of group
 function ColdSnap:IsInGroup()
-    -- Check for delves
-    if C_PartyInfo and C_PartyInfo.IsDelveInProgress and C_PartyInfo.IsDelveInProgress() then
+    -- First check if we're actually in a real group (party or raid)
+    local inRealGroup = IsInGroup() or IsInRaid()
+    
+    -- Check for delves (only if we're also in a real group)
+    if inRealGroup and C_PartyInfo and C_PartyInfo.IsDelveInProgress and C_PartyInfo.IsDelveInProgress() then
         return true
     end
     
-    -- Check for instance groups
+    -- Check for instance groups (LFG/LFR)
     if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
         return true
     end
     
-    -- Check for scenarios
-    if C_Scenario and C_Scenario.IsInScenario and C_Scenario.IsInScenario() then
-        return true
+    -- Check for scenarios (only if we're in a real group, not solo scenarios)
+    if inRealGroup and C_Scenario and C_Scenario.IsInScenario and C_Scenario.IsInScenario() then
+        -- Additional check to make sure we're not in a solo quest scenario
+        local scenarioInfo = C_Scenario.GetInfo()
+        if scenarioInfo and scenarioInfo.isComplete == false then
+            return true
+        end
     end
     
     -- Standard group check
-    return IsInGroup() or IsInRaid()
+    return inRealGroup
 end
 
 -- Check if player can leave group (not leader in certain situations)
@@ -42,14 +49,17 @@ end
 
 -- Get group type string for display
 function ColdSnap:GetGroupTypeString()
-    -- Check for delves first
-    if C_PartyInfo and C_PartyInfo.IsDelveInProgress and C_PartyInfo.IsDelveInProgress() then
+    -- Check for delves first (only if in a real group)
+    if (IsInGroup() or IsInRaid()) and C_PartyInfo and C_PartyInfo.IsDelveInProgress and C_PartyInfo.IsDelveInProgress() then
         return "Delve"
     end
     
-    -- Check for scenarios
-    if C_Scenario and C_Scenario.IsInScenario and C_Scenario.IsInScenario() then
-        return "Scenario"
+    -- Check for scenarios (only if in a real group)
+    if (IsInGroup() or IsInRaid()) and C_Scenario and C_Scenario.IsInScenario and C_Scenario.IsInScenario() then
+        local scenarioInfo = C_Scenario.GetInfo()
+        if scenarioInfo and scenarioInfo.isComplete == false then
+            return "Scenario"
+        end
     end
     
     -- Check for instance groups
@@ -73,10 +83,31 @@ end
 
 -- Safe leave group function
 function ColdSnap:LeaveGroup()
-    -- Check if we're in a delve first
-    if C_PartyInfo and C_PartyInfo.IsDelveInProgress and C_PartyInfo.IsDelveInProgress() then
+    -- Check if we're in a delve first and actually in a group
+    if (IsInGroup() or IsInRaid()) and C_PartyInfo and C_PartyInfo.IsDelveInProgress and C_PartyInfo.IsDelveInProgress() then
         self:Print("Leaving delve...")
-        C_PartyInfo.LeaveParty()
+        -- For delves, we need to leave the instance first, then the group
+        if IsInInstance() then
+            -- Leave the delve instance
+            C_PartyInfo.LeaveParty()
+            -- Small delay then leave group if still in one
+            C_Timer.After(1.0, function()
+                if IsInGroup() or IsInRaid() then
+                    if C_PartyInfo and C_PartyInfo.LeaveParty then
+                        C_PartyInfo.LeaveParty()
+                    else
+                        LeaveParty()
+                    end
+                end
+            end)
+        else
+            -- Not in instance, just leave the group
+            if C_PartyInfo and C_PartyInfo.LeaveParty then
+                C_PartyInfo.LeaveParty()
+            else
+                LeaveParty()
+            end
+        end
         return
     end
     
@@ -87,11 +118,19 @@ function ColdSnap:LeaveGroup()
         return
     end
     
-    -- Check if we're in a scenario
-    if C_Scenario and C_Scenario.IsInScenario and C_Scenario.IsInScenario() then
-        self:Print("Leaving scenario...")
-        C_PartyInfo.LeaveParty()
-        return
+    -- Check if we're in a scenario (only if we're actually in a group)
+    if (IsInGroup() or IsInRaid()) and C_Scenario and C_Scenario.IsInScenario and C_Scenario.IsInScenario() then
+        -- Make sure it's not a solo quest scenario
+        local scenarioInfo = C_Scenario.GetInfo()
+        if scenarioInfo and scenarioInfo.isComplete == false then
+            self:Print("Leaving scenario...")
+            if C_PartyInfo and C_PartyInfo.LeaveParty then
+                C_PartyInfo.LeaveParty()
+            else
+                LeaveParty()
+            end
+            return
+        end
     end
     
     -- Check if we're in any special content that requires leaving the instance
