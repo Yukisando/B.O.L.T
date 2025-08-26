@@ -17,8 +17,16 @@ SlashCmdList["COLDSNAP"] = function(msg)
         table.insert(args, word:lower())
     end
     
-    if #args == 0 or args[1] == "help" then
+    if #args == 0 then
+        -- Open config directly when no arguments
+        if ColdSnap.modules.Config then
+            ColdSnap.modules.Config:ShowConfig()
+        else
+            ColdSnap:Print("Configuration module not loaded!")
+        end
+    elseif args[1] == "help" then
         ColdSnap:Print("ColdSnap v" .. ColdSnap.version .. " - Quality of Life addon")
+        print("  |cffFFFFFF/coldsnap or /cs|r - Open configuration window")
         print("  |cffFFFFFF/coldsnap help|r - Show this help")
         print("  |cffFFFFFF/coldsnap config|r - Open configuration window")
         print("  |cffFFFFFF/coldsnap status|r - Show module status")
