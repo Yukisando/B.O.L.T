@@ -16,6 +16,10 @@ ColdSnap.defaults = {
             enabled = true,
             showLeaveGroup = true,
             showReloadButton = true,
+        },
+        mythicPlus = {
+            enabled = true,
+            autoReadyCheck = true,
         }
     }
 }

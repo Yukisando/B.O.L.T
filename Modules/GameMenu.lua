@@ -26,6 +26,10 @@ function GameMenu:OnEnable()
     self:HookGameMenu()
 end
 
+function GameMenu:OnDisable()
+    -- Clean up any resources if needed
+end
+
 function GameMenu:HookGameMenu()
     -- Hook the GameMenuFrame show event
     if GameMenuFrame then

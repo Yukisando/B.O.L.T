@@ -88,16 +88,17 @@ function ColdSnap:LeaveGroup()
         self:Print("Leaving delve...")
         -- For delves, we need to leave the instance first, then the group
         if IsInInstance() then
-            -- Leave the delve instance
-            C_PartyInfo.LeaveParty()
+            -- Leave the delve instance using LeaveBattlefield which works for delves
+            LeaveBattlefield()
             -- Small delay then leave group if still in one
-            C_Timer.After(1.0, function()
+            C_Timer.After(1.5, function()
                 if IsInGroup() or IsInRaid() then
                     if C_PartyInfo and C_PartyInfo.LeaveParty then
                         C_PartyInfo.LeaveParty()
                     else
                         LeaveParty()
                     end
+                    self:Print("Left delve group.")
                 end
             end)
         else
@@ -107,6 +108,7 @@ function ColdSnap:LeaveGroup()
             else
                 LeaveParty()
             end
+            self:Print("Left delve group.")
         end
         return
     end
