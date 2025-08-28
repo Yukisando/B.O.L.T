@@ -29,6 +29,5 @@ enable-nolib-creation: no
 # license-output: LICENSE.txt
 
 # Tools used (for metadata)
-tools-used:
-  - GitHub Actions
-  - BigWigsMods Packager
+# tools-used:
+#   - BigWigsMods Packager
