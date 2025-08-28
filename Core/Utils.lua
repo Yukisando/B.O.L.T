@@ -83,26 +83,15 @@ end
 
 -- Safe leave group function
 function ColdSnap:LeaveGroup()
-    -- Check if we're in a delve first and actually in a group
-    if (IsInGroup() or IsInRaid()) and C_PartyInfo and C_PartyInfo.IsDelveInProgress and C_PartyInfo.IsDelveInProgress() then
+    -- Check if we're in a delve first using the proper delve detection
+    if C_PartyInfo and (C_PartyInfo.IsDelveInProgress() or C_PartyInfo.IsDelveComplete()) then
         self:Print("Leaving delve...")
-        -- For delves, we need to leave the instance first, then the group
-        if IsInInstance() then
-            -- Leave the delve instance using LeaveBattlefield which works for delves
-            LeaveBattlefield()
-            -- Small delay then leave group if still in one
-            C_Timer.After(1.5, function()
-                if IsInGroup() or IsInRaid() then
-                    if C_PartyInfo and C_PartyInfo.LeaveParty then
-                        C_PartyInfo.LeaveParty()
-                    else
-                        LeaveParty()
-                    end
-                    self:Print("Left delve group.")
-                end
-            end)
+        -- Use the proper delve teleport out function
+        if C_PartyInfo.DelveTeleportOut then
+            C_PartyInfo.DelveTeleportOut()
+            self:Print("Teleported out of delve.")
         else
-            -- Not in instance, just leave the group
+            -- Fallback if the function doesn't exist
             if C_PartyInfo and C_PartyInfo.LeaveParty then
                 C_PartyInfo.LeaveParty()
             else

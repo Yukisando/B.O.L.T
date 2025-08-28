@@ -226,7 +226,7 @@ function Config:CreateConfigWindow()
     
     -- Close button
     local closeButton = CreateFrame("Button", nil, window)
-    closeButton:SetSize(20, 20)
+    closeButton:SetSize(28, 28)
     closeButton:SetPoint("RIGHT", titleBar, "RIGHT", -5, 0)
     closeButton:SetNormalTexture("Interface\\Buttons\\UI-Panel-MinimizeButton-Up")
     closeButton:SetPushedTexture("Interface\\Buttons\\UI-Panel-MinimizeButton-Down")
