@@ -1,7 +1,3 @@
-# ColdSnap
-
-A World of Warcraft addon that provides quality of life improvements and small tweaks to enhance your gaming experience.
-
 ## What It Does
 
 ColdSnap adds convenient features to make your WoW experience smoother without changing core gameplay. The addon focuses on small, helpful improvements that save you time and clicks.
@@ -9,12 +5,11 @@ ColdSnap adds convenient features to make your WoW experience smoother without c
 ## Current Modules
 
 ### Game Menu Enhancements
-- **Leave Group Button**: Adds a "Leave Group/Raid/Delve" button below the ESC menu when you're in any group
-  - Automatically handles leadership transfer if you're the group leader
-  - Works with parties, raids, delves, scenarios, and instance groups
-  - Only appears when you're actually in a group
+  - Leave Group Button: Adds a "Leave Group/Raid/Delve" button below the ESC menu when you're in any group
+  - Reload UI Button: Small refresh button in the top-right corner of the ESC menu for quick UI reloads
 
-- **Reload UI Button**: Small refresh button in the top-right corner of the ESC menu for quick UI reloads
+### Mythics Keystones
+  - Auto ready-check when keystone is inserted as a leader
 
 ## Installation
 
@@ -30,8 +25,7 @@ Access settings through:
 
 ## Console Commands
 
-- `/coldsnap` or `/cs` - Show help and available commands
-- `/coldsnap config` - Open settings panel
+- `/cs` - Open settings panel
 - `/coldsnap status` - Show module status
 - `/coldsnap toggle <module>` - Enable/disable modules
 - `/coldsnap reload` - Reload the UI
