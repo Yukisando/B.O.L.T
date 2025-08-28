@@ -2,7 +2,7 @@
 ## Title: ColdSnap
 ## Notes: Quality of life improvements
 ## Author: Yukisando
-## Version: 1.0.0
+## Version: 1.0.2
 ## SavedVariables: ColdSnapDB
 ## X-Category: Interface Enhancements
 ## X-Website: https://github.com/Yukisando/ColdSnap

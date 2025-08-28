@@ -20,8 +20,6 @@ jobs:
 
       - name: Package and Upload
         uses: BigWigsMods/packager@v2
-        with:
-          args: -p ${{ secrets.CF_PROJECT_ID }} -w ${{ secrets.WOWI_ID }} -a ${{ secrets.WAGO_ID }}
         env:
           CF_API_KEY: ${{ secrets.CF_API_KEY }}
           WOWI_API_TOKEN: ${{ secrets.WOWI_API_TOKEN }}
