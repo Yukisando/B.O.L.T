@@ -6,8 +6,7 @@
 ## SavedVariables: ColdSnapDB
 ## X-Category: Interface Enhancements
 ## X-Website: https://github.com/Yukisando/ColdSnap
-## X-Curse-Project-ID: [will be filled by CurseForge]
-## X-WoWI-ID: [will be filled by WoWInterface]
+## X-Curse-Project-ID: 1335396
 
 # Core files
 ColdSnap.lua
