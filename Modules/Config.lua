@@ -115,88 +115,11 @@ function Config:CreateInterfaceOptionsPanel()
     local toyLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     toyLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     toyLabel:SetText("Favorite Toy:")
-    yOffset = yOffset - 20
+    yOffset = yOffset - 25
     
-    local toyDropdown = CreateFrame("Frame", "ColdSnapFavoriteToyDropdown", content, "UIDropDownMenuTemplate")
-    toyDropdown:SetPoint("TOPLEFT", content, "TOPLEFT", 40, yOffset)
-    UIDropDownMenu_SetWidth(toyDropdown, 250)
-    UIDropDownMenu_SetText(toyDropdown, "Select a toy...")
-    
-    -- Initialize dropdown
-    UIDropDownMenu_Initialize(toyDropdown, function(self, level)
-        local function OnToySelect(toyInfo)
-            local toyId = toyInfo.value
-            Config.parent:SetConfig(toyId, "gameMenu", "favoriteToyId")
-            UIDropDownMenu_SetText(toyDropdown, toyInfo.text)
-            Config.parent:Print("Favorite toy set to: " .. toyInfo.text)
-            
-            -- Update the secure toy button if it exists
-            if Config.parent.modules.GameMenu and Config.parent.modules.GameMenu.UpdateFavoriteToyButton then
-                Config.parent.modules.GameMenu:UpdateFavoriteToyButton()
-            end
-        end
-        
-        -- Get player's toys
-        local toys = {}
-        for i = 1, C_ToyBox.GetNumToys() do
-            local toyId = C_ToyBox.GetToyFromIndex(i)
-            if toyId and PlayerHasToy(toyId) then
-                local _, toyName, icon = C_ToyBox.GetToyInfo(toyId)
-                if toyName then
-                    table.insert(toys, {
-                        text = toyName,
-                        value = toyId,
-                        icon = icon,
-                        func = OnToySelect
-                    })
-                end
-            end
-        end
-        
-        -- Sort toys alphabetically
-        table.sort(toys, function(a, b) return a.text < b.text end)
-        
-        -- Add "None" option
-        local info = UIDropDownMenu_CreateInfo()
-        info.text = "None"
-        info.value = nil
-        info.func = OnToySelect
-        UIDropDownMenu_AddButton(info)
-        
-        -- Add separator
-        info = UIDropDownMenu_CreateInfo()
-        info.text = ""
-        info.isTitle = true
-        info.notClickable = true
-        UIDropDownMenu_AddButton(info)
-        
-        -- Add toys
-        for _, toy in ipairs(toys) do
-            info = UIDropDownMenu_CreateInfo()
-            info.text = toy.text
-            info.value = toy.value
-            info.icon = toy.icon
-            info.func = function() OnToySelect(toy) end
-            UIDropDownMenu_AddButton(info)
-        end
-    end)
-    
-    -- Set current selection on show
-    toyDropdown:SetScript("OnShow", function()
-        local currentToyId = self.parent:GetConfig("gameMenu", "favoriteToyId")
-        if currentToyId then
-            local _, toyName = C_ToyBox.GetToyInfo(currentToyId)
-            if toyName then
-                UIDropDownMenu_SetText(toyDropdown, toyName)
-            else
-                UIDropDownMenu_SetText(toyDropdown, "Select a toy...")
-            end
-        else
-            UIDropDownMenu_SetText(toyDropdown, "Select a toy...")
-        end
-    end)
-    
-    yOffset = yOffset - 50
+    -- Create a custom toy selection frame with search
+    self:CreateToySelectionFrame(content, 50, yOffset)
+    yOffset = yOffset - 200  -- Reserve space for the larger toy selection frame
        
     -- Future modules section
     local futureHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -276,20 +199,11 @@ function Config:RefreshOptionsPanel()
             favoriteToyCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showFavoriteToy"))
         end
         
-        local toyDropdown = _G["ColdSnapFavoriteToyDropdown"]
-        if toyDropdown then
-            local currentToyId = self.parent:GetConfig("gameMenu", "favoriteToyId")
-            if currentToyId then
-                local _, toyName = C_ToyBox.GetToyInfo(currentToyId)
-                if toyName then
-                    UIDropDownMenu_SetText(toyDropdown, toyName)
-                else
-                    UIDropDownMenu_SetText(toyDropdown, "Select a toy...")
-                end
-            else
-                UIDropDownMenu_SetText(toyDropdown, "Select a toy...")
-            end
+        -- Update toy selection frame
+        if self.allToys then
+            self:PopulateToyList()
         end
+        self:UpdateToySelection()
         
         -- Update child control states
         self:UpdateGameMenuChildControls()
@@ -304,7 +218,7 @@ function Config:UpdateGameMenuChildControls()
     local leaveGroupCheckbox = _G["ColdSnapLeaveGroupCheckbox"]
     local reloadCheckbox = _G["ColdSnapReloadCheckbox"]
     local favoriteToyCheckbox = _G["ColdSnapFavoriteToyCheckbox"]
-    local toyDropdown = _G["ColdSnapFavoriteToyDropdown"]
+    local toyFrame = _G["ColdSnapToySelectionFrame"]
     
     -- Enable/disable child controls based on parent module
     if leaveGroupCheckbox then
@@ -322,14 +236,247 @@ function Config:UpdateGameMenuChildControls()
         favoriteToyCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
     end
     
-    if toyDropdown then
+    if toyFrame then
         local favoriteToyEnabled = gameMenuEnabled and self.parent:GetConfig("gameMenu", "showFavoriteToy")
-        UIDropDownMenu_EnableDropDown(toyDropdown)
-        if not favoriteToyEnabled then
-            UIDropDownMenu_DisableDropDown(toyDropdown)
+        toyFrame:SetAlpha(favoriteToyEnabled and 1.0 or 0.5)
+        
+        -- Enable/disable interaction with toy frame components
+        if self.searchBox then
+            self.searchBox:SetEnabled(favoriteToyEnabled)
         end
-        toyDropdown:SetAlpha(favoriteToyEnabled and 1.0 or 0.5)
+        
+        if self.currentToyButton then
+            self.currentToyButton:SetEnabled(favoriteToyEnabled)
+        end
+        
+        -- Enable/disable toy list buttons
+        for _, button in pairs(self.toyButtons or {}) do
+            button:SetEnabled(favoriteToyEnabled)
+        end
     end
+end
+
+function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
+    -- Create the main container frame
+    local toyFrame = CreateFrame("Frame", "ColdSnapToySelectionFrame", parent)
+    toyFrame:SetPoint("TOPLEFT", parent, "TOPLEFT", xOffset, yOffset)
+    toyFrame:SetSize(420, 170)
+    
+    -- Create a background
+    local bg = toyFrame:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0.1, 0.1, 0.1, 0.8)
+    
+    -- Create border
+    local border = CreateFrame("Frame", nil, toyFrame, "DialogBorderTemplate")
+    border:SetAllPoints()
+    
+    -- Search box
+    local searchLabel = toyFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    searchLabel:SetPoint("TOPLEFT", toyFrame, "TOPLEFT", 15, -15)
+    searchLabel:SetText("Search:")
+    
+    local searchBox = CreateFrame("EditBox", "ColdSnapToySearchBox", toyFrame, "InputBoxTemplate")
+    searchBox:SetPoint("TOPLEFT", searchLabel, "TOPRIGHT", 15, 0)
+    searchBox:SetSize(220, 20)
+    searchBox:SetAutoFocus(false)
+    searchBox:SetScript("OnTextChanged", function()
+        self:FilterToyList()
+    end)
+    
+    -- Clear search button
+    local clearButton = CreateFrame("Button", nil, toyFrame, "UIPanelButtonTemplate")
+    clearButton:SetPoint("LEFT", searchBox, "RIGHT", 10, 0)
+    clearButton:SetSize(50, 22)
+    clearButton:SetText("Clear")
+    clearButton:SetScript("OnClick", function()
+        searchBox:SetText("")
+        self:FilterToyList()
+    end)
+    
+    -- Current selection display
+    local currentLabel = toyFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    currentLabel:SetPoint("TOPLEFT", toyFrame, "TOPLEFT", 15, -50)
+    currentLabel:SetText("Current:")
+    
+    local currentToy = CreateFrame("Button", "ColdSnapCurrentToyButton", toyFrame)
+    currentToy:SetPoint("LEFT", currentLabel, "RIGHT", 15, 0)
+    currentToy:SetSize(220, 28)
+    
+    -- Create textures for current toy button
+    local currentBg = currentToy:CreateTexture(nil, "BACKGROUND")
+    currentBg:SetAllPoints()
+    currentBg:SetColorTexture(0.2, 0.2, 0.2, 0.8)
+    
+    local currentIcon = currentToy:CreateTexture(nil, "ARTWORK")
+    currentIcon:SetPoint("LEFT", currentToy, "LEFT", 4, 0)
+    currentIcon:SetSize(20, 20)
+    
+    local currentText = currentToy:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    currentText:SetPoint("LEFT", currentIcon, "RIGHT", 8, 0)
+    currentText:SetPoint("RIGHT", currentToy, "RIGHT", -8, 0)
+    currentText:SetJustifyH("LEFT")
+    currentText:SetText("None selected")
+    
+    currentToy:SetScript("OnClick", function()
+        -- Clear selection
+        self.parent:SetConfig(nil, "gameMenu", "favoriteToyId")
+        self:UpdateToySelection()
+        if self.parent.modules.GameMenu and self.parent.modules.GameMenu.UpdateFavoriteToyButton then
+            self.parent.modules.GameMenu:UpdateFavoriteToyButton()
+        end
+    end)
+    
+    -- Scrollable toy list
+    local scrollFrame = CreateFrame("ScrollFrame", "ColdSnapToyScrollFrame", toyFrame, "UIPanelScrollFrameTemplate")
+    scrollFrame:SetPoint("TOPLEFT", toyFrame, "TOPLEFT", 15, -85)
+    scrollFrame:SetPoint("BOTTOMRIGHT", toyFrame, "BOTTOMRIGHT", -35, 15)
+    
+    local scrollChild = CreateFrame("Frame", nil, scrollFrame)
+    scrollFrame:SetScrollChild(scrollChild)
+    scrollChild:SetSize(370, 1) -- Height will be set dynamically
+    
+    -- Store references for later use
+    self.toyFrame = toyFrame
+    self.searchBox = searchBox
+    self.currentToyButton = currentToy
+    self.currentToyIcon = currentIcon
+    self.currentToyText = currentText
+    self.scrollFrame = scrollFrame
+    self.scrollChild = scrollChild
+    self.toyButtons = {}
+    
+    -- Initial setup
+    self:PopulateToyList()
+    self:UpdateToySelection()
+end
+
+function Config:PopulateToyList()
+    if not self.scrollChild then return end
+    
+    -- Clear existing buttons
+    for _, button in pairs(self.toyButtons) do
+        button:Hide()
+        button:SetParent(nil)
+    end
+    self.toyButtons = {}
+    
+    -- Get all toys
+    self.allToys = {}
+    for i = 1, C_ToyBox.GetNumToys() do
+        local toyId = C_ToyBox.GetToyFromIndex(i)
+        if toyId and PlayerHasToy(toyId) then
+            local _, toyName, icon = C_ToyBox.GetToyInfo(toyId)
+            if toyName then
+                table.insert(self.allToys, {
+                    id = toyId,
+                    name = toyName,
+                    icon = icon
+                })
+            end
+        end
+    end
+    
+    -- Sort alphabetically
+    table.sort(self.allToys, function(a, b) return a.name < b.name end)
+    
+    self:FilterToyList()
+end
+
+function Config:FilterToyList()
+    if not self.scrollChild or not self.allToys then return end
+    
+    local searchText = ""
+    if self.searchBox then
+        searchText = self.searchBox:GetText():lower()
+    end
+    
+    -- Filter toys based on search
+    local filteredToys = {}
+    for _, toy in ipairs(self.allToys) do
+        if searchText == "" or toy.name:lower():find(searchText, 1, true) then
+            table.insert(filteredToys, toy)
+        end
+    end
+    
+    -- Create buttons for filtered toys
+    local yOffset = 0
+    local buttonHeight = 30
+    
+    for i, toy in ipairs(filteredToys) do
+        local button = self.toyButtons[i]
+        if not button then
+            button = CreateFrame("Button", nil, self.scrollChild)
+            button:SetSize(360, buttonHeight)
+            
+            -- No background - cleaner look
+            
+            -- Highlight on hover only
+            local highlight = button:CreateTexture(nil, "HIGHLIGHT")
+            highlight:SetAllPoints()
+            highlight:SetColorTexture(0.3, 0.3, 0.3, 0.5)
+            
+            -- Icon
+            local icon = button:CreateTexture(nil, "ARTWORK")
+            icon:SetPoint("LEFT", button, "LEFT", 5, 0)
+            icon:SetSize(22, 22)
+            
+            -- Text
+            local text = button:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+            text:SetPoint("LEFT", icon, "RIGHT", 10, 0)
+            text:SetPoint("RIGHT", button, "RIGHT", -10, 0)
+            text:SetJustifyH("LEFT")
+            
+            button.icon = icon
+            button.text = text
+            
+            self.toyButtons[i] = button
+        end
+        
+        button:SetPoint("TOPLEFT", self.scrollChild, "TOPLEFT", 0, -yOffset)
+        button.icon:SetTexture(toy.icon)
+        button.text:SetText(toy.name)
+        
+        button:SetScript("OnClick", function()
+            self.parent:SetConfig(toy.id, "gameMenu", "favoriteToyId")
+            self.parent:Print("Favorite toy set to: " .. toy.name)
+            self:UpdateToySelection()
+            if self.parent.modules.GameMenu and self.parent.modules.GameMenu.UpdateFavoriteToyButton then
+                self.parent.modules.GameMenu:UpdateFavoriteToyButton()
+            end
+        end)
+        
+        button:Show()
+        yOffset = yOffset + buttonHeight
+    end
+    
+    -- Hide unused buttons
+    for i = #filteredToys + 1, #self.toyButtons do
+        if self.toyButtons[i] then
+            self.toyButtons[i]:Hide()
+        end
+    end
+    
+    -- Update scroll child height
+    self.scrollChild:SetHeight(math.max(yOffset, 1))
+end
+
+function Config:UpdateToySelection()
+    if not self.currentToyButton then return end
+    
+    local currentToyId = self.parent:GetConfig("gameMenu", "favoriteToyId")
+    if currentToyId then
+        local _, toyName, toyIcon = C_ToyBox.GetToyInfo(currentToyId)
+        if toyName then
+            self.currentToyIcon:SetTexture(toyIcon)
+            self.currentToyText:SetText(toyName)
+            return
+        end
+    end
+    
+    -- No toy selected or invalid toy
+    self.currentToyIcon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+    self.currentToyText:SetText("None selected (click to clear)")
 end
 
 -- Register the module
