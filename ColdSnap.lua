@@ -18,19 +18,33 @@ SlashCmdList["COLDSNAP"] = function(msg)
     end
     
     if #args == 0 then
-        -- Open config directly when no arguments
-        if ColdSnap.modules.Config then
-            ColdSnap.modules.Config:ShowConfig()
+        -- Open the Interface Options to ColdSnap panel
+        if Settings and Settings.OpenToCategory then
+            -- Modern Settings API (Retail)
+            if ColdSnap.modules.Config and ColdSnap.modules.Config.settingsCategory then
+                Settings.OpenToCategory(ColdSnap.modules.Config.settingsCategory.ID)
+            else
+                ColdSnap:Print("Settings panel not available. Please access ColdSnap settings through Interface > AddOns.")
+            end
+        elseif InterfaceOptionsFrame_OpenToCategory then
+            -- Legacy Interface Options (Classic)
+            if ColdSnap.modules.Config and ColdSnap.modules.Config.optionsPanel then
+                InterfaceOptionsFrame_OpenToCategory(ColdSnap.modules.Config.optionsPanel)
+                InterfaceOptionsFrame_OpenToCategory(ColdSnap.modules.Config.optionsPanel) -- Call twice for proper focus
+            else
+                ColdSnap:Print("Options panel not available. Please access ColdSnap settings through Interface > AddOns.")
+            end
         else
-            ColdSnap:Print("Configuration module not loaded!")
+            ColdSnap:Print("Please access ColdSnap settings through Interface > AddOns.")
         end
     elseif args[1] == "help" then
         ColdSnap:Print("ColdSnap v" .. ColdSnap.version .. " - Quality of Life addon")
-        print("  |cffFFFFFF/coldsnap or /cs|r - Open configuration window")
+        print("  |cffFFFFFF/coldsnap or /cs|r - Open settings in Interface Options")
         print("  |cffFFFFFF/coldsnap help|r - Show this help")
-        print("  |cffFFFFFF/coldsnap config|r - Open configuration window")
+        print("  |cffFFFFFF/coldsnap config|r - Open settings in Interface Options")
         print("  |cffFFFFFF/coldsnap status|r - Show module status")
         print("  |cffFFFFFF/coldsnap toggle <module>|r - Toggle a module")
+        print("  |cffFFFFFF/coldsnap toggle debug|r - Toggle debug mode")
         print("  |cffFFFFFF/coldsnap reload|r - Reload the addon")
     elseif args[1] == "status" then
         ColdSnap:Print("Module Status:")
@@ -44,6 +58,17 @@ SlashCmdList["COLDSNAP"] = function(msg)
         -- Convert common names
         if moduleName == "menu" or moduleName == "gamemenu" then
             moduleName = "gameMenu"
+        end
+        
+        -- Special handling for debug toggle
+        if moduleName == "debug" then
+            local currentValue = ColdSnap:GetConfig("debug")
+            local newValue = not currentValue
+            ColdSnap:SetConfig(newValue, "debug")
+            
+            local status = newValue and "enabled" or "disabled"
+            ColdSnap:Print("Debug mode " .. status .. ".")
+            return
         end
         
         if ColdSnap.modules[moduleName] then
@@ -60,10 +85,24 @@ SlashCmdList["COLDSNAP"] = function(msg)
     elseif args[1] == "reload" then
         ReloadUI()
     elseif args[1] == "config" then
-        if ColdSnap.modules.Config then
-            ColdSnap.modules.Config:ShowConfig()
+        -- Open the Interface Options to ColdSnap panel
+        if Settings and Settings.OpenToCategory then
+            -- Modern Settings API (Retail)
+            if ColdSnap.modules.Config and ColdSnap.modules.Config.settingsCategory then
+                Settings.OpenToCategory(ColdSnap.modules.Config.settingsCategory.ID)
+            else
+                ColdSnap:Print("Settings panel not available. Please access ColdSnap settings through Interface > AddOns.")
+            end
+        elseif InterfaceOptionsFrame_OpenToCategory then
+            -- Legacy Interface Options (Classic)
+            if ColdSnap.modules.Config and ColdSnap.modules.Config.optionsPanel then
+                InterfaceOptionsFrame_OpenToCategory(ColdSnap.modules.Config.optionsPanel)
+                InterfaceOptionsFrame_OpenToCategory(ColdSnap.modules.Config.optionsPanel) -- Call twice for proper focus
+            else
+                ColdSnap:Print("Options panel not available. Please access ColdSnap settings through Interface > AddOns.")
+            end
         else
-            ColdSnap:Print("Configuration module not loaded!")
+            ColdSnap:Print("Please access ColdSnap settings through Interface > AddOns.")
         end
     else
         ColdSnap:Print("Unknown command. Type '/coldsnap help' for available commands.")

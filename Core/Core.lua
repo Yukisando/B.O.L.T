@@ -6,20 +6,19 @@ local ADDON_NAME, ColdSnap = ...
 -- Create the main addon object
 ColdSnap = ColdSnap or {}
 ColdSnap.name = ADDON_NAME
-ColdSnap.version = "1.0.0"
+ColdSnap.version = "1.0.6"
 ColdSnap.modules = {}
 
 -- Default configuration
 ColdSnap.defaults = {
     profile = {
+        debug = false,
         gameMenu = {
             enabled = true,
             showLeaveGroup = true,
             showReloadButton = true,
-        },
-        mythicPlus = {
-            enabled = true,
-            autoReadyCheck = true,
+            showFavoriteToy = true,
+            favoriteToyId = nil,
         }
     }
 }

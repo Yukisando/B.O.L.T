@@ -21,6 +21,11 @@ function Config:CreateInterfaceOptionsPanel()
     local panel = CreateFrame("Frame", "ColdSnapOptionsPanel")
     panel.name = "ColdSnap"
     
+    -- Add OnShow script to refresh checkbox states
+    panel:SetScript("OnShow", function()
+        self:RefreshOptionsPanel()
+    end)
+    
     -- For Interface Options, use a simpler approach without scroll frame initially
     -- Most interface options panels don't actually need scrolling
     local content = panel
@@ -48,12 +53,17 @@ function Config:CreateInterfaceOptionsPanel()
     gameMenuCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
     gameMenuCheckbox.Text:SetText("Enable Game Menu Module")
     gameMenuCheckbox:SetScript("OnShow", function()
-        gameMenuCheckbox:SetChecked(self.parent:IsModuleEnabled("gameMenu"))
+        local enabled = self.parent:IsModuleEnabled("gameMenu")
+        gameMenuCheckbox:SetChecked(enabled)
+        -- Update child controls when shown
+        self:UpdateGameMenuChildControls()
     end)
     gameMenuCheckbox:SetScript("OnClick", function()
         local enabled = gameMenuCheckbox:GetChecked()
         self.parent:SetConfig(enabled, "gameMenu", "enabled")
         self.parent:Print("Game Menu module " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
+        -- Update child controls when toggled
+        self:UpdateGameMenuChildControls()
     end)
     yOffset = yOffset - 30
     
@@ -83,41 +93,110 @@ function Config:CreateInterfaceOptionsPanel()
         self.parent:SetConfig(enabled, "gameMenu", "showReloadButton")
         self.parent:Print("Reload UI button " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
     end)
-    yOffset = yOffset - 40
-    
-    -- Mythic Plus Module Section
-    local mythicPlusHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    mythicPlusHeader:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset)
-    mythicPlusHeader:SetText("Mythic Plus Enhancements")
     yOffset = yOffset - 30
     
-    -- Enable/Disable Mythic Plus Module
-    local mythicPlusCheckbox = CreateFrame("CheckButton", "ColdSnapMythicPlusCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
-    mythicPlusCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
-    mythicPlusCheckbox.Text:SetText("Enable Mythic Plus Module")
-    mythicPlusCheckbox:SetScript("OnShow", function()
-        mythicPlusCheckbox:SetChecked(self.parent:IsModuleEnabled("mythicPlus"))
+    -- Show Favorite Toy Button
+    local favoriteToyCheckbox = CreateFrame("CheckButton", "ColdSnapFavoriteToyCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    favoriteToyCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
+    favoriteToyCheckbox.Text:SetText("Show Favorite Toy Button")
+    favoriteToyCheckbox:SetScript("OnShow", function()
+        favoriteToyCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showFavoriteToy"))
     end)
-    mythicPlusCheckbox:SetScript("OnClick", function()
-        local enabled = mythicPlusCheckbox:GetChecked()
-        self.parent:SetConfig(enabled, "mythicPlus", "enabled")
-        self.parent:Print("Mythic Plus module " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
+    favoriteToyCheckbox:SetScript("OnClick", function()
+        local enabled = favoriteToyCheckbox:GetChecked()
+        self.parent:SetConfig(enabled, "gameMenu", "showFavoriteToy")
+        self.parent:Print("Favorite Toy button " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
+        -- Update child controls when toggled
+        self:UpdateGameMenuChildControls()
     end)
     yOffset = yOffset - 30
     
-    -- Auto Ready Check
-    local autoReadyCheckbox = CreateFrame("CheckButton", "ColdSnapAutoReadyCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
-    autoReadyCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
-    autoReadyCheckbox.Text:SetText("Auto ready check when inserting key")
-    autoReadyCheckbox:SetScript("OnShow", function()
-        autoReadyCheckbox:SetChecked(self.parent:GetConfig("mythicPlus", "autoReadyCheck"))
+    -- Favorite Toy Selection
+    local toyLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    toyLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
+    toyLabel:SetText("Favorite Toy:")
+    yOffset = yOffset - 20
+    
+    local toyDropdown = CreateFrame("Frame", "ColdSnapFavoriteToyDropdown", content, "UIDropDownMenuTemplate")
+    toyDropdown:SetPoint("TOPLEFT", content, "TOPLEFT", 40, yOffset)
+    UIDropDownMenu_SetWidth(toyDropdown, 250)
+    UIDropDownMenu_SetText(toyDropdown, "Select a toy...")
+    
+    -- Initialize dropdown
+    UIDropDownMenu_Initialize(toyDropdown, function(self, level)
+        local function OnToySelect(toyInfo)
+            local toyId = toyInfo.value
+            Config.parent:SetConfig(toyId, "gameMenu", "favoriteToyId")
+            UIDropDownMenu_SetText(toyDropdown, toyInfo.text)
+            Config.parent:Print("Favorite toy set to: " .. toyInfo.text)
+            
+            -- Update the secure toy button if it exists
+            if Config.parent.modules.GameMenu and Config.parent.modules.GameMenu.UpdateFavoriteToyButton then
+                Config.parent.modules.GameMenu:UpdateFavoriteToyButton()
+            end
+        end
+        
+        -- Get player's toys
+        local toys = {}
+        for i = 1, C_ToyBox.GetNumToys() do
+            local toyId = C_ToyBox.GetToyFromIndex(i)
+            if toyId and PlayerHasToy(toyId) then
+                local _, toyName, icon = C_ToyBox.GetToyInfo(toyId)
+                if toyName then
+                    table.insert(toys, {
+                        text = toyName,
+                        value = toyId,
+                        icon = icon,
+                        func = OnToySelect
+                    })
+                end
+            end
+        end
+        
+        -- Sort toys alphabetically
+        table.sort(toys, function(a, b) return a.text < b.text end)
+        
+        -- Add "None" option
+        local info = UIDropDownMenu_CreateInfo()
+        info.text = "None"
+        info.value = nil
+        info.func = OnToySelect
+        UIDropDownMenu_AddButton(info)
+        
+        -- Add separator
+        info = UIDropDownMenu_CreateInfo()
+        info.text = ""
+        info.isTitle = true
+        info.notClickable = true
+        UIDropDownMenu_AddButton(info)
+        
+        -- Add toys
+        for _, toy in ipairs(toys) do
+            info = UIDropDownMenu_CreateInfo()
+            info.text = toy.text
+            info.value = toy.value
+            info.icon = toy.icon
+            info.func = function() OnToySelect(toy) end
+            UIDropDownMenu_AddButton(info)
+        end
     end)
-    autoReadyCheckbox:SetScript("OnClick", function()
-        local enabled = autoReadyCheckbox:GetChecked()
-        self.parent:SetConfig(enabled, "mythicPlus", "autoReadyCheck")
-        self.parent:Print("Auto ready check " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
+    
+    -- Set current selection on show
+    toyDropdown:SetScript("OnShow", function()
+        local currentToyId = self.parent:GetConfig("gameMenu", "favoriteToyId")
+        if currentToyId then
+            local _, toyName = C_ToyBox.GetToyInfo(currentToyId)
+            if toyName then
+                UIDropDownMenu_SetText(toyDropdown, toyName)
+            else
+                UIDropDownMenu_SetText(toyDropdown, "Select a toy...")
+            end
+        else
+            UIDropDownMenu_SetText(toyDropdown, "Select a toy...")
+        end
     end)
-    yOffset = yOffset - 40
+    
+    yOffset = yOffset - 50
        
     -- Future modules section
     local futureHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -140,7 +219,7 @@ function Config:CreateInterfaceOptionsPanel()
     
     local commandsText = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     commandsText:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
-    commandsText:SetText("/coldsnap or /cs - Show help and commands")
+    commandsText:SetText("/coldsnap or /cs - Open Interface Options to ColdSnap")
     commandsText:SetTextColor(1, 0.82, 0)
     yOffset = yOffset - 40
     
@@ -172,223 +251,84 @@ function Config:CreateInterfaceOptionsPanel()
     self.optionsPanel = panel
 end
 
--- Completely new standalone config window implementation
-function Config:CreateConfigWindow()
-    -- Destroy any existing window first
-    if self.configWindow then
-        self.configWindow:Hide()
-        self.configWindow:SetParent(nil)
-        self.configWindow = nil
-    end
-    
-    -- Create main window frame using a different approach
-    local window = CreateFrame("Frame", "ColdSnapConfigWindow", UIParent)
-    window:SetSize(500, 600)
-    window:SetPoint("CENTER")
-    window:SetFrameStrata("DIALOG")
-    window:SetFrameLevel(100)
-    window:EnableMouse(true)
-    window:SetMovable(true)
-    window:RegisterForDrag("LeftButton")
-    window:SetScript("OnDragStart", window.StartMoving)
-    window:SetScript("OnDragStop", window.StopMovingOrSizing)
-    window:Hide()
-    
-    -- Create background
-    local bg = window:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetColorTexture(0, 0, 0, 0.8)
-    
-    -- Create border
-    local border = window:CreateTexture(nil, "BORDER")
-    border:SetPoint("TOPLEFT", -2, 2)
-    border:SetPoint("BOTTOMRIGHT", 2, -2)
-    border:SetColorTexture(0.3, 0.3, 0.3, 1)
-    
-    -- Create inner background
-    local innerBg = window:CreateTexture(nil, "ARTWORK")
-    innerBg:SetPoint("TOPLEFT", 2, -2)
-    innerBg:SetPoint("BOTTOMRIGHT", -2, 2)
-    innerBg:SetColorTexture(0.1, 0.1, 0.1, 1)
-    
-    -- Title bar
-    local titleBar = window:CreateTexture(nil, "OVERLAY")
-    titleBar:SetPoint("TOPLEFT", 2, -2)
-    titleBar:SetPoint("TOPRIGHT", -2, -2)
-    titleBar:SetHeight(30)
-    titleBar:SetColorTexture(0.2, 0.2, 0.2, 1)
-    
-    -- Title text
-    local titleText = window:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    titleText:SetPoint("LEFT", titleBar, "LEFT", 10, 0)
-    titleText:SetText("ColdSnap Settings")
-    titleText:SetTextColor(1, 1, 1)
-    
-    -- Close button
-    local closeButton = CreateFrame("Button", nil, window)
-    closeButton:SetSize(28, 28)
-    closeButton:SetPoint("RIGHT", titleBar, "RIGHT", -5, 0)
-    closeButton:SetNormalTexture("Interface\\Buttons\\UI-Panel-MinimizeButton-Up")
-    closeButton:SetPushedTexture("Interface\\Buttons\\UI-Panel-MinimizeButton-Down")
-    closeButton:SetHighlightTexture("Interface\\Buttons\\UI-Panel-MinimizeButton-Highlight")
-    closeButton:SetScript("OnClick", function()
-        self:HideConfig()
-    end)
-    
-    -- Content area
-    local contentArea = CreateFrame("Frame", nil, window)
-    contentArea:SetPoint("TOPLEFT", titleBar, "BOTTOMLEFT", 10, -10)
-    contentArea:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -10, 10)
-    
-    window.contentArea = contentArea
-    self.configWindow = window
-    
-    return window
-end
-
-function Config:PopulateConfigWindow()
-    if not self.configWindow or not self.configWindow.contentArea then
-        return
-    end
-    
-    local content = self.configWindow.contentArea
-    
-    -- Clear existing content
-    for i = 1, content:GetNumChildren() do
-        local child = select(i, content:GetChildren())
-        if child then
-            child:Hide()
-            child:SetParent(nil)
+function Config:RefreshOptionsPanel()
+    -- Small delay to ensure UI is ready
+    C_Timer.After(0.05, function()
+        -- Refresh all checkbox states in the main options panel
+        local gameMenuCheckbox = _G["ColdSnapGameMenuCheckbox"]
+        if gameMenuCheckbox then
+            local enabled = self.parent:IsModuleEnabled("gameMenu")
+            gameMenuCheckbox:SetChecked(enabled)
         end
-    end
-    
-    local yPos = -10
-    
-    -- Game Menu Section
-    local gameMenuHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    gameMenuHeader:SetPoint("TOPLEFT", content, "TOPLEFT", 10, yPos)
-    gameMenuHeader:SetText("Game Menu Enhancements")
-    gameMenuHeader:SetTextColor(1, 0.8, 0)
-    yPos = yPos - 30
-    
-    -- Game Menu Enable Checkbox
-    local gameMenuCheck = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    gameMenuCheck:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yPos)
-    gameMenuCheck.Text:SetText("Enable Game Menu Module")
-    gameMenuCheck:SetChecked(self.parent:IsModuleEnabled("gameMenu"))
-    gameMenuCheck:SetScript("OnClick", function()
-        local enabled = gameMenuCheck:GetChecked()
-        self.parent:SetConfig(enabled, "gameMenu", "enabled")
-        self.parent:Print("Game Menu module " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
+        
+        local leaveGroupCheckbox = _G["ColdSnapLeaveGroupCheckbox"]
+        if leaveGroupCheckbox then
+            leaveGroupCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showLeaveGroup"))
+        end
+        
+        local reloadCheckbox = _G["ColdSnapReloadCheckbox"]
+        if reloadCheckbox then
+            reloadCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showReloadButton"))
+        end
+        
+        local favoriteToyCheckbox = _G["ColdSnapFavoriteToyCheckbox"]
+        if favoriteToyCheckbox then
+            favoriteToyCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showFavoriteToy"))
+        end
+        
+        local toyDropdown = _G["ColdSnapFavoriteToyDropdown"]
+        if toyDropdown then
+            local currentToyId = self.parent:GetConfig("gameMenu", "favoriteToyId")
+            if currentToyId then
+                local _, toyName = C_ToyBox.GetToyInfo(currentToyId)
+                if toyName then
+                    UIDropDownMenu_SetText(toyDropdown, toyName)
+                else
+                    UIDropDownMenu_SetText(toyDropdown, "Select a toy...")
+                end
+            else
+                UIDropDownMenu_SetText(toyDropdown, "Select a toy...")
+            end
+        end
+        
+        -- Update child control states
+        self:UpdateGameMenuChildControls()
     end)
-    yPos = yPos - 30
-    
-    -- Leave Group Button Checkbox
-    local leaveGroupCheck = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    leaveGroupCheck:SetPoint("TOPLEFT", content, "TOPLEFT", 40, yPos)
-    leaveGroupCheck.Text:SetText("Show Leave Group/Delve Button")
-    leaveGroupCheck:SetChecked(self.parent:GetConfig("gameMenu", "showLeaveGroup"))
-    leaveGroupCheck:SetScript("OnClick", function()
-        local enabled = leaveGroupCheck:GetChecked()
-        self.parent:SetConfig(enabled, "gameMenu", "showLeaveGroup")
-        self.parent:Print("Leave Group button " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
-    end)
-    yPos = yPos - 40
-    
-    -- Reload UI Button Checkbox
-    local reloadUICheck = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    reloadUICheck:SetPoint("TOPLEFT", content, "TOPLEFT", 40, yPos)
-    reloadUICheck.Text:SetText("Show Reload UI Button")
-    reloadUICheck:SetChecked(self.parent:GetConfig("gameMenu", "showReloadButton"))
-    reloadUICheck:SetScript("OnClick", function()
-        local enabled = reloadUICheck:GetChecked()
-        self.parent:SetConfig(enabled, "gameMenu", "showReloadButton")
-        self.parent:Print("Reload UI button " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
-    end)
-    yPos = yPos - 50
-    
-    -- Mythic Plus Section
-    local mythicHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    mythicHeader:SetPoint("TOPLEFT", content, "TOPLEFT", 10, yPos)
-    mythicHeader:SetText("Mythic Plus Enhancements")
-    mythicHeader:SetTextColor(1, 0.8, 0)
-    yPos = yPos - 30
-    
-    -- Mythic Plus Enable Checkbox
-    local mythicCheck = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    mythicCheck:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yPos)
-    mythicCheck.Text:SetText("Enable Mythic Plus Module")
-    mythicCheck:SetChecked(self.parent:IsModuleEnabled("mythicPlus"))
-    mythicCheck:SetScript("OnClick", function()
-        local enabled = mythicCheck:GetChecked()
-        self.parent:SetConfig(enabled, "mythicPlus", "enabled")
-        self.parent:Print("Mythic Plus module " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
-    end)
-    yPos = yPos - 30
-    
-    -- Auto Ready Check Checkbox
-    local autoReadyCheck = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    autoReadyCheck:SetPoint("TOPLEFT", content, "TOPLEFT", 40, yPos)
-    autoReadyCheck.Text:SetText("Auto ready check when inserting key")
-    autoReadyCheck:SetChecked(self.parent:GetConfig("mythicPlus", "autoReadyCheck"))
-    autoReadyCheck:SetScript("OnClick", function()
-        local enabled = autoReadyCheck:GetChecked()
-        self.parent:SetConfig(enabled, "mythicPlus", "autoReadyCheck")
-        self.parent:Print("Auto ready check " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
-    end)
-    yPos = yPos - 50
-    
-    -- Commands Section
-    local commandsHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    commandsHeader:SetPoint("TOPLEFT", content, "TOPLEFT", 10, yPos)
-    commandsHeader:SetText("Console Commands")
-    commandsHeader:SetTextColor(1, 0.8, 0)
-    yPos = yPos - 30
-    
-    local commandsText = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    commandsText:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yPos)
-    commandsText:SetText("/cs - Open this window    /cs status - Show module status")
-    commandsText:SetTextColor(0.8, 0.8, 0.8)
-    yPos = yPos - 40
-    
-    -- Reload Button
-    local reloadButton = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
-    reloadButton:SetSize(100, 25)
-    reloadButton:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yPos)
-    reloadButton:SetText("Reload UI")
-    reloadButton:SetScript("OnClick", function()
-        ReloadUI()
-    end)
-    yPos = yPos - 40
-    
-    -- Version
-    local versionText = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    versionText:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yPos)
-    versionText:SetText("ColdSnap v" .. self.parent.version)
-    versionText:SetTextColor(0.5, 0.5, 0.5)
 end
 
-function Config:ShowConfig()
-    if not self.configWindow then
-        self:CreateConfigWindow()
+-- Update child control states based on parent module status
+function Config:UpdateGameMenuChildControls()
+    local gameMenuEnabled = self.parent:IsModuleEnabled("gameMenu")
+    
+    -- Get references to child controls
+    local leaveGroupCheckbox = _G["ColdSnapLeaveGroupCheckbox"]
+    local reloadCheckbox = _G["ColdSnapReloadCheckbox"]
+    local favoriteToyCheckbox = _G["ColdSnapFavoriteToyCheckbox"]
+    local toyDropdown = _G["ColdSnapFavoriteToyDropdown"]
+    
+    -- Enable/disable child controls based on parent module
+    if leaveGroupCheckbox then
+        leaveGroupCheckbox:SetEnabled(gameMenuEnabled)
+        leaveGroupCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
     end
     
-    self:PopulateConfigWindow()
-    self.configWindow:Show()
-    self.configWindow:Raise()
-end
-
-function Config:HideConfig()
-    if self.configWindow then
-        self.configWindow:Hide()
+    if reloadCheckbox then
+        reloadCheckbox:SetEnabled(gameMenuEnabled)
+        reloadCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
     end
-end
-
-function Config:ToggleConfig()
-    if not self.configWindow or not self.configWindow:IsShown() then
-        self:ShowConfig()
-    else
-        self:HideConfig()
+    
+    if favoriteToyCheckbox then
+        favoriteToyCheckbox:SetEnabled(gameMenuEnabled)
+        favoriteToyCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
+    end
+    
+    if toyDropdown then
+        local favoriteToyEnabled = gameMenuEnabled and self.parent:GetConfig("gameMenu", "showFavoriteToy")
+        UIDropDownMenu_EnableDropDown(toyDropdown)
+        if not favoriteToyEnabled then
+            UIDropDownMenu_DisableDropDown(toyDropdown)
+        end
+        toyDropdown:SetAlpha(favoriteToyEnabled and 1.0 or 0.5)
     end
 end
 

@@ -2,7 +2,7 @@
 ## Title: ColdSnap
 ## Notes: Quality of life improvements
 ## Author: Yukisando
-## Version: 1.0.5
+## Version: 1.0.6
 ## SavedVariables: ColdSnapDB
 ## X-Category: Interface Enhancements
 ## X-Website: https://github.com/Yukisando/ColdSnap
@@ -17,4 +17,3 @@ Core\Utils.lua
 # Modules
 Modules\Config.lua
 Modules\GameMenu.lua
-Modules\MythicPlus.lua

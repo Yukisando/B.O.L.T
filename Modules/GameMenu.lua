@@ -10,6 +10,8 @@ local GameMenu = {}
 local leaveGroupButton = nil
 -- Reference to the Reload UI button
 local reloadButton = nil
+-- Reference to the Favorite Toy button
+local favoriteToyButton = nil
 
 function GameMenu:OnInitialize()
     self.parent:Debug("GameMenu module initializing...")
@@ -35,6 +37,10 @@ function GameMenu:OnDisable()
     if reloadButton then
         reloadButton:Hide() 
         reloadButton = nil
+    end
+    if favoriteToyButton then
+        favoriteToyButton:Hide()
+        favoriteToyButton = nil
     end
 end
 
@@ -67,6 +73,7 @@ function GameMenu:HookGameMenu()
             if not InCombatLockdown() then
                 self:HideLeaveGroupButton()
                 self:HideReloadButton()
+                self:HideFavoriteToyButton()
             end
         end)
     end
@@ -87,6 +94,13 @@ function GameMenu:UpdateGameMenu()
         self:ShowReloadButton()
     else
         self:HideReloadButton()
+    end
+    
+    -- Show favorite toy button if enabled
+    if self.parent:GetConfig("gameMenu", "showFavoriteToy") then
+        self:ShowFavoriteToyButton()
+    else
+        self:HideFavoriteToyButton()
     end
     
     -- Check if player is in a group for leave group button
@@ -133,6 +147,40 @@ end
 function GameMenu:HideReloadButton()
     if reloadButton then
         reloadButton:Hide()
+    end
+end
+
+function GameMenu:ShowFavoriteToyButton()
+    -- Create the button if it doesn't exist
+    if not favoriteToyButton then
+        self:CreateFavoriteToyButton()
+    end
+    
+    -- Update the secure button with the current toy
+    self:UpdateFavoriteToyButton()
+    
+    -- Always enable the button so it's clickable - the secure action will handle usability
+    local toyId = self.parent:GetConfig("gameMenu", "favoriteToyId")
+    if toyId and PlayerHasToy(toyId) then
+        favoriteToyButton:Enable()
+        favoriteToyButton:SetAlpha(1.0)
+        
+        -- Update visual state based on usability, but keep button enabled
+        if not C_ToyBox.IsToyUsable(toyId) then
+            favoriteToyButton:SetAlpha(0.7) -- Slightly dimmed but still clearly clickable
+        end
+    else
+        favoriteToyButton:Enable() -- Still enable so user can click and get feedback
+        favoriteToyButton:SetAlpha(0.5)
+    end
+    
+    favoriteToyButton:Show()
+    self:PositionFavoriteToyButton()
+end
+
+function GameMenu:HideFavoriteToyButton()
+    if favoriteToyButton then
+        favoriteToyButton:Hide()
     end
 end
 
@@ -282,17 +330,25 @@ function GameMenu:CreateReloadButton()
     reloadButton:EnableMouse(true)
     reloadButton:SetMotionScriptsWhileDisabled(true)
     
-    -- Set the click handler
-    reloadButton:SetScript("OnClick", function()
-        self:OnReloadClick()
+    -- Set the click handler for both left and right click
+    reloadButton:SetScript("OnClick", function(self, button)
+        if button == "LeftButton" then
+            GameMenu:OnReloadClick()
+        elseif button == "RightButton" then
+            GameMenu:OnOpenSettings()
+        end
     end)
+    
+    -- Register for right-click
+    reloadButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     
     -- Add hover effects
     reloadButton:SetScript("OnEnter", function()
         if GameTooltip then
             GameTooltip:SetOwner(reloadButton, "ANCHOR_LEFT")
             GameTooltip:SetText("Reload UI", 1, 1, 1)
-            GameTooltip:AddLine("Reloads the user interface", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine("Left-click: Reload the user interface", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine("Right-click: Open ColdSnap settings", 0.8, 0.8, 0.8, true)
             GameTooltip:Show()
         end
         -- Play hover sound
@@ -315,6 +371,148 @@ function GameMenu:CreateReloadButton()
     end)
 end
 
+function GameMenu:CreateFavoriteToyButton()
+    -- Create a secure action button like OPie does - but with fallback support
+    favoriteToyButton = CreateFrame("Button", "ColdSnapFavoriteToyButton", GameMenuFrame, "SecureActionButtonTemplate")
+    
+    self.parent:Debug("Creating favorite toy button as SecureActionButtonTemplate")
+    
+    -- Create textures manually to match game menu buttons
+    local normalTexture = favoriteToyButton:CreateTexture(nil, "BACKGROUND")
+    normalTexture:SetTexture("Interface\\Buttons\\UI-Panel-Button-Up")
+    normalTexture:SetTexCoord(0, 0.625, 0, 0.6875)
+    normalTexture:SetAllPoints()
+    favoriteToyButton:SetNormalTexture(normalTexture)
+    
+    local pushedTexture = favoriteToyButton:CreateTexture(nil, "BACKGROUND")
+    pushedTexture:SetTexture("Interface\\Buttons\\UI-Panel-Button-Down")
+    pushedTexture:SetTexCoord(0, 0.625, 0, 0.6875)
+    pushedTexture:SetAllPoints()
+    favoriteToyButton:SetPushedTexture(pushedTexture)
+    
+    local highlightTexture = favoriteToyButton:CreateTexture(nil, "HIGHLIGHT")
+    highlightTexture:SetTexture("Interface\\Buttons\\UI-Panel-Button-Highlight")
+    highlightTexture:SetTexCoord(0, 0.625, 0, 0.6875)
+    highlightTexture:SetAllPoints()
+    highlightTexture:SetBlendMode("ADD")
+    favoriteToyButton:SetHighlightTexture(highlightTexture)
+    
+    -- Set button properties - same size as reload button
+    favoriteToyButton:SetSize(28, 28)
+    
+    -- Create the toy icon - using a fun toy icon
+    local iconTexture = favoriteToyButton:CreateTexture(nil, "OVERLAY")
+    iconTexture:SetTexture("Interface\\Icons\\INV_Misc_Toy_10") -- Toy Train Set icon
+    iconTexture:SetSize(20, 20)
+    iconTexture:SetPoint("CENTER")
+    iconTexture:SetTexCoord(0.1, 0.9, 0.1, 0.9) -- Crop the icon a bit
+    
+    -- If that toy icon doesn't exist, fallback to a different one
+    if not iconTexture:GetTexture() then
+        iconTexture:SetTexture("Interface\\Icons\\INV_Misc_Toy_02") -- Jack-in-the-Box
+        if not iconTexture:GetTexture() then
+            iconTexture:SetTexture("Interface\\Icons\\INV_Misc_Gift_02") -- Generic gift/toy icon
+        end
+    end
+    
+    -- Configure the secure button for macro usage (which can call /usetoy)
+    -- This is a more reliable approach than direct toy usage
+    favoriteToyButton:SetAttribute("type", "macro")
+    favoriteToyButton:RegisterForClicks("LeftButtonUp")
+    
+    -- Set up the toy to use when button is clicked - we'll update this when needed
+    self:UpdateFavoriteToyButton()
+    
+    -- Add hover effects (non-secure scripts are OK)
+    favoriteToyButton:SetScript("OnEnter", function()
+        local toyId = self.parent:GetConfig("gameMenu", "favoriteToyId")
+        if toyId and PlayerHasToy(toyId) then
+            local _, toyName = C_ToyBox.GetToyInfo(toyId)
+            if toyName then
+                GameTooltip:SetOwner(favoriteToyButton, "ANCHOR_RIGHT")
+                GameTooltip:SetText("Use " .. toyName, 1, 1, 1)
+                GameTooltip:AddLine("Click to use toy directly", 0.8, 0.8, 0.8)
+                GameTooltip:Show()
+            end
+        else
+            GameTooltip:SetOwner(favoriteToyButton, "ANCHOR_RIGHT")
+            GameTooltip:SetText("No favorite toy selected", 1, 0.82, 0)
+            GameTooltip:AddLine("Configure in Interface > AddOns > ColdSnap", 0.8, 0.8, 0.8)
+            GameTooltip:Show()
+        end
+        -- Play hover sound
+        if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
+            PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
+        end
+    end)
+    
+    favoriteToyButton:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    
+    -- Enable mouse clicks for secure actions
+    favoriteToyButton:EnableMouse(true)
+    favoriteToyButton:RegisterForClicks("AnyUp", "AnyDown")
+end
+
+function GameMenu:UpdateFavoriteToyButton()
+    if not favoriteToyButton then
+        return
+    end
+    
+    local toyId = self.parent:GetConfig("gameMenu", "favoriteToyId")
+    
+    if toyId and PlayerHasToy(toyId) then
+        -- Get toy info
+        local _, toyName, toyIcon = C_ToyBox.GetToyInfo(toyId)
+        
+        -- Set up a macro that uses the toy - this works with SecureActionButtonTemplate
+        local macroText = "/usetoy " .. (toyName or toyId) .. "\n/run HideUIPanel(GameMenuFrame)"
+        favoriteToyButton:SetAttribute("macrotext", macroText)
+        
+        -- Update the icon to match the actual toy
+        if toyIcon then
+            local iconTexture = favoriteToyButton:GetRegions()
+            -- Find the icon texture (it's the overlay texture we created)
+            for i = 1, select("#", favoriteToyButton:GetRegions()) do
+                local region = select(i, favoriteToyButton:GetRegions())
+                if region:GetObjectType() == "Texture" and region:GetDrawLayer() == "OVERLAY" then
+                    region:SetTexture(toyIcon)
+                    break
+                end
+            end
+        end
+        
+        self.parent:Debug("Updated secure toy button with macro for toyId: " .. toyId)
+    else
+        -- Clear the macro if none selected
+        favoriteToyButton:SetAttribute("macrotext", "")
+        self.parent:Debug("Cleared macro from secure button - no toy selected")
+    end
+end
+
+function GameMenu:PositionFavoriteToyButton()
+    if not favoriteToyButton then
+        self.parent:Debug("PositionFavoriteToyButton called but button doesn't exist")
+        return
+    end
+    
+    self.parent:Debug("Positioning favorite toy button")
+    
+    -- Clear any existing anchor points
+    favoriteToyButton:ClearAllPoints()
+    
+    -- Position at the top left corner of the GameMenuFrame with padding (opposite of reload button)
+    favoriteToyButton:SetPoint("TOPLEFT", GameMenuFrame, "TOPLEFT", 12, -12)
+    
+    -- Ensure the button is clickable and visible
+    favoriteToyButton:SetFrameLevel(GameMenuFrame:GetFrameLevel() + 2)
+    favoriteToyButton:EnableMouse(true)
+    favoriteToyButton:Show()
+    
+    self.parent:Debug("Favorite toy button positioned and shown")
+end
+
 function GameMenu:PositionReloadButton()
     if not reloadButton then
         return
@@ -335,6 +533,34 @@ end
 function GameMenu:OnReloadClick()
     -- Call ReloadUI directly - no need for timer delay
     ReloadUI()
+end
+
+function GameMenu:OnOpenSettings()
+    -- Hide the game menu first
+    HideUIPanel(GameMenuFrame)
+    
+    -- Small delay to ensure UI is hidden before opening settings
+    C_Timer.After(0.1, function()
+        -- Use the exact same logic as the /cs slash command
+        if Settings and Settings.OpenToCategory then
+            -- Modern Settings API (Retail)
+            if self.parent.modules.Config and self.parent.modules.Config.settingsCategory then
+                Settings.OpenToCategory(self.parent.modules.Config.settingsCategory.ID)
+            else
+                self.parent:Print("Settings panel not available. Please access ColdSnap settings through Interface > AddOns.")
+            end
+        elseif InterfaceOptionsFrame_OpenToCategory then
+            -- Legacy Interface Options (Classic)
+            if self.parent.modules.Config and self.parent.modules.Config.optionsPanel then
+                InterfaceOptionsFrame_OpenToCategory(self.parent.modules.Config.optionsPanel)
+                InterfaceOptionsFrame_OpenToCategory(self.parent.modules.Config.optionsPanel) -- Call twice for proper focus
+            else
+                self.parent:Print("Options panel not available. Please access ColdSnap settings through Interface > AddOns.")
+            end
+        else
+            self.parent:Print("Please access ColdSnap settings through Interface > AddOns.")
+        end
+    end)
 end
 
 function GameMenu:OnLeaveGroupClick()

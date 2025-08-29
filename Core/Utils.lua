@@ -3,6 +3,13 @@
 
 local ADDON_NAME, ColdSnap = ...
 
+-- Add trim function to string metatable
+if not string.trim then
+    function string.trim(s)
+        return s:match("^%s*(.-)%s*$")
+    end
+end
+
 -- Check if player is in any kind of group
 function ColdSnap:IsInGroup()
     -- First check if we're actually in a real group (party or raid)
