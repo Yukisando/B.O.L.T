@@ -27,28 +27,58 @@ function GameMenu:OnEnable()
 end
 
 function GameMenu:OnDisable()
-    -- Clean up any resources if needed
+    -- Clean up buttons when disabling
+    if leaveGroupButton then
+        leaveGroupButton:Hide()
+        leaveGroupButton = nil
+    end
+    if reloadButton then
+        reloadButton:Hide() 
+        reloadButton = nil
+    end
 end
 
 function GameMenu:HookGameMenu()
     -- Hook the GameMenuFrame show event
     if GameMenuFrame then
         GameMenuFrame:HookScript("OnShow", function()
-            -- Small delay to ensure the menu is fully loaded
-            C_Timer.After(0.05, function()
-                self:UpdateGameMenu()
-            end)
+            -- Check if we're in combat or a protected state before proceeding
+            if InCombatLockdown() then
+                -- Defer the update until after combat
+                local frame = CreateFrame("Frame")
+                frame:RegisterEvent("PLAYER_REGEN_ENABLED")
+                frame:SetScript("OnEvent", function(self)
+                    self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+                    GameMenu:UpdateGameMenu()
+                    self:SetScript("OnEvent", nil)
+                end)
+            else
+                -- Small delay to ensure the menu is fully loaded, but only if not in combat
+                C_Timer.After(0.05, function()
+                    if not InCombatLockdown() then
+                        self:UpdateGameMenu()
+                    end
+                end)
+            end
         end)
         
         GameMenuFrame:HookScript("OnHide", function()
-            self:HideLeaveGroupButton()
-            self:HideReloadButton()
+            -- Only hide buttons if not in combat
+            if not InCombatLockdown() then
+                self:HideLeaveGroupButton()
+                self:HideReloadButton()
+            end
         end)
     end
 end
 
 function GameMenu:UpdateGameMenu()
     if not self.parent:GetConfig("gameMenu", "enabled") then
+        return
+    end
+    
+    -- Don't update UI elements during combat
+    if InCombatLockdown() then
         return
     end
     
