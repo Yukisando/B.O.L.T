@@ -7,6 +7,10 @@ ColdSnap adds convenient features to make your WoW experience smoother without c
 ### Game Menu Enhancements
   - Leave Group Button: Adds a "Leave Group/Raid/Delve" button below the ESC menu when you're in any group
   - Reload UI Button: Small refresh button in the top-right corner of the ESC menu for quick UI reloads
+  - Auto Confirm Exit: Automatically skip the "Are you sure you want to exit game?" confirmation popup
+
+### Playground Module (Fun Features)
+  - Favorite Toy Button: Quick access to your favorite toy from the ESC menu
 
 ### Mythics Keystones
   - Auto ready-check when keystone is inserted as a leader

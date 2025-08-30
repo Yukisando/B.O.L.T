@@ -26,9 +26,19 @@ function Config:CreateInterfaceOptionsPanel()
         self:RefreshOptionsPanel()
     end)
     
-    -- For Interface Options, use a simpler approach without scroll frame initially
-    -- Most interface options panels don't actually need scrolling
-    local content = panel
+    -- Create a scroll frame for the content
+    local scrollFrame = CreateFrame("ScrollFrame", "ColdSnapScrollFrame", panel, "UIPanelScrollFrameTemplate")
+    scrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 4, -4)
+    scrollFrame:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -26, 4)
+    
+    -- Create the scroll child (the actual content container)
+    local content = CreateFrame("Frame", "ColdSnapScrollChild", scrollFrame)
+    content:SetSize(scrollFrame:GetWidth() - 20, 1) -- Width minus scrollbar space, height will be set dynamically
+    scrollFrame:SetScrollChild(content)
+    
+    -- Store references for later use
+    self.scrollFrame = scrollFrame
+    self.scrollChild = content
     
     -- Title
     local title = content:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
@@ -95,19 +105,58 @@ function Config:CreateInterfaceOptionsPanel()
     end)
     yOffset = yOffset - 30
     
+    -- Auto Confirm Exit
+    local autoExitCheckbox = CreateFrame("CheckButton", "ColdSnapAutoExitCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    autoExitCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
+    autoExitCheckbox.Text:SetText("Auto Confirm Exit Game")
+    autoExitCheckbox:SetScript("OnShow", function()
+        autoExitCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "autoConfirmExit"))
+    end)
+    autoExitCheckbox:SetScript("OnClick", function()
+        local enabled = autoExitCheckbox:GetChecked()
+        self.parent:SetConfig(enabled, "gameMenu", "autoConfirmExit")
+        self.parent:Print("Auto confirm exit " .. (enabled and "enabled" or "disabled") .. ". Exit confirmation will be " .. (enabled and "automatically confirmed" or "shown normally") .. ".")
+    end)
+    yOffset = yOffset - 30
+    
+    -- Playground Module Section
+    local playgroundHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    playgroundHeader:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset)
+    playgroundHeader:SetText("Playground Module (Fun Features)")
+    yOffset = yOffset - 30
+    
+    -- Enable/Disable Playground Module
+    local playgroundCheckbox = CreateFrame("CheckButton", "ColdSnapPlaygroundCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    playgroundCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
+    playgroundCheckbox.Text:SetText("Enable Playground Module")
+    playgroundCheckbox:SetScript("OnShow", function()
+        local enabled = self.parent:IsModuleEnabled("playground")
+        playgroundCheckbox:SetChecked(enabled)
+        -- Update child controls when shown
+        self:UpdatePlaygroundChildControls()
+    end)
+    playgroundCheckbox:SetScript("OnClick", function()
+        local enabled = playgroundCheckbox:GetChecked()
+        self.parent:SetConfig(enabled, "playground", "enabled")
+        self.parent:Print("Playground module " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
+        -- Update child controls when toggled
+        self:UpdatePlaygroundChildControls()
+    end)
+    yOffset = yOffset - 30
+    
     -- Show Favorite Toy Button
     local favoriteToyCheckbox = CreateFrame("CheckButton", "ColdSnapFavoriteToyCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
     favoriteToyCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     favoriteToyCheckbox.Text:SetText("Show Favorite Toy Button")
     favoriteToyCheckbox:SetScript("OnShow", function()
-        favoriteToyCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showFavoriteToy"))
+        favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground", "showFavoriteToy"))
     end)
     favoriteToyCheckbox:SetScript("OnClick", function()
         local enabled = favoriteToyCheckbox:GetChecked()
-        self.parent:SetConfig(enabled, "gameMenu", "showFavoriteToy")
+        self.parent:SetConfig(enabled, "playground", "showFavoriteToy")
         self.parent:Print("Favorite Toy button " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
         -- Update child controls when toggled
-        self:UpdateGameMenuChildControls()
+        self:UpdatePlaygroundChildControls()
     end)
     yOffset = yOffset - 30
     
@@ -161,6 +210,15 @@ function Config:CreateInterfaceOptionsPanel()
     versionText:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
     versionText:SetText("ColdSnap v" .. self.parent.version)
     versionText:SetTextColor(0.5, 0.5, 0.5)
+    yOffset = yOffset - 30
+    
+    -- Set the scroll child height based on total content height
+    content:SetHeight(math.abs(yOffset) + 100) -- Add some padding at the bottom
+    
+    -- Update content width when scroll frame size changes
+    scrollFrame:SetScript("OnSizeChanged", function(frame, width, height)
+        content:SetWidth(width - 20) -- Account for scrollbar
+    end)
     
     -- Register with Settings (modern) or InterfaceOptions (legacy)
     if Settings and Settings.RegisterCanvasLayoutCategory then
@@ -194,9 +252,20 @@ function Config:RefreshOptionsPanel()
             reloadCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showReloadButton"))
         end
         
+        local autoExitCheckbox = _G["ColdSnapAutoExitCheckbox"]
+        if autoExitCheckbox then
+            autoExitCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "autoConfirmExit"))
+        end
+        
+        local playgroundCheckbox = _G["ColdSnapPlaygroundCheckbox"]
+        if playgroundCheckbox then
+            local enabled = self.parent:IsModuleEnabled("playground")
+            playgroundCheckbox:SetChecked(enabled)
+        end
+        
         local favoriteToyCheckbox = _G["ColdSnapFavoriteToyCheckbox"]
         if favoriteToyCheckbox then
-            favoriteToyCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showFavoriteToy"))
+            favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground", "showFavoriteToy"))
         end
         
         -- Update toy selection frame
@@ -207,6 +276,7 @@ function Config:RefreshOptionsPanel()
         
         -- Update child control states
         self:UpdateGameMenuChildControls()
+        self:UpdatePlaygroundChildControls()
     end)
 end
 
@@ -217,8 +287,7 @@ function Config:UpdateGameMenuChildControls()
     -- Get references to child controls
     local leaveGroupCheckbox = _G["ColdSnapLeaveGroupCheckbox"]
     local reloadCheckbox = _G["ColdSnapReloadCheckbox"]
-    local favoriteToyCheckbox = _G["ColdSnapFavoriteToyCheckbox"]
-    local toyFrame = _G["ColdSnapToySelectionFrame"]
+    local autoExitCheckbox = _G["ColdSnapAutoExitCheckbox"]
     
     -- Enable/disable child controls based on parent module
     if leaveGroupCheckbox then
@@ -231,13 +300,28 @@ function Config:UpdateGameMenuChildControls()
         reloadCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
     end
     
+    if autoExitCheckbox then
+        autoExitCheckbox:SetEnabled(gameMenuEnabled)
+        autoExitCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
+    end
+end
+
+-- Update child control states for Playground module
+function Config:UpdatePlaygroundChildControls()
+    local playgroundEnabled = self.parent:IsModuleEnabled("playground")
+    
+    -- Get references to child controls
+    local favoriteToyCheckbox = _G["ColdSnapFavoriteToyCheckbox"]
+    local toyFrame = _G["ColdSnapToySelectionFrame"]
+    
+    -- Enable/disable child controls based on parent module
     if favoriteToyCheckbox then
-        favoriteToyCheckbox:SetEnabled(gameMenuEnabled)
-        favoriteToyCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
+        favoriteToyCheckbox:SetEnabled(playgroundEnabled)
+        favoriteToyCheckbox:SetAlpha(playgroundEnabled and 1.0 or 0.5)
     end
     
     if toyFrame then
-        local favoriteToyEnabled = gameMenuEnabled and self.parent:GetConfig("gameMenu", "showFavoriteToy")
+        local favoriteToyEnabled = playgroundEnabled and self.parent:GetConfig("playground", "showFavoriteToy")
         toyFrame:SetAlpha(favoriteToyEnabled and 1.0 or 0.5)
         
         -- Enable/disable interaction with toy frame components
@@ -320,10 +404,10 @@ function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
     
     currentToy:SetScript("OnClick", function()
         -- Clear selection
-        self.parent:SetConfig(nil, "gameMenu", "favoriteToyId")
+        self.parent:SetConfig(nil, "playground", "favoriteToyId")
         self:UpdateToySelection()
-        if self.parent.modules.GameMenu and self.parent.modules.GameMenu.UpdateFavoriteToyButton then
-            self.parent.modules.GameMenu:UpdateFavoriteToyButton()
+        if self.parent.modules.playground and self.parent.modules.playground.UpdateFavoriteToyButton then
+            self.parent.modules.playground:UpdateFavoriteToyButton()
         end
     end)
     
@@ -438,11 +522,11 @@ function Config:FilterToyList()
         button.text:SetText(toy.name)
         
         button:SetScript("OnClick", function()
-            self.parent:SetConfig(toy.id, "gameMenu", "favoriteToyId")
+            self.parent:SetConfig(toy.id, "playground", "favoriteToyId")
             self.parent:Print("Favorite toy set to: " .. toy.name)
             self:UpdateToySelection()
-            if self.parent.modules.GameMenu and self.parent.modules.GameMenu.UpdateFavoriteToyButton then
-                self.parent.modules.GameMenu:UpdateFavoriteToyButton()
+            if self.parent.modules.playground and self.parent.modules.playground.UpdateFavoriteToyButton then
+                self.parent.modules.playground:UpdateFavoriteToyButton()
             end
         end)
         
@@ -464,7 +548,7 @@ end
 function Config:UpdateToySelection()
     if not self.currentToyButton then return end
     
-    local currentToyId = self.parent:GetConfig("gameMenu", "favoriteToyId")
+    local currentToyId = self.parent:GetConfig("playground", "favoriteToyId")
     if currentToyId then
         local _, toyName, toyIcon = C_ToyBox.GetToyInfo(currentToyId)
         if toyName then
@@ -480,4 +564,4 @@ function Config:UpdateToySelection()
 end
 
 -- Register the module
-ColdSnap:RegisterModule("Config", Config)
+ColdSnap:RegisterModule("config", Config)

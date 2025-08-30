@@ -1,5 +1,21 @@
 # ColdSnap Changelog
 
+## [1.0.7] - 2025-08-30
+### Added
+- **Playground Module**: New module for fun features with limited practical use
+- **Auto Confirm Exit**: Automatically skip the "Are you sure you want to exit game?" confirmation popup
+
+### Changed
+- Moved favorite toy feature from Game Menu module to new Playground module
+- Reorganized configuration UI with separate sections for Game Menu and Playground modules
+- Updated module structure for better organization of practical vs fun features
+
+### Features
+- **Game Menu Enhancements**: Leave Group button, Reload UI button, Auto Exit confirmation
+- **Playground Module**: Favorite toy button and other fun features
+- **Auto Exit Confirmation**: Skip exit confirmation dialog when enabled
+- **Modular Configuration**: Separate toggles for practical and fun features
+
 ## [1.0.0] - 2025-08-26
 ### Added
 - Leave Group/Raid/Delve button in ESC menu

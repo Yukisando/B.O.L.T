@@ -6,7 +6,7 @@ local ADDON_NAME, ColdSnap = ...
 -- Create the main addon object
 ColdSnap = ColdSnap or {}
 ColdSnap.name = ADDON_NAME
-ColdSnap.version = "1.0.6"
+ColdSnap.version = "1.1.0"
 ColdSnap.modules = {}
 
 -- Default configuration
@@ -17,6 +17,10 @@ ColdSnap.defaults = {
             enabled = true,
             showLeaveGroup = true,
             showReloadButton = true,
+            autoConfirmExit = false,
+        },
+        playground = {
+            enabled = true,
             showFavoriteToy = true,
             favoriteToyId = nil,
         }
