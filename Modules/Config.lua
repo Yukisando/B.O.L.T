@@ -119,6 +119,13 @@ function Config:CreateInterfaceOptionsPanel()
     end)
     yOffset = yOffset - 30
     
+    -- Add separator line after Game Menu module
+    local gameMenuSeparator = content:CreateTexture(nil, "ARTWORK")
+    gameMenuSeparator:SetTexture("Interface\\Common\\UI-TooltipDivider-Transparent")
+    gameMenuSeparator:SetSize(400, 8)
+    gameMenuSeparator:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset - 10)
+    yOffset = yOffset - 30
+    
     -- Playground Module Section
     local playgroundHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     playgroundHeader:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset)
@@ -160,8 +167,8 @@ function Config:CreateInterfaceOptionsPanel()
     end)
     yOffset = yOffset - 30
     
-    -- Favorite Toy Selection
-    local toyLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    -- Favorite Toy Selection (only show if feature is enabled)
+    local toyLabel = content:CreateFontString("ColdSnapToyLabel", "OVERLAY", "GameFontNormal")
     toyLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     toyLabel:SetText("Favorite Toy:")
     yOffset = yOffset - 25
@@ -169,20 +176,14 @@ function Config:CreateInterfaceOptionsPanel()
     -- Create a custom toy selection frame with search
     self:CreateToySelectionFrame(content, 50, yOffset)
     yOffset = yOffset - 200  -- Reserve space for the larger toy selection frame
+    
+    -- Add separator line after Playground module
+    local playgroundSeparator = content:CreateTexture(nil, "ARTWORK")
+    playgroundSeparator:SetTexture("Interface\\Common\\UI-TooltipDivider-Transparent")
+    playgroundSeparator:SetSize(400, 8)
+    playgroundSeparator:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset - 10)
+    yOffset = yOffset - 30
        
-    -- Future modules section
-    local futureHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    futureHeader:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset)
-    futureHeader:SetText("Future Modules")
-    futureHeader:SetTextColor(0.6, 0.6, 0.6)
-    yOffset = yOffset - 25
-    
-    local futureText = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    futureText:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
-    futureText:SetText("More quality of life modules will be added here...")
-    futureText:SetTextColor(0.6, 0.6, 0.6)
-    yOffset = yOffset - 60
-    
     -- Console commands section
     local commandsHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     commandsHeader:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset)
@@ -313,6 +314,7 @@ function Config:UpdatePlaygroundChildControls()
     -- Get references to child controls
     local favoriteToyCheckbox = _G["ColdSnapFavoriteToyCheckbox"]
     local toyFrame = _G["ColdSnapToySelectionFrame"]
+    local toyLabel = _G["ColdSnapToyLabel"]
     
     -- Enable/disable child controls based on parent module
     if favoriteToyCheckbox then
@@ -320,9 +322,23 @@ function Config:UpdatePlaygroundChildControls()
         favoriteToyCheckbox:SetAlpha(playgroundEnabled and 1.0 or 0.5)
     end
     
+    -- Show/hide toy selection based on both module and feature being enabled
+    local favoriteToyEnabled = playgroundEnabled and self.parent:GetConfig("playground", "showFavoriteToy")
+    
+    if toyLabel then
+        if favoriteToyEnabled then
+            toyLabel:Show()
+        else
+            toyLabel:Hide()
+        end
+    end
+    
     if toyFrame then
-        local favoriteToyEnabled = playgroundEnabled and self.parent:GetConfig("playground", "showFavoriteToy")
-        toyFrame:SetAlpha(favoriteToyEnabled and 1.0 or 0.5)
+        if favoriteToyEnabled then
+            toyFrame:Show()
+        else
+            toyFrame:Hide()
+        end
         
         -- Enable/disable interaction with toy frame components
         if self.searchBox then
