@@ -3,10 +3,12 @@
 
 local ADDON_NAME, ColdSnap = ...
 
--- Add trim function to string metatable
-if not string.trim then
-    function string.trim(s)
-        return s:match("^%s*(.-)%s*$")
+-- Safe wrapper for LeaveParty API
+local function SafeLeaveParty()
+    -- LeaveParty is a valid WoW API function, access it safely
+    local leavePartyFunc = _G["LeaveParty"]
+    if type(leavePartyFunc) == "function" then
+        leavePartyFunc()
     end
 end
 
@@ -108,7 +110,7 @@ function ColdSnap:LeaveGroup()
             if C_PartyInfo and C_PartyInfo.LeaveParty then
                 C_PartyInfo.LeaveParty()
             else
-                LeaveParty()
+                SafeLeaveParty()
             end
             self:Print("Left delve group.")
         end
@@ -131,7 +133,7 @@ function ColdSnap:LeaveGroup()
             if C_PartyInfo and C_PartyInfo.LeaveParty then
                 C_PartyInfo.LeaveParty()
             else
-                LeaveParty()
+                SafeLeaveParty()
             end
             return
         end
@@ -145,7 +147,7 @@ function ColdSnap:LeaveGroup()
         if C_PartyInfo and C_PartyInfo.LeaveParty then
             C_PartyInfo.LeaveParty()
         else
-            LeaveParty()
+            SafeLeaveParty()
         end
         return
     end
@@ -174,7 +176,7 @@ function ColdSnap:LeaveGroup()
                 if C_PartyInfo and C_PartyInfo.LeaveParty then
                     C_PartyInfo.LeaveParty()
                 else
-                    LeaveParty()
+                    SafeLeaveParty()
                 end
                 ColdSnap:Print("Left " .. (groupType or "group") .. ".")
             end)
@@ -183,7 +185,7 @@ function ColdSnap:LeaveGroup()
             if C_PartyInfo and C_PartyInfo.LeaveParty then
                 C_PartyInfo.LeaveParty()
             else
-                LeaveParty()
+                SafeLeaveParty()
             end
             self:Print("Left " .. (groupType or "group") .. ".")
         end
@@ -192,7 +194,7 @@ function ColdSnap:LeaveGroup()
         if C_PartyInfo and C_PartyInfo.LeaveParty then
             C_PartyInfo.LeaveParty()
         else
-            LeaveParty()
+            SafeLeaveParty()
         end
         self:Print("Left " .. (groupType or "group") .. ".")
     end

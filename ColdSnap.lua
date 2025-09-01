@@ -26,14 +26,6 @@ SlashCmdList["COLDSNAP"] = function(msg)
             else
                 ColdSnap:Print("Settings panel not available. Please access ColdSnap settings through Interface > AddOns.")
             end
-        elseif InterfaceOptionsFrame_OpenToCategory then
-            -- Legacy Interface Options (Classic)
-            if ColdSnap.modules.config and ColdSnap.modules.config.optionsPanel then
-                InterfaceOptionsFrame_OpenToCategory(ColdSnap.modules.config.optionsPanel)
-                InterfaceOptionsFrame_OpenToCategory(ColdSnap.modules.config.optionsPanel) -- Call twice for proper focus
-            else
-                ColdSnap:Print("Options panel not available. Please access ColdSnap settings through Interface > AddOns.")
-            end
         else
             ColdSnap:Print("Please access ColdSnap settings through Interface > AddOns.")
         end
@@ -60,6 +52,8 @@ SlashCmdList["COLDSNAP"] = function(msg)
             moduleName = "gameMenu"
         elseif moduleName == "toy" or moduleName == "toys" or moduleName == "fun" then
             moduleName = "playground"
+        elseif moduleName == "mythic" or moduleName == "mythicplus" or moduleName == "m+" or moduleName == "keystone" then
+            moduleName = "mythicPlus"
         end
         
         -- Special handling for debug toggle
@@ -94,14 +88,6 @@ SlashCmdList["COLDSNAP"] = function(msg)
                 Settings.OpenToCategory(ColdSnap.modules.config.settingsCategory.ID)
             else
                 ColdSnap:Print("Settings panel not available. Please access ColdSnap settings through Interface > AddOns.")
-            end
-        elseif InterfaceOptionsFrame_OpenToCategory then
-            -- Legacy Interface Options (Classic)
-            if ColdSnap.modules.config and ColdSnap.modules.config.optionsPanel then
-                InterfaceOptionsFrame_OpenToCategory(ColdSnap.modules.config.optionsPanel)
-                InterfaceOptionsFrame_OpenToCategory(ColdSnap.modules.config.optionsPanel) -- Call twice for proper focus
-            else
-                ColdSnap:Print("Options panel not available. Please access ColdSnap settings through Interface > AddOns.")
             end
         else
             ColdSnap:Print("Please access ColdSnap settings through Interface > AddOns.")

@@ -1,5 +1,25 @@
 # ColdSnap Changelog
 
+## [1.2.0] - 2025-09-01
+### Added
+- **Mythic Plus Module**: New module with keystone window enhancements
+- **Ready Check & Countdown Buttons**: Two small buttons on the keystone window for easy ready checks and pull countdowns
+- **Smart Positioning**: Buttons appear at the top left of the keystone socket window with game-consistent styling
+
+### Removed
+- **Auto Confirm Exit**: Removed this feature as it may not work reliably with WoW's protected popup system and could interfere with other addons
+
+### Changed
+- Cleaned up Game Menu module by removing auto-confirm exit functionality
+- Updated configuration UI to remove auto-confirm exit option
+- Enhanced slash commands to support mythic+/keystone module toggle
+
+### Features
+- **Game Menu Enhancements**: Leave Group button, Reload UI button
+- **Playground Module**: Favorite toy button and other fun features
+- **Mythic Plus Module**: Ready check and countdown buttons on keystone window
+- **Modular Configuration**: Separate toggles for all feature categories
+
 ## [1.0.7] - 2025-08-30
 ### Added
 - **Playground Module**: New module for fun features with limited practical use

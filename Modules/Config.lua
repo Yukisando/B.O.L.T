@@ -105,20 +105,6 @@ function Config:CreateInterfaceOptionsPanel()
     end)
     yOffset = yOffset - 30
     
-    -- Auto Confirm Exit
-    local autoExitCheckbox = CreateFrame("CheckButton", "ColdSnapAutoExitCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
-    autoExitCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
-    autoExitCheckbox.Text:SetText("Auto Confirm Exit Game")
-    autoExitCheckbox:SetScript("OnShow", function()
-        autoExitCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "autoConfirmExit"))
-    end)
-    autoExitCheckbox:SetScript("OnClick", function()
-        local enabled = autoExitCheckbox:GetChecked()
-        self.parent:SetConfig(enabled, "gameMenu", "autoConfirmExit")
-        self.parent:Print("Auto confirm exit " .. (enabled and "enabled" or "disabled") .. ". Exit confirmation will be " .. (enabled and "automatically confirmed" or "shown normally") .. ".")
-    end)
-    yOffset = yOffset - 30
-    
     -- Add separator line after Game Menu module
     local gameMenuSeparator = content:CreateTexture(nil, "ARTWORK")
     gameMenuSeparator:SetTexture("Interface\\Common\\UI-TooltipDivider-Transparent")
@@ -183,6 +169,52 @@ function Config:CreateInterfaceOptionsPanel()
     playgroundSeparator:SetSize(400, 8)
     playgroundSeparator:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset - 10)
     yOffset = yOffset - 30
+    
+    -- Mythic Plus Module Section
+    local mythicPlusHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    mythicPlusHeader:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset)
+    mythicPlusHeader:SetText("Mythic+ Enhancements")
+    yOffset = yOffset - 30
+    
+    -- Enable/Disable Mythic Plus Module
+    local mythicPlusCheckbox = CreateFrame("CheckButton", "ColdSnapMythicPlusCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    mythicPlusCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
+    mythicPlusCheckbox.Text:SetText("Enable Mythic+ Module")
+    mythicPlusCheckbox:SetScript("OnShow", function()
+        local enabled = self.parent:IsModuleEnabled("mythicPlus")
+        mythicPlusCheckbox:SetChecked(enabled)
+        -- Update child controls when shown
+        self:UpdateMythicPlusChildControls()
+    end)
+    mythicPlusCheckbox:SetScript("OnClick", function()
+        local enabled = mythicPlusCheckbox:GetChecked()
+        self.parent:SetConfig(enabled, "mythicPlus", "enabled")
+        self.parent:Print("Mythic+ module " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
+        -- Update child controls when toggled
+        self:UpdateMythicPlusChildControls()
+    end)
+    yOffset = yOffset - 30
+    
+    -- Show Keystone Buttons
+    local keystoneButtonsCheckbox = CreateFrame("CheckButton", "ColdSnapKeystoneButtonsCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    keystoneButtonsCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
+    keystoneButtonsCheckbox.Text:SetText("Show Ready Check & Countdown Buttons")
+    keystoneButtonsCheckbox:SetScript("OnShow", function()
+        keystoneButtonsCheckbox:SetChecked(self.parent:GetConfig("mythicPlus", "showKeystoneButtons"))
+    end)
+    keystoneButtonsCheckbox:SetScript("OnClick", function()
+        local enabled = keystoneButtonsCheckbox:GetChecked()
+        self.parent:SetConfig(enabled, "mythicPlus", "showKeystoneButtons")
+        self.parent:Print("Keystone buttons " .. (enabled and "enabled" or "disabled") .. ". Buttons will appear when opening the keystone window.")
+    end)
+    yOffset = yOffset - 30
+    
+    -- Add separator line after Mythic Plus module
+    local mythicPlusSeparator = content:CreateTexture(nil, "ARTWORK")
+    mythicPlusSeparator:SetTexture("Interface\\Common\\UI-TooltipDivider-Transparent")
+    mythicPlusSeparator:SetSize(400, 8)
+    mythicPlusSeparator:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset - 10)
+    yOffset = yOffset - 30
        
     -- Console commands section
     local commandsHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -221,13 +253,11 @@ function Config:CreateInterfaceOptionsPanel()
         content:SetWidth(width - 20) -- Account for scrollbar
     end)
     
-    -- Register with Settings (modern) or InterfaceOptions (legacy)
+    -- Register with Settings (modern)
     if Settings and Settings.RegisterCanvasLayoutCategory then
         local category = Settings.RegisterCanvasLayoutCategory(panel, "ColdSnap")
         self.settingsCategory = category
         Settings.RegisterAddOnCategory(category)
-    elseif InterfaceOptions_AddCategory then
-        InterfaceOptions_AddCategory(panel)
     end
     
     self.optionsPanel = panel
@@ -253,11 +283,6 @@ function Config:RefreshOptionsPanel()
             reloadCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showReloadButton"))
         end
         
-        local autoExitCheckbox = _G["ColdSnapAutoExitCheckbox"]
-        if autoExitCheckbox then
-            autoExitCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "autoConfirmExit"))
-        end
-        
         local playgroundCheckbox = _G["ColdSnapPlaygroundCheckbox"]
         if playgroundCheckbox then
             local enabled = self.parent:IsModuleEnabled("playground")
@@ -269,6 +294,17 @@ function Config:RefreshOptionsPanel()
             favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground", "showFavoriteToy"))
         end
         
+        local mythicPlusCheckbox = _G["ColdSnapMythicPlusCheckbox"]
+        if mythicPlusCheckbox then
+            local enabled = self.parent:IsModuleEnabled("mythicPlus")
+            mythicPlusCheckbox:SetChecked(enabled)
+        end
+        
+        local keystoneButtonsCheckbox = _G["ColdSnapKeystoneButtonsCheckbox"]
+        if keystoneButtonsCheckbox then
+            keystoneButtonsCheckbox:SetChecked(self.parent:GetConfig("mythicPlus", "showKeystoneButtons"))
+        end
+        
         -- Update toy selection frame
         if self.allToys then
             self:PopulateToyList()
@@ -278,6 +314,7 @@ function Config:RefreshOptionsPanel()
         -- Update child control states
         self:UpdateGameMenuChildControls()
         self:UpdatePlaygroundChildControls()
+        self:UpdateMythicPlusChildControls()
     end)
 end
 
@@ -288,7 +325,6 @@ function Config:UpdateGameMenuChildControls()
     -- Get references to child controls
     local leaveGroupCheckbox = _G["ColdSnapLeaveGroupCheckbox"]
     local reloadCheckbox = _G["ColdSnapReloadCheckbox"]
-    local autoExitCheckbox = _G["ColdSnapAutoExitCheckbox"]
     
     -- Enable/disable child controls based on parent module
     if leaveGroupCheckbox then
@@ -299,11 +335,6 @@ function Config:UpdateGameMenuChildControls()
     if reloadCheckbox then
         reloadCheckbox:SetEnabled(gameMenuEnabled)
         reloadCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
-    end
-    
-    if autoExitCheckbox then
-        autoExitCheckbox:SetEnabled(gameMenuEnabled)
-        autoExitCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
     end
 end
 
@@ -577,6 +608,20 @@ function Config:UpdateToySelection()
     -- No toy selected or invalid toy
     self.currentToyIcon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
     self.currentToyText:SetText("None selected (click to clear)")
+end
+
+-- Update child control states for Mythic Plus module
+function Config:UpdateMythicPlusChildControls()
+    local mythicPlusEnabled = self.parent:IsModuleEnabled("mythicPlus")
+    
+    -- Get references to child controls
+    local keystoneButtonsCheckbox = _G["ColdSnapKeystoneButtonsCheckbox"]
+    
+    -- Enable/disable child controls based on parent module
+    if keystoneButtonsCheckbox then
+        keystoneButtonsCheckbox:SetEnabled(mythicPlusEnabled)
+        keystoneButtonsCheckbox:SetAlpha(mythicPlusEnabled and 1.0 or 0.5)
+    end
 end
 
 -- Register the module
