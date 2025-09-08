@@ -206,8 +206,19 @@ function Skyriding:EnterSkyridingMode()
     -- Apply skyriding bindings
     self:ApplySkyridingBindings()
     
-    if self.parent:GetConfig("skyriding", "showMessage") then
-        self.parent:Print("Skyriding mode: Strafe keys now control horizontal movement")
+    if self.parent:GetConfig("debug") then
+        local pitchEnabled = self.parent:GetConfig("skyriding", "enablePitchControl")
+        local invertPitch = self.parent:GetConfig("skyriding", "invertPitch")
+        
+        if pitchEnabled then
+            if invertPitch then
+                self.parent:Print("Skyriding mode: A/D=horizontal, W=dive, S=climb")
+            else
+                self.parent:Print("Skyriding mode: A/D=horizontal, W=climb, S=dive")
+            end
+        else
+            self.parent:Print("Skyriding mode: A/D=horizontal movement only")
+        end
     end
 end
 
@@ -223,8 +234,8 @@ function Skyriding:ExitSkyridingMode()
     -- Restore original bindings
     self:RestoreOriginalBindings()
     
-    if self.parent:GetConfig("skyriding", "showMessage") then
-        self.parent:Print("Skyriding mode disabled: Strafe keys restored")
+    if self.parent:GetConfig("debug") then
+        self.parent:Print("Skyriding mode disabled: All movement keys restored to normal")
     end
 end
 
@@ -246,6 +257,34 @@ function Skyriding:StoreOriginalBindings()
         self.parent:Debug("Stored original strafe right binding: " .. strafeRightBinding)
     end
     
+    -- Store forward/backward bindings for pitch control if enabled
+    if self.parent:GetConfig("skyriding", "enablePitchControl") then
+        local forwardBinding = GetBindingKey("MOVEFORWARD")
+        local backwardBinding = GetBindingKey("MOVEBACKWARD")
+        
+        if forwardBinding then
+            originalBindings["MOVEFORWARD"] = forwardBinding
+            self.parent:Debug("Stored original forward binding: " .. forwardBinding)
+        end
+        
+        if backwardBinding then
+            originalBindings["MOVEBACKWARD"] = backwardBinding
+            self.parent:Debug("Stored original backward binding: " .. backwardBinding)
+        end
+        
+        -- Store pitch up/down bindings
+        local pitchUpBinding = GetBindingKey("PITCHUP")
+        local pitchDownBinding = GetBindingKey("PITCHDOWN")
+        
+        if pitchUpBinding then
+            originalBindings["PITCHUP"] = pitchUpBinding
+        end
+        
+        if pitchDownBinding then
+            originalBindings["PITCHDOWN"] = pitchDownBinding
+        end
+    end
+    
     -- Also store turn bindings in case user wants to swap those too
     local turnLeftBinding = GetBindingKey("TURNLEFT") 
     local turnRightBinding = GetBindingKey("TURNRIGHT")
@@ -261,11 +300,13 @@ end
 
 function Skyriding:ApplySkyridingBindings()
     -- The core concept: Map strafe keys to turn keys for horizontal movement in skyriding
-    -- In skyriding, "turning" provides the horizontal movement we want
+    -- Optionally map forward/backward keys to pitch up/down for vertical movement
+    -- This gives full 3D movement control while skyriding
     
     local strafeLeftKey = originalBindings["STRAFELEFT"]
     local strafeRightKey = originalBindings["STRAFERIGHT"]
     
+    -- Apply horizontal movement bindings (strafe -> turn)
     if strafeLeftKey then
         -- Bind the strafe left key to turn left action for horizontal movement
         SetBinding(strafeLeftKey, "TURNLEFT")
@@ -278,37 +319,119 @@ function Skyriding:ApplySkyridingBindings()
         self.parent:Debug("Bound " .. strafeRightKey .. " to TURNRIGHT for horizontal movement")
     end
     
+    -- Apply vertical movement bindings if pitch control is enabled
+    if self.parent:GetConfig("skyriding", "enablePitchControl") then
+        local forwardKey = originalBindings["MOVEFORWARD"]
+        local backwardKey = originalBindings["MOVEBACKWARD"]
+        local invertPitch = self.parent:GetConfig("skyriding", "invertPitch")
+        
+        if forwardKey then
+            if invertPitch then
+                -- Inverted: Forward key becomes pitch down for diving
+                SetBinding(forwardKey, "PITCHDOWN")
+                self.parent:Debug("Bound " .. forwardKey .. " to PITCHDOWN for diving (inverted)")
+            else
+                -- Normal: Forward key becomes pitch up for climbing
+                SetBinding(forwardKey, "PITCHUP")
+                self.parent:Debug("Bound " .. forwardKey .. " to PITCHUP for climbing")
+            end
+        end
+        
+        if backwardKey then
+            if invertPitch then
+                -- Inverted: Backward key becomes pitch up for climbing
+                SetBinding(backwardKey, "PITCHUP")
+                self.parent:Debug("Bound " .. backwardKey .. " to PITCHUP for climbing (inverted)")
+            else
+                -- Normal: Backward key becomes pitch down for diving
+                SetBinding(backwardKey, "PITCHDOWN")
+                self.parent:Debug("Bound " .. backwardKey .. " to PITCHDOWN for diving")
+            end
+        end
+    end
+    
     -- Save the new bindings
     SaveBindings(GetCurrentBindingSet())
 end
 
 function Skyriding:RestoreOriginalBindings()
-    -- Restore the original strafe bindings
+    -- Don't restore if we don't have stored bindings
+    if not originalBindings or not next(originalBindings) then
+        self.parent:Debug("No stored bindings to restore")
+        return
+    end
     
+    -- Restore the original strafe bindings
     local strafeLeftKey = originalBindings["STRAFELEFT"]
     local strafeRightKey = originalBindings["STRAFERIGHT"]
     
+    -- Clear all current bindings for these keys first to prevent conflicts
     if strafeLeftKey then
-        -- Clear the key first
         SetBinding(strafeLeftKey)
-        -- Restore original binding
-        SetBinding(strafeLeftKey, "STRAFELEFT")
-        self.parent:Debug("Restored " .. strafeLeftKey .. " to STRAFELEFT")
+        self.parent:Debug("Cleared binding for " .. strafeLeftKey)
     end
     
     if strafeRightKey then
-        -- Clear the key first  
         SetBinding(strafeRightKey)
-        -- Restore original binding
-        SetBinding(strafeRightKey, "STRAFERIGHT")
-        self.parent:Debug("Restored " .. strafeRightKey .. " to STRAFERIGHT")
+        self.parent:Debug("Cleared binding for " .. strafeRightKey)
     end
     
-    -- Save the restored bindings
+    -- If pitch control was enabled, also restore forward/backward bindings
+    if self.parent:GetConfig("skyriding", "enablePitchControl") then
+        local forwardKey = originalBindings["MOVEFORWARD"]
+        local backwardKey = originalBindings["MOVEBACKWARD"]
+        
+        if forwardKey then
+            SetBinding(forwardKey)
+            self.parent:Debug("Cleared binding for " .. forwardKey)
+        end
+        
+        if backwardKey then
+            SetBinding(backwardKey)
+            self.parent:Debug("Cleared binding for " .. backwardKey)
+        end
+    end
+    
+    -- Force save bindings to clear state
     SaveBindings(GetCurrentBindingSet())
     
-    -- Clear stored bindings
-    originalBindings = {}
+    -- Small delay to ensure key states are properly cleared
+    C_Timer.After(0.1, function()
+        -- Now restore original bindings
+        if strafeLeftKey then
+            SetBinding(strafeLeftKey, "STRAFELEFT")
+            self.parent:Debug("Restored " .. strafeLeftKey .. " to STRAFELEFT")
+        end
+        
+        if strafeRightKey then
+            SetBinding(strafeRightKey, "STRAFERIGHT")
+            self.parent:Debug("Restored " .. strafeRightKey .. " to STRAFERIGHT")
+        end
+        
+        -- Restore pitch control bindings if they were enabled
+        if self.parent:GetConfig("skyriding", "enablePitchControl") then
+            local forwardKey = originalBindings["MOVEFORWARD"]
+            local backwardKey = originalBindings["MOVEBACKWARD"]
+            
+            if forwardKey then
+                SetBinding(forwardKey, "MOVEFORWARD")
+                self.parent:Debug("Restored " .. forwardKey .. " to MOVEFORWARD")
+            end
+            
+            if backwardKey then
+                SetBinding(backwardKey, "MOVEBACKWARD")
+                self.parent:Debug("Restored " .. backwardKey .. " to MOVEBACKWARD")
+            end
+        end
+        
+        -- Save the restored bindings
+        SaveBindings(GetCurrentBindingSet())
+        
+        -- Clear stored bindings
+        originalBindings = {}
+        
+        self.parent:Debug("Key binding restoration complete")
+    end)
 end
 
 -- Register the module

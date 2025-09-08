@@ -209,11 +209,41 @@ function Config:CreateInterfaceOptionsPanel()
     end)
     yOffset = yOffset - 30
     
+    -- Enable Pitch Control Checkbox
+    local pitchControlCheckbox = CreateFrame("CheckButton", "ColdSnapPitchControlCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    pitchControlCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
+    pitchControlCheckbox.Text:SetText("Enable pitch control (W/S for up/down movement)")
+    pitchControlCheckbox:SetScript("OnShow", function()
+        pitchControlCheckbox:SetChecked(self.parent:GetConfig("skyriding", "enablePitchControl"))
+    end)
+    pitchControlCheckbox:SetScript("OnClick", function()
+        local enabled = pitchControlCheckbox:GetChecked()
+        self.parent:SetConfig(enabled, "skyriding", "enablePitchControl")
+        self.parent:Print("Skyriding pitch control " .. (enabled and "enabled" or "disabled") .. ".")
+        -- Update child controls when toggled
+        self:UpdateSkyridingChildControls()
+    end)
+    yOffset = yOffset - 30
+    
+    -- Invert Pitch Checkbox
+    local invertPitchCheckbox = CreateFrame("CheckButton", "ColdSnapInvertPitchCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    invertPitchCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 70, yOffset)
+    invertPitchCheckbox.Text:SetText("Invert pitch (W=dive, S=climb)")
+    invertPitchCheckbox:SetScript("OnShow", function()
+        invertPitchCheckbox:SetChecked(self.parent:GetConfig("skyriding", "invertPitch"))
+    end)
+    invertPitchCheckbox:SetScript("OnClick", function()
+        local enabled = invertPitchCheckbox:GetChecked()
+        self.parent:SetConfig(enabled, "skyriding", "invertPitch")
+        self.parent:Print("Skyriding pitch " .. (enabled and "inverted" or "normal") .. ".")
+    end)
+    yOffset = yOffset - 30
+    
     -- Description text for Skyriding module
     local skyridingDesc = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     skyridingDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     skyridingDesc:SetPoint("TOPRIGHT", content, "TOPRIGHT", -50, yOffset)
-    skyridingDesc:SetText("Automatically changes strafe keybinds to horizontal movement while sky riding for better control.")
+    skyridingDesc:SetText("Changes strafe keybinds to horizontal movement. Optionally remaps W/S to pitch up/down for full 3D control while skyriding.")
     skyridingDesc:SetTextColor(0.8, 0.8, 0.8)
     skyridingDesc:SetJustifyH("LEFT")
     skyridingDesc:SetWordWrap(true)
@@ -317,6 +347,16 @@ function Config:RefreshOptionsPanel()
             skyridingCheckbox:SetChecked(enabled)
         end
         
+        local pitchControlCheckbox = _G["ColdSnapPitchControlCheckbox"]
+        if pitchControlCheckbox then
+            pitchControlCheckbox:SetChecked(self.parent:GetConfig("skyriding", "enablePitchControl"))
+        end
+        
+        local invertPitchCheckbox = _G["ColdSnapInvertPitchCheckbox"]
+        if invertPitchCheckbox then
+            invertPitchCheckbox:SetChecked(self.parent:GetConfig("skyriding", "invertPitch"))
+        end
+        
         -- Update toy selection frame
         if self.allToys then
             self:PopulateToyList()
@@ -408,14 +448,23 @@ end
 -- Update child control states for Skyriding module
 function Config:UpdateSkyridingChildControls()
     local skyridingEnabled = self.parent:IsModuleEnabled("skyriding")
+    local pitchControlEnabled = self.parent:GetConfig("skyriding", "enablePitchControl")
     
     -- Get references to child controls
-    local skyridingMessageCheckbox = _G["ColdSnapSkyridingMessageCheckbox"]
+    local pitchControlCheckbox = _G["ColdSnapPitchControlCheckbox"]
+    local invertPitchCheckbox = _G["ColdSnapInvertPitchCheckbox"]
     
     -- Enable/disable child controls based on parent module
-    if skyridingMessageCheckbox then
-        skyridingMessageCheckbox:SetEnabled(skyridingEnabled)
-        skyridingMessageCheckbox:SetAlpha(skyridingEnabled and 1.0 or 0.5)
+    if pitchControlCheckbox then
+        pitchControlCheckbox:SetEnabled(skyridingEnabled)
+        pitchControlCheckbox:SetAlpha(skyridingEnabled and 1.0 or 0.5)
+    end
+    
+    if invertPitchCheckbox then
+        -- Invert pitch is only available when both skyriding and pitch control are enabled
+        local shouldEnable = skyridingEnabled and pitchControlEnabled
+        invertPitchCheckbox:SetEnabled(shouldEnable)
+        invertPitchCheckbox:SetAlpha(shouldEnable and 1.0 or 0.5)
     end
 end
 

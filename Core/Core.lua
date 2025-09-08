@@ -25,7 +25,9 @@ ColdSnap.defaults = {
             favoriteToyId = nil,
         },
         skyriding = {
-            enabled = true,
+            enabled = false,
+            enablePitchControl = true,
+            invertPitch = false,
         }
     }
 }
