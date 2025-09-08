@@ -248,9 +248,51 @@ end
 
 function Skyriding:ClearOverrideBindings()
     if overrideFrame then
-        -- Clear all override bindings for this frame
-        ClearOverrideBindings(overrideFrame)
-        self.parent:Debug("Cleared all override bindings")
+        -- First, override all our remapped keys to do nothing to break any held states
+        self:SetNullOverrides()
+        
+        -- After a brief delay, clear all overrides to restore normal function
+        C_Timer.After(0.05, function()
+            if overrideFrame then
+                ClearOverrideBindings(overrideFrame)
+                self.parent:Debug("Cleared all override bindings")
+            end
+        end)
+    end
+end
+
+function Skyriding:SetNullOverrides()
+    -- Temporarily override our remapped keys to do nothing
+    -- This forces any held key states to be broken
+    
+    local strafeLeftKey = GetBindingKey("STRAFELEFT")
+    local strafeRightKey = GetBindingKey("STRAFERIGHT")
+    
+    if strafeLeftKey then
+        -- Set to an empty/null command to break held state
+        SetOverrideBinding(overrideFrame, false, strafeLeftKey, "")
+        self.parent:Debug("Set null override for: " .. strafeLeftKey)
+    end
+    
+    if strafeRightKey then
+        SetOverrideBinding(overrideFrame, false, strafeRightKey, "")
+        self.parent:Debug("Set null override for: " .. strafeRightKey)
+    end
+    
+    -- If pitch control was enabled, also null those keys
+    if self.parent:GetConfig("skyriding", "enablePitchControl") then
+        local forwardKey = GetBindingKey("MOVEFORWARD")
+        local backwardKey = GetBindingKey("MOVEBACKWARD")
+        
+        if forwardKey then
+            SetOverrideBinding(overrideFrame, false, forwardKey, "")
+            self.parent:Debug("Set null override for: " .. forwardKey)
+        end
+        
+        if backwardKey then
+            SetOverrideBinding(overrideFrame, false, backwardKey, "")
+            self.parent:Debug("Set null override for: " .. backwardKey)
+        end
     end
 end
 
