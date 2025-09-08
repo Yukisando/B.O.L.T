@@ -26,7 +26,6 @@ ColdSnap.defaults = {
         },
         skyriding = {
             enabled = true,
-            showMessage = false,
         }
     }
 }

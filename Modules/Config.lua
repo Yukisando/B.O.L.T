@@ -209,20 +209,6 @@ function Config:CreateInterfaceOptionsPanel()
     end)
     yOffset = yOffset - 30
     
-    -- Show Messages Checkbox
-    local skyridingMessageCheckbox = CreateFrame("CheckButton", "ColdSnapSkyridingMessageCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
-    skyridingMessageCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
-    skyridingMessageCheckbox.Text:SetText("Show status messages")
-    skyridingMessageCheckbox:SetScript("OnShow", function()
-        skyridingMessageCheckbox:SetChecked(self.parent:GetConfig("skyriding", "showMessage"))
-    end)
-    skyridingMessageCheckbox:SetScript("OnClick", function()
-        local enabled = skyridingMessageCheckbox:GetChecked()
-        self.parent:SetConfig(enabled, "skyriding", "showMessage")
-        self.parent:Print("Skyriding status messages " .. (enabled and "enabled" or "disabled") .. ".")
-    end)
-    yOffset = yOffset - 30
-    
     -- Description text for Skyriding module
     local skyridingDesc = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     skyridingDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
@@ -329,11 +315,6 @@ function Config:RefreshOptionsPanel()
         if skyridingCheckbox then
             local enabled = self.parent:IsModuleEnabled("skyriding")
             skyridingCheckbox:SetChecked(enabled)
-        end
-        
-        local skyridingMessageCheckbox = _G["ColdSnapSkyridingMessageCheckbox"]
-        if skyridingMessageCheckbox then
-            skyridingMessageCheckbox:SetChecked(self.parent:GetConfig("skyriding", "showMessage"))
         end
         
         -- Update toy selection frame
