@@ -28,6 +28,10 @@ ColdSnap.defaults = {
             enabled = false,
             enablePitchControl = true,
             invertPitch = false,
+        },
+        mythicPlus = {
+            enabled = true,
+            showReadyCheckButton = true,
         }
     }
 }

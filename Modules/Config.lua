@@ -126,62 +126,60 @@ function Config:CreateInterfaceOptionsPanel()
     gameMenuSeparator:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset - 10)
     yOffset = yOffset - 30
     
-    -- Playground Module Section
-    local playgroundHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    playgroundHeader:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset)
-    playgroundHeader:SetText("Playground Module (Fun Features)")
+    -- Mythic Plus Module Section
+    local mythicPlusHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    mythicPlusHeader:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset)
+    mythicPlusHeader:SetText("Mythic Plus Module")
     yOffset = yOffset - 30
     
-    -- Enable/Disable Playground Module
-    local playgroundCheckbox = CreateFrame("CheckButton", "ColdSnapPlaygroundCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
-    playgroundCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
-    playgroundCheckbox.Text:SetText("Enable Playground Module")
-    playgroundCheckbox:SetScript("OnShow", function()
-        local enabled = self.parent:IsModuleEnabled("playground")
-        playgroundCheckbox:SetChecked(enabled)
+    -- Enable/Disable Mythic Plus Module
+    local mythicPlusCheckbox = CreateFrame("CheckButton", "ColdSnapMythicPlusCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    mythicPlusCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
+    mythicPlusCheckbox.Text:SetText("Enable Mythic Plus Module")
+    mythicPlusCheckbox:SetScript("OnShow", function()
+        local enabled = self.parent:IsModuleEnabled("mythicPlus")
+        mythicPlusCheckbox:SetChecked(enabled)
         -- Update child controls when shown
-        self:UpdatePlaygroundChildControls()
+        self:UpdateMythicPlusChildControls()
     end)
-    playgroundCheckbox:SetScript("OnClick", function()
-        local enabled = playgroundCheckbox:GetChecked()
-        self.parent:SetConfig(enabled, "playground", "enabled")
-        self.parent:Print("Playground module " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
+    mythicPlusCheckbox:SetScript("OnClick", function()
+        local enabled = mythicPlusCheckbox:GetChecked()
+        self.parent:SetConfig(enabled, "mythicPlus", "enabled")
+        self.parent:Print("Mythic Plus module " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
         -- Update child controls when toggled
-        self:UpdatePlaygroundChildControls()
+        self:UpdateMythicPlusChildControls()
     end)
     yOffset = yOffset - 30
     
-    -- Show Favorite Toy Button
-    local favoriteToyCheckbox = CreateFrame("CheckButton", "ColdSnapFavoriteToyCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
-    favoriteToyCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
-    favoriteToyCheckbox.Text:SetText("Show Favorite Toy Button")
-    favoriteToyCheckbox:SetScript("OnShow", function()
-        favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground", "showFavoriteToy"))
+    -- Show Ready Check Button
+    local readyCheckCheckbox = CreateFrame("CheckButton", "ColdSnapReadyCheckCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    readyCheckCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
+    readyCheckCheckbox.Text:SetText("Show Ready Check & Countdown Buttons")
+    readyCheckCheckbox:SetScript("OnShow", function()
+        readyCheckCheckbox:SetChecked(self.parent:GetConfig("mythicPlus", "showReadyCheckButton"))
     end)
-    favoriteToyCheckbox:SetScript("OnClick", function()
-        local enabled = favoriteToyCheckbox:GetChecked()
-        self.parent:SetConfig(enabled, "playground", "showFavoriteToy")
-        self.parent:Print("Favorite Toy button " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
-        -- Update child controls when toggled
-        self:UpdatePlaygroundChildControls()
+    readyCheckCheckbox:SetScript("OnClick", function()
+        local enabled = readyCheckCheckbox:GetChecked()
+        self.parent:SetConfig(enabled, "mythicPlus", "showReadyCheckButton")
+        self.parent:Print("Mythic Plus buttons " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
     end)
     yOffset = yOffset - 30
     
-    -- Favorite Toy Selection (only show if feature is enabled)
-    local toyLabel = content:CreateFontString("ColdSnapToyLabel", "OVERLAY", "GameFontNormal")
-    toyLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
-    toyLabel:SetText("Favorite Toy:")
-    yOffset = yOffset - 25
+    -- Description text for Mythic Plus module
+    local mythicPlusDesc = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    mythicPlusDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
+    mythicPlusDesc:SetPoint("TOPRIGHT", content, "TOPRIGHT", -50, yOffset)
+    mythicPlusDesc:SetText("Adds ready check and countdown timer buttons to the keystone window for quick group coordination.")
+    mythicPlusDesc:SetTextColor(0.8, 0.8, 0.8)
+    mythicPlusDesc:SetJustifyH("LEFT")
+    mythicPlusDesc:SetWordWrap(true)
+    yOffset = yOffset - 45
     
-    -- Create a custom toy selection frame with search
-    self:CreateToySelectionFrame(content, 50, yOffset)
-    yOffset = yOffset - 200  -- Reserve space for the larger toy selection frame
-    
-    -- Add separator line after Playground module
-    local playgroundSeparator = content:CreateTexture(nil, "ARTWORK")
-    playgroundSeparator:SetTexture("Interface\\Common\\UI-TooltipDivider-Transparent")
-    playgroundSeparator:SetSize(400, 8)
-    playgroundSeparator:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset - 10)
+    -- Add separator line after Mythic Plus module
+    local mythicPlusSeparator = content:CreateTexture(nil, "ARTWORK")
+    mythicPlusSeparator:SetTexture("Interface\\Common\\UI-TooltipDivider-Transparent")
+    mythicPlusSeparator:SetSize(400, 8)
+    mythicPlusSeparator:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset - 10)
     yOffset = yOffset - 30
     
     -- Skyriding Module Section
@@ -254,6 +252,64 @@ function Config:CreateInterfaceOptionsPanel()
     skyridingSeparator:SetTexture("Interface\\Common\\UI-TooltipDivider-Transparent")
     skyridingSeparator:SetSize(400, 8)
     skyridingSeparator:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset - 10)
+    yOffset = yOffset - 30
+    
+    -- Playground Module Section
+    local playgroundHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    playgroundHeader:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset)
+    playgroundHeader:SetText("Playground Module (Fun Features)")
+    yOffset = yOffset - 30
+    
+    -- Enable/Disable Playground Module
+    local playgroundCheckbox = CreateFrame("CheckButton", "ColdSnapPlaygroundCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    playgroundCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
+    playgroundCheckbox.Text:SetText("Enable Playground Module")
+    playgroundCheckbox:SetScript("OnShow", function()
+        local enabled = self.parent:IsModuleEnabled("playground")
+        playgroundCheckbox:SetChecked(enabled)
+        -- Update child controls when shown
+        self:UpdatePlaygroundChildControls()
+    end)
+    playgroundCheckbox:SetScript("OnClick", function()
+        local enabled = playgroundCheckbox:GetChecked()
+        self.parent:SetConfig(enabled, "playground", "enabled")
+        self.parent:Print("Playground module " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
+        -- Update child controls when toggled
+        self:UpdatePlaygroundChildControls()
+    end)
+    yOffset = yOffset - 30
+    
+    -- Show Favorite Toy Button
+    local favoriteToyCheckbox = CreateFrame("CheckButton", "ColdSnapFavoriteToyCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    favoriteToyCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
+    favoriteToyCheckbox.Text:SetText("Show Favorite Toy Button")
+    favoriteToyCheckbox:SetScript("OnShow", function()
+        favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground", "showFavoriteToy"))
+    end)
+    favoriteToyCheckbox:SetScript("OnClick", function()
+        local enabled = favoriteToyCheckbox:GetChecked()
+        self.parent:SetConfig(enabled, "playground", "showFavoriteToy")
+        self.parent:Print("Favorite Toy button " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
+        -- Update child controls when toggled
+        self:UpdatePlaygroundChildControls()
+    end)
+    yOffset = yOffset - 30
+    
+    -- Favorite Toy Selection (only show if feature is enabled)
+    local toyLabel = content:CreateFontString("ColdSnapToyLabel", "OVERLAY", "GameFontNormal")
+    toyLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
+    toyLabel:SetText("Favorite Toy:")
+    yOffset = yOffset - 25
+    
+    -- Create a custom toy selection frame with search
+    self:CreateToySelectionFrame(content, 50, yOffset)
+    yOffset = yOffset - 200  -- Reserve space for the larger toy selection frame
+    
+    -- Add separator line after Playground module
+    local playgroundSeparator = content:CreateTexture(nil, "ARTWORK")
+    playgroundSeparator:SetTexture("Interface\\Common\\UI-TooltipDivider-Transparent")
+    playgroundSeparator:SetSize(400, 8)
+    playgroundSeparator:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset - 10)
     yOffset = yOffset - 30
        
     -- Console commands section
@@ -393,6 +449,20 @@ function Config:UpdateGameMenuChildControls()
     if autoExitCheckbox then
         autoExitCheckbox:SetEnabled(gameMenuEnabled)
         autoExitCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
+    end
+end
+
+-- Update child control states for Mythic Plus module
+function Config:UpdateMythicPlusChildControls()
+    local mythicPlusEnabled = self.parent:IsModuleEnabled("mythicPlus")
+    
+    -- Get references to child controls
+    local readyCheckCheckbox = _G["ColdSnapReadyCheckCheckbox"]
+    
+    -- Enable/disable child controls based on parent module
+    if readyCheckCheckbox then
+        readyCheckCheckbox:SetEnabled(mythicPlusEnabled)
+        readyCheckCheckbox:SetAlpha(mythicPlusEnabled and 1.0 or 0.5)
     end
 end
 
