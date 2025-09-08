@@ -10,6 +10,7 @@ local Skyriding = {}
 local originalBindings = {}
 local isInSkyriding = false
 local bindingCheckFrame = nil
+local overrideFrame = nil
 
 function Skyriding:OnInitialize()
     self.parent:Debug("Skyriding module initializing...")
@@ -33,9 +34,9 @@ end
 function Skyriding:OnDisable()
     self.parent:Debug("Skyriding module disabling...")
     
-    -- Restore original bindings if we're currently in skyriding mode
+    -- Clear override bindings if we're currently in skyriding mode
     if isInSkyriding then
-        self:RestoreOriginalBindings()
+        self:ClearOverrideBindings()
     end
     
     -- Stop monitoring
@@ -46,6 +47,12 @@ function Skyriding:OnDisable()
         self.eventFrame:UnregisterAllEvents()
         self.eventFrame:SetScript("OnEvent", nil)
         self.eventFrame = nil
+    end
+    
+    -- Clean up override frame
+    if overrideFrame then
+        ClearOverrideBindings(overrideFrame)
+        overrideFrame = nil
     end
 end
 
@@ -223,7 +230,7 @@ function Skyriding:EnterSkyridingMode()
 end
 
 function Skyriding:ExitSkyridingMode()
-    self.parent:Debug("Exiting skyriding mode - restoring original bindings")
+    self.parent:Debug("Exiting skyriding mode - clearing override bindings")
     
     -- Don't change bindings if in combat
     if InCombatLockdown() then
@@ -231,207 +238,117 @@ function Skyriding:ExitSkyridingMode()
         return
     end
     
-    -- Restore original bindings
-    self:RestoreOriginalBindings()
+    -- Clear all override bindings - this is safe and immediate
+    self:ClearOverrideBindings()
     
     if self.parent:GetConfig("debug") then
         self.parent:Print("Skyriding mode disabled: All movement keys restored to normal")
     end
 end
 
+function Skyriding:ClearOverrideBindings()
+    if overrideFrame then
+        -- Clear all override bindings for this frame
+        ClearOverrideBindings(overrideFrame)
+        self.parent:Debug("Cleared all override bindings")
+    end
+end
+
 function Skyriding:StoreOriginalBindings()
-    -- Clear previous stored bindings
-    originalBindings = {}
+    -- We don't actually need to store original bindings with override system
+    -- Override bindings are temporary and don't affect the original bindings
+    -- But we'll keep the function for consistency and debugging
     
-    -- Get the current bindings for strafe left/right
+    -- Create the override frame if it doesn't exist
+    if not overrideFrame then
+        overrideFrame = CreateFrame("Frame", "ColdSnapSkyridingOverrideFrame")
+        self.parent:Debug("Created override binding frame")
+    end
+    
+    -- Clear any existing override bindings
+    ClearOverrideBindings(overrideFrame)
+    
+    -- Get the current bindings for reference and debugging
     local strafeLeftBinding = GetBindingKey("STRAFELEFT")
     local strafeRightBinding = GetBindingKey("STRAFERIGHT")
+    local forwardBinding = GetBindingKey("MOVEFORWARD")
+    local backwardBinding = GetBindingKey("MOVEBACKWARD")
     
     if strafeLeftBinding then
-        originalBindings["STRAFELEFT"] = strafeLeftBinding
-        self.parent:Debug("Stored original strafe left binding: " .. strafeLeftBinding)
+        self.parent:Debug("Current strafe left binding: " .. strafeLeftBinding)
     end
     
     if strafeRightBinding then
-        originalBindings["STRAFERIGHT"] = strafeRightBinding
-        self.parent:Debug("Stored original strafe right binding: " .. strafeRightBinding)
+        self.parent:Debug("Current strafe right binding: " .. strafeRightBinding)
     end
     
-    -- Store forward/backward bindings for pitch control if enabled
-    if self.parent:GetConfig("skyriding", "enablePitchControl") then
-        local forwardBinding = GetBindingKey("MOVEFORWARD")
-        local backwardBinding = GetBindingKey("MOVEBACKWARD")
-        
-        if forwardBinding then
-            originalBindings["MOVEFORWARD"] = forwardBinding
-            self.parent:Debug("Stored original forward binding: " .. forwardBinding)
-        end
-        
-        if backwardBinding then
-            originalBindings["MOVEBACKWARD"] = backwardBinding
-            self.parent:Debug("Stored original backward binding: " .. backwardBinding)
-        end
-        
-        -- Store pitch up/down bindings
-        local pitchUpBinding = GetBindingKey("PITCHUP")
-        local pitchDownBinding = GetBindingKey("PITCHDOWN")
-        
-        if pitchUpBinding then
-            originalBindings["PITCHUP"] = pitchUpBinding
-        end
-        
-        if pitchDownBinding then
-            originalBindings["PITCHDOWN"] = pitchDownBinding
-        end
+    if forwardBinding then
+        self.parent:Debug("Current forward binding: " .. forwardBinding)
     end
     
-    -- Also store turn bindings in case user wants to swap those too
-    local turnLeftBinding = GetBindingKey("TURNLEFT") 
-    local turnRightBinding = GetBindingKey("TURNRIGHT")
-    
-    if turnLeftBinding then
-        originalBindings["TURNLEFT"] = turnLeftBinding
-    end
-    
-    if turnRightBinding then
-        originalBindings["TURNRIGHT"] = turnRightBinding
+    if backwardBinding then
+        self.parent:Debug("Current backward binding: " .. backwardBinding)
     end
 end
 
 function Skyriding:ApplySkyridingBindings()
-    -- The core concept: Map strafe keys to turn keys for horizontal movement in skyriding
-    -- Optionally map forward/backward keys to pitch up/down for vertical movement
-    -- This gives full 3D movement control while skyriding
+    -- Use override bindings instead of changing actual bindings
+    -- Override bindings are temporary and safe - they don't modify user's actual keybinds
     
-    local strafeLeftKey = originalBindings["STRAFELEFT"]
-    local strafeRightKey = originalBindings["STRAFERIGHT"]
+    if not overrideFrame then
+        self.parent:Debug("Override frame not created, cannot apply bindings")
+        return
+    end
+    
+    -- Get the current bindings to override
+    local strafeLeftKey = GetBindingKey("STRAFELEFT")
+    local strafeRightKey = GetBindingKey("STRAFERIGHT")
     
     -- Apply horizontal movement bindings (strafe -> turn)
     if strafeLeftKey then
-        -- Bind the strafe left key to turn left action for horizontal movement
-        SetBinding(strafeLeftKey, "TURNLEFT")
-        self.parent:Debug("Bound " .. strafeLeftKey .. " to TURNLEFT for horizontal movement")
+        -- Override the strafe left key to perform turn left action
+        SetOverrideBinding(overrideFrame, false, strafeLeftKey, "TURNLEFT")
+        self.parent:Debug("Override: " .. strafeLeftKey .. " -> TURNLEFT")
     end
     
     if strafeRightKey then
-        -- Bind the strafe right key to turn right action for horizontal movement  
-        SetBinding(strafeRightKey, "TURNRIGHT")
-        self.parent:Debug("Bound " .. strafeRightKey .. " to TURNRIGHT for horizontal movement")
+        -- Override the strafe right key to perform turn right action
+        SetOverrideBinding(overrideFrame, false, strafeRightKey, "TURNRIGHT")
+        self.parent:Debug("Override: " .. strafeRightKey .. " -> TURNRIGHT")
     end
     
     -- Apply vertical movement bindings if pitch control is enabled
     if self.parent:GetConfig("skyriding", "enablePitchControl") then
-        local forwardKey = originalBindings["MOVEFORWARD"]
-        local backwardKey = originalBindings["MOVEBACKWARD"]
+        local forwardKey = GetBindingKey("MOVEFORWARD")
+        local backwardKey = GetBindingKey("MOVEBACKWARD")
         local invertPitch = self.parent:GetConfig("skyriding", "invertPitch")
         
         if forwardKey then
             if invertPitch then
                 -- Inverted: Forward key becomes pitch down for diving
-                SetBinding(forwardKey, "PITCHDOWN")
-                self.parent:Debug("Bound " .. forwardKey .. " to PITCHDOWN for diving (inverted)")
+                SetOverrideBinding(overrideFrame, false, forwardKey, "PITCHDOWN")
+                self.parent:Debug("Override: " .. forwardKey .. " -> PITCHDOWN (inverted)")
             else
                 -- Normal: Forward key becomes pitch up for climbing
-                SetBinding(forwardKey, "PITCHUP")
-                self.parent:Debug("Bound " .. forwardKey .. " to PITCHUP for climbing")
+                SetOverrideBinding(overrideFrame, false, forwardKey, "PITCHUP")
+                self.parent:Debug("Override: " .. forwardKey .. " -> PITCHUP")
             end
         end
         
         if backwardKey then
             if invertPitch then
                 -- Inverted: Backward key becomes pitch up for climbing
-                SetBinding(backwardKey, "PITCHUP")
-                self.parent:Debug("Bound " .. backwardKey .. " to PITCHUP for climbing (inverted)")
+                SetOverrideBinding(overrideFrame, false, backwardKey, "PITCHUP")
+                self.parent:Debug("Override: " .. backwardKey .. " -> PITCHUP (inverted)")
             else
                 -- Normal: Backward key becomes pitch down for diving
-                SetBinding(backwardKey, "PITCHDOWN")
-                self.parent:Debug("Bound " .. backwardKey .. " to PITCHDOWN for diving")
+                SetOverrideBinding(overrideFrame, false, backwardKey, "PITCHDOWN")
+                self.parent:Debug("Override: " .. backwardKey .. " -> PITCHDOWN")
             end
         end
     end
     
-    -- Save the new bindings
-    SaveBindings(GetCurrentBindingSet())
-end
-
-function Skyriding:RestoreOriginalBindings()
-    -- Don't restore if we don't have stored bindings
-    if not originalBindings or not next(originalBindings) then
-        self.parent:Debug("No stored bindings to restore")
-        return
-    end
-    
-    -- Restore the original strafe bindings
-    local strafeLeftKey = originalBindings["STRAFELEFT"]
-    local strafeRightKey = originalBindings["STRAFERIGHT"]
-    
-    -- Clear all current bindings for these keys first to prevent conflicts
-    if strafeLeftKey then
-        SetBinding(strafeLeftKey)
-        self.parent:Debug("Cleared binding for " .. strafeLeftKey)
-    end
-    
-    if strafeRightKey then
-        SetBinding(strafeRightKey)
-        self.parent:Debug("Cleared binding for " .. strafeRightKey)
-    end
-    
-    -- If pitch control was enabled, also restore forward/backward bindings
-    if self.parent:GetConfig("skyriding", "enablePitchControl") then
-        local forwardKey = originalBindings["MOVEFORWARD"]
-        local backwardKey = originalBindings["MOVEBACKWARD"]
-        
-        if forwardKey then
-            SetBinding(forwardKey)
-            self.parent:Debug("Cleared binding for " .. forwardKey)
-        end
-        
-        if backwardKey then
-            SetBinding(backwardKey)
-            self.parent:Debug("Cleared binding for " .. backwardKey)
-        end
-    end
-    
-    -- Force save bindings to clear state
-    SaveBindings(GetCurrentBindingSet())
-    
-    -- Small delay to ensure key states are properly cleared
-    C_Timer.After(0.1, function()
-        -- Now restore original bindings
-        if strafeLeftKey then
-            SetBinding(strafeLeftKey, "STRAFELEFT")
-            self.parent:Debug("Restored " .. strafeLeftKey .. " to STRAFELEFT")
-        end
-        
-        if strafeRightKey then
-            SetBinding(strafeRightKey, "STRAFERIGHT")
-            self.parent:Debug("Restored " .. strafeRightKey .. " to STRAFERIGHT")
-        end
-        
-        -- Restore pitch control bindings if they were enabled
-        if self.parent:GetConfig("skyriding", "enablePitchControl") then
-            local forwardKey = originalBindings["MOVEFORWARD"]
-            local backwardKey = originalBindings["MOVEBACKWARD"]
-            
-            if forwardKey then
-                SetBinding(forwardKey, "MOVEFORWARD")
-                self.parent:Debug("Restored " .. forwardKey .. " to MOVEFORWARD")
-            end
-            
-            if backwardKey then
-                SetBinding(backwardKey, "MOVEBACKWARD")
-                self.parent:Debug("Restored " .. backwardKey .. " to MOVEBACKWARD")
-            end
-        end
-        
-        -- Save the restored bindings
-        SaveBindings(GetCurrentBindingSet())
-        
-        -- Clear stored bindings
-        originalBindings = {}
-        
-        self.parent:Debug("Key binding restoration complete")
-    end)
+    self.parent:Debug("Applied skyriding override bindings")
 end
 
 -- Register the module
