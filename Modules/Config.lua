@@ -183,6 +183,62 @@ function Config:CreateInterfaceOptionsPanel()
     playgroundSeparator:SetSize(400, 8)
     playgroundSeparator:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset - 10)
     yOffset = yOffset - 30
+    
+    -- Skyriding Module Section
+    local skyridingHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    skyridingHeader:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset)
+    skyridingHeader:SetText("Skyriding Module")
+    yOffset = yOffset - 30
+    
+    -- Enable/Disable Skyriding Module
+    local skyridingCheckbox = CreateFrame("CheckButton", "ColdSnapSkyridingCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    skyridingCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
+    skyridingCheckbox.Text:SetText("Enable Skyriding Module")
+    skyridingCheckbox:SetScript("OnShow", function()
+        local enabled = self.parent:IsModuleEnabled("skyriding")
+        skyridingCheckbox:SetChecked(enabled)
+        -- Update child controls when shown
+        self:UpdateSkyridingChildControls()
+    end)
+    skyridingCheckbox:SetScript("OnClick", function()
+        local enabled = skyridingCheckbox:GetChecked()
+        self.parent:SetConfig(enabled, "skyriding", "enabled")
+        self.parent:Print("Skyriding module " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
+        -- Update child controls when toggled
+        self:UpdateSkyridingChildControls()
+    end)
+    yOffset = yOffset - 30
+    
+    -- Show Messages Checkbox
+    local skyridingMessageCheckbox = CreateFrame("CheckButton", "ColdSnapSkyridingMessageCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    skyridingMessageCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
+    skyridingMessageCheckbox.Text:SetText("Show status messages")
+    skyridingMessageCheckbox:SetScript("OnShow", function()
+        skyridingMessageCheckbox:SetChecked(self.parent:GetConfig("skyriding", "showMessage"))
+    end)
+    skyridingMessageCheckbox:SetScript("OnClick", function()
+        local enabled = skyridingMessageCheckbox:GetChecked()
+        self.parent:SetConfig(enabled, "skyriding", "showMessage")
+        self.parent:Print("Skyriding status messages " .. (enabled and "enabled" or "disabled") .. ".")
+    end)
+    yOffset = yOffset - 30
+    
+    -- Description text for Skyriding module
+    local skyridingDesc = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    skyridingDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
+    skyridingDesc:SetPoint("TOPRIGHT", content, "TOPRIGHT", -50, yOffset)
+    skyridingDesc:SetText("Automatically changes strafe keybinds to horizontal movement while sky riding for better control.")
+    skyridingDesc:SetTextColor(0.8, 0.8, 0.8)
+    skyridingDesc:SetJustifyH("LEFT")
+    skyridingDesc:SetWordWrap(true)
+    yOffset = yOffset - 45
+    
+    -- Add separator line after Skyriding module
+    local skyridingSeparator = content:CreateTexture(nil, "ARTWORK")
+    skyridingSeparator:SetTexture("Interface\\Common\\UI-TooltipDivider-Transparent")
+    skyridingSeparator:SetSize(400, 8)
+    skyridingSeparator:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset - 10)
+    yOffset = yOffset - 30
        
     -- Console commands section
     local commandsHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -269,6 +325,17 @@ function Config:RefreshOptionsPanel()
             favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground", "showFavoriteToy"))
         end
         
+        local skyridingCheckbox = _G["ColdSnapSkyridingCheckbox"]
+        if skyridingCheckbox then
+            local enabled = self.parent:IsModuleEnabled("skyriding")
+            skyridingCheckbox:SetChecked(enabled)
+        end
+        
+        local skyridingMessageCheckbox = _G["ColdSnapSkyridingMessageCheckbox"]
+        if skyridingMessageCheckbox then
+            skyridingMessageCheckbox:SetChecked(self.parent:GetConfig("skyriding", "showMessage"))
+        end
+        
         -- Update toy selection frame
         if self.allToys then
             self:PopulateToyList()
@@ -278,6 +345,7 @@ function Config:RefreshOptionsPanel()
         -- Update child control states
         self:UpdateGameMenuChildControls()
         self:UpdatePlaygroundChildControls()
+        self:UpdateSkyridingChildControls()
     end)
 end
 
@@ -353,6 +421,20 @@ function Config:UpdatePlaygroundChildControls()
         for _, button in pairs(self.toyButtons or {}) do
             button:SetEnabled(favoriteToyEnabled)
         end
+    end
+end
+
+-- Update child control states for Skyriding module
+function Config:UpdateSkyridingChildControls()
+    local skyridingEnabled = self.parent:IsModuleEnabled("skyriding")
+    
+    -- Get references to child controls
+    local skyridingMessageCheckbox = _G["ColdSnapSkyridingMessageCheckbox"]
+    
+    -- Enable/disable child controls based on parent module
+    if skyridingMessageCheckbox then
+        skyridingMessageCheckbox:SetEnabled(skyridingEnabled)
+        skyridingMessageCheckbox:SetAlpha(skyridingEnabled and 1.0 or 0.5)
     end
 end
 

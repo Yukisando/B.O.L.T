@@ -6,7 +6,7 @@ local ADDON_NAME, ColdSnap = ...
 -- Create the main addon object
 ColdSnap = ColdSnap or {}
 ColdSnap.name = ADDON_NAME
-ColdSnap.version = "1.1.1"
+ColdSnap.version = "1.2.0"
 ColdSnap.modules = {}
 
 -- Default configuration
@@ -23,6 +23,10 @@ ColdSnap.defaults = {
             enabled = true,
             showFavoriteToy = false,
             favoriteToyId = nil,
+        },
+        skyriding = {
+            enabled = true,
+            showMessage = false,
         }
     }
 }
