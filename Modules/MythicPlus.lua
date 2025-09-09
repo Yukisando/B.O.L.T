@@ -154,7 +154,7 @@ function MythicPlus:CreateReadyCheckButton()
     -- Use stored keystone frame reference or fallback to global
     local parent = self.keystoneFrame or ChallengesKeystoneFrame or UIParent
     if parent == UIParent then
-        self.parent:Debug("MythicPlus: Warning - using UIParent as parent for buttons")
+        self.parent:Debug("MythicPlus: Warning - using UIParent as fallback parent for buttons")
     end
     
     -- Create a button with the same style as GameMenu buttons

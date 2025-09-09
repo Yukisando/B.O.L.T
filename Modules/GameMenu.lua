@@ -24,9 +24,6 @@ function GameMenu:OnEnable()
     
     -- Hook into the game menu show event
     self:HookGameMenu()
-    
-    -- Hook exit confirmation for auto-skip feature
-    self:HookExitConfirmation()
 end
 
 function GameMenu:OnDisable()
@@ -341,55 +338,6 @@ function GameMenu:PositionReloadButton()
     reloadButton:SetFrameLevel(GameMenuFrame:GetFrameLevel() + 2)
     reloadButton:EnableMouse(true)
     reloadButton:Show()
-end
-
-function GameMenu:HookExitConfirmation()
-    -- Hook the exit confirmation dialog
-    if not StaticPopup1 then
-        self.parent:Debug("StaticPopup1 not found for exit confirmation hook")
-        return
-    end
-    
-    -- Store original QUIT popup configuration
-    if not self.originalQuitShow and StaticPopupTypes and StaticPopupTypes["QUIT"] then
-        self.originalQuitShow = StaticPopupTypes["QUIT"].OnShow
-    end
-    
-    -- Hook into PLAYER_LOGOUT event for auto-confirmation
-    if not self.logoutFrame then
-        self.logoutFrame = CreateFrame("Frame")
-        self.logoutFrame:RegisterEvent("ADDON_LOADED")
-        self.logoutFrame:SetScript("OnEvent", function(eventFrame, event, addonName)
-            if event == "ADDON_LOADED" and addonName == ADDON_NAME then
-                -- Hook the quit confirmation after UI is loaded
-                if StaticPopupTypes and StaticPopupTypes["QUIT"] then
-                    StaticPopupTypes["QUIT"].OnShow = function(popup)
-                        -- Call original OnShow if it exists
-                        if self.originalQuitShow then
-                            self.originalQuitShow(popup)
-                        end
-                        
-                        -- Check if auto-confirm exit is enabled
-                        if self.parent:GetConfig("gameMenu", "autoConfirmExit") then
-                            self.parent:Debug("Auto-confirming exit dialog")
-                            -- Small delay to ensure dialog is fully rendered
-                            C_Timer.After(0.1, function()
-                                if popup:IsShown() then
-                                    -- Click the "Okay" button (button1 is typically the confirm button)
-                                    if popup.button1 and popup.button1:IsEnabled() then
-                                        popup.button1:Click()
-                                        self.parent:Debug("Auto-clicked exit confirmation")
-                                    end
-                                end
-                            end)
-                        end
-                    end
-                end
-            end
-        end)
-    end
-    
-    self.parent:Debug("Exit confirmation hook installed")
 end
 
 function GameMenu:OnReloadClick()

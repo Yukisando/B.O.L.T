@@ -17,7 +17,6 @@ ColdSnap.defaults = {
             enabled = true,
             showLeaveGroup = true,
             showReloadButton = true,
-            autoConfirmExit = false,
         },
         playground = {
             enabled = true,

@@ -12,7 +12,13 @@ function Config:OnInitialize()
     -- Don't create standalone frame during init
 end
 
-function Config:OnEnable()
+function Co        l        
+        local mythicPlusCheckbox = _G["ColdSnapMythicPlusCheckbox"]loadCheckbox = _G["ColdSnapReloadCheckbox"]
+        if reloadCheckbox then
+            reloadCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showReloadButton"))
+        end
+        
+        local mythicPlusCheckbox = _G["ColdSnapMythicPlusCheckbox"]le()
     self.parent:Debug("Config module enabling...")
 end
 
@@ -102,20 +108,6 @@ function Config:CreateInterfaceOptionsPanel()
         local enabled = reloadCheckbox:GetChecked()
         self.parent:SetConfig(enabled, "gameMenu", "showReloadButton")
         self.parent:Print("Reload UI button " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
-    end)
-    yOffset = yOffset - 30
-    
-    -- Auto Confirm Exit
-    local autoExitCheckbox = CreateFrame("CheckButton", "ColdSnapAutoExitCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
-    autoExitCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
-    autoExitCheckbox.Text:SetText("Auto Confirm Exit Game")
-    autoExitCheckbox:SetScript("OnShow", function()
-        autoExitCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "autoConfirmExit"))
-    end)
-    autoExitCheckbox:SetScript("OnClick", function()
-        local enabled = autoExitCheckbox:GetChecked()
-        self.parent:SetConfig(enabled, "gameMenu", "autoConfirmExit")
-        self.parent:Print("Auto confirm exit " .. (enabled and "enabled" or "disabled") .. ". Exit confirmation will be " .. (enabled and "automatically confirmed" or "shown normally") .. ".")
     end)
     yOffset = yOffset - 30
     
@@ -381,9 +373,15 @@ function Config:RefreshOptionsPanel()
             reloadCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showReloadButton"))
         end
         
-        local autoExitCheckbox = _G["ColdSnapAutoExitCheckbox"]
-        if autoExitCheckbox then
-            autoExitCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "autoConfirmExit"))
+        local mythicPlusCheckbox = _G["ColdSnapMythicPlusCheckbox"]
+        if mythicPlusCheckbox then
+            local enabled = self.parent:IsModuleEnabled("mythicPlus")
+            mythicPlusCheckbox:SetChecked(enabled)
+        end
+        
+        local readyCheckCheckbox = _G["ColdSnapReadyCheckCheckbox"]
+        if readyCheckCheckbox then
+            readyCheckCheckbox:SetChecked(self.parent:GetConfig("mythicPlus", "showReadyCheckButton"))
         end
         
         local playgroundCheckbox = _G["ColdSnapPlaygroundCheckbox"]
@@ -433,7 +431,6 @@ function Config:UpdateGameMenuChildControls()
     -- Get references to child controls
     local leaveGroupCheckbox = _G["ColdSnapLeaveGroupCheckbox"]
     local reloadCheckbox = _G["ColdSnapReloadCheckbox"]
-    local autoExitCheckbox = _G["ColdSnapAutoExitCheckbox"]
     
     -- Enable/disable child controls based on parent module
     if leaveGroupCheckbox then
@@ -444,11 +441,6 @@ function Config:UpdateGameMenuChildControls()
     if reloadCheckbox then
         reloadCheckbox:SetEnabled(gameMenuEnabled)
         reloadCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
-    end
-    
-    if autoExitCheckbox then
-        autoExitCheckbox:SetEnabled(gameMenuEnabled)
-        autoExitCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
     end
 end
 
