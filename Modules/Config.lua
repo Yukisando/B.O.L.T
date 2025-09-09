@@ -12,13 +12,7 @@ function Config:OnInitialize()
     -- Don't create standalone frame during init
 end
 
-function Co        l        
-        local mythicPlusCheckbox = _G["ColdSnapMythicPlusCheckbox"]loadCheckbox = _G["ColdSnapReloadCheckbox"]
-        if reloadCheckbox then
-            reloadCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showReloadButton"))
-        end
-        
-        local mythicPlusCheckbox = _G["ColdSnapMythicPlusCheckbox"]le()
+function Config:OnEnable()
     self.parent:Debug("Config module enabling...")
 end
 
