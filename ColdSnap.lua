@@ -46,6 +46,7 @@ SlashCmdList["COLDSNAP"] = function(msg)
         print("  |cffFFFFFF/coldsnap toggle <module>|r - Toggle a module")
         print("  |cffFFFFFF/coldsnap toggle debug|r - Toggle debug mode")
         print("  |cffFFFFFF/coldsnap reload|r - Reload the addon")
+        print("  |cffFFFFFF/coldsnap reset|r - Emergency reset of skyriding bindings")
     elseif args[1] == "status" then
         ColdSnap:Print("Module Status:")
         for name, module in pairs(ColdSnap.modules) do
@@ -86,6 +87,13 @@ SlashCmdList["COLDSNAP"] = function(msg)
         end
     elseif args[1] == "reload" then
         ReloadUI()
+    elseif args[1] == "reset" then
+        -- Emergency reset for skyriding bindings
+        if ColdSnap.modules.skyriding and ColdSnap.modules.skyriding.EmergencyReset then
+            ColdSnap.modules.skyriding:EmergencyReset()
+        else
+            ColdSnap:Print("Skyriding module not available for reset.")
+        end
     elseif args[1] == "config" then
         -- Open the Interface Options to ColdSnap panel
         if Settings and Settings.OpenToCategory then

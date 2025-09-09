@@ -6,11 +6,15 @@ local ADDON_NAME, ColdSnap = ...
 -- Create the Skyriding module
 local Skyriding = {}
 
--- Storage for original keybinds
+-- Storage for original keybinds and state management
 local originalBindings = {}
 local isInSkyriding = false
 local bindingCheckFrame = nil
 local overrideFrame = nil
+local isInCombat = false
+local pendingStateChange = nil
+local stateChangeDebounce = 0
+local lastStateChangeTime = 0
 
 function Skyriding:OnInitialize()
     self.parent:Debug("Skyriding module initializing...")
@@ -24,6 +28,12 @@ function Skyriding:OnEnable()
     
     self.parent:Debug("Skyriding module enabling...")
     
+    -- Initialize state
+    isInCombat = InCombatLockdown()
+    pendingStateChange = nil
+    stateChangeDebounce = 0
+    lastStateChangeTime = 0
+    
     -- Create event handling frame
     self:CreateEventFrame()
     
@@ -34,10 +44,20 @@ end
 function Skyriding:OnDisable()
     self.parent:Debug("Skyriding module disabling...")
     
+    -- Force release all keys before cleanup
+    self:ForceReleaseAllKeys()
+    
     -- Clear override bindings if we're currently in skyriding mode
     if isInSkyriding then
         self:ClearOverrideBindings()
     end
+    
+    -- Reset state variables
+    isInSkyriding = false
+    isInCombat = false
+    pendingStateChange = nil
+    stateChangeDebounce = 0
+    lastStateChangeTime = 0
     
     -- Stop monitoring
     self:StopMonitoring()
@@ -70,9 +90,28 @@ function Skyriding:CreateEventFrame()
     self.eventFrame:RegisterEvent("ZONE_CHANGED")
     self.eventFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
     self.eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    self.eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED") -- Combat start
+    self.eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")  -- Combat end
     
     self.eventFrame:SetScript("OnEvent", function(frame, event, ...)
-        if event == "UNIT_SPELLCAST_SUCCEEDED" then
+        if event == "PLAYER_REGEN_DISABLED" then
+            isInCombat = true
+            self.parent:Debug("Combat started - blocking binding changes")
+        elseif event == "PLAYER_REGEN_ENABLED" then
+            isInCombat = false
+            self.parent:Debug("Combat ended - checking for pending binding changes")
+            -- Process any pending state changes after combat
+            if pendingStateChange ~= nil then
+                C_Timer.After(0.1, function()
+                    if pendingStateChange == true then
+                        self:EnterSkyridingMode()
+                    else
+                        self:ExitSkyridingMode()
+                    end
+                    pendingStateChange = nil
+                end)
+            end
+        elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
             local unitTarget, castGUID, spellID = ...
             if unitTarget == "player" then
                 -- Check if it's a mount spell
@@ -104,6 +143,11 @@ function Skyriding:StartMonitoring()
     bindingCheckFrame = CreateFrame("Frame")
     bindingCheckFrame:SetScript("OnUpdate", function(frame, elapsed)
         frame.timeSinceLastUpdate = (frame.timeSinceLastUpdate or 0) + elapsed
+        
+        -- Update debounce timer
+        if stateChangeDebounce > 0 then
+            stateChangeDebounce = stateChangeDebounce - elapsed
+        end
         
         -- Check every 0.5 seconds (not too frequent to avoid performance issues)
         if frame.timeSinceLastUpdate >= 0.5 then
@@ -183,12 +227,33 @@ function Skyriding:CheckSkyridingState()
         end
     end
     
-    -- Handle state changes
+    -- Handle state changes with debouncing to prevent rapid toggling
     if currentlyInSkyriding ~= isInSkyriding then
+        local currentTime = GetTime()
+        
+        -- Debounce rapid state changes (prevent toggle spam within 1 second)
+        if (currentTime - lastStateChangeTime) < 1.0 and stateChangeDebounce > 0 then
+            self.parent:Debug("State change debounced - too rapid")
+            return
+        end
+        
+        lastStateChangeTime = currentTime
+        stateChangeDebounce = 1.0
+        
         if currentlyInSkyriding then
-            self:EnterSkyridingMode()
+            if isInCombat then
+                pendingStateChange = true
+                self.parent:Debug("Skyriding state change pending due to combat")
+            else
+                self:EnterSkyridingMode()
+            end
         else
-            self:ExitSkyridingMode()
+            if isInCombat then
+                pendingStateChange = false
+                self.parent:Debug("Skyriding state change pending due to combat")
+            else
+                self:ExitSkyridingMode()
+            end
         end
         isInSkyriding = currentlyInSkyriding
     end
@@ -202,16 +267,29 @@ function Skyriding:EnterSkyridingMode()
     self.parent:Debug("Entering skyriding mode - swapping strafe bindings")
     
     -- Don't change bindings if in combat
-    if InCombatLockdown() then
-        self.parent:Debug("In combat, deferring binding changes")
+    if isInCombat then
+        self.parent:Debug("In combat, setting pending state change")
+        pendingStateChange = true
         return
     end
     
-    -- Store original bindings before changing them
-    self:StoreOriginalBindings()
+    -- Create override frame first if needed
+    if not overrideFrame then
+        overrideFrame = CreateFrame("Frame", "ColdSnapSkyridingOverrideFrame")
+        self.parent:Debug("Created override binding frame")
+    end
     
-    -- Apply skyriding bindings
-    self:ApplySkyridingBindings()
+    -- Force release all keys before changing bindings to prevent stuck keys
+    self:ForceReleaseAllKeys()
+    
+    -- Small delay to ensure key release is processed
+    C_Timer.After(0.05, function()
+        -- Store original bindings before changing them
+        self:StoreOriginalBindings()
+        
+        -- Apply skyriding bindings
+        self:ApplySkyridingBindings()
+    end)
     
     if self.parent:GetConfig("debug") then
         local pitchEnabled = self.parent:GetConfig("skyriding", "enablePitchControl")
@@ -233,81 +311,72 @@ function Skyriding:ExitSkyridingMode()
     self.parent:Debug("Exiting skyriding mode - clearing override bindings")
     
     -- Don't change bindings if in combat
-    if InCombatLockdown() then
-        self.parent:Debug("In combat, deferring binding restoration")
+    if isInCombat then
+        self.parent:Debug("In combat, setting pending state change")
+        pendingStateChange = false
         return
     end
     
-    -- Clear all override bindings - this is safe and immediate
-    self:ClearOverrideBindings()
+    -- Only force release keys if we have an override frame (meaning we were actually in skyriding mode)
+    if overrideFrame then
+        -- Force release all keys before clearing bindings to prevent stuck keys
+        self:ForceReleaseAllKeys()
+        
+        -- Immediately clear all override bindings to restore normal function
+        self:ClearOverrideBindings()
+    end
     
     if self.parent:GetConfig("debug") then
         self.parent:Print("Skyriding mode disabled: All movement keys restored to normal")
     end
 end
 
-function Skyriding:ClearOverrideBindings()
-    if overrideFrame then
-        -- First, override all our remapped keys to do nothing to break any held states
-        self:SetNullOverrides()
-        
-        -- After a brief delay, clear all overrides to restore normal function
-        C_Timer.After(0.05, function()
-            if overrideFrame then
-                ClearOverrideBindings(overrideFrame)
-                self.parent:Debug("Cleared all override bindings")
-            end
-        end)
+function Skyriding:ForceReleaseAllKeys()
+    -- Force release all movement keys to prevent stuck key states
+    -- This simulates releasing keys by sending key up events
+    
+    -- Create override frame if it doesn't exist
+    if not overrideFrame then
+        overrideFrame = CreateFrame("Frame", "ColdSnapSkyridingOverrideFrame")
+        self.parent:Debug("Created override binding frame for key release")
     end
+    
+    local keysToRelease = {
+        GetBindingKey("STRAFELEFT"),
+        GetBindingKey("STRAFERIGHT"),
+        GetBindingKey("MOVEFORWARD"),
+        GetBindingKey("MOVEBACKWARD"),
+        GetBindingKey("TURNLEFT"),
+        GetBindingKey("TURNRIGHT")
+    }
+    
+    for _, key in ipairs(keysToRelease) do
+        if key then
+            -- Create temporary binding to "CAMERALOOKTOGGLEMOUSE" (a harmless action)
+            -- This forces the key state to reset
+            SetOverrideBinding(overrideFrame, false, key, "CAMERALOOKTOGGLEMOUSE")
+        end
+    end
+    
+    self.parent:Debug("Force released all movement keys")
 end
 
-function Skyriding:SetNullOverrides()
-    -- Temporarily override our remapped keys to do nothing
-    -- This forces any held key states to be broken
-    
-    local strafeLeftKey = GetBindingKey("STRAFELEFT")
-    local strafeRightKey = GetBindingKey("STRAFERIGHT")
-    
-    if strafeLeftKey then
-        -- Set to an empty/null command to break held state
-        SetOverrideBinding(overrideFrame, false, strafeLeftKey, "")
-        self.parent:Debug("Set null override for: " .. strafeLeftKey)
-    end
-    
-    if strafeRightKey then
-        SetOverrideBinding(overrideFrame, false, strafeRightKey, "")
-        self.parent:Debug("Set null override for: " .. strafeRightKey)
-    end
-    
-    -- If pitch control was enabled, also null those keys
-    if self.parent:GetConfig("skyriding", "enablePitchControl") then
-        local forwardKey = GetBindingKey("MOVEFORWARD")
-        local backwardKey = GetBindingKey("MOVEBACKWARD")
-        
-        if forwardKey then
-            SetOverrideBinding(overrideFrame, false, forwardKey, "")
-            self.parent:Debug("Set null override for: " .. forwardKey)
-        end
-        
-        if backwardKey then
-            SetOverrideBinding(overrideFrame, false, backwardKey, "")
-            self.parent:Debug("Set null override for: " .. backwardKey)
-        end
+function Skyriding:ClearOverrideBindings()
+    if overrideFrame then
+        -- Immediately clear all override bindings to restore normal function
+        ClearOverrideBindings(overrideFrame)
+        self.parent:Debug("Cleared all override bindings immediately")
     end
 end
 
 function Skyriding:StoreOriginalBindings()
-    -- We don't actually need to store original bindings with override system
-    -- Override bindings are temporary and don't affect the original bindings
-    -- But we'll keep the function for consistency and debugging
-    
     -- Create the override frame if it doesn't exist
     if not overrideFrame then
         overrideFrame = CreateFrame("Frame", "ColdSnapSkyridingOverrideFrame")
         self.parent:Debug("Created override binding frame")
     end
     
-    -- Clear any existing override bindings
+    -- Clear any existing override bindings first
     ClearOverrideBindings(overrideFrame)
     
     -- Get the current bindings for reference and debugging
@@ -391,6 +460,29 @@ function Skyriding:ApplySkyridingBindings()
     end
     
     self.parent:Debug("Applied skyriding override bindings")
+end
+
+function Skyriding:EmergencyReset()
+    -- Emergency function to reset all bindings and state
+    -- Can be called via slash command if something goes wrong
+    self.parent:Debug("Emergency reset of skyriding bindings")
+    
+    -- Force release all keys if we have an override frame
+    if overrideFrame then
+        self:ForceReleaseAllKeys()
+        C_Timer.After(0.1, function()
+            if overrideFrame then
+                ClearOverrideBindings(overrideFrame)
+            end
+        end)
+    end
+    
+    -- Reset state
+    isInSkyriding = false
+    pendingStateChange = nil
+    stateChangeDebounce = 0
+    
+    self.parent:Print("Emergency reset complete - all movement keys restored to normal")
 end
 
 -- Register the module
