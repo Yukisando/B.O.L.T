@@ -280,6 +280,24 @@ function Config:CreateInterfaceOptionsPanel()
         self:UpdatePlaygroundChildControls()
     end)
     yOffset = yOffset - 30
+
+    -- Show Speedometer (yards/s)
+    local speedometerCheckbox = CreateFrame("CheckButton", "ColdSnapSpeedometerCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    speedometerCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
+    speedometerCheckbox.Text:SetText("Show Speedometer (yards/s)")
+    speedometerCheckbox:SetScript("OnShow", function()
+        speedometerCheckbox:SetChecked(self.parent:GetConfig("playground", "showSpeedometer"))
+    end)
+    speedometerCheckbox:SetScript("OnClick", function()
+        local enabled = speedometerCheckbox:GetChecked()
+        self.parent:SetConfig(enabled, "playground", "showSpeedometer")
+        self.parent:Print("Speedometer " .. (enabled and "enabled" or "disabled") .. ".")
+        -- Tell playground module to show/hide the speedometer immediately if loaded
+        if self.parent.modules and self.parent.modules.playground and self.parent.modules.playground.ToggleSpeedometer then
+            self.parent.modules.playground:ToggleSpeedometer(enabled)
+        end
+    end)
+    yOffset = yOffset - 30
     
     -- Favorite Toy Selection (only show if feature is enabled)
     local toyLabel = content:CreateFontString("ColdSnapToyLabel", "OVERLAY", "GameFontNormal")
@@ -460,11 +478,17 @@ function Config:UpdatePlaygroundChildControls()
     local favoriteToyCheckbox = _G["ColdSnapFavoriteToyCheckbox"]
     local toyFrame = _G["ColdSnapToySelectionFrame"]
     local toyLabel = _G["ColdSnapToyLabel"]
+    local speedometerCheckbox = _G["ColdSnapSpeedometerCheckbox"]
     
     -- Enable/disable child controls based on parent module
     if favoriteToyCheckbox then
         favoriteToyCheckbox:SetEnabled(playgroundEnabled)
         favoriteToyCheckbox:SetAlpha(playgroundEnabled and 1.0 or 0.5)
+    end
+
+    if speedometerCheckbox then
+        speedometerCheckbox:SetEnabled(playgroundEnabled)
+        speedometerCheckbox:SetAlpha(playgroundEnabled and 1.0 or 0.5)
     end
     
     -- Show/hide toy selection based on both module and feature being enabled

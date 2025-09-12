@@ -9,6 +9,51 @@ local Playground = {}
 -- Reference to the Favorite Toy button
 local favoriteToyButton = nil
 
+-- Reference to the speedometer frame
+local speedometerFrame = nil
+
+-- Optional HereBeDragons library for precise world position
+local HBD = LibStub and LibStub("HereBeDragons-2.0", true)
+
+-- Position-based speed fallback (yards per second)
+local lastX, lastY, lastT
+local speedYPS = 0
+
+local function GetPlayerSpeedYPS()
+    -- 1) Try the simple API first (works for ground/steady flight)
+    if GetUnitSpeed then
+        local cur = GetUnitSpeed("player")
+        if cur and cur > 0 then
+            return cur -- already in yards/second
+        end
+    end
+
+    -- 2) Fallback for Skyriding/edge cases: compute from position deltas
+    local t = GetTime()
+
+    -- Prefer HBD for precise world coords; fallback to UnitPosition
+    local x, y, instance
+    if HBD and HBD.GetPlayerWorldPosition then
+        x, y, instance = HBD:GetPlayerWorldPosition()
+    else
+        local ux, uy = UnitPosition("player")
+        x, y, instance = ux, uy, nil
+    end
+    if not x or not y then return 0 end
+
+    if lastX and lastY and lastT then
+        local dt = t - lastT
+        if dt > 0 then
+            local dx = x - lastX
+            local dy = y - lastY
+            speedYPS = math.sqrt(dx*dx + dy*dy) / dt
+        end
+    end
+
+    lastX, lastY, lastT = x, y, t
+    return speedYPS
+end
+
 function Playground:OnInitialize()
     self.parent:Debug("Playground module initializing...")
 end
@@ -25,6 +70,9 @@ function Playground:OnEnable()
     
     -- Hook into the game menu show event
     self:HookGameMenu()
+
+    -- Create the speedometter UI
+    self:CreateSpeedometer()
 end
 
 function Playground:OnDisable()
@@ -32,6 +80,13 @@ function Playground:OnDisable()
     if favoriteToyButton then
         favoriteToyButton:Hide()
         favoriteToyButton = nil
+    end
+
+    -- Hide and remove speedometer when module is disabled
+    if speedometerFrame then
+        speedometerFrame:Hide()
+        speedometerFrame:SetScript("OnUpdate", nil)
+        speedometerFrame = nil
     end
 end
 
@@ -271,6 +326,89 @@ function Playground:PositionFavoriteToyButton()
     favoriteToyButton:Show()
     
     self.parent:Debug("Favorite toy button positioned and shown")
+end
+
+-- Create a very basic speedometter (speed label) anchored at top-left of the screen.
+-- This is intentionally lightweight: it shows a numeric speed and updates frequently.
+function Playground:CreateSpeedometer()
+    if speedometerFrame then
+        return
+    end
+    local f = CreateFrame("Frame", "ColdSnapSpeedometer", UIParent)
+    f:SetSize(200, 22)
+    f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 8, -8)
+    f:SetFrameStrata("BACKGROUND")
+
+    local bg = f:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0, 0, 0, 0.35)
+
+    local txt = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    txt:SetPoint("LEFT", 6, 0)
+    txt:SetJustifyH("LEFT")
+    txt:SetText("Speed: 0 (0%)")
+
+    f.text = txt
+    f._updateTimer = 0
+    -- Track the largest observed speed this session to provide a relative percent
+    f._sessionMax = 0
+
+    -- Update every ~0.1s using a robust speed getter
+    f:SetScript("OnUpdate", function(self, elapsed)
+        self._updateTimer = self._updateTimer + elapsed
+        if self._updateTimer < 0.1 then return end
+        self._updateTimer = 0
+
+        -- Get speed in yards/second using a helper that falls back to position deltas
+        local speed = GetPlayerSpeedYPS() or 0
+
+        -- Use a standard run speed reference (about 7 y/s for a baseline run speed)
+        local runSpeedRef = 7.0
+        local percent = 0
+        if runSpeedRef > 0 then
+            percent = (speed / runSpeedRef) * 100
+        end
+
+        -- Determine a simple movement state label
+        local state = ""
+        if UnitOnTaxi("player") then
+            state = " (Taxi)"
+        elseif IsFlying() then
+            state = " (Flying)"
+        elseif IsSwimming() then
+            state = " (Swimming)"
+        elseif IsMounted() then
+            state = " (Mounted)"
+        end
+
+        -- Show yards/sec with one decimal and percent of run speed
+        local display = string.format("Speed: %.1fy/s (%.0f%%)%s", speed, percent, state)
+        self.text:SetText(display)
+    end)
+
+    -- Only show if the playground speedometer config is enabled
+    if self.parent and self.parent.GetConfig and self.parent:GetConfig("playground", "showSpeedometer") then
+        f:Show()
+    else
+        f:Hide()
+    end
+
+    speedometerFrame = f
+end
+
+function Playground:ToggleSpeedometer(enabled)
+    if not speedometerFrame then
+        -- Create the frame so it exists (it's created hidden if config was off)
+        self:CreateSpeedometer()
+    end
+
+    if speedometerFrame then
+        if enabled then
+            speedometerFrame:Show()
+        else
+            speedometerFrame:Hide()
+        end
+    end
 end
 
 -- Register the module
