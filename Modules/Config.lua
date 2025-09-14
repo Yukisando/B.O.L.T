@@ -104,6 +104,65 @@ function Config:CreateInterfaceOptionsPanel()
         self.parent:Print("Reload UI button " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
     end)
     yOffset = yOffset - 30
+
+    -- Show Group Tools (Ready/Countdown/Raid Marker)
+    local groupToolsCheckbox = CreateFrame("CheckButton", "ColdSnapGroupToolsCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    groupToolsCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
+    groupToolsCheckbox.Text:SetText("Show Group Tools (Ready/Countdown/Raid Marker)")
+    groupToolsCheckbox:SetScript("OnShow", function()
+        groupToolsCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "groupToolsEnabled"))
+    end)
+    groupToolsCheckbox:SetScript("OnClick", function()
+        local enabled = groupToolsCheckbox:GetChecked()
+        self.parent:SetConfig(enabled, "gameMenu", "groupToolsEnabled")
+        self.parent:Print("Group tools " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply if needed.")
+        -- If enabling here, MythicPlus keystone buttons will auto-hide to avoid duplicates
+    end)
+    yOffset = yOffset - 30
+
+    -- Raid Marker selection dropdown
+    local markerLabel = content:CreateFontString("ColdSnapRaidMarkerLabel", "OVERLAY", "GameFontNormal")
+    markerLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 70, yOffset)
+    markerLabel:SetText("Raid marker for the button:")
+
+    local dropdown = CreateFrame("Frame", "ColdSnapRaidMarkerDropdown", content, "UIDropDownMenuTemplate")
+    dropdown:SetPoint("TOPLEFT", markerLabel, "BOTTOMLEFT", -16, -6)
+
+    local markerNames = {"Star","Circle","Diamond","Triangle","Moon","Square","Cross","Skull","Clear"}
+
+    UIDropDownMenu_SetWidth(dropdown, 180)
+    UIDropDownMenu_JustifyText(dropdown, "LEFT")
+
+    local mod = self
+    local function SetDropdownText(index)
+        if index == 0 or index == 9 then
+            UIDropDownMenu_SetText(dropdown, "Clear (no marker)")
+        else
+            UIDropDownMenu_SetText(dropdown, markerNames[index] or "Star")
+        end
+    end
+
+    UIDropDownMenu_Initialize(dropdown, function(frame, level)
+        local info = UIDropDownMenu_CreateInfo()
+        for i = 1, 9 do
+            info = UIDropDownMenu_CreateInfo()
+            local valueIndex = (i == 9) and 0 or i
+            info.text = (i == 9) and "Clear (no marker)" or markerNames[i]
+            info.func = function()
+                mod.parent:SetConfig(valueIndex, "gameMenu", "raidMarkerIndex")
+                SetDropdownText(valueIndex)
+            end
+            info.checked = (mod.parent:GetConfig("gameMenu", "raidMarkerIndex") or 1) == valueIndex
+            UIDropDownMenu_AddButton(info)
+        end
+    end)
+
+    -- Refresh dropdown selection on show
+    dropdown:SetScript("OnShow", function()
+        local idx = mod.parent:GetConfig("gameMenu", "raidMarkerIndex") or 1
+        SetDropdownText(idx)
+    end)
+    yOffset = yOffset - 70
     
     -- Add separator line after Game Menu module
     local gameMenuSeparator = content:CreateTexture(nil, "ARTWORK")
@@ -384,6 +443,22 @@ function Config:RefreshOptionsPanel()
         if reloadCheckbox then
             reloadCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showReloadButton"))
         end
+
+        local groupToolsCheckbox = _G["ColdSnapGroupToolsCheckbox"]
+        if groupToolsCheckbox then
+            groupToolsCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "groupToolsEnabled"))
+        end
+        local raidMarkerDropdown = _G["ColdSnapRaidMarkerDropdown"]
+        if raidMarkerDropdown then
+            local idx = self.parent:GetConfig("gameMenu", "raidMarkerIndex") or 1
+            -- Set the text again in case marker changed elsewhere
+            if idx == 0 then
+                UIDropDownMenu_SetText(raidMarkerDropdown, "Clear (no marker)")
+            else
+                local names = {"Star","Circle","Diamond","Triangle","Moon","Square","Cross","Skull"}
+                UIDropDownMenu_SetText(raidMarkerDropdown, names[idx] or "Star")
+            end
+        end
         
         local mythicPlusCheckbox = _G["ColdSnapMythicPlusCheckbox"]
         if mythicPlusCheckbox then
@@ -443,6 +518,9 @@ function Config:UpdateGameMenuChildControls()
     -- Get references to child controls
     local leaveGroupCheckbox = _G["ColdSnapLeaveGroupCheckbox"]
     local reloadCheckbox = _G["ColdSnapReloadCheckbox"]
+    local groupToolsCheckbox = _G["ColdSnapGroupToolsCheckbox"]
+    local raidMarkerDropdown = _G["ColdSnapRaidMarkerDropdown"]
+    local raidMarkerLabel = _G["ColdSnapRaidMarkerLabel"]
     
     -- Enable/disable child controls based on parent module
     if leaveGroupCheckbox then
@@ -453,6 +531,23 @@ function Config:UpdateGameMenuChildControls()
     if reloadCheckbox then
         reloadCheckbox:SetEnabled(gameMenuEnabled)
         reloadCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
+    end
+    if groupToolsCheckbox then
+        groupToolsCheckbox:SetEnabled(gameMenuEnabled)
+        groupToolsCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
+    end
+    local groupToolsEnabled = self.parent:GetConfig("gameMenu", "groupToolsEnabled") and gameMenuEnabled
+    if raidMarkerDropdown then
+        if groupToolsEnabled then
+            if UIDropDownMenu_EnableDropDown then UIDropDownMenu_EnableDropDown(raidMarkerDropdown) end
+            raidMarkerDropdown:SetAlpha(1.0)
+        else
+            if UIDropDownMenu_DisableDropDown then UIDropDownMenu_DisableDropDown(raidMarkerDropdown) end
+            raidMarkerDropdown:SetAlpha(0.5)
+        end
+    end
+    if raidMarkerLabel then
+        raidMarkerLabel:SetAlpha(groupToolsEnabled and 1.0 or 0.5)
     end
 end
 

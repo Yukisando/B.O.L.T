@@ -117,8 +117,9 @@ function MythicPlus:UpdateKeystoneWindow()
         return
     end
     
-    -- Show buttons if enabled
-    if self.parent:GetConfig("mythicPlus", "showReadyCheckButton") then
+    -- Show buttons if enabled AND not using Game Menu placement
+    local gmTools = self.parent:GetConfig("gameMenu", "groupToolsEnabled")
+    if self.parent:GetConfig("mythicPlus", "showReadyCheckButton") and not gmTools then
         self:ShowButtons()
     else
         self:HideButtons()

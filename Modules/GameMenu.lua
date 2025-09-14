@@ -10,6 +10,10 @@ local GameMenu = {}
 local leaveGroupButton = nil
 -- Reference to the Reload UI button
 local reloadButton = nil
+-- Group tools buttons
+local readyCheckButton = nil
+local countdownButton = nil
+local raidMarkerButton = nil
 
 function GameMenu:OnInitialize()
     self.parent:Debug("GameMenu module initializing...")
@@ -35,6 +39,18 @@ function GameMenu:OnDisable()
     if reloadButton then
         reloadButton:Hide() 
         reloadButton = nil
+    end
+    if readyCheckButton then
+        readyCheckButton:Hide()
+        readyCheckButton = nil
+    end
+    if countdownButton then
+        countdownButton:Hide()
+        countdownButton = nil
+    end
+    if raidMarkerButton then
+        raidMarkerButton:Hide()
+        raidMarkerButton = nil
     end
 end
 
@@ -67,6 +83,7 @@ function GameMenu:HookGameMenu()
             if not InCombatLockdown() then
                 self:HideLeaveGroupButton()
                 self:HideReloadButton()
+                self:HideGroupTools()
             end
         end)
     end
@@ -94,6 +111,13 @@ function GameMenu:UpdateGameMenu()
         self:ShowLeaveGroupButton()
     else
         self:HideLeaveGroupButton()
+    end
+
+    -- Group tools (ready check, countdown, raid marker)
+    if self.parent:GetConfig("gameMenu", "groupToolsEnabled") and self.parent:IsInGroup() then
+        self:ShowGroupTools()
+    else
+        self:HideGroupTools()
     end
 end
 
@@ -134,6 +158,31 @@ function GameMenu:HideReloadButton()
     if reloadButton then
         reloadButton:Hide()
     end
+end
+
+function GameMenu:ShowGroupTools()
+    if not readyCheckButton then
+        self:CreateReadyCheckButton()
+    end
+    if not countdownButton then
+        self:CreateCountdownButton()
+    end
+    if not raidMarkerButton then
+        self:CreateRaidMarkerButton()
+    end
+
+    readyCheckButton:Show()
+    countdownButton:Show()
+    raidMarkerButton:Show()
+
+    self:PositionGroupTools()
+    self:RefreshGroupToolsState()
+end
+
+function GameMenu:HideGroupTools()
+    if readyCheckButton then readyCheckButton:Hide() end
+    if countdownButton then countdownButton:Hide() end
+    if raidMarkerButton then raidMarkerButton:Hide() end
 end
 
 function GameMenu:CreateLeaveGroupButton()
@@ -238,6 +287,191 @@ function GameMenu:PositionLeaveGroupButton()
     leaveGroupButton:EnableMouse(true)
     leaveGroupButton:Show()
 end
+
+-- Create small square utility button with icon textures
+local function CreateIconButton(name, parent, iconPath)
+    local btn = CreateFrame("Button", name, parent)
+    local normalTexture = btn:CreateTexture(nil, "BACKGROUND")
+    normalTexture:SetTexture("Interface\\Buttons\\UI-Panel-Button-Up")
+    normalTexture:SetTexCoord(0, 0.625, 0, 0.6875)
+    normalTexture:SetAllPoints()
+    btn:SetNormalTexture(normalTexture)
+
+    local pushedTexture = btn:CreateTexture(nil, "BACKGROUND")
+    pushedTexture:SetTexture("Interface\\Buttons\\UI-Panel-Button-Down")
+    pushedTexture:SetTexCoord(0, 0.625, 0, 0.6875)
+    pushedTexture:SetAllPoints()
+    btn:SetPushedTexture(pushedTexture)
+
+    local highlightTexture = btn:CreateTexture(nil, "HIGHLIGHT")
+    highlightTexture:SetTexture("Interface\\Buttons\\UI-Panel-Button-Highlight")
+    highlightTexture:SetTexCoord(0, 0.625, 0, 0.6875)
+    highlightTexture:SetAllPoints()
+    highlightTexture:SetBlendMode("ADD")
+    btn:SetHighlightTexture(highlightTexture)
+
+    btn:SetSize(28, 28)
+
+    local iconTexture = btn:CreateTexture(nil, "OVERLAY")
+    iconTexture:SetTexture(iconPath)
+    iconTexture:SetSize(20, 20)
+    iconTexture:SetPoint("CENTER")
+    btn.icon = iconTexture
+
+    btn:EnableMouse(true)
+    btn:SetMotionScriptsWhileDisabled(true)
+    btn:SetScript("OnMouseDown", function()
+        if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION then
+            PlaySound(SOUNDKIT.IG_MAINMENU_OPTION)
+        end
+    end)
+    return btn
+end
+
+function GameMenu:CreateReadyCheckButton()
+    readyCheckButton = CreateIconButton("ColdSnapGMReadyCheck", GameMenuFrame, "Interface\\RaidFrame\\ReadyCheck-Ready")
+    readyCheckButton:SetScript("OnClick", function()
+        self:OnReadyCheckClick()
+    end)
+    readyCheckButton:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(readyCheckButton, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Ready Check", 1, 1, 1)
+        GameTooltip:AddLine("Start a ready check for your group", 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+        if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
+            PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
+        end
+    end)
+    readyCheckButton:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+end
+
+function GameMenu:CreateCountdownButton()
+    countdownButton = CreateIconButton("ColdSnapGMCountdown", GameMenuFrame, "Interface\\Icons\\Spell_Holy_BorrowedTime")
+    countdownButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
+    countdownButton:SetScript("OnClick", function()
+        self:OnCountdownClick()
+    end)
+    countdownButton:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(countdownButton, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Countdown", 1, 1, 1)
+        GameTooltip:AddLine("Start a 5-second pull timer", 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+        if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
+            PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
+        end
+    end)
+    countdownButton:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+end
+
+function GameMenu:CreateRaidMarkerButton()
+    raidMarkerButton = CreateIconButton("ColdSnapGMRaidMarker", GameMenuFrame, "Interface\\TARGETINGFRAME\\UI-RaidTargetingIcons")
+    -- We'll adjust tex coords based on selected marker in RefreshGroupToolsState
+    raidMarkerButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    raidMarkerButton:SetScript("OnClick", function(_, button)
+        self:OnRaidMarkerClick(button)
+    end)
+    raidMarkerButton:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(raidMarkerButton, "ANCHOR_RIGHT")
+        local idx = self.parent:GetConfig("gameMenu", "raidMarkerIndex") or 1
+        local names = {"Star","Circle","Diamond","Triangle","Moon","Square","Cross","Skull"}
+        GameTooltip:SetText("Raid Marker", 1, 1, 1)
+        GameTooltip:AddLine("Left-click: Set your own marker (" .. (names[idx] or "Unknown") .. ")", 0.8,0.8,0.8,true)
+        GameTooltip:AddLine("Right-click: Clear your marker", 0.8,0.8,0.8,true)
+        if not (UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")) then
+            GameTooltip:AddLine("Requires group leader or assistant", 1, 0.2, 0.2, true)
+        end
+        GameTooltip:Show()
+        if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
+            PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
+        end
+    end)
+    raidMarkerButton:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+end
+
+function GameMenu:PositionGroupTools()
+    if not (readyCheckButton and countdownButton and raidMarkerButton) then return end
+    readyCheckButton:ClearAllPoints()
+    countdownButton:ClearAllPoints()
+    raidMarkerButton:ClearAllPoints()
+    -- Place on the left side of GameMenuFrame, vertically stacked
+    readyCheckButton:SetPoint("TOPRIGHT", GameMenuFrame, "TOPLEFT", -8, -12)
+    countdownButton:SetPoint("TOPLEFT", readyCheckButton, "BOTTOMLEFT", 0, -6)
+    raidMarkerButton:SetPoint("TOPLEFT", countdownButton, "BOTTOMLEFT", 0, -6)
+    local level = GameMenuFrame:GetFrameLevel()
+    readyCheckButton:SetFrameLevel(level + 2)
+    countdownButton:SetFrameLevel(level + 2)
+    raidMarkerButton:SetFrameLevel(level + 2)
+end
+
+function GameMenu:RefreshGroupToolsState()
+    -- Enable state: Ready/Countdown require leader or assist; Raid marker always enabled
+    local leader = UnitIsGroupLeader("player")
+    local canMark = UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")
+    if readyCheckButton then
+        if leader then
+            readyCheckButton:Enable()
+            readyCheckButton:SetAlpha(1)
+        else
+            readyCheckButton:Disable()
+            readyCheckButton:SetAlpha(0.4)
+        end
+    end
+    if countdownButton then
+        if leader then
+            countdownButton:Enable()
+            countdownButton:SetAlpha(1)
+        else
+            countdownButton:Disable()
+            countdownButton:SetAlpha(0.4)
+        end
+    end
+
+    -- Update raid marker icon tex coords to reflect chosen marker
+    if raidMarkerButton and raidMarkerButton.icon then
+        if canMark then
+            raidMarkerButton:Enable()
+            raidMarkerButton:SetAlpha(1)
+        else
+            raidMarkerButton:Disable()
+            raidMarkerButton:SetAlpha(0.4)
+        end
+        local idx = self.parent:GetConfig("gameMenu", "raidMarkerIndex") or 1
+        -- Raid target sheet is 4x4 grid; indices 1..8 left-to-right, top-to-bottom (WoW ordering)
+        local function GetMarkerTexCoords(i)
+            local map = {
+                [1] = {0, 0.25, 0, 0.25},      -- Star
+                [2] = {0.25, 0.5, 0, 0.25},    -- Circle
+                [3] = {0.5, 0.75, 0, 0.25},    -- Diamond
+                [4] = {0.75, 1, 0, 0.25},      -- Triangle
+                [5] = {0, 0.25, 0.25, 0.5},    -- Moon
+                [6] = {0.25, 0.5, 0.25, 0.5},  -- Square
+                [7] = {0.5, 0.75, 0.25, 0.5},  -- Cross
+                [8] = {0.75, 1, 0.25, 0.5},    -- Skull
+            }
+            return unpack(map[i] or map[1])
+        end
+        raidMarkerButton.icon:SetTexture("Interface\\TARGETINGFRAME\\UI-RaidTargetingIcons")
+        raidMarkerButton.icon:SetTexCoord(GetMarkerTexCoords(idx))
+    end
+end
+
+-- Event hook to keep enable/disable state current
+local function RegisterGroupStateUpdates()
+    if GameMenu._groupUpdateFrame then return end
+    local f = CreateFrame("Frame")
+    f:RegisterEvent("GROUP_ROSTER_UPDATE")
+    f:RegisterEvent("PLAYER_ROLES_ASSIGNED")
+    f:RegisterEvent("PARTY_LEADER_CHANGED")
+    f:RegisterEvent("PLAYER_ENTERING_WORLD")
+    f:SetScript("OnEvent", function()
+        if GameMenuFrame and GameMenuFrame:IsShown() then
+            GameMenu:RefreshGroupToolsState()
+        end
+    end)
+    GameMenu._groupUpdateFrame = f
+end
+
+RegisterGroupStateUpdates()
 
 function GameMenu:CreateReloadButton()
     -- Create a small reload button for the top right
@@ -381,6 +615,54 @@ function GameMenu:OnLeaveGroupClick()
     C_Timer.After(0.1, function()
         self.parent:LeaveGroup()
     end)
+end
+
+function GameMenu:OnReadyCheckClick()
+    if IsInGroup() and (IsInRaid() or IsInGroup(LE_PARTY_CATEGORY_HOME)) then
+        if UnitIsGroupLeader("player") then
+            DoReadyCheck()
+            self.parent:Debug("Ready check initiated")
+        else
+            self.parent:Print("You must be the group leader to start a ready check.")
+        end
+    else
+        self.parent:Print("You must be in a group to start a ready check.")
+    end
+end
+
+function GameMenu:OnCountdownClick()
+    if IsInGroup() and (IsInRaid() or IsInGroup(LE_PARTY_CATEGORY_HOME)) then
+        if UnitIsGroupLeader("player") then
+            if C_PartyInfo and C_PartyInfo.DoCountdown then
+                C_PartyInfo.DoCountdown(5)
+            end
+            self.parent:Debug("Countdown initiated")
+        else
+            self.parent:Print("You must be the group leader to start a countdown.")
+        end
+    else
+        self.parent:Print("You must be in a group to start a countdown.")
+    end
+end
+
+function GameMenu:OnRaidMarkerClick(button)
+    if not SetRaidTarget then
+        self.parent:Print("Raid markers not available.")
+        return
+    end
+    if not (UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")) then
+        self.parent:Print("You must be the group leader or an assistant to change raid markers.")
+        return
+    end
+    if button == "RightButton" then
+        SetRaidTarget("player", 0)
+        self.parent:Print("Raid marker cleared from you.")
+        return
+    end
+    local idx = self.parent:GetConfig("gameMenu", "raidMarkerIndex") or 1
+    SetRaidTarget("player", idx)
+    local names = {"Star","Circle","Diamond","Triangle","Moon","Square","Cross","Skull"}
+    self.parent:Print("Set your raid marker: " .. (names[idx] or idx))
 end
 
 -- Register the module

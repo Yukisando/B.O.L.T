@@ -6,7 +6,7 @@ local ADDON_NAME, ColdSnap = ...
 -- Create the main addon object
 ColdSnap = ColdSnap or {}
 ColdSnap.name = ADDON_NAME
-ColdSnap.version = "1.2.0"
+ColdSnap.version = "1.3.0"
 ColdSnap.modules = {}
 
 -- Default configuration
@@ -17,6 +17,8 @@ ColdSnap.defaults = {
             enabled = true,
             showLeaveGroup = true,
             showReloadButton = true,
+            groupToolsEnabled = true,
+            raidMarkerIndex = 1, -- 1=Star, 2=Circle, ... 8=Skull; set 0 to clear
         },
         playground = {
             enabled = true,
