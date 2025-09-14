@@ -404,11 +404,10 @@ function GameMenu:PositionGroupTools()
 end
 
 function GameMenu:RefreshGroupToolsState()
-    -- Enable state: Ready/Countdown require leader or assist; Raid marker always enabled
-    local leader = UnitIsGroupLeader("player")
-    local canMark = UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")
+    -- Enable state: Ready/Countdown require leader or assist; Raid marker requires leader or assist
+    local canCommand = UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")
     if readyCheckButton then
-        if leader then
+        if canCommand then
             readyCheckButton:Enable()
             readyCheckButton:SetAlpha(1)
         else
@@ -417,7 +416,7 @@ function GameMenu:RefreshGroupToolsState()
         end
     end
     if countdownButton then
-        if leader then
+        if canCommand then
             countdownButton:Enable()
             countdownButton:SetAlpha(1)
         else
@@ -428,7 +427,7 @@ function GameMenu:RefreshGroupToolsState()
 
     -- Update raid marker icon tex coords to reflect chosen marker
     if raidMarkerButton and raidMarkerButton.icon then
-        if canMark then
+        if canCommand then
             raidMarkerButton:Enable()
             raidMarkerButton:SetAlpha(1)
         else
@@ -619,11 +618,11 @@ end
 
 function GameMenu:OnReadyCheckClick()
     if IsInGroup() and (IsInRaid() or IsInGroup(LE_PARTY_CATEGORY_HOME)) then
-        if UnitIsGroupLeader("player") then
+        if UnitIsGroupLeader("player") or UnitIsGroupAssistant("player") then
             DoReadyCheck()
             self.parent:Debug("Ready check initiated")
         else
-            self.parent:Print("You must be the group leader to start a ready check.")
+            self.parent:Print("You must be the group leader or an assistant to start a ready check.")
         end
     else
         self.parent:Print("You must be in a group to start a ready check.")
@@ -632,13 +631,13 @@ end
 
 function GameMenu:OnCountdownClick()
     if IsInGroup() and (IsInRaid() or IsInGroup(LE_PARTY_CATEGORY_HOME)) then
-        if UnitIsGroupLeader("player") then
+        if UnitIsGroupLeader("player") or UnitIsGroupAssistant("player") then
             if C_PartyInfo and C_PartyInfo.DoCountdown then
                 C_PartyInfo.DoCountdown(5)
             end
             self.parent:Debug("Countdown initiated")
         else
-            self.parent:Print("You must be the group leader to start a countdown.")
+            self.parent:Print("You must be the group leader or an assistant to start a countdown.")
         end
     else
         self.parent:Print("You must be in a group to start a countdown.")
