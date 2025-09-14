@@ -324,12 +324,8 @@ function MythicPlus:PositionButtons()
     readyCheckButton:ClearAllPoints()
     countdownButton:ClearAllPoints()
     
-    -- Position the buttons centered at the top of the keystone window with padding
-    -- Calculate center position for both buttons together (64px total width + 5px gap = 69px total)
-    local totalWidth = 69 -- 32 + 5 + 32
-    local startX = -(totalWidth / 2) + 16 -- Center offset plus half button width
-    
-    readyCheckButton:SetPoint("TOP", parent, "TOP", startX, -20)
+    -- Position the buttons at the top left of the keystone window with padding
+    readyCheckButton:SetPoint("TOPLEFT", parent, "TOPLEFT", 20, -20)
     countdownButton:SetPoint("LEFT", readyCheckButton, "RIGHT", 5, 0)
     
     -- Ensure the buttons are clickable and visible
