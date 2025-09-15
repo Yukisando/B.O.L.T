@@ -17,6 +17,5 @@ Core\Utils.lua
 # Modules
 Modules\Config.lua
 Modules\GameMenu.lua
-Modules\MythicPlus.lua
 Modules\Skyriding.lua
 Modules\Playground.lua

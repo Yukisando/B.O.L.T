@@ -116,7 +116,6 @@ function Config:CreateInterfaceOptionsPanel()
         local enabled = groupToolsCheckbox:GetChecked()
         self.parent:SetConfig(enabled, "gameMenu", "groupToolsEnabled")
         self.parent:Print("Group tools " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply if needed.")
-        -- If enabling here, MythicPlus keystone buttons will auto-hide to avoid duplicates
     end)
     yOffset = yOffset - 30
 
@@ -169,62 +168,6 @@ function Config:CreateInterfaceOptionsPanel()
     gameMenuSeparator:SetTexture("Interface\\Common\\UI-TooltipDivider-Transparent")
     gameMenuSeparator:SetSize(400, 8)
     gameMenuSeparator:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset - 10)
-    yOffset = yOffset - 30
-    
-    -- Mythic Plus Module Section
-    local mythicPlusHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    mythicPlusHeader:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset)
-    mythicPlusHeader:SetText("Mythic Plus Module")
-    yOffset = yOffset - 30
-    
-    -- Enable/Disable Mythic Plus Module
-    local mythicPlusCheckbox = CreateFrame("CheckButton", "ColdSnapMythicPlusCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
-    mythicPlusCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
-    mythicPlusCheckbox.Text:SetText("Enable Mythic Plus Module")
-    mythicPlusCheckbox:SetScript("OnShow", function()
-        local enabled = self.parent:IsModuleEnabled("mythicPlus")
-        mythicPlusCheckbox:SetChecked(enabled)
-        -- Update child controls when shown
-        self:UpdateMythicPlusChildControls()
-    end)
-    mythicPlusCheckbox:SetScript("OnClick", function()
-        local enabled = mythicPlusCheckbox:GetChecked()
-        self.parent:SetConfig(enabled, "mythicPlus", "enabled")
-        self.parent:Print("Mythic Plus module " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
-        -- Update child controls when toggled
-        self:UpdateMythicPlusChildControls()
-    end)
-    yOffset = yOffset - 30
-    
-    -- Show Ready Check Button
-    local readyCheckCheckbox = CreateFrame("CheckButton", "ColdSnapReadyCheckCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
-    readyCheckCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
-    readyCheckCheckbox.Text:SetText("Show Ready Check & Countdown Buttons")
-    readyCheckCheckbox:SetScript("OnShow", function()
-        readyCheckCheckbox:SetChecked(self.parent:GetConfig("mythicPlus", "showReadyCheckButton"))
-    end)
-    readyCheckCheckbox:SetScript("OnClick", function()
-        local enabled = readyCheckCheckbox:GetChecked()
-        self.parent:SetConfig(enabled, "mythicPlus", "showReadyCheckButton")
-        self.parent:Print("Mythic Plus buttons " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply changes.")
-    end)
-    yOffset = yOffset - 30
-    
-    -- Description text for Mythic Plus module
-    local mythicPlusDesc = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    mythicPlusDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
-    mythicPlusDesc:SetPoint("TOPRIGHT", content, "TOPRIGHT", -50, yOffset)
-    mythicPlusDesc:SetText("Adds ready check and countdown timer buttons to the keystone window for quick group coordination.")
-    mythicPlusDesc:SetTextColor(0.8, 0.8, 0.8)
-    mythicPlusDesc:SetJustifyH("LEFT")
-    mythicPlusDesc:SetWordWrap(true)
-    yOffset = yOffset - 45
-    
-    -- Add separator line after Mythic Plus module
-    local mythicPlusSeparator = content:CreateTexture(nil, "ARTWORK")
-    mythicPlusSeparator:SetTexture("Interface\\Common\\UI-TooltipDivider-Transparent")
-    mythicPlusSeparator:SetSize(400, 8)
-    mythicPlusSeparator:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset - 10)
     yOffset = yOffset - 30
     
     -- Skyriding Module Section
@@ -460,17 +403,6 @@ function Config:RefreshOptionsPanel()
             end
         end
         
-        local mythicPlusCheckbox = _G["ColdSnapMythicPlusCheckbox"]
-        if mythicPlusCheckbox then
-            local enabled = self.parent:IsModuleEnabled("mythicPlus")
-            mythicPlusCheckbox:SetChecked(enabled)
-        end
-        
-        local readyCheckCheckbox = _G["ColdSnapReadyCheckCheckbox"]
-        if readyCheckCheckbox then
-            readyCheckCheckbox:SetChecked(self.parent:GetConfig("mythicPlus", "showReadyCheckButton"))
-        end
-        
         local playgroundCheckbox = _G["ColdSnapPlaygroundCheckbox"]
         if playgroundCheckbox then
             local enabled = self.parent:IsModuleEnabled("playground")
@@ -548,20 +480,6 @@ function Config:UpdateGameMenuChildControls()
     end
     if raidMarkerLabel then
         raidMarkerLabel:SetAlpha(groupToolsEnabled and 1.0 or 0.5)
-    end
-end
-
--- Update child control states for Mythic Plus module
-function Config:UpdateMythicPlusChildControls()
-    local mythicPlusEnabled = self.parent:IsModuleEnabled("mythicPlus")
-    
-    -- Get references to child controls
-    local readyCheckCheckbox = _G["ColdSnapReadyCheckCheckbox"]
-    
-    -- Enable/disable child controls based on parent module
-    if readyCheckCheckbox then
-        readyCheckCheckbox:SetEnabled(mythicPlusEnabled)
-        readyCheckCheckbox:SetAlpha(mythicPlusEnabled and 1.0 or 0.5)
     end
 end
 
