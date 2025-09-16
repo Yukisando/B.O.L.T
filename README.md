@@ -17,9 +17,11 @@ ColdSnap adds convenient features to make your WoW experience smoother without c
   - Raid Marker: Set or clear your own raid marker (configurable icon, right-click to clear)
 
 ### Skyriding Module
-- **Enhanced Controls**: Changes strafe keys to horizontal movement while skyriding
-- **Pitch Control**: Optional W/S mapping for pitch up/down movement (3D control)
+- **Mouse-Activated Controls**: Hold left mouse button to activate enhanced skyriding controls
+- **Enhanced Movement**: While holding mouse, strafe keys (A/D) become horizontal turning
+- **Pitch Control**: Optional W/S mapping for pitch up/down movement when mouse is held (3D control)
 - **Invert Option**: Reverse pitch controls if preferred (W=dive, S=climb)
+- **Safe Operation**: Controls only active while mouse button is held - no permanent key changes
 
 ### Playground Module (Fun Features)
 - **Favorite Toy Button**: Quick access to your favorite toy from the ESC menu

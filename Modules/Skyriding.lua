@@ -1,5 +1,6 @@
 -- ColdSnap Skyriding Module
--- Changes strafe keybinds to horizontal movement while sky riding
+-- Changes strafe keybinds to horizontal movement while skyriding
+-- Overrides are only active while holding the left mouse button
 
 local ADDON_NAME, ColdSnap = ...
 
@@ -13,7 +14,6 @@ local bindingsCurrentlyActive = false
 local bindingCheckFrame = nil
 local overrideFrame = nil
 local isInCombat = false
-local pendingStateChange = nil
 local stateChangeDebounce = 0
 local lastStateChangeTime = 0
 local mouseFrame = nil
@@ -106,7 +106,6 @@ function Skyriding:OnEnable()
 
     -- Initialize state
     isInCombat = InCombatLockdown()
-    pendingStateChange = nil
     stateChangeDebounce = 0
     lastStateChangeTime = 0
 
@@ -136,7 +135,6 @@ function Skyriding:OnDisable()
     isLeftMouseDown = false
     bindingsCurrentlyActive = false
     isInCombat = false
-    pendingStateChange = nil
     stateChangeDebounce = 0
     lastStateChangeTime = 0
 
@@ -485,13 +483,12 @@ end
 -- =========================
 
 function Skyriding:EnterSkyridingMode()
-    -- Legacy function - now just a wrapper
-    -- The actual override application is handled by mouse button events
+    -- Compatibility wrapper for the new mouse-triggered system
     if not self.parent:GetConfig("skyriding", "enabled") then
         return
     end
 
-    self.parent:Debug("Legacy EnterSkyridingMode called - skyriding detection active")
+    self.parent:Debug("EnterSkyridingMode called - skyriding detection active")
     
     -- If mouse is already down when entering skyriding mode, apply overrides
     if isLeftMouseDown and not bindingsCurrentlyActive then
@@ -500,8 +497,8 @@ function Skyriding:EnterSkyridingMode()
 end
 
 function Skyriding:ExitSkyridingMode()
-    -- Legacy function - now just a wrapper
-    self.parent:Debug("Legacy ExitSkyridingMode called - clearing any active overrides")
+    -- Compatibility wrapper for the new mouse-triggered system
+    self.parent:Debug("ExitSkyridingMode called - clearing any active overrides")
 
     -- Clear any active overrides when exiting skyriding mode
     if bindingsCurrentlyActive then
@@ -598,7 +595,6 @@ function Skyriding:EmergencyReset()
     isInSkyriding = false
     isLeftMouseDown = false
     bindingsCurrentlyActive = false
-    pendingStateChange = nil
     stateChangeDebounce = 0
 
     self.parent:Print("Emergency reset complete - all movement keys restored to normal")

@@ -1,5 +1,21 @@
 # ColdSnap Changelog
 
+## [1.4.0] - 2025-09-16
+### Changed
+- **Skyriding Module**: Major behavior change - overrides now only activate while holding left mouse button
+- **Safer Operation**: No more permanent key binding changes that could get stuck
+- **User Control**: Full control over when enhanced controls are active
+
+### Fixed
+- Resolved held-down key issues in skyriding mode
+- Improved safety when exiting skyriding or entering combat
+- Better handling of key state conflicts
+
+### Features
+- **Mouse-Triggered Controls**: Hold left mouse button to activate enhanced skyriding movement
+- **Instant Deactivation**: Release mouse button to immediately return to normal controls
+- **Combat Safety**: All overrides automatically cleared when combat starts
+
 ## [1.0.7] - 2025-08-30
 ### Added
 - **Playground Module**: New module for fun features with limited practical use

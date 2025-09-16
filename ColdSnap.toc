@@ -1,8 +1,8 @@
 ## Interface: 110200
 ## Title: ColdSnap
-## Notes: Quality of life improvements including skyriding controls
+## Notes: Quality of life improvements including mouse-triggered skyriding controls
 ## Author: Yukisando
-## Version: 1.3.0
+## Version: 1.4.0
 ## SavedVariables: ColdSnapDB
 ## X-Category: Interface Enhancements
 ## X-Website: https://github.com/Yukisando/ColdSnap
