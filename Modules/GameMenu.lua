@@ -337,6 +337,9 @@ function GameMenu:CreateReadyCheckButton()
         GameTooltip:SetOwner(readyCheckButton, "ANCHOR_RIGHT")
         GameTooltip:SetText("Ready Check", 1, 1, 1)
         GameTooltip:AddLine("Start a ready check for your group", 0.8, 0.8, 0.8, true)
+        if not (UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")) then
+            GameTooltip:AddLine("Requires group leader or assistant", 1, 0.2, 0.2, true)
+        end
         GameTooltip:Show()
         if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
             PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
@@ -355,6 +358,9 @@ function GameMenu:CreateCountdownButton()
         GameTooltip:SetOwner(countdownButton, "ANCHOR_RIGHT")
         GameTooltip:SetText("Countdown", 1, 1, 1)
         GameTooltip:AddLine("Start a 5-second pull timer", 0.8, 0.8, 0.8, true)
+        if not (UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")) then
+            GameTooltip:AddLine("Requires group leader or assistant", 1, 0.2, 0.2, true)
+        end
         GameTooltip:Show()
         if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
             PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
