@@ -335,23 +335,20 @@ function Playground:CreateSpeedometer()
         return
     end
     local f = CreateFrame("Frame", "ColdSnapSpeedometer", UIParent)
-    f:SetSize(200, 22)
+    f:SetSize(100, 22)
     f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 8, -8)
     f:SetFrameStrata("BACKGROUND")
 
-    local bg = f:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetColorTexture(0, 0, 0, 0.35)
+    -- No background texture - removed for cleaner look
 
     local txt = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    txt:SetPoint("LEFT", 6, 0)
-    txt:SetJustifyH("LEFT")
-    txt:SetText("Speed: 0 (0%)")
+    txt:SetPoint("CENTER")
+    txt:SetJustifyH("CENTER")
+    txt:SetText("0%")
 
     f.text = txt
     f._updateTimer = 0
-    -- Track the largest observed speed this session to provide a relative percent
-    f._sessionMax = 0
+    f._fadeTimer = 0
 
     -- Update every ~0.1s using a robust speed getter
     f:SetScript("OnUpdate", function(self, elapsed)
@@ -381,9 +378,25 @@ function Playground:CreateSpeedometer()
             state = " (Mounted)"
         end
 
-        -- Show yards/sec with one decimal and percent of run speed
-        local display = string.format("Speed: %.1fy/s (%.0f%%)%s", speed, percent, state)
+        -- Show only percentage with state
+        local display = string.format("%.0f%%%s", percent, state)
         self.text:SetText(display)
+        
+        -- Handle fade out when not moving
+        if speed > 0.1 then
+            -- Player is moving, reset fade timer and make visible
+            self._fadeTimer = 0
+            self:SetAlpha(1.0)
+        else
+            -- Player is not moving, start fade timer
+            self._fadeTimer = self._fadeTimer + elapsed
+            if self._fadeTimer > 2.0 then
+                -- Start fading after 2 seconds of no movement
+                local fadeTime = self._fadeTimer - 2.0
+                local alpha = math.max(0.1, 1.0 - (fadeTime / 3.0)) -- Fade over 3 seconds to minimum 10% alpha
+                self:SetAlpha(alpha)
+            end
+        end
     end)
 
     -- Only show if the playground speedometer config is enabled
