@@ -17,6 +17,8 @@ local isInCombat = false
 local stateChangeDebounce = 0
 local lastStateChangeTime = 0
 local mouseFrame = nil
+local pendingStateChanges = {}
+local keysPressedDuringTransition = {}
 
 -- =========================
 -- Helpers for key handling
@@ -56,7 +58,7 @@ local function AnyKeyDown(keys)
 end
 
 -- Defer a callback until all the relevant keys are UP (or a 5s safety timeout)
-function Skyriding:DeferUntilKeysUp(keys, callback)
+function Skyriding:DeferUntilKeysUp(keys, callback, reason)
     if not keys or #keys == 0 then
         callback()
         return
@@ -71,21 +73,57 @@ function Skyriding:DeferUntilKeysUp(keys, callback)
         self.deferFrame = CreateFrame("Frame")
     end
 
+    -- Track which keys are currently being waited for
+    local waitingKeys = {}
+    for _, key in ipairs(keys) do
+        if IsKeyDown(key) then
+            waitingKeys[key] = true
+        end
+    end
+
     local waited = 0
+    local reasonText = reason or "action"
+    self.parent:Debug("Deferring " .. reasonText .. " until keys are released: " .. table.concat(keys, ", "))
+    
     self.deferFrame:SetScript("OnUpdate", function(frame, elapsed)
         waited = waited + elapsed
-        if not AnyKeyDown(keys) then
+        
+        -- Check if any of the originally held keys are still down
+        local stillHeld = false
+        for key, _ in pairs(waitingKeys) do
+            if IsKeyDown(key) then
+                stillHeld = true
+                break
+            end
+        end
+        
+        if not stillHeld then
             frame:SetScript("OnUpdate", nil)
-            self.parent:Debug("All managed keys released; proceeding")
+            self.parent:Debug("All managed keys released; proceeding with " .. reasonText)
             callback()
         elseif waited >= 5 then
             frame:SetScript("OnUpdate", nil)
-            self.parent:Debug("Keys still held after 5s; proceeding to avoid deadlock")
+            self.parent:Debug("Keys still held after 5s; proceeding to avoid deadlock (" .. reasonText .. ")")
             callback()
         end
     end)
+end
 
-    self.parent:Debug("Deferring action until keys are released")
+-- Enhanced function to check if any keys were held during a transition
+local function CheckKeysHeldDuringTransition(keys)
+    local heldKeys = {}
+    for _, key in ipairs(keys) do
+        if IsKeyDown(key) then
+            table.insert(heldKeys, key)
+            keysPressedDuringTransition[key] = true
+        end
+    end
+    return heldKeys
+end
+
+-- Function to clear the record of keys held during transition
+local function ClearTransitionKeyRecord()
+    keysPressedDuringTransition = {}
 end
 
 -- =========================
@@ -122,12 +160,21 @@ end
 function Skyriding:OnDisable()
     self.parent:Debug("Skyriding module disabling...")
 
-    -- Force release all keys before cleanup
-    self:ForceReleaseAllKeys()
+    -- Clear any pending state changes
+    pendingStateChanges = {}
+    ClearTransitionKeyRecord()
 
     -- Clear override bindings if we're currently in skyriding mode
     if bindingsCurrentlyActive then
-        self:ClearSkyridingOverrides()
+        -- Wait for keys to be released before clearing
+        local keys = CollectManagedKeys(self.parent:GetConfig("skyriding", "enablePitchControl"))
+        if AnyKeyDown(keys) then
+            self:DeferUntilKeysUp(keys, function()
+                self:ClearOverrideBindings()
+            end, "module disable with held keys")
+        else
+            self:ClearOverrideBindings()
+        end
     end
 
     -- Reset state variables
@@ -147,6 +194,12 @@ function Skyriding:OnDisable()
         self.eventFrame:UnregisterAllEvents()
         self.eventFrame:SetScript("OnEvent", nil)
         self.eventFrame = nil
+    end
+
+    -- Clean up defer frame
+    if self.deferFrame then
+        self.deferFrame:SetScript("OnUpdate", nil)
+        self.deferFrame = nil
     end
 
     -- Clean up override frame
@@ -228,6 +281,7 @@ function Skyriding:StartMonitoring()
     bindingCheckFrame = CreateFrame("Frame")
     bindingCheckFrame:SetScript("OnUpdate", function(frame, elapsed)
         frame.timeSinceLastUpdate = (frame.timeSinceLastUpdate or 0) + elapsed
+        frame.timeSinceLastStateCheck = (frame.timeSinceLastStateCheck or 0) + elapsed
 
         -- Update debounce timer
         if stateChangeDebounce > 0 then
@@ -238,6 +292,12 @@ function Skyriding:StartMonitoring()
         if frame.timeSinceLastUpdate >= 0.5 then
             frame.timeSinceLastUpdate = 0
             self:CheckSkyridingState()
+        end
+
+        -- Verify binding state integrity every 2 seconds as a safety measure
+        if frame.timeSinceLastStateCheck >= 2.0 then
+            frame.timeSinceLastStateCheck = 0
+            self:VerifyBindingState()
         end
     end)
 
@@ -300,8 +360,23 @@ function Skyriding:CheckMouseState()
             self:ApplySkyridingOverrides()
         else
             self.parent:Debug("Left mouse button released - clearing skyriding overrides")
+            
+            -- Enhanced safety: Check if there are keys held and if we have pending state changes
+            local keys = CollectManagedKeys(self.parent:GetConfig("skyriding", "enablePitchControl"))
+            local heldKeys = CheckKeysHeldDuringTransition(keys)
+            
+            if #heldKeys > 0 then
+                self.parent:Debug("Keys held during mouse release: " .. table.concat(heldKeys, ", ") .. " - deferring override clear")
+            end
+            
             self:ClearSkyridingOverrides()
         end
+    end
+    
+    -- Safety check: If somehow we have bindings active but mouse isn't down and we're not in skyriding
+    if bindingsCurrentlyActive and not currentMouseDown and not isInSkyriding then
+        self.parent:Debug("Safety check triggered: Bindings active but shouldn't be - forcing clear")
+        self:EmergencyReset()
     end
 end
 
@@ -325,31 +400,25 @@ function Skyriding:ApplySkyridingOverrides()
     -- Wait until relevant keys are UP before applying overrides
     local keys = CollectManagedKeys(self.parent:GetConfig("skyriding", "enablePitchControl"))
     self:DeferUntilKeysUp(keys, function()
-        -- Force release all keys before changing bindings to prevent stuck keys
-        self:ForceReleaseAllKeys()
+        -- Apply skyriding bindings without forcing key release (keys are already up)
+        self:ApplySkyridingBindings()
+        bindingsCurrentlyActive = true
+        
+        if self.parent:GetConfig("debug") then
+            local pitchEnabled = self.parent:GetConfig("skyriding", "enablePitchControl")
+            local invertPitch = self.parent:GetConfig("skyriding", "invertPitch")
 
-        -- Small delay to ensure key release is processed
-        C_Timer.After(0.05, function()
-            -- Apply skyriding bindings
-            self:ApplySkyridingBindings()
-            bindingsCurrentlyActive = true
-            
-            if self.parent:GetConfig("debug") then
-                local pitchEnabled = self.parent:GetConfig("skyriding", "enablePitchControl")
-                local invertPitch = self.parent:GetConfig("skyriding", "invertPitch")
-
-                if pitchEnabled then
-                    if invertPitch then
-                        self.parent:Print("Skyriding overrides active: A/D=horizontal, W=dive, S=climb")
-                    else
-                        self.parent:Print("Skyriding overrides active: A/D=horizontal, W=climb, S=dive")
-                    end
+            if pitchEnabled then
+                if invertPitch then
+                    self.parent:Print("Skyriding overrides active: A/D=horizontal, W=dive, S=climb")
                 else
-                    self.parent:Print("Skyriding overrides active: A/D=horizontal movement only")
+                    self.parent:Print("Skyriding overrides active: A/D=horizontal, W=climb, S=dive")
                 end
+            else
+                self.parent:Print("Skyriding overrides active: A/D=horizontal movement only")
             end
-        end)
-    end)
+        end
+    end, "mouse press with held keys")
 end
 
 function Skyriding:ClearSkyridingOverrides()
@@ -368,20 +437,48 @@ function Skyriding:ClearSkyridingOverrides()
         return
     end
 
-    -- Wait until relevant keys are UP before clearing overrides
-    local keys = CollectManagedKeys(self.parent:GetConfig("skyriding", "enablePitchControl"))
-    self:DeferUntilKeysUp(keys, function()
-        -- Force release all keys before clearing bindings to prevent stuck keys
-        self:ForceReleaseAllKeys()
+    -- Enhanced security: Check if mouse is still down or if we're not in skyriding mode
+    -- If mouse is still down and we're still in skyriding, defer this call
+    if isLeftMouseDown and isInSkyriding then
+        self.parent:Debug("Mouse still down in skyriding mode - not clearing overrides yet")
+        return
+    end
 
-        -- Immediately clear all override bindings to restore normal function
+    -- Get the managed keys and check if any are currently held
+    local keys = CollectManagedKeys(self.parent:GetConfig("skyriding", "enablePitchControl"))
+    local heldKeys = {}
+    for _, key in ipairs(keys) do
+        if IsKeyDown(key) then
+            table.insert(heldKeys, key)
+        end
+    end
+
+    -- If keys are held, defer clearing until they're all released
+    if #heldKeys > 0 then
+        self.parent:Debug("Keys still held during override clear request: " .. table.concat(heldKeys, ", ") .. " - deferring clear")
+        
+        -- Wait until all managed keys are UP before clearing overrides
+        self:DeferUntilKeysUp(keys, function()
+            -- Double-check that we should still clear (state might have changed)
+            if bindingsCurrentlyActive and overrideFrame then
+                -- Simply clear override bindings - keys are already up
+                self:ClearOverrideBindings()
+                bindingsCurrentlyActive = false
+
+                if self.parent:GetConfig("debug") then
+                    self.parent:Print("Skyriding overrides cleared: All movement keys restored to normal")
+                end
+            end
+        end, "mouse release with held keys")
+    else
+        -- No keys held, safe to clear immediately
         self:ClearOverrideBindings()
         bindingsCurrentlyActive = false
 
         if self.parent:GetConfig("debug") then
             self.parent:Print("Skyriding overrides cleared: All movement keys restored to normal")
         end
-    end)
+    end
 end
 
 -- =========================
@@ -462,17 +559,49 @@ function Skyriding:CheckSkyridingState()
         
         if currentlyInSkyriding then
             self.parent:Debug("Entered skyriding mode - ready for mouse-triggered overrides")
+            ClearTransitionKeyRecord() -- Clear any previous transition key records
             if self.parent:GetConfig("debug") then
                 self.parent:Print("Skyriding mode detected - hold left mouse button to activate overrides")
             end
         else
-            self.parent:Debug("Exited skyriding mode - clearing any active overrides")
-            -- Clear overrides immediately when exiting skyriding mode
-            if bindingsCurrentlyActive then
-                self:ClearSkyridingOverrides()
+            self.parent:Debug("Exited skyriding mode - checking for held keys before clearing overrides")
+            
+            -- Check if any managed keys are currently held during this transition
+            local keys = CollectManagedKeys(self.parent:GetConfig("skyriding", "enablePitchControl"))
+            local heldKeys = CheckKeysHeldDuringTransition(keys)
+            
+            if #heldKeys > 0 then
+                self.parent:Debug("Keys held during skyriding exit: " .. table.concat(heldKeys, ", ") .. " - deferring override clear")
+                -- Store this as a pending state change
+                pendingStateChanges.clearOnLanding = true
+                
+                -- Set up a monitoring system to clear overrides once keys are released
+                if bindingsCurrentlyActive then
+                    self:DeferUntilKeysUp(keys, function()
+                        if pendingStateChanges.clearOnLanding then
+                            self.parent:Debug("Keys released after landing - now clearing overrides")
+                            -- Simply clear the overrides - keys are already up
+                            self:ClearOverrideBindings()
+                            bindingsCurrentlyActive = false
+                            pendingStateChanges.clearOnLanding = false
+                            ClearTransitionKeyRecord()
+                        end
+                    end, "landing with held keys")
+                end
+            else
+                -- No keys held, safe to clear immediately
+                if bindingsCurrentlyActive then
+                    self:ClearSkyridingOverrides()
+                end
+                ClearTransitionKeyRecord()
             end
+            
             if self.parent:GetConfig("debug") then
-                self.parent:Print("Skyriding mode disabled")
+                if #heldKeys > 0 then
+                    self.parent:Print("Skyriding mode disabled - waiting for key release to restore controls")
+                else
+                    self.parent:Print("Skyriding mode disabled")
+                end
             end
         end
     end
@@ -507,29 +636,14 @@ function Skyriding:ExitSkyridingMode()
 end
 
 function Skyriding:ForceReleaseAllKeys()
-    -- Force release all movement keys to prevent stuck key states
-    -- This uses harmless override remaps to flush held state (safe out of combat)
-
-    -- Create override frame if it doesn't exist
-    if not overrideFrame then
-        overrideFrame = CreateFrame("Frame", "ColdSnapSkyridingOverrideFrame")
-        self.parent:Debug("Created override binding frame for key release")
+    -- Safer approach: Just clear any existing overrides without creating new problematic ones
+    -- The key release will happen naturally when overrides are cleared
+    
+    if overrideFrame then
+        -- Simply clear existing overrides - this is safer than creating temporary mappings
+        ClearOverrideBindings(overrideFrame)
+        self.parent:Debug("Cleared override bindings to release keys safely")
     end
-
-    local keys = {}
-    local function add(list) for _, k in ipairs(list or {}) do table.insert(keys, k) end end
-    add(GetAllBindingKeys("STRAFELEFT"))
-    add(GetAllBindingKeys("STRAFERIGHT"))
-    add(GetAllBindingKeys("MOVEFORWARD"))
-    add(GetAllBindingKeys("MOVEBACKWARD"))
-    add(GetAllBindingKeys("TURNLEFT"))
-    add(GetAllBindingKeys("TURNRIGHT"))
-
-    for _, key in ipairs(keys) do
-        SetOverrideBinding(overrideFrame, false, key, "CAMERALOOKTOGGLEMOUSE")
-    end
-
-    self.parent:Debug("Force released all movement keys")
 end
 
 function Skyriding:ClearOverrideBindings()
@@ -582,13 +696,18 @@ function Skyriding:EmergencyReset()
     -- Can be called via slash command if something goes wrong
     self.parent:Debug("Emergency reset of skyriding bindings")
 
+    -- Clear any pending state changes
+    pendingStateChanges = {}
+    ClearTransitionKeyRecord()
+
+    -- Stop any deferred operations
+    if self.deferFrame then
+        self.deferFrame:SetScript("OnUpdate", nil)
+    end
+
+    -- Immediately clear all override bindings without any force release
     if overrideFrame then
-        self:ForceReleaseAllKeys()
-        C_Timer.After(0.1, function()
-            if overrideFrame then
-                ClearOverrideBindings(overrideFrame)
-            end
-        end)
+        ClearOverrideBindings(overrideFrame)
     end
 
     -- Reset state
@@ -598,6 +717,23 @@ function Skyriding:EmergencyReset()
     stateChangeDebounce = 0
 
     self.parent:Print("Emergency reset complete - all movement keys restored to normal")
+end
+
+-- Enhanced safety function to verify binding state integrity
+function Skyriding:VerifyBindingState()
+    local expectedActive = isInSkyriding and isLeftMouseDown and not isInCombat
+    
+    if bindingsCurrentlyActive ~= expectedActive then
+        self.parent:Debug("Binding state mismatch detected - expected: " .. tostring(expectedActive) .. ", actual: " .. tostring(bindingsCurrentlyActive))
+        
+        if expectedActive and not bindingsCurrentlyActive then
+            -- Should be active but isn't - try to apply
+            self:ApplySkyridingOverrides()
+        elseif not expectedActive and bindingsCurrentlyActive then
+            -- Shouldn't be active but is - try to clear
+            self:ClearSkyridingOverrides()
+        end
+    end
 end
 
 -- Register the module
