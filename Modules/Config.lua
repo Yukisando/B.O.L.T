@@ -16,6 +16,15 @@ function Config:OnEnable()
     self.parent:Debug("Config module enabling...")
 end
 
+-- Helper function to create a "Need reload" indicator next to checkboxes
+function Config:CreateReloadIndicator(parent, anchorFrame)
+    local indicator = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    indicator:SetPoint("LEFT", anchorFrame.Text, "RIGHT", 10, 0)
+    indicator:SetText("|cFFFF6B6B(Need reload)|r")
+    indicator:SetTextColor(1, 0.42, 0.42) -- Light red color
+    return indicator
+end
+
 function Config:CreateInterfaceOptionsPanel()
     -- Create the main options panel that integrates with WoW's Interface > AddOns
     local panel = CreateFrame("Frame", "ColdSnapOptionsPanel")
@@ -62,6 +71,10 @@ function Config:CreateInterfaceOptionsPanel()
     local gameMenuCheckbox = CreateFrame("CheckButton", "ColdSnapGameMenuCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
     gameMenuCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
     gameMenuCheckbox.Text:SetText("Enable Game Menu Module")
+    
+    -- Add reload indicator
+    local gameMenuReloadIndicator = self:CreateReloadIndicator(content, gameMenuCheckbox)
+    
     gameMenuCheckbox:SetScript("OnShow", function()
         local enabled = self.parent:IsModuleEnabled("gameMenu")
         gameMenuCheckbox:SetChecked(enabled)
@@ -81,6 +94,10 @@ function Config:CreateInterfaceOptionsPanel()
     local leaveGroupCheckbox = CreateFrame("CheckButton", "ColdSnapLeaveGroupCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
     leaveGroupCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     leaveGroupCheckbox.Text:SetText("Show Leave Group/Delve Button")
+    
+    -- Add reload indicator
+    local leaveGroupReloadIndicator = self:CreateReloadIndicator(content, leaveGroupCheckbox)
+    
     leaveGroupCheckbox:SetScript("OnShow", function()
         leaveGroupCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showLeaveGroup"))
     end)
@@ -95,6 +112,10 @@ function Config:CreateInterfaceOptionsPanel()
     local reloadCheckbox = CreateFrame("CheckButton", "ColdSnapReloadCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
     reloadCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     reloadCheckbox.Text:SetText("Show Reload UI Button")
+    
+    -- Add reload indicator
+    local reloadUIReloadIndicator = self:CreateReloadIndicator(content, reloadCheckbox)
+    
     reloadCheckbox:SetScript("OnShow", function()
         reloadCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showReloadButton"))
     end)
@@ -180,6 +201,10 @@ function Config:CreateInterfaceOptionsPanel()
     local skyridingCheckbox = CreateFrame("CheckButton", "ColdSnapSkyridingCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
     skyridingCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
     skyridingCheckbox.Text:SetText("Enable Skyriding Module (Hold left mouse to activate)")
+    
+    -- Add reload indicator
+    local skyridingReloadIndicator = self:CreateReloadIndicator(content, skyridingCheckbox)
+    
     skyridingCheckbox:SetScript("OnShow", function()
         local enabled = self.parent:IsModuleEnabled("skyriding")
         skyridingCheckbox:SetChecked(enabled)
@@ -252,6 +277,10 @@ function Config:CreateInterfaceOptionsPanel()
     local playgroundCheckbox = CreateFrame("CheckButton", "ColdSnapPlaygroundCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
     playgroundCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
     playgroundCheckbox.Text:SetText("Enable Playground Module")
+    
+    -- Add reload indicator
+    local playgroundReloadIndicator = self:CreateReloadIndicator(content, playgroundCheckbox)
+    
     playgroundCheckbox:SetScript("OnShow", function()
         local enabled = self.parent:IsModuleEnabled("playground")
         playgroundCheckbox:SetChecked(enabled)
@@ -271,6 +300,10 @@ function Config:CreateInterfaceOptionsPanel()
     local favoriteToyCheckbox = CreateFrame("CheckButton", "ColdSnapFavoriteToyCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
     favoriteToyCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     favoriteToyCheckbox.Text:SetText("Show Favorite Toy Button")
+    
+    -- Add reload indicator
+    local favoriteToyReloadIndicator = self:CreateReloadIndicator(content, favoriteToyCheckbox)
+    
     favoriteToyCheckbox:SetScript("OnShow", function()
         favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground", "showFavoriteToy"))
     end)
