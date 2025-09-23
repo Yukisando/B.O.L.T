@@ -353,37 +353,44 @@ function Playground:CreateSpeedometer()
     -- Update every ~0.1s using a robust speed getter
     f:SetScript("OnUpdate", function(self, elapsed)
         self._updateTimer = self._updateTimer + elapsed
-        if self._updateTimer < 0.1 then return end
-        self._updateTimer = 0
-
-        -- Get speed in yards/second using a helper that falls back to position deltas
-        local speed = GetPlayerSpeedYPS() or 0
-
-        -- Use a standard run speed reference (about 7 y/s for a baseline run speed)
-        local runSpeedRef = 7.0
-        local percent = 0
-        if runSpeedRef > 0 then
-            percent = (speed / runSpeedRef) * 100
-        end
-
-        -- Determine a simple movement state label
-        local state = ""
-        if UnitOnTaxi("player") then
-            state = " (Taxi)"
-        elseif IsFlying() then
-            state = " (Flying)"
-        elseif IsSwimming() then
-            state = " (Swimming)"
-        elseif IsMounted() then
-            state = " (Mounted)"
-        end
-
-        -- Show only percentage with state
-        local display = string.format("%.0f%%%s", percent, state)
-        self.text:SetText(display)
         
-        -- Handle fade out when not moving
-        if speed > 0.1 then
+        -- Update speed display every 0.1s
+        local speed = 0
+        if self._updateTimer >= 0.1 then
+            self._updateTimer = 0
+
+            -- Get speed in yards/second using a helper that falls back to position deltas
+            speed = GetPlayerSpeedYPS() or 0
+
+            -- Use a standard run speed reference (about 7 y/s for a baseline run speed)
+            local runSpeedRef = 7.0
+            local percent = 0
+            if runSpeedRef > 0 then
+                percent = (speed / runSpeedRef) * 100
+            end
+
+            -- Determine a simple movement state label
+            local state = ""
+            if UnitOnTaxi("player") then
+                state = " (Taxi)"
+            elseif IsFlying() then
+                state = " (Flying)"
+            elseif IsSwimming() then
+                state = " (Swimming)"
+            elseif IsMounted() then
+                state = " (Mounted)"
+            end
+
+            -- Show only percentage with state
+            local display = string.format("%.0f%%%s", percent, state)
+            self.text:SetText(display)
+        else
+            -- Get current speed for fade logic even when not updating display
+            speed = GetPlayerSpeedYPS() or 0
+        end
+        
+        -- Handle fade out when not moving (update every frame for smooth fading)
+        if speed > 0.01 then
             -- Player is moving, reset fade timer and make visible
             self._fadeTimer = 0
             self:SetAlpha(1.0)
