@@ -24,11 +24,12 @@ ColdSnap.defaults = {
             enabled = true,
             showFavoriteToy = false,
             favoriteToyId = nil,
+            showSpeedometer = false,
         },
         skyriding = {
             enabled = false,
             enablePitchControl = true,
-            invertPitch = false,
+            invertPitch = true,
         },
     }
 }

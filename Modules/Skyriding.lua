@@ -356,11 +356,9 @@ function Skyriding:CheckMouseState()
         isLeftMouseDown = currentMouseDown
         
         if currentMouseDown then
-            self.parent:Debug("Left mouse button pressed - applying skyriding overrides")
+            -- Only log on state change, not continuously
             self:ApplySkyridingOverrides()
         else
-            self.parent:Debug("Left mouse button released - clearing skyriding overrides")
-            
             -- Enhanced safety: Check if there are keys held and if we have pending state changes
             local keys = CollectManagedKeys(self.parent:GetConfig("skyriding", "enablePitchControl"))
             local heldKeys = CheckKeysHeldDuringTransition(keys)
@@ -440,7 +438,7 @@ function Skyriding:ClearSkyridingOverrides()
     -- Enhanced security: Check if mouse is still down or if we're not in skyriding mode
     -- If mouse is still down and we're still in skyriding, defer this call
     if isLeftMouseDown and isInSkyriding then
-        self.parent:Debug("Mouse still down in skyriding mode - not clearing overrides yet")
+        -- Only log this occasionally to avoid spam
         return
     end
 
@@ -533,7 +531,6 @@ function Skyriding:CheckSkyridingState()
                 for _, spellID in ipairs(skyridingSpells) do
                     if IsSpellKnown(spellID) then
                         currentlyInSkyriding = true
-                        self.parent:Debug("Detected skyriding via spell knowledge (spellID: " .. tostring(spellID) .. ")")
                         break
                     end
                 end
