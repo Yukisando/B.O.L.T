@@ -200,7 +200,7 @@ function Config:CreateInterfaceOptionsPanel()
     -- Enable/Disable Skyriding Module
     local skyridingCheckbox = CreateFrame("CheckButton", "ColdSnapSkyridingCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
     skyridingCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
-    skyridingCheckbox.Text:SetText("Enable Skyriding Module (Hold left mouse to activate)")
+    skyridingCheckbox.Text:SetText("Enable Skyriding Module")
     
     -- Add reload indicator
     local skyridingReloadIndicator = self:CreateReloadIndicator(content, skyridingCheckbox)
@@ -250,11 +250,25 @@ function Config:CreateInterfaceOptionsPanel()
     end)
     yOffset = yOffset - 30
     
+    -- Toggle Mode Checkbox
+    local toggleModeCheckbox = CreateFrame("CheckButton", "ColdSnapToggleModeCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    toggleModeCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
+    toggleModeCheckbox.Text:SetText("Always-on mode (no mouse button required)")
+    toggleModeCheckbox:SetScript("OnShow", function()
+        toggleModeCheckbox:SetChecked(self.parent:GetConfig("skyriding", "toggleMode"))
+    end)
+    toggleModeCheckbox:SetScript("OnClick", function()
+        local enabled = toggleModeCheckbox:GetChecked()
+        self.parent:SetConfig(enabled, "skyriding", "toggleMode")
+        self.parent:Print("Skyriding " .. (enabled and "always-on mode enabled" or "hold mode enabled") .. ".")
+    end)
+    yOffset = yOffset - 30
+    
     -- Description text for Skyriding module
     local skyridingDesc = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     skyridingDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     skyridingDesc:SetPoint("TOPRIGHT", content, "TOPRIGHT", -50, yOffset)
-    skyridingDesc:SetText("Hold left mouse button while skyriding to activate enhanced controls. While active, strafe keys (A/D) become horizontal turning, and optionally W/S control pitch up/down for full 3D movement.")
+    skyridingDesc:SetText("Enhanced controls for skyriding. While active, strafe keys (A/D) become horizontal turning, and optionally W/S control pitch up/down for full 3D movement. Choose between hold mode (hold left mouse) or always-on mode (no mouse required).")
     skyridingDesc:SetTextColor(0.8, 0.8, 0.8)
     skyridingDesc:SetJustifyH("LEFT")
     skyridingDesc:SetWordWrap(true)
@@ -579,6 +593,7 @@ function Config:UpdateSkyridingChildControls()
     -- Get references to child controls
     local pitchControlCheckbox = _G["ColdSnapPitchControlCheckbox"]
     local invertPitchCheckbox = _G["ColdSnapInvertPitchCheckbox"]
+    local toggleModeCheckbox = _G["ColdSnapToggleModeCheckbox"]
     
     -- Enable/disable child controls based on parent module
     if pitchControlCheckbox then
@@ -591,6 +606,11 @@ function Config:UpdateSkyridingChildControls()
         local shouldEnable = skyridingEnabled and pitchControlEnabled
         invertPitchCheckbox:SetEnabled(shouldEnable)
         invertPitchCheckbox:SetAlpha(shouldEnable and 1.0 or 0.5)
+    end
+    
+    if toggleModeCheckbox then
+        toggleModeCheckbox:SetEnabled(skyridingEnabled)
+        toggleModeCheckbox:SetAlpha(skyridingEnabled and 1.0 or 0.5)
     end
 end
 

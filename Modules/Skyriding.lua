@@ -342,6 +342,7 @@ end
 
 function Skyriding:CheckMouseState()
     local currentMouseDown = IsMouseButtonDown("LeftButton")
+    local toggleMode = self.parent:GetConfig("skyriding", "toggleMode")
     
     -- Only process if we're in skyriding mode
     if not isInSkyriding then
@@ -351,30 +352,43 @@ function Skyriding:CheckMouseState()
         return
     end
     
-    -- Check for mouse state changes
-    if currentMouseDown ~= isLeftMouseDown then
+    -- Update mouse state tracking
+    if isLeftMouseDown ~= currentMouseDown then
         isLeftMouseDown = currentMouseDown
-        
-        if currentMouseDown then
-            -- Only log on state change, not continuously
+    end
+    
+    if toggleMode then
+        -- Toggle mode: Always-on mode - 3D movement is always active while skyriding
+        if not bindingsCurrentlyActive then
             self:ApplySkyridingOverrides()
-        else
-            -- Enhanced safety: Check if there are keys held and if we have pending state changes
-            local keys = CollectManagedKeys(self.parent:GetConfig("skyriding", "enablePitchControl"))
-            local heldKeys = CheckKeysHeldDuringTransition(keys)
-            
-            if #heldKeys > 0 then
-                self.parent:Debug("Keys held during mouse release: " .. table.concat(heldKeys, ", ") .. " - deferring override clear")
+        end
+    else
+        -- Hold mode: Require left mouse button to be held for 3D movement
+        if currentMouseDown ~= isLeftMouseDown then
+            if currentMouseDown then
+                self:ApplySkyridingOverrides()
+            else
+                -- Enhanced safety: Check if there are keys held and if we have pending state changes
+                local keys = CollectManagedKeys(self.parent:GetConfig("skyriding", "enablePitchControl"))
+                local heldKeys = CheckKeysHeldDuringTransition(keys)
+                
+                if #heldKeys > 0 then
+                    self.parent:Debug("Keys held during mouse release: " .. table.concat(heldKeys, ", ") .. " - deferring override clear")
+                end
+                
+                self:ClearSkyridingOverrides()
             end
-            
-            self:ClearSkyridingOverrides()
         end
     end
     
-    -- Safety check: If somehow we have bindings active but mouse isn't down and we're not in skyriding
-    if bindingsCurrentlyActive and not currentMouseDown and not isInSkyriding then
-        self.parent:Debug("Safety check triggered: Bindings active but shouldn't be - forcing clear")
-        self:EmergencyReset()
+    -- Safety check: Ensure binding state matches expected state
+    local shouldBeActive = isInSkyriding and not isInCombat and (toggleMode or currentMouseDown)
+    if bindingsCurrentlyActive ~= shouldBeActive then
+        if shouldBeActive and not bindingsCurrentlyActive then
+            self:ApplySkyridingOverrides()
+        elseif not shouldBeActive and bindingsCurrentlyActive then
+            self:ClearSkyridingOverrides()
+        end
     end
 end
 
@@ -405,15 +419,18 @@ function Skyriding:ApplySkyridingOverrides()
         if self.parent:GetConfig("debug") then
             local pitchEnabled = self.parent:GetConfig("skyriding", "enablePitchControl")
             local invertPitch = self.parent:GetConfig("skyriding", "invertPitch")
+            local toggleMode = self.parent:GetConfig("skyriding", "toggleMode")
 
+            local modeText = toggleMode and " (always active)" or " (mouse held)"
+            
             if pitchEnabled then
                 if invertPitch then
-                    self.parent:Print("Skyriding overrides active: A/D=horizontal, W=dive, S=climb")
+                    self.parent:Print("Skyriding overrides active" .. modeText .. ": A/D=horizontal, W=dive, S=climb")
                 else
-                    self.parent:Print("Skyriding overrides active: A/D=horizontal, W=climb, S=dive")
+                    self.parent:Print("Skyriding overrides active" .. modeText .. ": A/D=horizontal, W=climb, S=dive")
                 end
             else
-                self.parent:Print("Skyriding overrides active: A/D=horizontal movement only")
+                self.parent:Print("Skyriding overrides active" .. modeText .. ": A/D=horizontal movement only")
             end
         end
     end, "mouse press with held keys")
@@ -435,11 +452,20 @@ function Skyriding:ClearSkyridingOverrides()
         return
     end
 
-    -- Enhanced security: Check if mouse is still down or if we're not in skyriding mode
-    -- If mouse is still down and we're still in skyriding, defer this call
-    if isLeftMouseDown and isInSkyriding then
-        -- Only log this occasionally to avoid spam
-        return
+    local toggleMode = self.parent:GetConfig("skyriding", "toggleMode")
+    
+    -- Enhanced security: Check conditions based on mode
+    if toggleMode then
+        -- In always-on mode, only clear when exiting skyriding mode or in combat
+        -- Don't clear based on mouse state since it should always be on
+        if isInSkyriding and not isInCombat then
+            return
+        end
+    else
+        -- In hold mode, check if mouse is still down and we're still in skyriding
+        if isLeftMouseDown and isInSkyriding then
+            return
+        end
     end
 
     -- Get the managed keys and check if any are currently held
@@ -453,6 +479,7 @@ function Skyriding:ClearSkyridingOverrides()
 
     -- If keys are held, defer clearing until they're all released
     if #heldKeys > 0 then
+        local reason = toggleMode and "exit skyriding with held keys" or "mouse release with held keys"
         self.parent:Debug("Keys still held during override clear request: " .. table.concat(heldKeys, ", ") .. " - deferring clear")
         
         -- Wait until all managed keys are UP before clearing overrides
@@ -467,7 +494,7 @@ function Skyriding:ClearSkyridingOverrides()
                     self.parent:Print("Skyriding overrides cleared: All movement keys restored to normal")
                 end
             end
-        end, "mouse release with held keys")
+        end, reason)
     else
         -- No keys held, safe to clear immediately
         self:ClearOverrideBindings()
@@ -557,8 +584,24 @@ function Skyriding:CheckSkyridingState()
         if currentlyInSkyriding then
             self.parent:Debug("Entered skyriding mode - ready for mouse-triggered overrides")
             ClearTransitionKeyRecord() -- Clear any previous transition key records
+            
+            -- In always-on mode, activate overrides immediately
+            local toggleMode = self.parent:GetConfig("skyriding", "toggleMode")
+            if toggleMode then
+                -- Wait a brief moment for the skyriding state to stabilize, then apply
+                C_Timer.After(0.1, function()
+                    if isInSkyriding and not bindingsCurrentlyActive then
+                        self:ApplySkyridingOverrides()
+                    end
+                end)
+            end
+            
             if self.parent:GetConfig("debug") then
-                self.parent:Print("Skyriding mode detected - hold left mouse button to activate overrides")
+                if toggleMode then
+                    self.parent:Print("Skyriding mode detected - 3D movement controls always active")
+                else
+                    self.parent:Print("Skyriding mode detected - hold left mouse button to activate overrides")
+                end
             end
         else
             self.parent:Debug("Exited skyriding mode - checking for held keys before clearing overrides")
@@ -616,9 +659,18 @@ function Skyriding:EnterSkyridingMode()
 
     self.parent:Debug("EnterSkyridingMode called - skyriding detection active")
     
-    -- If mouse is already down when entering skyriding mode, apply overrides
-    if isLeftMouseDown and not bindingsCurrentlyActive then
-        self:ApplySkyridingOverrides()
+    local toggleMode = self.parent:GetConfig("skyriding", "toggleMode")
+    
+    if toggleMode then
+        -- In always-on mode, apply overrides immediately when entering skyriding
+        if not bindingsCurrentlyActive then
+            self:ApplySkyridingOverrides()
+        end
+    else
+        -- In hold mode, apply overrides if mouse is down
+        if isLeftMouseDown and not bindingsCurrentlyActive then
+            self:ApplySkyridingOverrides()
+        end
     end
 end
 
@@ -718,7 +770,8 @@ end
 
 -- Enhanced safety function to verify binding state integrity
 function Skyriding:VerifyBindingState()
-    local expectedActive = isInSkyriding and isLeftMouseDown and not isInCombat
+    local toggleMode = self.parent:GetConfig("skyriding", "toggleMode")
+    local expectedActive = isInSkyriding and not isInCombat and (toggleMode or isLeftMouseDown)
     
     if bindingsCurrentlyActive ~= expectedActive then
         self.parent:Debug("Binding state mismatch detected - expected: " .. tostring(expectedActive) .. ", actual: " .. tostring(bindingsCurrentlyActive))
