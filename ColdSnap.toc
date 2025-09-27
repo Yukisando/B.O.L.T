@@ -4,7 +4,8 @@
 ## Author: Yukisando
 ## Version: 1.4.0
 ## SavedVariables: ColdSnapDB
-## X-Category: Interface Enhancements
+## IconTexture: Interface\AddOns\ColdSnap\icon
+## X-Category: User Interface
 ## X-Website: https://github.com/Yukisando/ColdSnap
 ## X-Curse-Project-ID: 1335396
 
