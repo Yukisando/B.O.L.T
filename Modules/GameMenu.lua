@@ -374,7 +374,7 @@ local function CreateIconButton(name, parent, iconPath)
 end
 
 function GameMenu:CreateReadyCheckButton()
-    readyCheckButton = CreateIconButton("ColdSnapGMReadyCheck", GameMenuFrame, "Interface\\RaidFrame\\ReadyCheck-Ready")
+    readyCheckButton = CreateIconButton("BOLTGMReadyCheck", GameMenuFrame, "Interface\\RaidFrame\\ReadyCheck-Ready")
     readyCheckButton:SetScript("OnClick", function()
         self:OnReadyCheckClick()
     end)
@@ -394,7 +394,7 @@ function GameMenu:CreateReadyCheckButton()
 end
 
 function GameMenu:CreateCountdownButton()
-    countdownButton = CreateIconButton("ColdSnapGMCountdown", GameMenuFrame, "Interface\\Icons\\Spell_Holy_BorrowedTime")
+    countdownButton = CreateIconButton("BOLTGMCountdown", GameMenuFrame, "Interface\\Icons\\Spell_Holy_BorrowedTime")
     countdownButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
     countdownButton:SetScript("OnClick", function()
         self:OnCountdownClick()
@@ -415,7 +415,7 @@ function GameMenu:CreateCountdownButton()
 end
 
 function GameMenu:CreateRaidMarkerButton()
-    raidMarkerButton = CreateIconButton("ColdSnapGMRaidMarker", GameMenuFrame, "Interface\\TARGETINGFRAME\\UI-RaidTargetingIcons")
+    raidMarkerButton = CreateIconButton("BOLTGMRaidMarker", GameMenuFrame, "Interface\\TARGETINGFRAME\\UI-RaidTargetingIcons")
     -- We'll adjust tex coords based on selected marker in RefreshGroupToolsState
     raidMarkerButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     raidMarkerButton:SetScript("OnClick", function(_, button)
@@ -440,7 +440,7 @@ function GameMenu:CreateRaidMarkerButton()
 end
 
 function GameMenu:CreateDamageNumbersButton()
-    damageNumbersButton = CreateIconButton("ColdSnapGMDamageNumbers", GameMenuFrame, "Interface\\Icons\\Spell_Fire_FireBolt02")
+    damageNumbersButton = CreateIconButton("BOLTGMDamageNumbers", GameMenuFrame, "Interface\\Icons\\Spell_Fire_FireBolt02")
     damageNumbersButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
     damageNumbersButton:SetScript("OnClick", function()
         self:OnDamageNumbersClick()
@@ -460,7 +460,7 @@ function GameMenu:CreateDamageNumbersButton()
 end
 
 function GameMenu:CreateHealingNumbersButton()
-    healingNumbersButton = CreateIconButton("ColdSnapGMHealingNumbers", GameMenuFrame, "Interface\\Icons\\Spell_Holy_GreaterHeal")
+    healingNumbersButton = CreateIconButton("BOLTGMHealingNumbers", GameMenuFrame, "Interface\\Icons\\Spell_Holy_GreaterHeal")
     healingNumbersButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
     healingNumbersButton:SetScript("OnClick", function()
         self:OnHealingNumbersClick()
@@ -647,7 +647,7 @@ function GameMenu:CreateReloadButton()
             GameTooltip:SetOwner(reloadButton, "ANCHOR_LEFT")
             GameTooltip:SetText("Reload UI", 1, 1, 1)
             GameTooltip:AddLine("Left-click: Reload the user interface", 0.8, 0.8, 0.8, true)
-            GameTooltip:AddLine("Right-click: Open ColdSnap settings", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine("Right-click: Open B.O.L.T settings", 0.8, 0.8, 0.8, true)
             GameTooltip:Show()
         end
         -- Play hover sound
@@ -704,7 +704,7 @@ function GameMenu:OnOpenSettings()
             if self.parent.modules.config and self.parent.modules.config.settingsCategory then
                 Settings.OpenToCategory(self.parent.modules.config.settingsCategory.ID)
             else
-                self.parent:Print("Settings panel not available. Please access ColdSnap settings through Interface > AddOns.")
+                self.parent:Print("Settings panel not available. Please access B.O.L.T settings through Interface > AddOns.")
             end
         elseif InterfaceOptionsFrame_OpenToCategory then
             -- Legacy Interface Options (Classic)
@@ -712,10 +712,10 @@ function GameMenu:OnOpenSettings()
                 InterfaceOptionsFrame_OpenToCategory(self.parent.modules.config.optionsPanel)
                 InterfaceOptionsFrame_OpenToCategory(self.parent.modules.config.optionsPanel) -- Call twice for proper focus
             else
-                self.parent:Print("Options panel not available. Please access ColdSnap settings through Interface > AddOns.")
+                self.parent:Print("Options panel not available. Please access B.O.L.T settings through Interface > AddOns.")
             end
         else
-            self.parent:Print("Please access ColdSnap settings through Interface > AddOns.")
+            self.parent:Print("Please access B.O.L.T settings through Interface > AddOns.")
         end
     end)
 end

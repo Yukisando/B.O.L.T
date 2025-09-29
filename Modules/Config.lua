@@ -141,11 +141,11 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
 
     -- Raid Marker selection dropdown
-    local markerLabel = content:CreateFontString("ColdSnapRaidMarkerLabel", "OVERLAY", "GameFontNormal")
+    local markerLabel = content:CreateFontString("BOLTRaidMarkerLabel", "OVERLAY", "GameFontNormal")
     markerLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 70, yOffset)
     markerLabel:SetText("Raid marker for the button:")
 
-    local dropdown = CreateFrame("Frame", "ColdSnapRaidMarkerDropdown", content, "UIDropDownMenuTemplate")
+    local dropdown = CreateFrame("Frame", "BOLTRaidMarkerDropdown", content, "UIDropDownMenuTemplate")
     dropdown:SetPoint("TOPLEFT", markerLabel, "BOTTOMLEFT", -16, -6)
 
     local markerNames = {"Star","Circle","Diamond","Triangle","Moon","Square","Cross","Skull","Clear"}
@@ -381,7 +381,7 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
     
     -- Favorite Toy Selection (only show if feature is enabled)
-    local toyLabel = content:CreateFontString("ColdSnapToyLabel", "OVERLAY", "GameFontNormal")
+    local toyLabel = content:CreateFontString("BOLTToyLabel", "OVERLAY", "GameFontNormal")
     toyLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     toyLabel:SetText("Favorite Toy:")
     yOffset = yOffset - 25
@@ -405,7 +405,7 @@ function Config:CreateInterfaceOptionsPanel()
     
     local commandsText = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     commandsText:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
-    commandsText:SetText("/coldsnap or /cs - Open Interface Options to ColdSnap")
+    commandsText:SetText("/bolt or /b - Open Interface Options to B.O.L.T")
     commandsText:SetTextColor(1, 0.82, 0)
     yOffset = yOffset - 40
     
@@ -422,7 +422,7 @@ function Config:CreateInterfaceOptionsPanel()
     -- Version info
     local versionText = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     versionText:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
-    versionText:SetText("ColdSnap v" .. self.parent.version)
+    versionText:SetText("B.O.L.T v" .. self.parent.version)
     versionText:SetTextColor(0.5, 0.5, 0.5)
     yOffset = yOffset - 30
     
@@ -436,7 +436,7 @@ function Config:CreateInterfaceOptionsPanel()
     
     -- Register with Settings (modern) or InterfaceOptions (legacy)
     if Settings and Settings.RegisterCanvasLayoutCategory then
-        local category = Settings.RegisterCanvasLayoutCategory(panel, "ColdSnap")
+        local category = Settings.RegisterCanvasLayoutCategory(panel, "B.O.L.T")
         self.settingsCategory = category
         Settings.RegisterAddOnCategory(category)
     elseif InterfaceOptions_AddCategory then
@@ -470,7 +470,7 @@ function Config:RefreshOptionsPanel()
         if groupToolsCheckbox then
             groupToolsCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "groupToolsEnabled"))
         end
-        local raidMarkerDropdown = _G["ColdSnapRaidMarkerDropdown"]
+        local raidMarkerDropdown = _G["BOLTRaidMarkerDropdown"]
         if raidMarkerDropdown then
             local idx = self.parent:GetConfig("gameMenu", "raidMarkerIndex") or 1
             -- Set the text again in case marker changed elsewhere
@@ -531,8 +531,8 @@ function Config:UpdateGameMenuChildControls()
     local reloadCheckbox = _G["BOLTReloadCheckbox"]
     local groupToolsCheckbox = _G["BOLTGroupToolsCheckbox"]
     local battleTextCheckbox = _G["BOLTBattleTextCheckbox"]
-    local raidMarkerDropdown = _G["ColdSnapRaidMarkerDropdown"]
-    local raidMarkerLabel = _G["ColdSnapRaidMarkerLabel"]
+    local raidMarkerDropdown = _G["BOLTRaidMarkerDropdown"]
+    local raidMarkerLabel = _G["BOLTRaidMarkerLabel"]
     
     -- Enable/disable child controls based on parent module
     if leaveGroupCheckbox then
@@ -574,7 +574,7 @@ function Config:UpdatePlaygroundChildControls()
     -- Get references to child controls
     local favoriteToyCheckbox = _G["BOLTFavoriteToyCheckbox"]
     local toyFrame = _G["BOLTToySelectionFrame"]
-    local toyLabel = _G["ColdSnapToyLabel"]
+    local toyLabel = _G["BOLTToyLabel"]
     local fpsCheckbox = _G["BOLTFPSCheckbox"]
     local speedometerCheckbox = _G["BOLTSpeedometerCheckbox"]
     
@@ -677,7 +677,7 @@ function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
     searchLabel:SetPoint("TOPLEFT", toyFrame, "TOPLEFT", 15, -15)
     searchLabel:SetText("Search:")
     
-    local searchBox = CreateFrame("EditBox", "ColdSnapToySearchBox", toyFrame, "InputBoxTemplate")
+    local searchBox = CreateFrame("EditBox", "BOLTToySearchBox", toyFrame, "InputBoxTemplate")
     searchBox:SetPoint("TOPLEFT", searchLabel, "TOPRIGHT", 15, 0)
     searchBox:SetSize(220, 20)
     searchBox:SetAutoFocus(false)

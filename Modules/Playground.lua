@@ -334,7 +334,7 @@ function Playground:CreateSpeedometer()
     if speedometerFrame then
         return
     end
-    local f = CreateFrame("Frame", "ColdSnapSpeedometer", UIParent)
+    local f = CreateFrame("Frame", "BOLTSpeedometer", UIParent)
     f:SetSize(200, 22) -- Wider to accommodate both FPS and speed
     f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 8, -8)
     f:SetFrameStrata("BACKGROUND")

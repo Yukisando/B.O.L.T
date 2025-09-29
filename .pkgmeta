@@ -1,4 +1,4 @@
-package-as: ColdSnap
+package-as: BOLT
 
 # Files and directories to ignore when creating the package
 ignore:
@@ -15,19 +15,3 @@ enable-toc-creation: no
 
 # Enable creation of nolib packages (without embedded libraries)
 enable-nolib-creation: no
-
-# Move folders during packaging (if needed)
-# move-folders:
-#   ColdSnap/Module: Module
-
-# Manual changelog (optional - will use git commits if not specified)
-# manual-changelog: |
-#   - Feature 1
-#   - Bug fix 2
-
-# License output (optional)
-# license-output: LICENSE.txt
-
-# Tools used (for metadata)
-# tools-used:
-#   - BigWigsMods Packager
