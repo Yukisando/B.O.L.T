@@ -1,7 +1,7 @@
--- ColdSnap Game Menu Module
+-- B.O.L.T Game Menu Module
 -- Adds quality of life improvements to the game menu
 
-local ADDON_NAME, ColdSnap = ...
+local ADDON_NAME, BOLT = ...
 
 -- Create the GameMenu module
 local GameMenu = {}
@@ -234,11 +234,11 @@ function GameMenu:CreateLeaveGroupButton()
     -- Create a button similar to the existing game menu buttons
     -- First try the modern template, fallback to creating manually
     local template = "UIPanelButtonTemplate"
-    leaveGroupButton = CreateFrame("Button", "ColdSnapLeaveGroupButton", GameMenuFrame, template)
+    leaveGroupButton = CreateFrame("Button", "BOLTLeaveGroupButton", GameMenuFrame, template)
     
     -- If that didn't work, try without template and style manually
     if not leaveGroupButton:GetNormalTexture() then
-        leaveGroupButton = CreateFrame("Button", "ColdSnapLeaveGroupButton", GameMenuFrame)
+        leaveGroupButton = CreateFrame("Button", "BOLTLeaveGroupButton", GameMenuFrame)
         
         -- Create textures manually to match game menu buttons
         local normalTexture = leaveGroupButton:CreateTexture(nil, "BACKGROUND")
@@ -588,7 +588,7 @@ RegisterGroupStateUpdates()
 
 function GameMenu:CreateReloadButton()
     -- Create a small reload button for the top right
-    reloadButton = CreateFrame("Button", "ColdSnapReloadButton", GameMenuFrame)
+    reloadButton = CreateFrame("Button", "BOLTReloadButton", GameMenuFrame)
     
     -- Create textures manually to match game menu buttons
     local normalTexture = reloadButton:CreateTexture(nil, "BACKGROUND")
@@ -803,4 +803,4 @@ function GameMenu:OnHealingNumbersClick()
 end
 
 -- Register the module
-ColdSnap:RegisterModule("gameMenu", GameMenu)
+BOLT:RegisterModule("gameMenu", GameMenu)

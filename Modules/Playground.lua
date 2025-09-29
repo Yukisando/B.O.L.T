@@ -1,7 +1,7 @@
--- ColdSnap Playground Module
+-- B.O.L.T Playground Module
 -- Fun features with limited practical use
 
-local ADDON_NAME, ColdSnap = ...
+local ADDON_NAME, BOLT = ...
 
 -- Create the Playground module
 local Playground = {}
@@ -188,7 +188,7 @@ end
 
 function Playground:CreateFavoriteToyButton()
     -- Create a secure action button like OPie does - but with fallback support
-    favoriteToyButton = CreateFrame("Button", "ColdSnapFavoriteToyButton", GameMenuFrame, "SecureActionButtonTemplate")
+    favoriteToyButton = CreateFrame("Button", "BOLTFavoriteToyButton", GameMenuFrame, "SecureActionButtonTemplate")
     
     self.parent:Debug("Creating favorite toy button as SecureActionButtonTemplate")
     
@@ -252,7 +252,7 @@ function Playground:CreateFavoriteToyButton()
         else
             GameTooltip:SetOwner(favoriteToyButton, "ANCHOR_RIGHT")
             GameTooltip:SetText("No favorite toy selected", 1, 0.82, 0)
-            GameTooltip:AddLine("Configure in Interface > AddOns > ColdSnap", 0.8, 0.8, 0.8)
+            GameTooltip:AddLine("Configure in Interface > AddOns > B.O.L.T", 0.8, 0.8, 0.8)
             GameTooltip:Show()
         end
         -- Play hover sound
@@ -515,4 +515,4 @@ function Playground:ToggleFPS(enabled)
 end
 
 -- Register the module
-ColdSnap:RegisterModule("playground", Playground)
+BOLT:RegisterModule("playground", Playground)

@@ -1,16 +1,16 @@
--- ColdSnap Core Framework
+-- B.O.L.T Core Framework (Brittle and Occasionally Lethal Tweaks)
 -- Main addon initialization and management
 
-local ADDON_NAME, ColdSnap = ...
+local ADDON_NAME, BOLT = ...
 
 -- Create the main addon object
-ColdSnap = ColdSnap or {}
-ColdSnap.name = ADDON_NAME
-ColdSnap.version = "1.3.0"
-ColdSnap.modules = {}
+BOLT = BOLT or {}
+BOLT.name = ADDON_NAME
+BOLT.version = "1.3.0"
+BOLT.modules = {}
 
 -- Default configuration
-ColdSnap.defaults = {
+BOLT.defaults = {
     profile = {
         debug = false,
         gameMenu = {
@@ -38,18 +38,18 @@ ColdSnap.defaults = {
 }
 
 -- Initialize the addon
-function ColdSnap:OnInitialize()
+function BOLT:OnInitialize()
     -- Initialize database
     self:InitializeDatabase()
     
     -- Initialize modules
     self:InitializeModules()
     
-    self:Print("ColdSnap v" .. self.version .. " loaded successfully!")
+    self:Print("B.O.L.T v" .. self.version .. " loaded successfully!")
 end
 
 -- Register a module
-function ColdSnap:RegisterModule(name, module)
+function BOLT:RegisterModule(name, module)
     if not self.modules[name] then
         self.modules[name] = module
         module.name = name
@@ -58,7 +58,7 @@ function ColdSnap:RegisterModule(name, module)
 end
 
 -- Initialize all registered modules
-function ColdSnap:InitializeModules()
+function BOLT:InitializeModules()
     for name, module in pairs(self.modules) do
         if module.OnInitialize then
             module:OnInitialize()
@@ -67,7 +67,7 @@ function ColdSnap:InitializeModules()
 end
 
 -- Enable all modules
-function ColdSnap:EnableModules()
+function BOLT:EnableModules()
     for name, module in pairs(self.modules) do
         if module.OnEnable then
             module:OnEnable()
@@ -76,12 +76,12 @@ function ColdSnap:EnableModules()
 end
 
 -- Print function with addon prefix
-function ColdSnap:Print(msg)
-    print("|cff00aaff[ColdSnap]|r " .. tostring(msg))
+function BOLT:Print(msg)
+    print("|cff00aaff[B.O.L.T]|r " .. tostring(msg))
 end
 
 -- Debug print function
-function ColdSnap:Debug(msg)
+function BOLT:Debug(msg)
     if self.db and self.db.profile.debug then
         self:Print("|cffff0000[DEBUG]|r " .. tostring(msg))
     end
@@ -94,11 +94,11 @@ eventFrame:RegisterEvent("PLAYER_LOGIN")
 
 eventFrame:SetScript("OnEvent", function(self, event, addonName)
     if event == "ADDON_LOADED" and addonName == ADDON_NAME then
-        ColdSnap:OnInitialize()
+        BOLT:OnInitialize()
     elseif event == "PLAYER_LOGIN" then
-        ColdSnap:EnableModules()
+        BOLT:EnableModules()
     end
 end)
 
 -- Make the addon globally available
-_G[ADDON_NAME] = ColdSnap
+_G[ADDON_NAME] = BOLT

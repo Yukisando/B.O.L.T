@@ -1,7 +1,7 @@
--- ColdSnap Configuration UI
+-- B.O.L.T Configuration UI (Brittle and Occasionally Lethal Tweaks)
 -- Settings interface for easy module management
 
-local ADDON_NAME, ColdSnap = ...
+local ADDON_NAME, BOLT = ...
 
 -- Create the Config module
 local Config = {}
@@ -27,8 +27,8 @@ end
 
 function Config:CreateInterfaceOptionsPanel()
     -- Create the main options panel that integrates with WoW's Interface > AddOns
-    local panel = CreateFrame("Frame", "ColdSnapOptionsPanel")
-    panel.name = "ColdSnap"
+    local panel = CreateFrame("Frame", "BOLTOptionsPanel")
+    panel.name = "B.O.L.T"
     
     -- Add OnShow script to refresh checkbox states
     panel:SetScript("OnShow", function()
@@ -36,12 +36,12 @@ function Config:CreateInterfaceOptionsPanel()
     end)
     
     -- Create a scroll frame for the content
-    local scrollFrame = CreateFrame("ScrollFrame", "ColdSnapScrollFrame", panel, "UIPanelScrollFrameTemplate")
+    local scrollFrame = CreateFrame("ScrollFrame", "BOLTScrollFrame", panel, "UIPanelScrollFrameTemplate")
     scrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 4, -4)
     scrollFrame:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -26, 4)
     
     -- Create the scroll child (the actual content container)
-    local content = CreateFrame("Frame", "ColdSnapScrollChild", scrollFrame)
+    local content = CreateFrame("Frame", "BOLTScrollChild", scrollFrame)
     content:SetSize(scrollFrame:GetWidth() - 20, 1) -- Width minus scrollbar space, height will be set dynamically
     scrollFrame:SetScrollChild(content)
     
@@ -52,7 +52,7 @@ function Config:CreateInterfaceOptionsPanel()
     -- Title
     local title = content:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", 16, -16)
-    title:SetText("ColdSnap")
+    title:SetText("B.O.L.T")
     
     -- Subtitle
     local subtitle = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -68,7 +68,7 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
     
     -- Enable/Disable Game Menu Module
-    local gameMenuCheckbox = CreateFrame("CheckButton", "ColdSnapGameMenuCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local gameMenuCheckbox = CreateFrame("CheckButton", "BOLTGameMenuCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
     gameMenuCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
     gameMenuCheckbox.Text:SetText("Enable Game Menu Module")
     
@@ -91,7 +91,7 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
     
     -- Show Leave Group Button
-    local leaveGroupCheckbox = CreateFrame("CheckButton", "ColdSnapLeaveGroupCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local leaveGroupCheckbox = CreateFrame("CheckButton", "BOLTLeaveGroupCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
     leaveGroupCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     leaveGroupCheckbox.Text:SetText("Show Leave Group/Delve Button")
     
@@ -109,7 +109,7 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
     
     -- Show Reload UI Button
-    local reloadCheckbox = CreateFrame("CheckButton", "ColdSnapReloadCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local reloadCheckbox = CreateFrame("CheckButton", "BOLTReloadCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
     reloadCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     reloadCheckbox.Text:SetText("Show Reload UI Button")
     
@@ -127,7 +127,7 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
 
     -- Show Group Tools (Ready/Countdown/Raid Marker)
-    local groupToolsCheckbox = CreateFrame("CheckButton", "ColdSnapGroupToolsCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local groupToolsCheckbox = CreateFrame("CheckButton", "BOLTGroupToolsCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
     groupToolsCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     groupToolsCheckbox.Text:SetText("Show Group Tools (Ready/Countdown/Raid Marker)")
     groupToolsCheckbox:SetScript("OnShow", function()
@@ -185,7 +185,7 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 70
     
     -- Show Battle Text Toggles
-    local battleTextCheckbox = CreateFrame("CheckButton", "ColdSnapBattleTextCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local battleTextCheckbox = CreateFrame("CheckButton", "BOLTBattleTextCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
     battleTextCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     battleTextCheckbox.Text:SetText("Show Battle Text Toggles (Damage/Healing Numbers)")
     battleTextCheckbox:SetScript("OnShow", function()
@@ -212,7 +212,7 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
     
     -- Enable/Disable Skyriding Module
-    local skyridingCheckbox = CreateFrame("CheckButton", "ColdSnapSkyridingCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local skyridingCheckbox = CreateFrame("CheckButton", "BOLTSkyridingCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
     skyridingCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
     skyridingCheckbox.Text:SetText("Enable Skyriding Module")
     
@@ -235,7 +235,7 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
     
     -- Enable Pitch Control Checkbox
-    local pitchControlCheckbox = CreateFrame("CheckButton", "ColdSnapPitchControlCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local pitchControlCheckbox = CreateFrame("CheckButton", "BOLTPitchControlCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
     pitchControlCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     pitchControlCheckbox.Text:SetText("Enable pitch control (W/S for up/down while holding mouse)")
     pitchControlCheckbox:SetScript("OnShow", function()
@@ -251,7 +251,7 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
     
     -- Invert Pitch Checkbox
-    local invertPitchCheckbox = CreateFrame("CheckButton", "ColdSnapInvertPitchCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local invertPitchCheckbox = CreateFrame("CheckButton", "BOLTInvertPitchCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
     invertPitchCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 70, yOffset)
     invertPitchCheckbox.Text:SetText("Invert pitch (W=dive, S=climb)")
     invertPitchCheckbox:SetScript("OnShow", function()
@@ -265,7 +265,7 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
     
     -- Toggle Mode Checkbox
-    local toggleModeCheckbox = CreateFrame("CheckButton", "ColdSnapToggleModeCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local toggleModeCheckbox = CreateFrame("CheckButton", "BOLTToggleModeCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
     toggleModeCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     toggleModeCheckbox.Text:SetText("Always-on mode (no mouse button required)")
     toggleModeCheckbox:SetScript("OnShow", function()
@@ -302,7 +302,7 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
     
     -- Enable/Disable Playground Module
-    local playgroundCheckbox = CreateFrame("CheckButton", "ColdSnapPlaygroundCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local playgroundCheckbox = CreateFrame("CheckButton", "BOLTPlaygroundCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
     playgroundCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
     playgroundCheckbox.Text:SetText("Enable Playground Module")
     
@@ -325,7 +325,7 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
     
     -- Show Favorite Toy Button
-    local favoriteToyCheckbox = CreateFrame("CheckButton", "ColdSnapFavoriteToyCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local favoriteToyCheckbox = CreateFrame("CheckButton", "BOLTFavoriteToyCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
     favoriteToyCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     favoriteToyCheckbox.Text:SetText("Show Favorite Toy Button")
     
@@ -345,7 +345,7 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
 
     -- Show FPS Counter
-    local fpsCheckbox = CreateFrame("CheckButton", "ColdSnapFPSCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local fpsCheckbox = CreateFrame("CheckButton", "BOLTFPSCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
     fpsCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     fpsCheckbox.Text:SetText("Show FPS Counter")
     fpsCheckbox:SetScript("OnShow", function()
@@ -363,7 +363,7 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
 
     -- Show Speedometer (speed %)
-    local speedometerCheckbox = CreateFrame("CheckButton", "ColdSnapSpeedometerCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local speedometerCheckbox = CreateFrame("CheckButton", "BOLTSpeedometerCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
     speedometerCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     speedometerCheckbox.Text:SetText("Show Speedometer (speed %)")
     speedometerCheckbox:SetScript("OnShow", function()
@@ -410,7 +410,7 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 40
     
     -- Reload UI Button
-    local reloadButton = CreateFrame("Button", "ColdSnapOptionsReloadButton", content, "UIPanelButtonTemplate")
+    local reloadButton = CreateFrame("Button", "BOLTOptionsReloadButton", content, "UIPanelButtonTemplate")
     reloadButton:SetSize(120, 25)
     reloadButton:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
     reloadButton:SetText("Reload UI")
@@ -450,23 +450,23 @@ function Config:RefreshOptionsPanel()
     -- Small delay to ensure UI is ready
     C_Timer.After(0.05, function()
         -- Refresh all checkbox states in the main options panel
-        local gameMenuCheckbox = _G["ColdSnapGameMenuCheckbox"]
+        local gameMenuCheckbox = _G["BOLTGameMenuCheckbox"]
         if gameMenuCheckbox then
             local enabled = self.parent:IsModuleEnabled("gameMenu")
             gameMenuCheckbox:SetChecked(enabled)
         end
         
-        local leaveGroupCheckbox = _G["ColdSnapLeaveGroupCheckbox"]
+        local leaveGroupCheckbox = _G["BOLTLeaveGroupCheckbox"]
         if leaveGroupCheckbox then
             leaveGroupCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showLeaveGroup"))
         end
         
-        local reloadCheckbox = _G["ColdSnapReloadCheckbox"]
+        local reloadCheckbox = _G["BOLTReloadCheckbox"]
         if reloadCheckbox then
             reloadCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showReloadButton"))
         end
 
-        local groupToolsCheckbox = _G["ColdSnapGroupToolsCheckbox"]
+        local groupToolsCheckbox = _G["BOLTGroupToolsCheckbox"]
         if groupToolsCheckbox then
             groupToolsCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "groupToolsEnabled"))
         end
@@ -482,29 +482,29 @@ function Config:RefreshOptionsPanel()
             end
         end
         
-        local playgroundCheckbox = _G["ColdSnapPlaygroundCheckbox"]
+        local playgroundCheckbox = _G["BOLTPlaygroundCheckbox"]
         if playgroundCheckbox then
             local enabled = self.parent:IsModuleEnabled("playground")
             playgroundCheckbox:SetChecked(enabled)
         end
         
-        local favoriteToyCheckbox = _G["ColdSnapFavoriteToyCheckbox"]
+        local favoriteToyCheckbox = _G["BOLTFavoriteToyCheckbox"]
         if favoriteToyCheckbox then
             favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground", "showFavoriteToy"))
         end
         
-        local skyridingCheckbox = _G["ColdSnapSkyridingCheckbox"]
+        local skyridingCheckbox = _G["BOLTSkyridingCheckbox"]
         if skyridingCheckbox then
             local enabled = self.parent:IsModuleEnabled("skyriding")
             skyridingCheckbox:SetChecked(enabled)
         end
         
-        local pitchControlCheckbox = _G["ColdSnapPitchControlCheckbox"]
+        local pitchControlCheckbox = _G["BOLTPitchControlCheckbox"]
         if pitchControlCheckbox then
             pitchControlCheckbox:SetChecked(self.parent:GetConfig("skyriding", "enablePitchControl"))
         end
         
-        local invertPitchCheckbox = _G["ColdSnapInvertPitchCheckbox"]
+        local invertPitchCheckbox = _G["BOLTInvertPitchCheckbox"]
         if invertPitchCheckbox then
             invertPitchCheckbox:SetChecked(self.parent:GetConfig("skyriding", "invertPitch"))
         end
@@ -527,10 +527,10 @@ function Config:UpdateGameMenuChildControls()
     local gameMenuEnabled = self.parent:IsModuleEnabled("gameMenu")
     
     -- Get references to child controls
-    local leaveGroupCheckbox = _G["ColdSnapLeaveGroupCheckbox"]
-    local reloadCheckbox = _G["ColdSnapReloadCheckbox"]
-    local groupToolsCheckbox = _G["ColdSnapGroupToolsCheckbox"]
-    local battleTextCheckbox = _G["ColdSnapBattleTextCheckbox"]
+    local leaveGroupCheckbox = _G["BOLTLeaveGroupCheckbox"]
+    local reloadCheckbox = _G["BOLTReloadCheckbox"]
+    local groupToolsCheckbox = _G["BOLTGroupToolsCheckbox"]
+    local battleTextCheckbox = _G["BOLTBattleTextCheckbox"]
     local raidMarkerDropdown = _G["ColdSnapRaidMarkerDropdown"]
     local raidMarkerLabel = _G["ColdSnapRaidMarkerLabel"]
     
@@ -572,11 +572,11 @@ function Config:UpdatePlaygroundChildControls()
     local playgroundEnabled = self.parent:IsModuleEnabled("playground")
     
     -- Get references to child controls
-    local favoriteToyCheckbox = _G["ColdSnapFavoriteToyCheckbox"]
-    local toyFrame = _G["ColdSnapToySelectionFrame"]
+    local favoriteToyCheckbox = _G["BOLTFavoriteToyCheckbox"]
+    local toyFrame = _G["BOLTToySelectionFrame"]
     local toyLabel = _G["ColdSnapToyLabel"]
-    local fpsCheckbox = _G["ColdSnapFPSCheckbox"]
-    local speedometerCheckbox = _G["ColdSnapSpeedometerCheckbox"]
+    local fpsCheckbox = _G["BOLTFPSCheckbox"]
+    local speedometerCheckbox = _G["BOLTSpeedometerCheckbox"]
     
     -- Enable/disable child controls based on parent module
     if favoriteToyCheckbox then
@@ -634,9 +634,9 @@ function Config:UpdateSkyridingChildControls()
     local pitchControlEnabled = self.parent:GetConfig("skyriding", "enablePitchControl")
     
     -- Get references to child controls
-    local pitchControlCheckbox = _G["ColdSnapPitchControlCheckbox"]
-    local invertPitchCheckbox = _G["ColdSnapInvertPitchCheckbox"]
-    local toggleModeCheckbox = _G["ColdSnapToggleModeCheckbox"]
+    local pitchControlCheckbox = _G["BOLTPitchControlCheckbox"]
+    local invertPitchCheckbox = _G["BOLTInvertPitchCheckbox"]
+    local toggleModeCheckbox = _G["BOLTToggleModeCheckbox"]
     
     -- Enable/disable child controls based on parent module
     if pitchControlCheckbox then
@@ -659,7 +659,7 @@ end
 
 function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
     -- Create the main container frame
-    local toyFrame = CreateFrame("Frame", "ColdSnapToySelectionFrame", parent)
+    local toyFrame = CreateFrame("Frame", "BOLTToySelectionFrame", parent)
     toyFrame:SetPoint("TOPLEFT", parent, "TOPLEFT", xOffset, yOffset)
     toyFrame:SetSize(420, 170)
     
@@ -700,7 +700,7 @@ function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
     currentLabel:SetPoint("TOPLEFT", toyFrame, "TOPLEFT", 15, -50)
     currentLabel:SetText("Current:")
     
-    local currentToy = CreateFrame("Button", "ColdSnapCurrentToyButton", toyFrame)
+    local currentToy = CreateFrame("Button", "BOLTCurrentToyButton", toyFrame)
     currentToy:SetPoint("LEFT", currentLabel, "RIGHT", 15, 0)
     currentToy:SetSize(220, 28)
     
@@ -729,7 +729,7 @@ function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
     end)
     
     -- Scrollable toy list
-    local scrollFrame = CreateFrame("ScrollFrame", "ColdSnapToyScrollFrame", toyFrame, "UIPanelScrollFrameTemplate")
+    local scrollFrame = CreateFrame("ScrollFrame", "BOLTToyScrollFrame", toyFrame, "UIPanelScrollFrameTemplate")
     scrollFrame:SetPoint("TOPLEFT", toyFrame, "TOPLEFT", 15, -85)
     scrollFrame:SetPoint("BOTTOMRIGHT", toyFrame, "BOTTOMRIGHT", -35, 15)
     
@@ -881,4 +881,4 @@ function Config:UpdateToySelection()
 end
 
 -- Register the module
-ColdSnap:RegisterModule("config", Config)
+BOLT:RegisterModule("config", Config)

@@ -1,10 +1,10 @@
-# ColdSnap
+# B.O.L.T
 
-Quality of life improvements for World of Warcraft that make your gameplay experience smoother without changing core mechanics.
+**Brittle and Occasionally Lethal Tweaks** - Quality of life improvements for World of Warcraft that make your gameplay experience smoother without changing core mechanics.
 
 ## What It Does
 
-ColdSnap adds convenient features to make your WoW experience smoother without changing core gameplay. The addon focuses on small, helpful improvements that save you time and clicks.
+B.O.L.T adds convenient features to make your WoW experience smoother without changing core gameplay. The addon focuses on small, helpful improvements that save you time and clicks.
 
 ## Current Modules
 
@@ -30,21 +30,21 @@ ColdSnap adds convenient features to make your WoW experience smoother without c
 ## Installation
 
 1. Download the addon files
-2. Place the `ColdSnap` folder in your `World of Warcraft\_retail_\Interface\AddOns\` directory
+2. Place the `BOLT` folder in your `World of Warcraft\_retail_\Interface\AddOns\` directory
 3. Restart WoW or type `/reload`
 
 ## Configuration
 
 Access settings through:
-- **Interface Menu**: ESC > Interface > AddOns > ColdSnap
-- **Console Command**: `/coldsnap` or `/cs`
+- **Interface Menu**: ESC > Interface > AddOns > B.O.L.T
+- **Console Command**: `/bolt` or `/b`
 
 Each module can be enabled/disabled independently with full configuration options.
 
 ## Console Commands
 
-- `/cs` - Open settings panel
-- `/coldsnap` - Open settings panel
+- `/b` - Open settings panel
+- `/bolt` - Open settings panel
 
 ## Version History
 

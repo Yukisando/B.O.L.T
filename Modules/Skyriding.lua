@@ -1,8 +1,8 @@
--- ColdSnap Skyriding Module
+-- B.O.L.T Skyriding Module
 -- Changes strafe keybinds to horizontal movement while skyriding
 -- Overrides are only active while holding the left mouse button
 
-local ADDON_NAME, ColdSnap = ...
+local ADDON_NAME, BOLT = ...
 
 -- Create the Skyriding module
 local Skyriding = {}
@@ -405,7 +405,7 @@ function Skyriding:ApplySkyridingOverrides()
 
     -- Create override frame if needed
     if not overrideFrame then
-        overrideFrame = CreateFrame("Frame", "ColdSnapSkyridingOverrideFrame")
+        overrideFrame = CreateFrame("Frame", "BOLTSkyridingOverrideFrame")
         self.parent:Debug("Created override binding frame")
     end
 
@@ -787,4 +787,4 @@ function Skyriding:VerifyBindingState()
 end
 
 -- Register the module
-ColdSnap:RegisterModule("skyriding", Skyriding)
+BOLT:RegisterModule("skyriding", Skyriding)

@@ -1,7 +1,7 @@
--- ColdSnap Utility Functions
+-- B.O.L.T Utility Functions (Brittle and Occasionally Lethal Tweaks)
 -- Common helper functions used throughout the addon
 
-local ADDON_NAME, ColdSnap = ...
+local ADDON_NAME, BOLT = ...
 
 -- Add trim function to string metatable
 if not string.trim then
@@ -11,7 +11,7 @@ if not string.trim then
 end
 
 -- Check if player is in any kind of group
-function ColdSnap:IsInGroup()
+function BOLT:IsInGroup()
     -- First check if we're actually in a real group (party or raid)
     local inRealGroup = IsInGroup() or IsInRaid()
     
@@ -39,7 +39,7 @@ function ColdSnap:IsInGroup()
 end
 
 -- Check if player can leave group (not leader in certain situations)
-function ColdSnap:CanLeaveGroup()
+function BOLT:CanLeaveGroup()
     if not self:IsInGroup() then
         return false
     end
@@ -55,7 +55,7 @@ function ColdSnap:CanLeaveGroup()
 end
 
 -- Get group type string for display
-function ColdSnap:GetGroupTypeString()
+function BOLT:GetGroupTypeString()
     -- Check for delves first (only if in a real group)
     if (IsInGroup() or IsInRaid()) and C_PartyInfo and C_PartyInfo.IsDelveInProgress and C_PartyInfo.IsDelveInProgress() then
         return "Delve"
@@ -89,7 +89,7 @@ function ColdSnap:GetGroupTypeString()
 end
 
 -- Safe leave group function
-function ColdSnap:LeaveGroup()
+function BOLT:LeaveGroup()
     -- Don't allow leaving group during combat
     if InCombatLockdown() then
         self:Print("Cannot leave group during combat.")
@@ -176,7 +176,7 @@ function ColdSnap:LeaveGroup()
                 else
                     LeaveParty()
                 end
-                ColdSnap:Print("Left " .. (groupType or "group") .. ".")
+                BOLT:Print("Left " .. (groupType or "group") .. ".")
             end)
         else
             -- Solo in group, just leave
@@ -199,7 +199,7 @@ function ColdSnap:LeaveGroup()
 end
 
 -- Color text with class colors
-function ColdSnap:ColorText(text, color)
+function BOLT:ColorText(text, color)
     if type(color) == "string" then
         return "|c" .. color .. text .. "|r"
     elseif type(color) == "table" and color.r and color.g and color.b then
@@ -214,7 +214,7 @@ function ColdSnap:ColorText(text, color)
 end
 
 -- Check if a module is enabled
-function ColdSnap:IsModuleEnabled(moduleName)
+function BOLT:IsModuleEnabled(moduleName)
     local config = self:GetConfig(moduleName, "enabled")
     return config ~= false -- Default to true if not set
 end

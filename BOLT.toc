@@ -1,17 +1,17 @@
 ## Interface: 110200
-## Title: ColdSnap
-## Notes: Quality of life improvements including mouse-triggered skyriding controls
+## Title: B.O.L.T
+## Notes: Brittle and Occasionally Lethal Tweaks
 ## Author: Yukisando
 ## Version: 1.4.0
-## SavedVariables: ColdSnapDB
-## IconTexture: Interface\AddOns\ColdSnap\icon
+## SavedVariables: BOLTDB
+## IconTexture: Interface\AddOns\BOLT\icon
 ## Category-enUS: User Interface
 ## Category-frFR: Interface utilisateur
-## X-Website: https://github.com/Yukisando/ColdSnap
+## X-Website: https://github.com/Yukisando/BOLT
 ## X-Curse-Project-ID: 1335396
 
 # Core files
-ColdSnap.lua
+BOLT.lua
 Core\Core.lua
 Core\Database.lua
 Core\Utils.lua

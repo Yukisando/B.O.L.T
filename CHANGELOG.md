@@ -1,4 +1,11 @@
-# ColdSnap Changelog
+# B.O.L.T Changelog
+**(Brittle and Occasionally Lethal Tweaks)**
+
+## [1.4.1] - 2025-09-29
+### Changed
+- **Major Rebranding**: Addon renamed from ColdSnap to B.O.L.T (Brittle and Occasionally Lethal Tweaks)
+- **Updated Commands**: New slash commands `/bolt` and `/b` (replaces `/coldsnap` and `/cs`)
+- **Updated Database**: SavedVariables now use BOLTDB instead of ColdSnapDB
 
 ## [1.4.0] - 2025-09-16
 ### Changed

@@ -1,24 +1,24 @@
--- ColdSnap Database Management
+-- B.O.L.T Database Management (Brittle and Occasionally Lethal Tweaks)
 -- Handles saved variables and configuration
 
-local ADDON_NAME, ColdSnap = ...
+local ADDON_NAME, BOLT = ...
 
 -- Initialize database
-function ColdSnap:InitializeDatabase()
+function BOLT:InitializeDatabase()
     -- Initialize global saved variables
-    if not ColdSnapDB then
-        ColdSnapDB = {}
+    if not BOLTDB then
+        BOLTDB = {}
     end
     
     -- Initialize character-specific saved variables
-    if not ColdSnapCharDB then
-        ColdSnapCharDB = {}
+    if not BOLTCharDB then
+        BOLTCharDB = {}
     end
     
     -- Set up database structure
     self.db = {
-        global = ColdSnapDB,
-        char = ColdSnapCharDB,
+        global = BOLTDB,
+        char = BOLTCharDB,
         profile = {}
     }
     
@@ -26,21 +26,21 @@ function ColdSnap:InitializeDatabase()
     self:MergeDefaults(self.db.profile, self.defaults.profile)
     
     -- Store profile settings in global DB if they don't exist
-    if not ColdSnapDB.profiles then
-        ColdSnapDB.profiles = {}
+    if not BOLTDB.profiles then
+        BOLTDB.profiles = {}
     end
     
     local playerKey = UnitName("player") .. " - " .. GetRealmName()
-    if not ColdSnapDB.profiles[playerKey] then
-        ColdSnapDB.profiles[playerKey] = CopyTable(self.db.profile)
+    if not BOLTDB.profiles[playerKey] then
+        BOLTDB.profiles[playerKey] = CopyTable(self.db.profile)
     else
-        self.db.profile = ColdSnapDB.profiles[playerKey]
+        self.db.profile = BOLTDB.profiles[playerKey]
         self:MergeDefaults(self.db.profile, self.defaults.profile)
     end
 end
 
 -- Merge default values into existing table
-function ColdSnap:MergeDefaults(target, defaults)
+function BOLT:MergeDefaults(target, defaults)
     for key, value in pairs(defaults) do
         if target[key] == nil then
             if type(value) == "table" then
@@ -56,13 +56,13 @@ function ColdSnap:MergeDefaults(target, defaults)
 end
 
 -- Save current profile
-function ColdSnap:SaveProfile()
+function BOLT:SaveProfile()
     local playerKey = UnitName("player") .. " - " .. GetRealmName()
-    ColdSnapDB.profiles[playerKey] = CopyTable(self.db.profile)
+    BOLTDB.profiles[playerKey] = CopyTable(self.db.profile)
 end
 
 -- Get a configuration value
-function ColdSnap:GetConfig(...)
+function BOLT:GetConfig(...)
     local current = self.db.profile
     for i = 1, select("#", ...) do
         local key = select(i, ...)
@@ -75,7 +75,7 @@ function ColdSnap:GetConfig(...)
 end
 
 -- Set a configuration value
-function ColdSnap:SetConfig(value, ...)
+function BOLT:SetConfig(value, ...)
     local keys = {...}
     local current = self.db.profile
     
