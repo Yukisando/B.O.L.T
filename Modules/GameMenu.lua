@@ -17,6 +17,8 @@ local raidMarkerButton = nil
 -- Battle text toggle buttons
 local damageNumbersButton = nil
 local healingNumbersButton = nil
+-- Volume control button
+local volumeButton = nil
 
 function GameMenu:OnInitialize()
     self.parent:Debug("GameMenu module initializing...")
@@ -62,6 +64,10 @@ function GameMenu:OnDisable()
     if healingNumbersButton then
         healingNumbersButton:Hide()
         healingNumbersButton = nil
+    end
+    if volumeButton then
+        volumeButton:Hide()
+        volumeButton = nil
     end
 end
 
@@ -217,9 +223,17 @@ function GameMenu:ShowBattleTextToggles()
     if not healingNumbersButton then
         self:CreateHealingNumbersButton()
     end
+    if not volumeButton and self.parent:GetConfig("gameMenu", "showVolumeButton") then
+        self:CreateVolumeButton()
+    end
 
     damageNumbersButton:Show()
     healingNumbersButton:Show()
+    
+    -- Only show volume button if enabled in config
+    if volumeButton and self.parent:GetConfig("gameMenu", "showVolumeButton") then
+        volumeButton:Show()
+    end
 
     self:PositionBattleTextToggles()
     self:RefreshBattleTextTogglesState()
@@ -228,6 +242,7 @@ end
 function GameMenu:HideBattleTextToggles()
     if damageNumbersButton then damageNumbersButton:Hide() end
     if healingNumbersButton then healingNumbersButton:Hide() end
+    if volumeButton then volumeButton:Hide() end
 end
 
 function GameMenu:CreateLeaveGroupButton()
@@ -269,7 +284,7 @@ function GameMenu:CreateLeaveGroupButton()
     local fontString = leaveGroupButton:GetFontString() or leaveGroupButton:CreateFontString(nil, "OVERLAY")
     fontString:SetFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
     fontString:SetPoint("CENTER")
-    fontString:SetTextColor(1, 0.82, 0, 1) -- Gold color like other buttons
+    fontString:SetTextColor(1, 1, 1, 1) 
     leaveGroupButton:SetFontString(fontString)
     
     -- Enable mouse interaction
@@ -479,6 +494,76 @@ function GameMenu:CreateHealingNumbersButton()
     healingNumbersButton:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 end
 
+function GameMenu:CreateVolumeButton()
+    volumeButton = CreateIconButton("BOLTGMVolume", GameMenuFrame, "Interface\\Icons\\Spell_Shadow_SoundDamp")
+    volumeButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
+    
+    -- Add volume display text overlay - properly centered
+    volumeButton.volumeText = volumeButton:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    volumeButton.volumeText:SetPoint("CENTER", volumeButton, "CENTER", 0, 0)
+    volumeButton.volumeText:SetTextColor(1, 1, 1)
+    volumeButton.volumeText:SetJustifyH("CENTER")
+    volumeButton.volumeText:SetWidth(28) -- Match button width
+    volumeButton.volumeText:SetScale(1) -- Smaller scale to fit nicely
+    
+    -- Left click for mute/unmute, right click for music toggle
+    volumeButton:SetScript("OnClick", function(self, button)
+        if button == "LeftButton" then
+            GameMenu:OnVolumeButtonLeftClick()
+        elseif button == "RightButton" then
+            GameMenu:OnVolumeButtonRightClick()
+        end
+    end)
+    
+    -- Enable both left and right-click
+    volumeButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    
+    volumeButton:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(volumeButton, "ANCHOR_RIGHT")
+        local masterVolume = GetCVar("Sound_MasterVolume") or "1"
+        local volumePercent = math.floor(tonumber(masterVolume) * 100)
+        local isMuted = volumePercent == 0
+        GameTooltip:SetText("Master Volume", 1, 1, 1)
+        GameTooltip:AddLine("Current: " .. volumePercent .. "%" .. (isMuted and " (MUTED)" or ""), 1, 1, 0, true)
+        GameTooltip:AddLine("Display: " .. (isMuted and "M" or tostring(volumePercent)) .. " (number or M for mute)", 0.7, 0.7, 0.7, true)
+        GameTooltip:AddLine("Left-click: Toggle mute", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("Right-click: Toggle music", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("Mouse wheel: Adjust volume", 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+    end)
+    
+    volumeButton:SetScript("OnLeave", function() 
+        if GameTooltip then GameTooltip:Hide() end 
+    end)
+    
+    -- Mouse wheel support for volume adjustment
+    volumeButton:EnableMouseWheel(true)
+    volumeButton:SetScript("OnMouseWheel", function(button, delta)
+        local currentVolume = tonumber(GetCVar("Sound_MasterVolume")) or 1
+        local increment = 0.05 -- 5% increments
+        local newVolume = currentVolume + (delta > 0 and increment or -increment)
+        
+        -- Clamp volume between 0 and 1
+        newVolume = math.max(0, math.min(1, newVolume))
+        
+        SetCVar("Sound_MasterVolume", tostring(newVolume))
+        
+        -- Update the volume display
+        GameMenu:UpdateVolumeDisplay()
+        
+        -- Play sound feedback
+        if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
+            PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
+        end
+        
+        -- Show volume percentage feedback
+        local volumePercent = math.floor(newVolume * 100)
+    end)
+    
+    -- Initialize volume display
+    self:UpdateVolumeDisplay()
+end
+
 function GameMenu:PositionGroupTools()
     if not (readyCheckButton and countdownButton and raidMarkerButton) then return end
     readyCheckButton:ClearAllPoints()
@@ -498,9 +583,26 @@ function GameMenu:PositionBattleTextToggles()
     if not (damageNumbersButton and healingNumbersButton) then return end
     damageNumbersButton:ClearAllPoints()
     healingNumbersButton:ClearAllPoints()
-    -- Place on the left side of GameMenuFrame, vertically stacked at bottom (mirroring group tools at top)
-    healingNumbersButton:SetPoint("BOTTOMRIGHT", GameMenuFrame, "BOTTOMLEFT", -8, 12)
-    damageNumbersButton:SetPoint("BOTTOMLEFT", healingNumbersButton, "TOPLEFT", 0, 6)
+    
+    -- Position volume button if it exists and is enabled
+    if volumeButton and self.parent:GetConfig("gameMenu", "showVolumeButton") then
+        volumeButton:ClearAllPoints()
+        -- Volume button at the bottom
+        volumeButton:SetPoint("BOTTOMRIGHT", GameMenuFrame, "BOTTOMLEFT", -8, 12)
+        -- Healing button above volume button
+        healingNumbersButton:SetPoint("BOTTOMLEFT", volumeButton, "TOPLEFT", 0, 6)
+        -- Damage button above healing button
+        damageNumbersButton:SetPoint("BOTTOMLEFT", healingNumbersButton, "TOPLEFT", 0, 6)
+        
+        -- Set frame levels
+        local level = GameMenuFrame:GetFrameLevel()
+        volumeButton:SetFrameLevel(level + 2)
+    else
+        -- Original positioning if no volume button or volume button disabled
+        healingNumbersButton:SetPoint("BOTTOMRIGHT", GameMenuFrame, "BOTTOMLEFT", -8, 12)
+        damageNumbersButton:SetPoint("BOTTOMLEFT", healingNumbersButton, "TOPLEFT", 0, 6)
+    end
+    
     local level = GameMenuFrame:GetFrameLevel()
     damageNumbersButton:SetFrameLevel(level + 2)
     healingNumbersButton:SetFrameLevel(level + 2)
@@ -800,6 +902,52 @@ function GameMenu:OnHealingNumbersClick()
     
     local state = (newValue == "1") and "ON" or "OFF"
     self.parent:Print("Healing numbers: " .. state)
+end
+
+function GameMenu:OnVolumeButtonLeftClick()
+    -- Toggle mute/unmute
+    local currentVolume = tonumber(GetCVar("Sound_MasterVolume")) or 1
+    
+    if currentVolume == 0 then
+        -- Unmute: restore previous volume or set to 50% if no previous volume stored
+        local previousVolume = self.previousVolume or 0.5
+        SetCVar("Sound_MasterVolume", tostring(previousVolume))
+        self.parent:Print("Audio unmuted (" .. math.floor(previousVolume * 100) .. "%)")
+    else
+        -- Mute: store current volume and set to 0
+        self.previousVolume = currentVolume
+        SetCVar("Sound_MasterVolume", "0")
+        self.parent:Print("Audio muted")
+    end
+    
+    -- Update the volume display
+    self:UpdateVolumeDisplay()
+end
+
+function GameMenu:OnVolumeButtonRightClick()
+    -- Toggle music on/off
+    local currentMusic = GetCVar("Sound_EnableMusic")
+    local newValue = (currentMusic == "1") and "0" or "1"
+    SetCVar("Sound_EnableMusic", newValue)
+    
+    local state = (newValue == "1") and "ON" or "OFF"
+    self.parent:Print("Music: " .. state)
+end
+
+function GameMenu:UpdateVolumeDisplay()
+    if volumeButton and volumeButton.volumeText then
+        local masterVolume = GetCVar("Sound_MasterVolume") or "1"
+        local volumePercent = math.floor(tonumber(masterVolume) * 100)
+        local displayText
+        if volumePercent == 0 then
+            displayText = "M"
+            volumeButton.volumeText:SetTextColor(1, 0.2, 0.2) -- Red for muted
+        else
+            displayText = tostring(volumePercent)
+            volumeButton.volumeText:SetTextColor(1, 1, 1) -- White for normal
+        end
+        volumeButton.volumeText:SetText(displayText)
+    end
 end
 
 -- Register the module

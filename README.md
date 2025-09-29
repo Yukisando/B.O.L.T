@@ -2,10 +2,6 @@
 
 **Brittle and Occasionally Lethal Tweaks** - Quality of life improvements for World of Warcraft that make your gameplay experience smoother without changing core mechanics.
 
-## What It Does
-
-B.O.L.T adds convenient features to make your WoW experience smoother without changing core gameplay. The addon focuses on small, helpful improvements that save you time and clicks.
-
 ## Current Modules
 
 ### Game Menu Enhancements
@@ -15,6 +11,12 @@ B.O.L.T adds convenient features to make your WoW experience smoother without ch
   - Ready Check: Start a ready check for your group (leader/assistant only)
   - Countdown: Start a 5-second pull timer (leader/assistant only)
   - Raid Marker: Set or clear your own raid marker (configurable icon, right-click to clear)
+- **Battle Text Toggles**: Quick toggles for damage and healing numbers in scrolling combat text
+- **Volume Control Button**: Master volume and music control with visual feedback
+  - Shows current volume percentage (or "M" when muted) directly on the button
+  - Left-click: Toggle mute/unmute master volume
+  - Right-click: Toggle music on/off
+  - Mouse wheel: Adjust master volume in 5% increments
 
 ### Skyriding Module
 - **Mouse-Activated Controls**: Hold left mouse button to activate enhanced skyriding controls
@@ -45,15 +47,3 @@ Each module can be enabled/disabled independently with full configuration option
 
 - `/b` - Open settings panel
 - `/bolt` - Open settings panel
-
-## Version History
-
-**v1.3.0**
-- Moved group tools (Ready Check, Countdown, Raid Marker) to Game Menu
-- Added configurable raid marker selection
-- Improved permission handling (leader/assistant support)
-- Removed redundant Mythic Plus module
-
----
-
-*Making World of Warcraft a little more comfortable, one quality of life improvement at a time.*

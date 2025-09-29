@@ -20,6 +20,7 @@ BOLT.defaults = {
             groupToolsEnabled = true,
             raidMarkerIndex = 1, -- 1=Star, 2=Circle, ... 8=Skull; set 0 to clear
             showBattleTextToggles = true,
+            showVolumeButton = true,
         },
         playground = {
             enabled = true,

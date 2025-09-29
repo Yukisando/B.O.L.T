@@ -198,6 +198,20 @@ function Config:CreateInterfaceOptionsPanel()
     end)
     yOffset = yOffset - 30
     
+    -- Show Volume Button
+    local volumeButtonCheckbox = CreateFrame("CheckButton", "BOLTVolumeButtonCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    volumeButtonCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
+    volumeButtonCheckbox.Text:SetText("Show Volume Control Button")
+    volumeButtonCheckbox:SetScript("OnShow", function()
+        volumeButtonCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showVolumeButton"))
+    end)
+    volumeButtonCheckbox:SetScript("OnClick", function()
+        local enabled = volumeButtonCheckbox:GetChecked()
+        self.parent:SetConfig(enabled, "gameMenu", "showVolumeButton")
+        self.parent:Print("Volume button " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply if needed.")
+    end)
+    yOffset = yOffset - 30
+    
     -- Add separator line after Game Menu module
     local gameMenuSeparator = content:CreateTexture(nil, "ARTWORK")
     gameMenuSeparator:SetTexture("Interface\\Common\\UI-TooltipDivider-Transparent")
@@ -531,6 +545,7 @@ function Config:UpdateGameMenuChildControls()
     local reloadCheckbox = _G["BOLTReloadCheckbox"]
     local groupToolsCheckbox = _G["BOLTGroupToolsCheckbox"]
     local battleTextCheckbox = _G["BOLTBattleTextCheckbox"]
+    local volumeButtonCheckbox = _G["BOLTVolumeButtonCheckbox"]
     local raidMarkerDropdown = _G["BOLTRaidMarkerDropdown"]
     local raidMarkerLabel = _G["BOLTRaidMarkerLabel"]
     
@@ -551,6 +566,10 @@ function Config:UpdateGameMenuChildControls()
     if battleTextCheckbox then
         battleTextCheckbox:SetEnabled(gameMenuEnabled)
         battleTextCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
+    end
+    if volumeButtonCheckbox then
+        volumeButtonCheckbox:SetEnabled(gameMenuEnabled)
+        volumeButtonCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
     end
     local groupToolsEnabled = self.parent:GetConfig("gameMenu", "groupToolsEnabled") and gameMenuEnabled
     if raidMarkerDropdown then
