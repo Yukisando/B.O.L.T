@@ -14,6 +14,9 @@ local reloadButton = nil
 local readyCheckButton = nil
 local countdownButton = nil
 local raidMarkerButton = nil
+-- Battle text toggle buttons
+local damageNumbersButton = nil
+local healingNumbersButton = nil
 
 function GameMenu:OnInitialize()
     self.parent:Debug("GameMenu module initializing...")
@@ -52,13 +55,26 @@ function GameMenu:OnDisable()
         raidMarkerButton:Hide()
         raidMarkerButton = nil
     end
+    if damageNumbersButton then
+        damageNumbersButton:Hide()
+        damageNumbersButton = nil
+    end
+    if healingNumbersButton then
+        healingNumbersButton:Hide()
+        healingNumbersButton = nil
+    end
 end
 
 function GameMenu:HookGameMenu()
     -- Hook the GameMenuFrame show event
     if GameMenuFrame then
         GameMenuFrame:HookScript("OnShow", function()
-            -- Check if we're in combat or a protected state before proceeding
+            -- Always try to show battle text toggles first (they work in combat)
+            if self.parent:GetConfig("gameMenu", "showBattleTextToggles") then
+                self:ShowBattleTextToggles()
+            end
+            
+            -- Check if we're in combat or a protected state before proceeding with other buttons
             if InCombatLockdown() then
                 -- Defer the update until after combat
                 local frame = CreateFrame("Frame")
@@ -79,12 +95,14 @@ function GameMenu:HookGameMenu()
         end)
         
         GameMenuFrame:HookScript("OnHide", function()
-            -- Only hide buttons if not in combat
+            -- Only hide certain buttons if not in combat (battle text toggles can always be hidden)
             if not InCombatLockdown() then
                 self:HideLeaveGroupButton()
                 self:HideReloadButton()
                 self:HideGroupTools()
             end
+            -- Battle text toggles can be hidden even in combat since they don't affect protected functions
+            self:HideBattleTextToggles()
         end)
     end
 end
@@ -94,7 +112,14 @@ function GameMenu:UpdateGameMenu()
         return
     end
     
-    -- Don't update UI elements during combat
+    -- Battle text toggles can be shown even during combat (they don't use protected functions)
+    if self.parent:GetConfig("gameMenu", "showBattleTextToggles") then
+        self:ShowBattleTextToggles()
+    else
+        self:HideBattleTextToggles()
+    end
+    
+    -- Don't update other UI elements during combat
     if InCombatLockdown() then
         return
     end
@@ -183,6 +208,26 @@ function GameMenu:HideGroupTools()
     if readyCheckButton then readyCheckButton:Hide() end
     if countdownButton then countdownButton:Hide() end
     if raidMarkerButton then raidMarkerButton:Hide() end
+end
+
+function GameMenu:ShowBattleTextToggles()
+    if not damageNumbersButton then
+        self:CreateDamageNumbersButton()
+    end
+    if not healingNumbersButton then
+        self:CreateHealingNumbersButton()
+    end
+
+    damageNumbersButton:Show()
+    healingNumbersButton:Show()
+
+    self:PositionBattleTextToggles()
+    self:RefreshBattleTextTogglesState()
+end
+
+function GameMenu:HideBattleTextToggles()
+    if damageNumbersButton then damageNumbersButton:Hide() end
+    if healingNumbersButton then healingNumbersButton:Hide() end
 end
 
 function GameMenu:CreateLeaveGroupButton()
@@ -394,6 +439,46 @@ function GameMenu:CreateRaidMarkerButton()
     raidMarkerButton:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 end
 
+function GameMenu:CreateDamageNumbersButton()
+    damageNumbersButton = CreateIconButton("ColdSnapGMDamageNumbers", GameMenuFrame, "Interface\\Icons\\Spell_Fire_FireBolt02")
+    damageNumbersButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
+    damageNumbersButton:SetScript("OnClick", function()
+        self:OnDamageNumbersClick()
+    end)
+    damageNumbersButton:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(damageNumbersButton, "ANCHOR_RIGHT")
+        local enabled = GetCVar("floatingCombatTextCombatDamage") == "1"
+        GameTooltip:SetText("Toggle Damage Numbers", 1, 1, 1)
+        GameTooltip:AddLine("Current: " .. (enabled and "ON" or "OFF"), enabled and 0.0 or 1.0, enabled and 1.0 or 0.0, 0.0, true)
+        GameTooltip:AddLine("Show/hide damage numbers in scrolling combat text", 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+        if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
+            PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
+        end
+    end)
+    damageNumbersButton:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+end
+
+function GameMenu:CreateHealingNumbersButton()
+    healingNumbersButton = CreateIconButton("ColdSnapGMHealingNumbers", GameMenuFrame, "Interface\\Icons\\Spell_Holy_GreaterHeal")
+    healingNumbersButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
+    healingNumbersButton:SetScript("OnClick", function()
+        self:OnHealingNumbersClick()
+    end)
+    healingNumbersButton:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(healingNumbersButton, "ANCHOR_RIGHT")
+        local enabled = GetCVar("floatingCombatTextCombatHealing") == "1"
+        GameTooltip:SetText("Toggle Healing Numbers", 1, 1, 1)
+        GameTooltip:AddLine("Current: " .. (enabled and "ON" or "OFF"), enabled and 0.0 or 1.0, enabled and 1.0 or 0.0, 0.0, true)
+        GameTooltip:AddLine("Show/hide healing numbers in scrolling combat text", 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+        if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
+            PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
+        end
+    end)
+    healingNumbersButton:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+end
+
 function GameMenu:PositionGroupTools()
     if not (readyCheckButton and countdownButton and raidMarkerButton) then return end
     readyCheckButton:ClearAllPoints()
@@ -407,6 +492,29 @@ function GameMenu:PositionGroupTools()
     readyCheckButton:SetFrameLevel(level + 2)
     countdownButton:SetFrameLevel(level + 2)
     raidMarkerButton:SetFrameLevel(level + 2)
+end
+
+function GameMenu:PositionBattleTextToggles()
+    if not (damageNumbersButton and healingNumbersButton) then return end
+    damageNumbersButton:ClearAllPoints()
+    healingNumbersButton:ClearAllPoints()
+    -- Place on the left side of GameMenuFrame, vertically stacked at bottom (mirroring group tools at top)
+    healingNumbersButton:SetPoint("BOTTOMRIGHT", GameMenuFrame, "BOTTOMLEFT", -8, 12)
+    damageNumbersButton:SetPoint("BOTTOMLEFT", healingNumbersButton, "TOPLEFT", 0, 6)
+    local level = GameMenuFrame:GetFrameLevel()
+    damageNumbersButton:SetFrameLevel(level + 2)
+    healingNumbersButton:SetFrameLevel(level + 2)
+end
+
+function GameMenu:RefreshBattleTextTogglesState()
+    if damageNumbersButton then
+        local enabled = GetCVar("floatingCombatTextCombatDamage") == "1"
+        damageNumbersButton:SetAlpha(enabled and 1.0 or 0.6)
+    end
+    if healingNumbersButton then
+        local enabled = GetCVar("floatingCombatTextCombatHealing") == "1"
+        healingNumbersButton:SetAlpha(enabled and 1.0 or 0.6)
+    end
 end
 
 function GameMenu:RefreshGroupToolsState()
@@ -668,6 +776,30 @@ function GameMenu:OnRaidMarkerClick(button)
     SetRaidTarget("player", idx)
     local names = {"Star","Circle","Diamond","Triangle","Moon","Square","Cross","Skull"}
     self.parent:Print("Set your raid marker: " .. (names[idx] or idx))
+end
+
+function GameMenu:OnDamageNumbersClick()
+    local currentValue = GetCVar("floatingCombatTextCombatDamage")
+    local newValue = (currentValue == "1") and "0" or "1"
+    SetCVar("floatingCombatTextCombatDamage", newValue)
+    
+    -- Refresh the button state immediately
+    self:RefreshBattleTextTogglesState()
+    
+    local state = (newValue == "1") and "ON" or "OFF"
+    self.parent:Print("Damage numbers: " .. state)
+end
+
+function GameMenu:OnHealingNumbersClick()
+    local currentValue = GetCVar("floatingCombatTextCombatHealing")
+    local newValue = (currentValue == "1") and "0" or "1"
+    SetCVar("floatingCombatTextCombatHealing", newValue)
+    
+    -- Refresh the button state immediately
+    self:RefreshBattleTextTogglesState()
+    
+    local state = (newValue == "1") and "ON" or "OFF"
+    self.parent:Print("Healing numbers: " .. state)
 end
 
 -- Register the module

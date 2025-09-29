@@ -184,6 +184,20 @@ function Config:CreateInterfaceOptionsPanel()
     end)
     yOffset = yOffset - 70
     
+    -- Show Battle Text Toggles
+    local battleTextCheckbox = CreateFrame("CheckButton", "ColdSnapBattleTextCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    battleTextCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
+    battleTextCheckbox.Text:SetText("Show Battle Text Toggles (Damage/Healing Numbers)")
+    battleTextCheckbox:SetScript("OnShow", function()
+        battleTextCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showBattleTextToggles"))
+    end)
+    battleTextCheckbox:SetScript("OnClick", function()
+        local enabled = battleTextCheckbox:GetChecked()
+        self.parent:SetConfig(enabled, "gameMenu", "showBattleTextToggles")
+        self.parent:Print("Battle text toggles " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply if needed.")
+    end)
+    yOffset = yOffset - 30
+    
     -- Add separator line after Game Menu module
     local gameMenuSeparator = content:CreateTexture(nil, "ARTWORK")
     gameMenuSeparator:SetTexture("Interface\\Common\\UI-TooltipDivider-Transparent")
@@ -330,10 +344,28 @@ function Config:CreateInterfaceOptionsPanel()
     end)
     yOffset = yOffset - 30
 
-    -- Show Speedometer (yards/s)
+    -- Show FPS Counter
+    local fpsCheckbox = CreateFrame("CheckButton", "ColdSnapFPSCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    fpsCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
+    fpsCheckbox.Text:SetText("Show FPS Counter")
+    fpsCheckbox:SetScript("OnShow", function()
+        fpsCheckbox:SetChecked(self.parent:GetConfig("playground", "showFPS"))
+    end)
+    fpsCheckbox:SetScript("OnClick", function()
+        local enabled = fpsCheckbox:GetChecked()
+        self.parent:SetConfig(enabled, "playground", "showFPS")
+        self.parent:Print("FPS counter " .. (enabled and "enabled" or "disabled") .. ".")
+        -- Tell playground module to show/hide the speedometer frame immediately if loaded
+        if self.parent.modules and self.parent.modules.playground and self.parent.modules.playground.ToggleFPS then
+            self.parent.modules.playground:ToggleFPS(enabled)
+        end
+    end)
+    yOffset = yOffset - 30
+
+    -- Show Speedometer (speed %)
     local speedometerCheckbox = CreateFrame("CheckButton", "ColdSnapSpeedometerCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
     speedometerCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
-    speedometerCheckbox.Text:SetText("Show Speedometer (yards/s)")
+    speedometerCheckbox.Text:SetText("Show Speedometer (speed %)")
     speedometerCheckbox:SetScript("OnShow", function()
         speedometerCheckbox:SetChecked(self.parent:GetConfig("playground", "showSpeedometer"))
     end)
@@ -341,7 +373,7 @@ function Config:CreateInterfaceOptionsPanel()
         local enabled = speedometerCheckbox:GetChecked()
         self.parent:SetConfig(enabled, "playground", "showSpeedometer")
         self.parent:Print("Speedometer " .. (enabled and "enabled" or "disabled") .. ".")
-        -- Tell playground module to show/hide the speedometer immediately if loaded
+        -- Tell playground module to show/hide the speedometer frame immediately if loaded
         if self.parent.modules and self.parent.modules.playground and self.parent.modules.playground.ToggleSpeedometer then
             self.parent.modules.playground:ToggleSpeedometer(enabled)
         end
@@ -498,6 +530,7 @@ function Config:UpdateGameMenuChildControls()
     local leaveGroupCheckbox = _G["ColdSnapLeaveGroupCheckbox"]
     local reloadCheckbox = _G["ColdSnapReloadCheckbox"]
     local groupToolsCheckbox = _G["ColdSnapGroupToolsCheckbox"]
+    local battleTextCheckbox = _G["ColdSnapBattleTextCheckbox"]
     local raidMarkerDropdown = _G["ColdSnapRaidMarkerDropdown"]
     local raidMarkerLabel = _G["ColdSnapRaidMarkerLabel"]
     
@@ -514,6 +547,10 @@ function Config:UpdateGameMenuChildControls()
     if groupToolsCheckbox then
         groupToolsCheckbox:SetEnabled(gameMenuEnabled)
         groupToolsCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
+    end
+    if battleTextCheckbox then
+        battleTextCheckbox:SetEnabled(gameMenuEnabled)
+        battleTextCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
     end
     local groupToolsEnabled = self.parent:GetConfig("gameMenu", "groupToolsEnabled") and gameMenuEnabled
     if raidMarkerDropdown then
@@ -538,12 +575,18 @@ function Config:UpdatePlaygroundChildControls()
     local favoriteToyCheckbox = _G["ColdSnapFavoriteToyCheckbox"]
     local toyFrame = _G["ColdSnapToySelectionFrame"]
     local toyLabel = _G["ColdSnapToyLabel"]
+    local fpsCheckbox = _G["ColdSnapFPSCheckbox"]
     local speedometerCheckbox = _G["ColdSnapSpeedometerCheckbox"]
     
     -- Enable/disable child controls based on parent module
     if favoriteToyCheckbox then
         favoriteToyCheckbox:SetEnabled(playgroundEnabled)
         favoriteToyCheckbox:SetAlpha(playgroundEnabled and 1.0 or 0.5)
+    end
+
+    if fpsCheckbox then
+        fpsCheckbox:SetEnabled(playgroundEnabled)
+        fpsCheckbox:SetAlpha(playgroundEnabled and 1.0 or 0.5)
     end
 
     if speedometerCheckbox then

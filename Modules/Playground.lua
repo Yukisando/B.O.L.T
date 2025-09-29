@@ -335,20 +335,23 @@ function Playground:CreateSpeedometer()
         return
     end
     local f = CreateFrame("Frame", "ColdSnapSpeedometer", UIParent)
-    f:SetSize(100, 22)
+    f:SetSize(200, 22) -- Wider to accommodate both FPS and speed
     f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 8, -8)
     f:SetFrameStrata("BACKGROUND")
 
     -- No background texture - removed for cleaner look
 
     local txt = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    txt:SetPoint("CENTER")
-    txt:SetJustifyH("CENTER")
-    txt:SetText("0%")
+    txt:SetPoint("LEFT", f, "LEFT", 0, 0) -- Left-aligned within the frame
+    txt:SetJustifyH("LEFT") -- Left-align the text
+    txt:SetText("Loading...")
 
     f.text = txt
     f._updateTimer = 0
     f._fadeTimer = 0
+
+    -- Store reference to parent module for config access
+    local parentModule = self.parent
 
     -- Update every ~0.1s using a robust speed getter
     f:SetScript("OnUpdate", function(self, elapsed)
@@ -381,9 +384,71 @@ function Playground:CreateSpeedometer()
                 state = " (Mounted)"
             end
 
-            -- Show only percentage with state
-            local display = string.format("%.0f%%%s", percent, state)
-            self.text:SetText(display)
+            -- Get FPS counter - try multiple WoW API methods
+            local fps = 0
+            -- Try different possible FPS functions
+            if GetFramerate then
+                fps = GetFramerate()
+            elseif C_System and C_System.GetFrameRate then
+                fps = C_System.GetFrameRate()
+            end
+            
+            -- If still no FPS, calculate approximate from elapsed time
+            if not fps or fps <= 0 then
+                -- Use a running average for smoother FPS calculation
+                if not self._fpsHistory then
+                    self._fpsHistory = {}
+                end
+                
+                local currentFPS = elapsed > 0 and (1 / elapsed) or 60
+                table.insert(self._fpsHistory, currentFPS)
+                
+                -- Keep only last 10 samples
+                if #self._fpsHistory > 10 then
+                    table.remove(self._fpsHistory, 1)
+                end
+                
+                -- Calculate average
+                local sum = 0
+                for i = 1, #self._fpsHistory do
+                    sum = sum + self._fpsHistory[i]
+                end
+                fps = sum / #self._fpsHistory
+            end
+            
+            -- Build display string based on enabled features
+            local showFPS = parentModule and parentModule:GetConfig("playground", "showFPS")
+            local showSpeed = parentModule and parentModule:GetConfig("playground", "showSpeedometer")
+            
+            local displayParts = {}
+            
+            -- Add FPS first if enabled
+            if showFPS and fps and fps > 0 then
+                table.insert(displayParts, string.format("%.0f FPS", fps))
+            end
+            
+            -- Add speed percentage and state if enabled  
+            if showSpeed then
+                table.insert(displayParts, string.format("%.0f%%%s", percent, state))
+            end
+            
+            -- Create final display
+            local display = ""
+            if #displayParts > 0 then
+                display = table.concat(displayParts, " | ")
+            else
+                -- Show something if both are enabled but data is missing
+                if showFPS then
+                    display = "FPS"
+                elseif showSpeed then
+                    display = "0%"
+                end
+            end
+            
+            -- Always update text if we have a display
+            if display and display ~= "" then
+                self.text:SetText(display)
+            end
         else
             -- Get current speed for fade logic even when not updating display
             speed = GetPlayerSpeedYPS() or 0
@@ -406,29 +471,47 @@ function Playground:CreateSpeedometer()
         end
     end)
 
-    -- Only show if the playground speedometer config is enabled
-    if self.parent and self.parent.GetConfig and self.parent:GetConfig("playground", "showSpeedometer") then
-        f:Show()
-    else
-        f:Hide()
-    end
+    -- Initially show the frame - visibility will be controlled by toggle functions
+    f:Show()
 
     speedometerFrame = f
+    
+    -- Set initial visibility based on config
+    self:UpdateSpeedometerVisibility()
+end
+
+function Playground:UpdateSpeedometerVisibility()
+    if not speedometerFrame then
+        return
+    end
+    
+    -- Check if either FPS or speedometer should be shown
+    local showFPS = self.parent:GetConfig("playground", "showFPS")
+    local showSpeed = self.parent:GetConfig("playground", "showSpeedometer") 
+    
+    if showFPS or showSpeed then
+        speedometerFrame:Show()
+    else
+        speedometerFrame:Hide()
+    end
 end
 
 function Playground:ToggleSpeedometer(enabled)
     if not speedometerFrame then
-        -- Create the frame so it exists (it's created hidden if config was off)
+        -- Create the frame so it exists
         self:CreateSpeedometer()
     end
+    
+    self:UpdateSpeedometerVisibility()
+end
 
-    if speedometerFrame then
-        if enabled then
-            speedometerFrame:Show()
-        else
-            speedometerFrame:Hide()
-        end
+function Playground:ToggleFPS(enabled)
+    if not speedometerFrame then
+        -- Create the frame so it exists
+        self:CreateSpeedometer()
     end
+    
+    self:UpdateSpeedometerVisibility()
 end
 
 -- Register the module

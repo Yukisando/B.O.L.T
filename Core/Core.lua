@@ -19,12 +19,14 @@ ColdSnap.defaults = {
             showReloadButton = true,
             groupToolsEnabled = true,
             raidMarkerIndex = 1, -- 1=Star, 2=Circle, ... 8=Skull; set 0 to clear
+            showBattleTextToggles = true,
         },
         playground = {
             enabled = true,
             showFavoriteToy = false,
             favoriteToyId = nil,
-            showSpeedometer = false,
+            showFPS = true,
+            showSpeedometer = true,
         },
         skyriding = {
             enabled = false,
