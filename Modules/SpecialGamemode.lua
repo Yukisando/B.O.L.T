@@ -22,18 +22,20 @@ function SpecialGamemode:SetupKeyPolling()
     -- Simple timer that checks key states every 0.1 seconds
     self.keyPollTimer = C_Timer.NewTicker(0.1, function()
         if IsKeyDown then
-            if IsKeyDown("F9") and not self.f9WasPressed and self:IsGamemodeAllowed() and not self.hardcoreModeActive then
-                self.f9WasPressed = true
+            -- Ctrl+Shift+G to activate hardcore mode
+            if IsKeyDown("G") and IsControlKeyDown() and IsShiftKeyDown() and not self.activateWasPressed and self:IsGamemodeAllowed() and not self.hardcoreModeActive then
+                self.activateWasPressed = true
                 self:EnterHardcoreMode()
-            elseif not IsKeyDown("F9") then
-                self.f9WasPressed = false
+            elseif not (IsKeyDown("G") and IsControlKeyDown() and IsShiftKeyDown()) then
+                self.activateWasPressed = false
             end
             
-            if IsKeyDown("F10") and not self.f10WasPressed and self.hardcoreModeActive then
-                self.f10WasPressed = true
+            -- Ctrl+Shift+H to exit hardcore mode
+            if IsKeyDown("H") and IsControlKeyDown() and IsShiftKeyDown() and not self.exitWasPressed and self.hardcoreModeActive then
+                self.exitWasPressed = true
                 self:ExitHardcoreMode()
-            elseif not IsKeyDown("F10") then
-                self.f10WasPressed = false
+            elseif not (IsKeyDown("H") and IsControlKeyDown() and IsShiftKeyDown()) then
+                self.exitWasPressed = false
             end
         end
     end)
@@ -55,7 +57,13 @@ function SpecialGamemode:EnterHardcoreMode()
     
     -- Show activation message
     self:ShowModeMessage("HARDCORE MODE ACTIVATED", 2.0)
-    self.parent:Print("|cFFFF0000HARDCORE MODE ACTIVATED! Press F10 to escape.|r")
+    self.parent:Print("|cFFFF0000HARDCORE MODE ACTIVATED!|r")
+    
+    -- Send group chat message
+    if GetNumGroupMembers() > 0 then
+        local chatType = IsInRaid() and "RAID" or "PARTY"
+        SendChatMessage("Hardcore mode activated!", chatType)
+    end
     
     -- Start the effect timer (applies effects every 0.2 seconds)
     self:StartEffectTimer()
@@ -80,6 +88,12 @@ function SpecialGamemode:ExitHardcoreMode()
     
     -- Remove game menu hooks
     self:UnhookGameMenuFrame()
+    
+    -- Send group chat message
+    if GetNumGroupMembers() > 0 then
+        local chatType = IsInRaid() and "RAID" or "PARTY"
+        SendChatMessage("Hardcore mode deactivated!", chatType)
+    end
     
     -- Show exit message
     self:ShowModeMessage("Hardcore mode deactivated", 1.5)
