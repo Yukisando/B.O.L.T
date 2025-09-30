@@ -348,13 +348,8 @@ function GameMenu:PositionLeaveGroupButton()
     leaveGroupButton:Show()
 end
 
--- Create small square utility button with icon textures
-local function CreateIconButton(name, parent, iconPath)
-    return BOLT.ButtonUtils:CreateIconButton(name, parent, iconPath)
-end
-
 function GameMenu:CreateReadyCheckButton()
-    readyCheckButton = CreateIconButton("BOLTGMReadyCheck", GameMenuFrame, "Interface\\RaidFrame\\ReadyCheck-Ready")
+    readyCheckButton = BOLT.ButtonUtils:CreateIconButton("BOLTGMReadyCheck", GameMenuFrame, "Interface\\RaidFrame\\ReadyCheck-Ready")
     readyCheckButton:SetScript("OnClick", function()
         self:OnReadyCheckClick()
     end)
@@ -374,7 +369,7 @@ function GameMenu:CreateReadyCheckButton()
 end
 
 function GameMenu:CreateCountdownButton()
-    countdownButton = CreateIconButton("BOLTGMCountdown", GameMenuFrame, "Interface\\Icons\\Spell_Holy_BorrowedTime")
+    countdownButton = BOLT.ButtonUtils:CreateIconButton("BOLTGMCountdown", GameMenuFrame, "Interface\\Icons\\Spell_Holy_BorrowedTime")
     countdownButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
     countdownButton:SetScript("OnClick", function()
         self:OnCountdownClick()
@@ -395,7 +390,7 @@ function GameMenu:CreateCountdownButton()
 end
 
 function GameMenu:CreateRaidMarkerButton()
-    raidMarkerButton = CreateIconButton("BOLTGMRaidMarker", GameMenuFrame, "Interface\\TARGETINGFRAME\\UI-RaidTargetingIcons")
+    raidMarkerButton = BOLT.ButtonUtils:CreateIconButton("BOLTGMRaidMarker", GameMenuFrame, "Interface\\TARGETINGFRAME\\UI-RaidTargetingIcons")
     -- We'll adjust tex coords based on selected marker in RefreshGroupToolsState
     raidMarkerButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     raidMarkerButton:SetScript("OnClick", function(_, button)
@@ -420,7 +415,7 @@ function GameMenu:CreateRaidMarkerButton()
 end
 
 function GameMenu:CreateDamageNumbersButton()
-    damageNumbersButton = CreateIconButton("BOLTGMDamageNumbers", GameMenuFrame, "Interface\\Icons\\Spell_Fire_FireBolt02")
+    damageNumbersButton = BOLT.ButtonUtils:CreateIconButton("BOLTGMDamageNumbers", GameMenuFrame, "Interface\\Icons\\Spell_Fire_FireBolt02")
     damageNumbersButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
     damageNumbersButton:SetScript("OnClick", function()
         self:OnDamageNumbersClick()
@@ -440,7 +435,7 @@ function GameMenu:CreateDamageNumbersButton()
 end
 
 function GameMenu:CreateHealingNumbersButton()
-    healingNumbersButton = CreateIconButton("BOLTGMHealingNumbers", GameMenuFrame, "Interface\\Icons\\Spell_Holy_GreaterHeal")
+    healingNumbersButton = BOLT.ButtonUtils:CreateIconButton("BOLTGMHealingNumbers", GameMenuFrame, "Interface\\Icons\\Spell_Holy_GreaterHeal")
     healingNumbersButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
     healingNumbersButton:SetScript("OnClick", function()
         self:OnHealingNumbersClick()
@@ -460,8 +455,10 @@ function GameMenu:CreateHealingNumbersButton()
 end
 
 function GameMenu:CreateVolumeButton()
-    -- Create volume button with special styling using ButtonUtils
-    volumeButton = BOLT.ButtonUtils:CreateVolumeButton("BOLTGMVolume", GameMenuFrame)
+    -- Create volume button with background using ButtonUtils
+    volumeButton = BOLT.ButtonUtils:CreateVolumeButton("BOLTGMVolume", GameMenuFrame, {
+        showBackground = true
+    })
     
     -- Add volume display text overlay - properly centered
     volumeButton.volumeText = volumeButton:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -654,10 +651,11 @@ end
 RegisterGroupStateUpdates()
 
 function GameMenu:CreateReloadButton()
-    -- Create a reload button positioned above the game menu using ButtonUtils
-    reloadButton = BOLT.ButtonUtils:CreateIconButton("BOLTReloadButton", UIParent, "Interface\\Buttons\\UI-RefreshButton")
-    
-    -- If the refresh texture doesn't exist, fallback to a different one
+    -- Create a reload button with smaller content but normal icon area for hover/pressed effects
+    reloadButton = BOLT.ButtonUtils:CreateIconButton("BOLTReloadButton", UIParent, "Interface\\Buttons\\UI-RefreshButton", {
+        iconScale = 1,    -- Icon area is 90% of button size (affects hover/pressed area)
+        contentScale = 1.1  -- Actual reload symbol is 60% of the icon area (smaller visual)
+    })    -- If the refresh texture doesn't exist, fallback to a different one
     if not reloadButton.icon:GetTexture() then
         BOLT.ButtonUtils:UpdateButtonIcon(reloadButton, "Interface\\Icons\\Ability_Rogue_Preparation")
     end

@@ -1,5 +1,5 @@
 -- B.O.L.T Button Utilities (Brittle and Occasionally Lethal Tweaks)
--- Shared button creation and styling functions
+-- Simplified button creation using latest WoW API
 
 local ADDON_NAME, BOLT = ...
 
@@ -8,150 +8,168 @@ local ButtonUtils = {}
 
 -- Standard button configuration
 local BUTTON_CONFIG = {
-    size = 28,
-    iconSize = 28,
-    borderSize = 32, 
-    borderAlpha = .9,
-    iconCrop = 0, -- Crop 10% from each side for better fit
+    size = 25,
 }
 
--- Create a standard square icon button
+-- Create a simple square icon button using clean approach
 function ButtonUtils:CreateIconButton(name, parent, iconPath, options)
     options = options or {}
     
+    -- Create a basic button frame
     local btn = CreateFrame("Button", name, parent)
     btn:SetSize(BUTTON_CONFIG.size, BUTTON_CONFIG.size)
     
-
-    
-    -- Create the pushed texture
-    local pushedTexture = btn:CreateTexture(nil, "BACKGROUND")
-    pushedTexture:SetTexture("Interface\\Buttons\\UI-Quickslot-Depress")
-    pushedTexture:SetSize(BUTTON_CONFIG.borderSize, BUTTON_CONFIG.borderSize) -- Match border size
-    pushedTexture:SetPoint("CENTER")
-    btn:SetPushedTexture(pushedTexture)
-
-    -- Create the highlight texture
-    local highlightTexture = btn:CreateTexture(nil, "HIGHLIGHT")
-    highlightTexture:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
-    highlightTexture:SetSize(BUTTON_CONFIG.borderSize, BUTTON_CONFIG.borderSize) -- Match border size
-    highlightTexture:SetPoint("CENTER")
-    highlightTexture:SetBlendMode("ADD")
-     
-    -- Apply custom highlight color if specified
-    if options.highlightColor then
-        highlightTexture:SetVertexColor(unpack(options.highlightColor))
-    end
-    btn:SetHighlightTexture(highlightTexture)
-
-    -- Create the icon with proper sizing and positioning
+    -- Create icon texture with rounded mask
     if iconPath then
-        local iconTexture = btn:CreateTexture(nil, "ARTWORK")
-        iconTexture:SetTexture(iconPath)
-        iconTexture:SetSize(BUTTON_CONFIG.iconSize, BUTTON_CONFIG.iconSize)
-        iconTexture:SetPoint("CENTER")
-        iconTexture:SetTexCoord(BUTTON_CONFIG.iconCrop, 1 - BUTTON_CONFIG.iconCrop, BUTTON_CONFIG.iconCrop, 1 - BUTTON_CONFIG.iconCrop)
-        btn.icon = iconTexture
+        local iconSize = options.iconScale and (BUTTON_CONFIG.size * options.iconScale) or BUTTON_CONFIG.size
+        local contentScale = options.contentScale or options.iconScale or 1.0
+        local contentSize = iconSize * contentScale
+        
+        local icon = btn:CreateTexture(nil, "ARTWORK")
+        icon:SetSize(iconSize, iconSize) -- This affects the hover/pressed area
+        icon:SetTexture(iconPath)
+        icon:SetPoint("CENTER", btn, "CENTER")
+        
+        -- Apply content scaling to texture coordinates for visual scaling
+        local cropBase = 0.08
+        local cropRange = 0.84 -- (0.92 - 0.08)
+        local cropAdjust = (1 - contentScale) * 0.5 * cropRange
+        local cropMin = cropBase + cropAdjust
+        local cropMax = 0.92 - cropAdjust
+        icon:SetTexCoord(cropMin, cropMax, cropMin, cropMax)
+        
+        btn.icon = icon
+        btn.iconPath = iconPath
+        
+        -- Apply rounded mask using a circular mask texture
+        local mask = btn:CreateMaskTexture()
+        mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        mask:SetAllPoints(icon)
+        icon:AddMaskTexture(mask)
+        btn.mask = mask
     end
-
-    -- Standard mouse and sound interactions
-    btn:EnableMouse(true)
-    btn:SetMotionScriptsWhileDisabled(true)
-    btn:SetScript("OnMouseDown", function()
-        if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION then
-            PlaySound(SOUNDKIT.IG_MAINMENU_OPTION)
-        end
+    
+    -- Create subtle highlight with rounded mask
+    local highlight = btn:CreateTexture(nil, "HIGHLIGHT")
+    highlight:SetColorTexture(1, 1, 1, 0.2) -- Subtle white overlay
+    highlight:SetAllPoints(btn)
+    
+    -- Apply rounded mask to highlight as well
+    if btn.mask then
+        highlight:AddMaskTexture(btn.mask)
+    end
+    
+    btn:SetHighlightTexture(highlight)
+    
+    -- Apply highlight color if specified
+    if options.highlightColor then
+        highlight:SetColorTexture(unpack(options.highlightColor))
+    end
+    
+    -- Add sound on click
+    btn:SetScript("OnClick", function()
+        PlaySound(SOUNDKIT.IG_MAINMENU_OPTION)
     end)
     
-    return btn
-end
-
--- Create a volume button with special styling to indicate mouse wheel interaction
-function ButtonUtils:CreateVolumeButton(name, parent)
-    local btn = self:CreateIconButton(name, parent, "Interface\\Icons\\Spell_Shadow_SoundDamp", {
-        highlightColor = {1, 1, 0.5} -- Yellow highlight to indicate scroll functionality
-    })
-    
-    -- Apply special border coloring for volume button
-    if btn.border then
-        btn.border:SetVertexColor(0.9, 0.9, 0.4, 0.4) -- Yellow tint to indicate special interaction
-    end
-    
-    -- Adjust icon texture coordinates for volume icon
-    if btn.icon then
-        btn.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
-    end
+    btn:EnableMouse(true)
     
     return btn
 end
 
--- Create a secure action button (for toys, spells, etc.)
-function ButtonUtils:CreateSecureActionButton(name, parent, iconPath)
+-- Create a volume button with special styling
+function ButtonUtils:CreateVolumeButton(name, parent, options)
+    options = options or {}
+    
+    -- Add yellow highlight for volume functionality indication
+    if not options.highlightColor then
+        options.highlightColor = {1, 1, 0.5, 0.2}
+    end
+    
+    local btn = self:CreateIconButton(name, parent, "Interface\\Icons\\Spell_Shadow_SoundDamp", options)
+    
+    -- Add a subtle background if requested
+    if options.showBackground then
+        local bg = btn:CreateTexture(nil, "BACKGROUND")
+        bg:SetColorTexture(0.1, 0.1, 0.1, 0.6) -- Dark semi-transparent background
+        bg:SetAllPoints(btn)
+        
+        -- Apply rounded mask to background as well
+        if btn.mask then
+            bg:AddMaskTexture(btn.mask)
+        end
+        
+        btn.background = bg
+    end
+    
+    return btn
+end
+
+-- Create a secure action button for toys, spells, etc.
+function ButtonUtils:CreateSecureActionButton(name, parent, iconPath, options)
+    options = options or {}
+    
     local btn = CreateFrame("Button", name, parent, "SecureActionButtonTemplate")
     btn:SetSize(BUTTON_CONFIG.size, BUTTON_CONFIG.size)
     
-    -- Create a subtle rounded background that fits perfectly
-    local background = btn:CreateTexture(nil, "BACKGROUND")
-    background:SetTexture("Interface\\Buttons\\UI-EmptySlot")
-    background:SetSize(BUTTON_CONFIG.borderSize, BUTTON_CONFIG.borderSize) -- Match border size for consistency
-    background:SetPoint("CENTER")
-    background:SetTexCoord(0.2, 0.8, 0.2, 0.8) -- Crop to make it fit better
-    background:SetVertexColor(0.8, 0.8, 0.8, 0.3) -- Much lighter and more transparent
-    btn:SetNormalTexture(background)
-    
-    -- Create a clean border
-    local border = btn:CreateTexture(nil, "BORDER")
-    border:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
-    border:SetSize(BUTTON_CONFIG.borderSize, BUTTON_CONFIG.borderSize)
-    border:SetPoint("CENTER")
-    border:SetVertexColor(0.8, 0.8, 0.8, BUTTON_CONFIG.borderAlpha)
-    btn.border = border
-    
-    -- Create the pushed texture
-    local pushedTexture = btn:CreateTexture(nil, "BACKGROUND")
-    pushedTexture:SetTexture("Interface\\Buttons\\UI-Quickslot-Depress")
-    pushedTexture:SetSize(BUTTON_CONFIG.borderSize, BUTTON_CONFIG.borderSize) -- Match border size
-    pushedTexture:SetPoint("CENTER")
-    btn:SetPushedTexture(pushedTexture)
-
-    -- Create the highlight texture
-    local highlightTexture = btn:CreateTexture(nil, "HIGHLIGHT")
-    highlightTexture:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
-    highlightTexture:SetSize(BUTTON_CONFIG.borderSize, BUTTON_CONFIG.borderSize) -- Match border size
-    highlightTexture:SetPoint("CENTER")
-    highlightTexture:SetBlendMode("ADD")
-    btn:SetHighlightTexture(highlightTexture)
-
-    -- Create the icon with proper sizing and positioning
+    -- Create icon texture with rounded mask
     if iconPath then
-        local iconTexture = btn:CreateTexture(nil, "ARTWORK")
-        iconTexture:SetTexture(iconPath)
-        iconTexture:SetSize(BUTTON_CONFIG.iconSize, BUTTON_CONFIG.iconSize)
-        iconTexture:SetPoint("CENTER")
-        iconTexture:SetTexCoord(BUTTON_CONFIG.iconCrop, 1 - BUTTON_CONFIG.iconCrop, BUTTON_CONFIG.iconCrop, 1 - BUTTON_CONFIG.iconCrop)
-        btn.icon = iconTexture
+        local iconSize = options.iconScale and (BUTTON_CONFIG.size * options.iconScale) or BUTTON_CONFIG.size
+        local contentScale = options.contentScale or options.iconScale or 1.0
+        
+        local icon = btn:CreateTexture(nil, "ARTWORK")
+        icon:SetSize(iconSize, iconSize) -- This affects the hover/pressed area
+        icon:SetTexture(iconPath)
+        icon:SetPoint("CENTER", btn, "CENTER")
+        
+        -- Apply content scaling to texture coordinates for visual scaling
+        local cropBase = 0.08
+        local cropRange = 0.84 -- (0.92 - 0.08)
+        local cropAdjust = (1 - contentScale) * 0.5 * cropRange
+        local cropMin = cropBase + cropAdjust
+        local cropMax = 0.92 - cropAdjust
+        icon:SetTexCoord(cropMin, cropMax, cropMin, cropMax)
+        
+        btn.icon = icon
+        btn.iconPath = iconPath
+        
+        -- Apply rounded mask using a circular mask texture
+        local mask = btn:CreateMaskTexture()
+        mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        mask:SetAllPoints(icon)
+        icon:AddMaskTexture(mask)
+        btn.mask = mask
     end
-
-    -- Standard mouse interactions
+    
+    -- Create subtle highlight with rounded mask
+    local highlight = btn:CreateTexture(nil, "HIGHLIGHT")
+    highlight:SetColorTexture(1, 1, 1, 0.2) -- Subtle white overlay
+    highlight:SetAllPoints(btn)
+    
+    -- Apply rounded mask to highlight as well
+    if btn.mask then
+        highlight:AddMaskTexture(btn.mask)
+    end
+    
+    btn:SetHighlightTexture(highlight)
+    
+    -- Apply highlight color if specified
+    if options.highlightColor then
+        highlight:SetColorTexture(unpack(options.highlightColor))
+    end
+    
     btn:EnableMouse(true)
-    btn:SetMotionScriptsWhileDisabled(true)
     
     return btn
 end
 
--- Update an existing button's icon texture
-function ButtonUtils:UpdateButtonIcon(button, iconPath, texCoords)
+-- Update an existing button's icon
+function ButtonUtils:UpdateButtonIcon(button, iconPath)
     if not button or not button.icon then
         return
     end
     
     button.icon:SetTexture(iconPath)
-    
-    if texCoords then
-        button.icon:SetTexCoord(unpack(texCoords))
-    else
-        button.icon:SetTexCoord(BUTTON_CONFIG.iconCrop, 1 - BUTTON_CONFIG.iconCrop, BUTTON_CONFIG.iconCrop, 1 - BUTTON_CONFIG.iconCrop)
-    end
+    button.iconPath = iconPath
 end
 
 -- Position a button above the game menu (top-right)
