@@ -69,6 +69,9 @@ function Playground:OnEnable()
 
     -- Create the speedometter UI
     self:CreateSpeedometer()
+    
+    -- Initialize special gamemode functionality
+    self:InitializeSpecialGamemode()
 end
 
 function Playground:OnDisable()
@@ -504,6 +507,25 @@ function Playground:UpdateStatsPosition()
     if speedometerFrame then
         self:SetStatsPosition(speedometerFrame)
     end
+end
+
+-- Special Gamemode Integration
+function Playground:InitializeSpecialGamemode()
+    -- Enable special gamemode if the option is enabled
+    local gamemodeAllowed = self.parent:GetConfig("playground", "allowSpecialGamemode", true)
+    self:ToggleSpecialGamemode(gamemodeAllowed)
+end
+
+function Playground:ToggleSpecialGamemode(enabled)
+    -- Get reference to the special gamemode module
+    local specialGamemode = self.parent.modules and self.parent.modules.specialGamemode
+    
+    if specialGamemode and specialGamemode.ToggleGamemodeAllowed then
+        specialGamemode:ToggleGamemodeAllowed(enabled)
+    end
+    
+    -- Store the setting
+    self.parent:SetConfig(enabled, "playground", "allowSpecialGamemode")
 end
 
 -- Register the module

@@ -422,6 +422,24 @@ function Config:CreateInterfaceOptionsPanel()
     end)
     yOffset = yOffset - 30
 
+    -- Allow Special Gamemode
+    local specialGamemodeCheckbox = CreateFrame("CheckButton", "BOLTSpecialGamemodeCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    specialGamemodeCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
+    specialGamemodeCheckbox.Text:SetText("Allow Special Gamemodes (F9 = Hardcore Mode)")
+    specialGamemodeCheckbox:SetScript("OnShow", function()
+        specialGamemodeCheckbox:SetChecked(self.parent:GetConfig("playground", "allowSpecialGamemode", true)) -- Default true
+    end)
+    specialGamemodeCheckbox:SetScript("OnClick", function()
+        local enabled = specialGamemodeCheckbox:GetChecked()
+        self.parent:SetConfig(enabled, "playground", "allowSpecialGamemode")
+        self.parent:Print("Special gamemodes " .. (enabled and "enabled" or "disabled") .. ".")
+        -- Tell playground module to enable/disable gamemode functionality
+        if self.parent.modules and self.parent.modules.playground and self.parent.modules.playground.ToggleSpecialGamemode then
+            self.parent.modules.playground:ToggleSpecialGamemode(enabled)
+        end
+    end)
+    yOffset = yOffset - 30
+
     -- Stats Position Dropdown
     local statsPositionLabel = content:CreateFontString("BOLTStatsPositionLabel", "OVERLAY", "GameFontNormal")
     statsPositionLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 70, yOffset)
@@ -585,6 +603,11 @@ function Config:RefreshOptionsPanel()
             favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground", "showFavoriteToy"))
         end
         
+        local specialGamemodeCheckbox = _G["BOLTSpecialGamemodeCheckbox"]
+        if specialGamemodeCheckbox then
+            specialGamemodeCheckbox:SetChecked(self.parent:GetConfig("playground", "allowSpecialGamemode", true))
+        end
+        
         local skyridingCheckbox = _G["BOLTSkyridingCheckbox"]
         if skyridingCheckbox then
             local enabled = self.parent:IsModuleEnabled("skyriding")
@@ -674,6 +697,7 @@ function Config:UpdatePlaygroundChildControls()
     local toyLabel = _G["BOLTToyLabel"]
     local fpsCheckbox = _G["BOLTFPSCheckbox"]
     local speedometerCheckbox = _G["BOLTSpeedometerCheckbox"]
+    local specialGamemodeCheckbox = _G["BOLTSpecialGamemodeCheckbox"]
     local statsPositionLabel = _G["BOLTStatsPositionLabel"]
     local statsPositionDropdown = _G["BOLTStatsPositionDropdown"]
     
@@ -691,6 +715,11 @@ function Config:UpdatePlaygroundChildControls()
     if speedometerCheckbox then
         speedometerCheckbox:SetEnabled(playgroundEnabled)
         speedometerCheckbox:SetAlpha(playgroundEnabled and 1.0 or 0.5)
+    end
+
+    if specialGamemodeCheckbox then
+        specialGamemodeCheckbox:SetEnabled(playgroundEnabled)
+        specialGamemodeCheckbox:SetAlpha(playgroundEnabled and 1.0 or 0.5)
     end
 
     -- Show/hide stats position controls based on whether FPS or speedometer is enabled

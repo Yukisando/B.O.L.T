@@ -63,15 +63,29 @@ end
 
 -- Get a configuration value
 function BOLT:GetConfig(...)
+    local args = {...}
+    local defaultValue = nil
+    
+    -- Check if the last argument is a default value (non-string or last arg when length > expected keys)
+    local numArgs = select("#", ...)
+    if numArgs > 0 then
+        local lastArg = args[numArgs]
+        -- If last argument looks like a default value (boolean, number, or nil)
+        if type(lastArg) == "boolean" or type(lastArg) == "number" or lastArg == nil then
+            defaultValue = lastArg
+            numArgs = numArgs - 1
+        end
+    end
+    
     local current = self.db.profile
-    for i = 1, select("#", ...) do
-        local key = select(i, ...)
+    for i = 1, numArgs do
+        local key = args[i]
         if current[key] == nil then
-            return nil
+            return defaultValue
         end
         current = current[key]
     end
-    return current
+    return current ~= nil and current or defaultValue
 end
 
 -- Set a configuration value
