@@ -350,42 +350,7 @@ end
 
 -- Create small square utility button with icon textures
 local function CreateIconButton(name, parent, iconPath)
-    local btn = CreateFrame("Button", name, parent)
-    local normalTexture = btn:CreateTexture(nil, "BACKGROUND")
-    normalTexture:SetTexture("Interface\\Buttons\\UI-Panel-Button-Up")
-    normalTexture:SetTexCoord(0, 0.625, 0, 0.6875)
-    normalTexture:SetAllPoints()
-    btn:SetNormalTexture(normalTexture)
-
-    local pushedTexture = btn:CreateTexture(nil, "BACKGROUND")
-    pushedTexture:SetTexture("Interface\\Buttons\\UI-Panel-Button-Down")
-    pushedTexture:SetTexCoord(0, 0.625, 0, 0.6875)
-    pushedTexture:SetAllPoints()
-    btn:SetPushedTexture(pushedTexture)
-
-    local highlightTexture = btn:CreateTexture(nil, "HIGHLIGHT")
-    highlightTexture:SetTexture("Interface\\Buttons\\UI-Panel-Button-Highlight")
-    highlightTexture:SetTexCoord(0, 0.625, 0, 0.6875)
-    highlightTexture:SetAllPoints()
-    highlightTexture:SetBlendMode("ADD")
-    btn:SetHighlightTexture(highlightTexture)
-
-    btn:SetSize(28, 28)
-
-    local iconTexture = btn:CreateTexture(nil, "OVERLAY")
-    iconTexture:SetTexture(iconPath)
-    iconTexture:SetSize(20, 20)
-    iconTexture:SetPoint("CENTER")
-    btn.icon = iconTexture
-
-    btn:EnableMouse(true)
-    btn:SetMotionScriptsWhileDisabled(true)
-    btn:SetScript("OnMouseDown", function()
-        if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION then
-            PlaySound(SOUNDKIT.IG_MAINMENU_OPTION)
-        end
-    end)
-    return btn
+    return BOLT.ButtonUtils:CreateIconButton(name, parent, iconPath)
 end
 
 function GameMenu:CreateReadyCheckButton()
@@ -495,8 +460,8 @@ function GameMenu:CreateHealingNumbersButton()
 end
 
 function GameMenu:CreateVolumeButton()
-    volumeButton = CreateIconButton("BOLTGMVolume", GameMenuFrame, "Interface\\Icons\\Spell_Shadow_SoundDamp")
-    volumeButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
+    -- Create volume button with special styling using ButtonUtils
+    volumeButton = BOLT.ButtonUtils:CreateVolumeButton("BOLTGMVolume", GameMenuFrame)
     
     -- Add volume display text overlay - properly centered
     volumeButton.volumeText = volumeButton:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -689,47 +654,13 @@ end
 RegisterGroupStateUpdates()
 
 function GameMenu:CreateReloadButton()
-    -- Create a small reload button for the top right
-    reloadButton = CreateFrame("Button", "BOLTReloadButton", GameMenuFrame)
-    
-    -- Create textures manually to match game menu buttons
-    local normalTexture = reloadButton:CreateTexture(nil, "BACKGROUND")
-    normalTexture:SetTexture("Interface\\Buttons\\UI-Panel-Button-Up")
-    normalTexture:SetTexCoord(0, 0.625, 0, 0.6875)
-    normalTexture:SetAllPoints()
-    reloadButton:SetNormalTexture(normalTexture)
-    
-    local pushedTexture = reloadButton:CreateTexture(nil, "BACKGROUND")
-    pushedTexture:SetTexture("Interface\\Buttons\\UI-Panel-Button-Down")
-    pushedTexture:SetTexCoord(0, 0.625, 0, 0.6875)
-    pushedTexture:SetAllPoints()
-    reloadButton:SetPushedTexture(pushedTexture)
-    
-    local highlightTexture = reloadButton:CreateTexture(nil, "HIGHLIGHT")
-    highlightTexture:SetTexture("Interface\\Buttons\\UI-Panel-Button-Highlight")
-    highlightTexture:SetTexCoord(0, 0.625, 0, 0.6875)
-    highlightTexture:SetAllPoints()
-    highlightTexture:SetBlendMode("ADD")
-    reloadButton:SetHighlightTexture(highlightTexture)
-    
-    -- Set button properties - smaller size for corner placement
-    reloadButton:SetSize(28, 28)
-    
-    -- Create the refresh icon using the standard WoW refresh texture
-    local iconTexture = reloadButton:CreateTexture(nil, "OVERLAY")
-    iconTexture:SetTexture("Interface\\Buttons\\UI-RefreshButton")
-    iconTexture:SetSize(20, 20)
-    iconTexture:SetPoint("CENTER")
+    -- Create a reload button positioned above the game menu using ButtonUtils
+    reloadButton = BOLT.ButtonUtils:CreateIconButton("BOLTReloadButton", UIParent, "Interface\\Buttons\\UI-RefreshButton")
     
     -- If the refresh texture doesn't exist, fallback to a different one
-    if not iconTexture:GetTexture() then
-        iconTexture:SetTexture("Interface\\Icons\\Ability_Rogue_Preparation")
-        iconTexture:SetTexCoord(0.1, 0.9, 0.1, 0.9) -- Crop the icon a bit
+    if not reloadButton.icon:GetTexture() then
+        BOLT.ButtonUtils:UpdateButtonIcon(reloadButton, "Interface\\Icons\\Ability_Rogue_Preparation")
     end
-    
-    -- Enable mouse interaction
-    reloadButton:EnableMouse(true)
-    reloadButton:SetMotionScriptsWhileDisabled(true)
     
     -- Set the click handler for both left and right click
     reloadButton:SetScript("OnClick", function(self, button)
@@ -773,20 +704,7 @@ function GameMenu:CreateReloadButton()
 end
 
 function GameMenu:PositionReloadButton()
-    if not reloadButton then
-        return
-    end
-    
-    -- Clear any existing anchor points
-    reloadButton:ClearAllPoints()
-    
-    -- Position at the top right corner of the GameMenuFrame with padding
-    reloadButton:SetPoint("TOPRIGHT", GameMenuFrame, "TOPRIGHT", -12, -12)
-    
-    -- Ensure the button is clickable and visible
-    reloadButton:SetFrameLevel(GameMenuFrame:GetFrameLevel() + 2)
-    reloadButton:EnableMouse(true)
-    reloadButton:Show()
+    BOLT.ButtonUtils:PositionAboveGameMenuRight(reloadButton)
 end
 
 function GameMenu:OnReloadClick()

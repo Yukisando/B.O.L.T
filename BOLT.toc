@@ -15,6 +15,7 @@ BOLT.lua
 Core\Core.lua
 Core\Database.lua
 Core\Utils.lua
+Core\ButtonUtils.lua
 
 # Modules
 Modules\Config.lua

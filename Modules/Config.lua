@@ -10,6 +10,26 @@ function Config:OnInitialize()
     self.parent:Debug("Config module initializing...")
     self:CreateInterfaceOptionsPanel()
     -- Don't create standalone frame during init
+    
+    -- Register events for toy box updates
+    self.eventFrame = CreateFrame("Frame")
+    self.eventFrame:RegisterEvent("TOYS_UPDATED")
+    self.eventFrame:RegisterEvent("ADDON_LOADED")
+    self.eventFrame:SetScript("OnEvent", function(_, event, ...)
+        if event == "TOYS_UPDATED" then
+            self.parent:Debug("TOYS_UPDATED event received - refreshing toy list")
+            self:RefreshToyListIfVisible()
+        elseif event == "ADDON_LOADED" then
+            local addonName = ...
+            if addonName == ADDON_NAME then
+                self.parent:Debug("ADDON_LOADED - scheduling toy list refresh")
+                -- Delay toy list population to ensure game data is ready
+                C_Timer.After(2.0, function()
+                    self:RefreshToyListIfVisible()
+                end)
+            end
+        end
+    end)
 end
 
 function Config:OnEnable()
@@ -23,6 +43,16 @@ function Config:CreateReloadIndicator(parent, anchorFrame)
     indicator:SetText("|cFFFF6B6B(Need reload)|r")
     indicator:SetTextColor(1, 0.42, 0.42) -- Light red color
     return indicator
+end
+
+function Config:RefreshToyListIfVisible()
+    -- Only refresh if the toy selection frame exists and is visible
+    if self.toyFrame and self.toyFrame:IsVisible() then
+        self.parent:Debug("Refreshing toy list - frame is visible")
+        self:PopulateToyList()
+    else
+        self.parent:Debug("Toy selection frame not visible - skipping refresh")
+    end
 end
 
 function Config:CreateInterfaceOptionsPanel()
@@ -766,13 +796,27 @@ function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
     self.scrollChild = scrollChild
     self.toyButtons = {}
     
-    -- Initial setup
-    self:PopulateToyList()
+    -- Set up frame show handler to populate toys when visible
+    toyFrame:SetScript("OnShow", function()
+        self.parent:Debug("Toy selection frame shown - populating toy list")
+        -- Delay population to ensure toy box data is loaded
+        C_Timer.After(0.1, function()
+            self:PopulateToyList()
+            self:UpdateToySelection()
+        end)
+    end)
+    
+    -- Initial setup (will be refreshed when shown)
     self:UpdateToySelection()
 end
 
 function Config:PopulateToyList()
-    if not self.scrollChild then return end
+    if not self.scrollChild then 
+        self.parent:Debug("PopulateToyList: scrollChild not available")
+        return 
+    end
+    
+    self.parent:Debug("PopulateToyList: Starting toy population")
     
     -- Clear existing buttons
     for _, button in pairs(self.toyButtons) do
@@ -783,7 +827,11 @@ function Config:PopulateToyList()
     
     -- Get all toys
     self.allToys = {}
-    for i = 1, C_ToyBox.GetNumToys() do
+    local numToys = C_ToyBox.GetNumToys()
+    self.parent:Debug("PopulateToyList: Found " .. numToys .. " total toys")
+    
+    local ownedCount = 0
+    for i = 1, numToys do
         local toyId = C_ToyBox.GetToyFromIndex(i)
         if toyId and PlayerHasToy(toyId) then
             local _, toyName, icon = C_ToyBox.GetToyInfo(toyId)
@@ -793,9 +841,12 @@ function Config:PopulateToyList()
                     name = toyName,
                     icon = icon
                 })
+                ownedCount = ownedCount + 1
             end
         end
     end
+    
+    self.parent:Debug("PopulateToyList: Found " .. ownedCount .. " owned toys")
     
     -- Sort alphabetically
     table.sort(self.allToys, function(a, b) return a.name < b.name end)

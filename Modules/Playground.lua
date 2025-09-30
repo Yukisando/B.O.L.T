@@ -187,46 +187,16 @@ function Playground:HideFavoriteToyButton()
 end
 
 function Playground:CreateFavoriteToyButton()
-    -- Create a secure action button like OPie does - but with fallback support
-    favoriteToyButton = CreateFrame("Button", "BOLTFavoriteToyButton", GameMenuFrame, "SecureActionButtonTemplate")
+    -- Create a secure action button using ButtonUtils
+    favoriteToyButton = BOLT.ButtonUtils:CreateSecureActionButton("BOLTFavoriteToyButton", UIParent, "Interface\\Icons\\INV_Misc_Toy_10")
     
     self.parent:Debug("Creating favorite toy button as SecureActionButtonTemplate")
     
-    -- Create textures manually to match game menu buttons
-    local normalTexture = favoriteToyButton:CreateTexture(nil, "BACKGROUND")
-    normalTexture:SetTexture("Interface\\Buttons\\UI-Panel-Button-Up")
-    normalTexture:SetTexCoord(0, 0.625, 0, 0.6875)
-    normalTexture:SetAllPoints()
-    favoriteToyButton:SetNormalTexture(normalTexture)
-    
-    local pushedTexture = favoriteToyButton:CreateTexture(nil, "BACKGROUND")
-    pushedTexture:SetTexture("Interface\\Buttons\\UI-Panel-Button-Down")
-    pushedTexture:SetTexCoord(0, 0.625, 0, 0.6875)
-    pushedTexture:SetAllPoints()
-    favoriteToyButton:SetPushedTexture(pushedTexture)
-    
-    local highlightTexture = favoriteToyButton:CreateTexture(nil, "HIGHLIGHT")
-    highlightTexture:SetTexture("Interface\\Buttons\\UI-Panel-Button-Highlight")
-    highlightTexture:SetTexCoord(0, 0.625, 0, 0.6875)
-    highlightTexture:SetAllPoints()
-    highlightTexture:SetBlendMode("ADD")
-    favoriteToyButton:SetHighlightTexture(highlightTexture)
-    
-    -- Set button properties - same size as reload button
-    favoriteToyButton:SetSize(28, 28)
-    
-    -- Create the toy icon - using a fun toy icon
-    local iconTexture = favoriteToyButton:CreateTexture(nil, "OVERLAY")
-    iconTexture:SetTexture("Interface\\Icons\\INV_Misc_Toy_10") -- Toy Train Set icon
-    iconTexture:SetSize(20, 20)
-    iconTexture:SetPoint("CENTER")
-    iconTexture:SetTexCoord(0.1, 0.9, 0.1, 0.9) -- Crop the icon a bit
-    
     -- If that toy icon doesn't exist, fallback to a different one
-    if not iconTexture:GetTexture() then
-        iconTexture:SetTexture("Interface\\Icons\\INV_Misc_Toy_02") -- Jack-in-the-Box
-        if not iconTexture:GetTexture() then
-            iconTexture:SetTexture("Interface\\Icons\\INV_Misc_Gift_02") -- Generic gift/toy icon
+    if not favoriteToyButton.icon:GetTexture() then
+        BOLT.ButtonUtils:UpdateButtonIcon(favoriteToyButton, "Interface\\Icons\\INV_Misc_Toy_02") -- Jack-in-the-Box
+        if not favoriteToyButton.icon:GetTexture() then
+            BOLT.ButtonUtils:UpdateButtonIcon(favoriteToyButton, "Interface\\Icons\\INV_Misc_Gift_02") -- Generic gift/toy icon
         end
     end
     
@@ -235,8 +205,10 @@ function Playground:CreateFavoriteToyButton()
     favoriteToyButton:SetAttribute("type", "macro")
     favoriteToyButton:RegisterForClicks("LeftButtonUp")
     
-    -- Set up the toy to use when button is clicked - we'll update this when needed
-    self:UpdateFavoriteToyButton()
+    -- Delay the initial update to ensure game data is loaded
+    C_Timer.After(0.1, function()
+        self:UpdateFavoriteToyButton()
+    end)
     
     -- Add hover effects (non-secure scripts are OK)
     favoriteToyButton:SetScript("OnEnter", function()
@@ -281,50 +253,32 @@ function Playground:UpdateFavoriteToyButton()
         -- Get toy info
         local _, toyName, toyIcon = C_ToyBox.GetToyInfo(toyId)
         
-        -- Set up a macro that uses the toy - this works with SecureActionButtonTemplate
-        local macroText = "/usetoy " .. (toyName or toyId) .. "\n/run HideUIPanel(GameMenuFrame)"
-        favoriteToyButton:SetAttribute("macrotext", macroText)
-        
-        -- Update the icon to match the actual toy
-        if toyIcon then
-            local iconTexture = favoriteToyButton:GetRegions()
-            -- Find the icon texture (it's the overlay texture we created)
-            for i = 1, select("#", favoriteToyButton:GetRegions()) do
-                local region = select(i, favoriteToyButton:GetRegions())
-                if region:GetObjectType() == "Texture" and region:GetDrawLayer() == "OVERLAY" then
-                    region:SetTexture(toyIcon)
-                    break
-                end
-            end
+        -- Ensure we have valid toy data
+        if toyName and toyIcon then
+            -- Set up a macro that uses the toy - this works with SecureActionButtonTemplate
+            local macroText = "/usetoy " .. toyName .. "\n/run HideUIPanel(GameMenuFrame)"
+            favoriteToyButton:SetAttribute("macrotext", macroText)
+            
+            -- Update the icon to match the actual toy using ButtonUtils
+            BOLT.ButtonUtils:UpdateButtonIcon(favoriteToyButton, toyIcon)
+            
+            self.parent:Debug("Updated secure toy button with macro for toyId: " .. toyId .. " (" .. toyName .. ")")
+        else
+            -- Toy data not ready yet, try again later
+            C_Timer.After(0.5, function()
+                self:UpdateFavoriteToyButton()
+            end)
         end
-        
-        self.parent:Debug("Updated secure toy button with macro for toyId: " .. toyId)
     else
-        -- Clear the macro if none selected
+        -- Clear the macro if none selected and reset to default icon
         favoriteToyButton:SetAttribute("macrotext", "")
+        BOLT.ButtonUtils:UpdateButtonIcon(favoriteToyButton, "Interface\\Icons\\INV_Misc_Toy_10")
         self.parent:Debug("Cleared macro from secure button - no toy selected")
     end
 end
 
 function Playground:PositionFavoriteToyButton()
-    if not favoriteToyButton then
-        self.parent:Debug("PositionFavoriteToyButton called but button doesn't exist")
-        return
-    end
-    
-    self.parent:Debug("Positioning favorite toy button")
-    
-    -- Clear any existing anchor points
-    favoriteToyButton:ClearAllPoints()
-    
-    -- Position at the top left corner of the GameMenuFrame with padding (opposite of reload button)
-    favoriteToyButton:SetPoint("TOPLEFT", GameMenuFrame, "TOPLEFT", 12, -12)
-    
-    -- Ensure the button is clickable and visible
-    favoriteToyButton:SetFrameLevel(GameMenuFrame:GetFrameLevel() + 2)
-    favoriteToyButton:EnableMouse(true)
-    favoriteToyButton:Show()
-    
+    BOLT.ButtonUtils:PositionAboveGameMenuLeft(favoriteToyButton)
     self.parent:Debug("Favorite toy button positioned and shown")
 end
 
