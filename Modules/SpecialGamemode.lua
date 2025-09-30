@@ -48,7 +48,11 @@ function SpecialGamemode:SetupChatMonitoring()
     -- Create frame to handle chat events
     if not self.chatFrame then
         self.chatFrame = CreateFrame("Frame")
+        -- Register for multiple chat events
         self.chatFrame:RegisterEvent("CHAT_MSG_YELL")
+        self.chatFrame:RegisterEvent("CHAT_MSG_PARTY")
+        self.chatFrame:RegisterEvent("CHAT_MSG_RAID")
+        self.chatFrame:RegisterEvent("CHAT_MSG_INSTANCE_CHAT")
         self.chatFrame:SetScript("OnEvent", function(frame, event, message, sender, ...)
             self:OnChatMessage(event, message, sender, ...)
         end)
@@ -56,38 +60,70 @@ function SpecialGamemode:SetupChatMonitoring()
 end
 
 function SpecialGamemode:OnChatMessage(event, message, sender, ...)
-    -- Debug: Print that we received a chat message
-    print("BOLT: Chat message received - Event:", event, "Message:", message, "Sender:", sender)
-    
     -- Convert message to lowercase for case-insensitive matching
     local lowerMessage = string.lower(message or "")
-    print("BOLT: Processing message:", lowerMessage)
     
-    -- Check for activation word "carrot"
-    if string.find(lowerMessage, "carrot") then
-        print("BOLT: Found 'carrot' in message")
-        if not self.hardcoreModeActive then
-            print("BOLT: Activating hardcore mode via chat")
-            self:EnterHardcoreMode()
-            if self.parent and self.parent.Print then
-                self.parent:Print("|cFFFF0000Hardcore mode activated by group member!|r")
+    -- Define chat triggers with their actions
+    local chatTriggers = {
+        -- Hardcore mode triggers
+        {
+            trigger = "carrot",
+            channels = {"CHAT_MSG_YELL", "CHAT_MSG_PARTY", "CHAT_MSG_RAID", "CHAT_MSG_INSTANCE_CHAT"},
+            action = function()
+                if not self.hardcoreModeActive then
+                    print("BOLT: Activating hardcore mode via chat")
+                    self:EnterHardcoreMode()
+                    if self.parent and self.parent.Print then
+                        self.parent:Print("|cFFFF0000Hardcore mode activated by group member!|r")
+                    end
+                else
+                    print("BOLT: Hardcore mode already active")
+                end
             end
-        else
-            print("BOLT: Hardcore mode already active")
+        },
+        {
+            trigger = "feta",
+            channels = {"CHAT_MSG_YELL", "CHAT_MSG_PARTY", "CHAT_MSG_RAID", "CHAT_MSG_INSTANCE_CHAT"},
+            action = function()
+                if self.hardcoreModeActive then
+                    print("BOLT: Deactivating hardcore mode via chat")
+                    self:ExitHardcoreMode()
+                    if self.parent and self.parent.Print then
+                        self.parent:Print("|cFF00FF00Hardcore mode deactivated by group member!|r")
+                    end
+                else
+                    print("BOLT: Hardcore mode not active")
+                end
+            end
+        },
+        -- Dismount trigger (completely silent)
+        {
+            trigger = "ok",
+            channels = {"CHAT_MSG_YELL", "CHAT_MSG_PARTY", "CHAT_MSG_RAID", "CHAT_MSG_INSTANCE_CHAT"},
+            action = function()
+                if IsMounted() then
+                    Dismount()
+                elseif UnitInVehicle("player") then
+                    VehicleExit()
+                end
+            end
+        }
+    }
+    
+    -- Process all chat triggers
+    for _, triggerData in ipairs(chatTriggers) do
+        -- Check if the current event channel is in the trigger's allowed channels
+        local channelAllowed = false
+        for _, allowedChannel in ipairs(triggerData.channels) do
+            if event == allowedChannel then
+                channelAllowed = true
+                break
+            end
         end
-    end
-    
-    -- Check for deactivation word "chicken"
-    if string.find(lowerMessage, "chicken") then
-        print("BOLT: Found 'chicken' in message")
-        if self.hardcoreModeActive then
-            print("BOLT: Deactivating hardcore mode via chat")
-            self:ExitHardcoreMode()
-            if self.parent and self.parent.Print then
-                self.parent:Print("|cFF00FF00Hardcore mode deactivated by group member!|r")
-            end
-        else
-            print("BOLT: Hardcore mode not active")
+        
+        -- If channel is allowed and trigger word is found, execute the action
+        if channelAllowed and string.find(lowerMessage, triggerData.trigger) then
+            triggerData.action()
         end
     end
 end
