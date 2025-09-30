@@ -274,19 +274,20 @@ function Playground:CreateSpeedometer()
     end
     local f = CreateFrame("Frame", "BOLTSpeedometer", UIParent)
     f:SetSize(200, 22) -- Wider to accommodate both FPS and speed
-    f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 8, -8)
+    
     f:SetFrameStrata("BACKGROUND")
 
     -- No background texture - removed for cleaner look
 
     local txt = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    txt:SetPoint("LEFT", f, "LEFT", 0, 0) -- Left-aligned within the frame
-    txt:SetJustifyH("LEFT") -- Left-align the text
     txt:SetText("Loading...")
 
     f.text = txt
     f._updateTimer = 0
     f._fadeTimer = 0
+    
+    -- Set position and text alignment based on configuration
+    self:SetStatsPosition(f)
 
     -- Store reference to parent module for config access
     local parentModule = self.parent
@@ -450,6 +451,59 @@ function Playground:ToggleFPS(enabled)
     end
     
     self:UpdateSpeedometerVisibility()
+end
+
+-- Set the position of the stats frame based on configuration
+function Playground:SetStatsPosition(frame)
+    if not frame then
+        return
+    end
+    
+    frame:ClearAllPoints()
+    
+    local position = self.parent:GetConfig("playground", "statsPosition") or "BOTTOMLEFT"
+    local offset = 8 -- Offset from screen edge
+    
+    if position == "TOPLEFT" then
+        frame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", offset, -offset)
+        -- Left align text and position it on the left side of the frame
+        if frame.text then
+            frame.text:ClearAllPoints()
+            frame.text:SetPoint("LEFT", frame, "LEFT", 0, 0)
+            frame.text:SetJustifyH("LEFT")
+        end
+    elseif position == "TOPRIGHT" then
+        frame:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -offset, -offset)
+        -- Right align text and position it on the right side of the frame
+        if frame.text then
+            frame.text:ClearAllPoints()
+            frame.text:SetPoint("RIGHT", frame, "RIGHT", 0, 0)
+            frame.text:SetJustifyH("RIGHT")
+        end
+    elseif position == "BOTTOMRIGHT" then
+        frame:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -offset, offset)
+        -- Right align text and position it on the right side of the frame
+        if frame.text then
+            frame.text:ClearAllPoints()
+            frame.text:SetPoint("RIGHT", frame, "RIGHT", 0, 0)
+            frame.text:SetJustifyH("RIGHT")
+        end
+    else -- Default to BOTTOMLEFT
+        frame:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", offset, offset)
+        -- Left align text and position it on the left side of the frame
+        if frame.text then
+            frame.text:ClearAllPoints()
+            frame.text:SetPoint("LEFT", frame, "LEFT", 0, 0)
+            frame.text:SetJustifyH("LEFT")
+        end
+    end
+end
+
+-- Update the position of existing stats frame
+function Playground:UpdateStatsPosition()
+    if speedometerFrame then
+        self:SetStatsPosition(speedometerFrame)
+    end
 end
 
 -- Register the module

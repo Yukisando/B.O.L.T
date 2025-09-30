@@ -28,6 +28,7 @@ BOLT.defaults = {
             favoriteToyId = nil,
             showFPS = true,
             showSpeedometer = true,
+            statsPosition = "BOTTOMLEFT", -- Default to bottom left corner
         },
         skyriding = {
             enabled = false,

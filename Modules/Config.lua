@@ -397,6 +397,8 @@ function Config:CreateInterfaceOptionsPanel()
         if self.parent.modules and self.parent.modules.playground and self.parent.modules.playground.ToggleFPS then
             self.parent.modules.playground:ToggleFPS(enabled)
         end
+        -- Update child controls to show/hide stats position dropdown
+        self:UpdatePlaygroundChildControls()
     end)
     yOffset = yOffset - 30
 
@@ -415,8 +417,60 @@ function Config:CreateInterfaceOptionsPanel()
         if self.parent.modules and self.parent.modules.playground and self.parent.modules.playground.ToggleSpeedometer then
             self.parent.modules.playground:ToggleSpeedometer(enabled)
         end
+        -- Update child controls to show/hide stats position dropdown
+        self:UpdatePlaygroundChildControls()
     end)
     yOffset = yOffset - 30
+
+    -- Stats Position Dropdown
+    local statsPositionLabel = content:CreateFontString("BOLTStatsPositionLabel", "OVERLAY", "GameFontNormal")
+    statsPositionLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 70, yOffset)
+    statsPositionLabel:SetText("Stats position:")
+
+    local statsPositionDropdown = CreateFrame("Frame", "BOLTStatsPositionDropdown", content, "UIDropDownMenuTemplate")
+    statsPositionDropdown:SetPoint("TOPLEFT", statsPositionLabel, "BOTTOMLEFT", -16, -6)
+
+    local positionOptions = {"Bottom Left", "Bottom Right", "Top Left", "Top Right"}
+    local positionValues = {"BOTTOMLEFT", "BOTTOMRIGHT", "TOPLEFT", "TOPRIGHT"}
+
+    UIDropDownMenu_SetWidth(statsPositionDropdown, 180)
+    UIDropDownMenu_JustifyText(statsPositionDropdown, "LEFT")
+
+    local statsPositionMod = self
+    local function SetStatsPositionDropdownText(value)
+        for i, val in ipairs(positionValues) do
+            if val == value then
+                UIDropDownMenu_SetText(statsPositionDropdown, positionOptions[i])
+                return
+            end
+        end
+        UIDropDownMenu_SetText(statsPositionDropdown, "Bottom Left") -- Default fallback
+    end
+
+    UIDropDownMenu_Initialize(statsPositionDropdown, function(frame, level)
+        local info = UIDropDownMenu_CreateInfo()
+        for i = 1, #positionOptions do
+            info = UIDropDownMenu_CreateInfo()
+            info.text = positionOptions[i]
+            info.func = function()
+                statsPositionMod.parent:SetConfig(positionValues[i], "playground", "statsPosition")
+                SetStatsPositionDropdownText(positionValues[i])
+                -- Update the stats position immediately if the playground module is loaded
+                if statsPositionMod.parent.modules and statsPositionMod.parent.modules.playground and statsPositionMod.parent.modules.playground.UpdateStatsPosition then
+                    statsPositionMod.parent.modules.playground:UpdateStatsPosition()
+                end
+            end
+            info.checked = (statsPositionMod.parent:GetConfig("playground", "statsPosition") or "BOTTOMLEFT") == positionValues[i]
+            UIDropDownMenu_AddButton(info)
+        end
+    end)
+
+    -- Refresh dropdown selection on show
+    statsPositionDropdown:SetScript("OnShow", function()
+        local position = statsPositionMod.parent:GetConfig("playground", "statsPosition") or "BOTTOMLEFT"
+        SetStatsPositionDropdownText(position)
+    end)
+    yOffset = yOffset - 70
     
     -- Favorite Toy Selection (only show if feature is enabled)
     local toyLabel = content:CreateFontString("BOLTToyLabel", "OVERLAY", "GameFontNormal")
@@ -620,6 +674,8 @@ function Config:UpdatePlaygroundChildControls()
     local toyLabel = _G["BOLTToyLabel"]
     local fpsCheckbox = _G["BOLTFPSCheckbox"]
     local speedometerCheckbox = _G["BOLTSpeedometerCheckbox"]
+    local statsPositionLabel = _G["BOLTStatsPositionLabel"]
+    local statsPositionDropdown = _G["BOLTStatsPositionDropdown"]
     
     -- Enable/disable child controls based on parent module
     if favoriteToyCheckbox then
@@ -635,6 +691,26 @@ function Config:UpdatePlaygroundChildControls()
     if speedometerCheckbox then
         speedometerCheckbox:SetEnabled(playgroundEnabled)
         speedometerCheckbox:SetAlpha(playgroundEnabled and 1.0 or 0.5)
+    end
+
+    -- Show/hide stats position controls based on whether FPS or speedometer is enabled
+    local showStatsControls = playgroundEnabled and (self.parent:GetConfig("playground", "showFPS") or self.parent:GetConfig("playground", "showSpeedometer"))
+    
+    if statsPositionLabel then
+        if showStatsControls then
+            statsPositionLabel:Show()
+        else
+            statsPositionLabel:Hide()
+        end
+    end
+    
+    if statsPositionDropdown then
+        if showStatsControls then
+            statsPositionDropdown:Show()
+            UIDropDownMenu_EnableDropDown(statsPositionDropdown)
+        else
+            statsPositionDropdown:Hide()
+        end
     end
     
     -- Show/hide toy selection based on both module and feature being enabled
