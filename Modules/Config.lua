@@ -10,19 +10,17 @@ function Config:OnInitialize()
     self:CreateInterfaceOptionsPanel()
     -- Don't create standalone frame during init
     
-    -- Register events for toy box updates
+    -- Register events for initial toy list population only
     self.eventFrame = CreateFrame("Frame")
-    self.eventFrame:RegisterEvent("TOYS_UPDATED")
     self.eventFrame:RegisterEvent("ADDON_LOADED")
+    self.toyListPopulated = false -- Track if we've already populated the toy list
     self.eventFrame:SetScript("OnEvent", function(_, event, ...)
-        if event == "TOYS_UPDATED" then
-            self:RefreshToyListIfVisible()
-        elseif event == "ADDON_LOADED" then
+        if event == "ADDON_LOADED" then
             local addonName = ...
             if addonName == ADDON_NAME then
                 -- Delay toy list population to ensure game data is ready
                 C_Timer.After(2.0, function()
-                    self:RefreshToyListIfVisible()
+                    self:PopulateToyListOnce()
                 end)
             end
         end
@@ -42,10 +40,17 @@ function Config:CreateReloadIndicator(parent, anchorFrame)
     return indicator
 end
 
-function Config:RefreshToyListIfVisible()
-    -- Only refresh if the toy selection frame exists and is visible
-    if self.toyFrame and self.toyFrame:IsVisible() then
+function Config:PopulateToyListOnce()
+    -- Only populate the toy list once to avoid lag
+    if self.toyListPopulated then
+        return
+    end
+    
+    -- Populate toy list if the toy selection frame exists
+    if self.toyFrame then
         self:PopulateToyList()
+        self.toyListPopulated = true
+        print("BOLT: Toy list populated successfully")
     end
 end
 
