@@ -26,7 +26,7 @@ function SpecialGamemode:SetupKeyPolling()
     self.keyPollTimer = C_Timer.NewTicker(0.1, function()
         if IsKeyDown then
             -- Ctrl+Shift+F1 to activate hardcore mode
-            if IsKeyDown("F1") and IsControlKeyDown() and IsShiftKeyDown() and not self.activateWasPressed and self:IsGamemodeAllowed() and not self.hardcoreModeActive then
+            if IsKeyDown("F1") and IsControlKeyDown() and IsShiftKeyDown() and not self.activateWasPressed and not self.hardcoreModeActive then
                 self.activateWasPressed = true
                 self:EnterHardcoreMode()
             elseif not (IsKeyDown("F1") and IsControlKeyDown() and IsShiftKeyDown()) then
@@ -59,12 +59,6 @@ function SpecialGamemode:OnChatMessage(event, message, sender, ...)
     -- Debug: Print that we received a chat message
     print("BOLT: Chat message received - Event:", event, "Message:", message, "Sender:", sender)
     
-    -- Only process if gamemodes are allowed
-    if not self:IsGamemodeAllowed() then
-        print("BOLT: Gamemode not allowed, ignoring chat message")
-        return
-    end
-    
     -- Convert message to lowercase for case-insensitive matching
     local lowerMessage = string.lower(message or "")
     print("BOLT: Processing message:", lowerMessage)
@@ -95,16 +89,6 @@ function SpecialGamemode:OnChatMessage(event, message, sender, ...)
         else
             print("BOLT: Hardcore mode not active")
         end
-    end
-end
-
-function SpecialGamemode:IsGamemodeAllowed()
-    if self.parent and self.parent.GetConfig then
-        return self.parent:GetConfig("playground", "allowSpecialGamemode", true)
-    else
-        -- Fallback: allow if parent not available (shouldn't happen but safety first)
-        print("BOLT: Warning - parent not available in IsGamemodeAllowed, defaulting to true")
-        return true
     end
 end
 
@@ -300,37 +284,6 @@ end
 -- Public interface for other modules
 function SpecialGamemode:IsHardcoreModeActive()
     return self.hardcoreModeActive
-end
-
-function SpecialGamemode:ToggleGamemodeAllowed(enabled)
-    if not enabled and self.hardcoreModeActive then
-        -- If disabling gamemodes while hardcore mode is active, exit it
-        self:ExitHardcoreMode()
-    end
-    
-    -- Clean up timers and chat monitoring if disabling
-    if not enabled then
-        if self.keyPollTimer then
-            self.keyPollTimer:Cancel()
-            self.keyPollTimer = nil
-        end
-        if self.effectTimer then
-            self.effectTimer:Cancel()
-            self.effectTimer = nil
-        end
-        if self.chatFrame then
-            self.chatFrame:UnregisterAllEvents()
-            self.chatFrame = nil
-        end
-    else
-        -- Re-setup key polling and chat monitoring if enabling
-        if not self.keyPollTimer then
-            self:SetupKeyPolling()
-        end
-        if not self.chatFrame then
-            self:SetupChatMonitoring()
-        end
-    end
 end
 
 -- Register the module

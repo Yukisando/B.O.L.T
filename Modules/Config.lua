@@ -477,25 +477,6 @@ function Config:CreateInterfaceOptionsPanel()
         SetStatsPositionDropdownText(position)
     end)
 
-    --[[ HIDDEN: Allow Special Gamemode (for trolling - keep secret!)
-    local specialGamemodeCheckbox = CreateFrame("CheckButton", "BOLTSpecialGamemodeCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
-    specialGamemodeCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
-    specialGamemodeCheckbox.Text:SetText("Allow Special Gamemodes (F9 = Hardcore Mode)")
-    specialGamemodeCheckbox:SetScript("OnShow", function()
-        specialGamemodeCheckbox:SetChecked(self.parent:GetConfig("playground", "allowSpecialGamemode", true)) -- Default true
-    end)
-    specialGamemodeCheckbox:SetScript("OnClick", function()
-        local enabled = specialGamemodeCheckbox:GetChecked()
-        self.parent:SetConfig(enabled, "playground", "allowSpecialGamemode")
-        self.parent:Print("Special gamemodes " .. (enabled and "enabled" or "disabled") .. ".")
-        -- Tell playground module to enable/disable gamemode functionality
-        if self.parent.modules and self.parent.modules.playground and self.parent.modules.playground.ToggleSpecialGamemode then
-            self.parent.modules.playground:ToggleSpecialGamemode(enabled)
-        end
-    end)
-    yOffset = yOffset - 30
-    --]]
-
     yOffset = yOffset - 70
     
     -- Favorite Toy Selection (only show if feature is enabled)
@@ -507,14 +488,7 @@ function Config:CreateInterfaceOptionsPanel()
     -- Create a custom toy selection frame with search
     self:CreateToySelectionFrame(content, 50, yOffset)
     yOffset = yOffset - 200  -- Reserve space for the larger toy selection frame
-    
-    -- Add separator line after Playground module
-    local playgroundSeparator = content:CreateTexture(nil, "ARTWORK")
-    playgroundSeparator:SetTexture("Interface\\Common\\UI-TooltipDivider-Transparent")
-    playgroundSeparator:SetSize(400, 8)
-    playgroundSeparator:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset - 10)
-    yOffset = yOffset - 30
-       
+          
     -- Console commands section
     local commandsHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     commandsHeader:SetPoint("TOPLEFT", content, "TOPLEFT", 20, yOffset)
@@ -611,13 +585,6 @@ function Config:RefreshOptionsPanel()
             favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground", "showFavoriteToy"))
         end
         
-        --[[ HIDDEN: Special gamemode checkbox reference
-        local specialGamemodeCheckbox = _G["BOLTSpecialGamemodeCheckbox"]
-        if specialGamemodeCheckbox then
-            specialGamemodeCheckbox:SetChecked(self.parent:GetConfig("playground", "allowSpecialGamemode", true))
-        end
-        --]]
-        
         local skyridingCheckbox = _G["BOLTSkyridingCheckbox"]
         if skyridingCheckbox then
             local enabled = self.parent:IsModuleEnabled("skyriding")
@@ -707,7 +674,6 @@ function Config:UpdatePlaygroundChildControls()
     local toyLabel = _G["BOLTToyLabel"]
     local fpsCheckbox = _G["BOLTFPSCheckbox"]
     local speedometerCheckbox = _G["BOLTSpeedometerCheckbox"]
-    --local specialGamemodeCheckbox = _G["BOLTSpecialGamemodeCheckbox"] -- HIDDEN: Special gamemode (for trolling)
     local statsPositionLabel = _G["BOLTStatsPositionLabel"]
     local statsPositionDropdown = _G["BOLTStatsPositionDropdown"]
     
@@ -726,13 +692,6 @@ function Config:UpdatePlaygroundChildControls()
         speedometerCheckbox:SetEnabled(playgroundEnabled)
         speedometerCheckbox:SetAlpha(playgroundEnabled and 1.0 or 0.5)
     end
-
-    --[[ HIDDEN: Special gamemode checkbox control
-    if specialGamemodeCheckbox then
-        specialGamemodeCheckbox:SetEnabled(playgroundEnabled)
-        specialGamemodeCheckbox:SetAlpha(playgroundEnabled and 1.0 or 0.5)
-    end
-    --]]
 
     -- Show/hide stats position controls based on whether FPS or speedometer is enabled
     local showStatsControls = playgroundEnabled and (self.parent:GetConfig("playground", "showFPS") or self.parent:GetConfig("playground", "showSpeedometer"))
@@ -822,11 +781,6 @@ function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
     local toyFrame = CreateFrame("Frame", "BOLTToySelectionFrame", parent)
     toyFrame:SetPoint("TOPLEFT", parent, "TOPLEFT", xOffset, yOffset)
     toyFrame:SetSize(420, 170)
-    
-    -- Create a background
-    local bg = toyFrame:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetColorTexture(0.1, 0.1, 0.1, 0.8)
     
     -- Create border
     local border = CreateFrame("Frame", nil, toyFrame, "DialogBorderTemplate")
