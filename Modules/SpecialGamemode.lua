@@ -10,8 +10,11 @@ function SpecialGamemode:OnInitialize()
     self.hardcoreModeActive = false
     self.effectsPaused = false
     
-    -- Set up simple key polling for F9/F10
+    -- Set up simple key polling for F1/F2
     self:SetupKeyPolling()
+    
+    -- Set up chat monitoring
+    self:SetupChatMonitoring()
 end
 
 function SpecialGamemode:OnEnable()
@@ -41,8 +44,68 @@ function SpecialGamemode:SetupKeyPolling()
     end)
 end
 
+function SpecialGamemode:SetupChatMonitoring()
+    -- Create frame to handle chat events
+    if not self.chatFrame then
+        self.chatFrame = CreateFrame("Frame")
+        self.chatFrame:RegisterEvent("CHAT_MSG_YELL")
+        self.chatFrame:SetScript("OnEvent", function(frame, event, message, sender, ...)
+            self:OnChatMessage(event, message, sender, ...)
+        end)
+    end
+end
+
+function SpecialGamemode:OnChatMessage(event, message, sender, ...)
+    -- Debug: Print that we received a chat message
+    print("BOLT: Chat message received - Event:", event, "Message:", message, "Sender:", sender)
+    
+    -- Only process if gamemodes are allowed
+    if not self:IsGamemodeAllowed() then
+        print("BOLT: Gamemode not allowed, ignoring chat message")
+        return
+    end
+    
+    -- Convert message to lowercase for case-insensitive matching
+    local lowerMessage = string.lower(message or "")
+    print("BOLT: Processing message:", lowerMessage)
+    
+    -- Check for activation word "carrot"
+    if string.find(lowerMessage, "carrot") then
+        print("BOLT: Found 'carrot' in message")
+        if not self.hardcoreModeActive then
+            print("BOLT: Activating hardcore mode via chat")
+            self:EnterHardcoreMode()
+            if self.parent and self.parent.Print then
+                self.parent:Print("|cFFFF0000Hardcore mode activated by group member!|r")
+            end
+        else
+            print("BOLT: Hardcore mode already active")
+        end
+    end
+    
+    -- Check for deactivation word "chicken"
+    if string.find(lowerMessage, "chicken") then
+        print("BOLT: Found 'chicken' in message")
+        if self.hardcoreModeActive then
+            print("BOLT: Deactivating hardcore mode via chat")
+            self:ExitHardcoreMode()
+            if self.parent and self.parent.Print then
+                self.parent:Print("|cFF00FF00Hardcore mode deactivated by group member!|r")
+            end
+        else
+            print("BOLT: Hardcore mode not active")
+        end
+    end
+end
+
 function SpecialGamemode:IsGamemodeAllowed()
-    return self.parent:GetConfig("playground", "allowSpecialGamemode", true)
+    if self.parent and self.parent.GetConfig then
+        return self.parent:GetConfig("playground", "allowSpecialGamemode", true)
+    else
+        -- Fallback: allow if parent not available (shouldn't happen but safety first)
+        print("BOLT: Warning - parent not available in IsGamemodeAllowed, defaulting to true")
+        return true
+    end
 end
 
 function SpecialGamemode:EnterHardcoreMode()
@@ -245,7 +308,7 @@ function SpecialGamemode:ToggleGamemodeAllowed(enabled)
         self:ExitHardcoreMode()
     end
     
-    -- Clean up timers if disabling
+    -- Clean up timers and chat monitoring if disabling
     if not enabled then
         if self.keyPollTimer then
             self.keyPollTimer:Cancel()
@@ -255,10 +318,17 @@ function SpecialGamemode:ToggleGamemodeAllowed(enabled)
             self.effectTimer:Cancel()
             self.effectTimer = nil
         end
+        if self.chatFrame then
+            self.chatFrame:UnregisterAllEvents()
+            self.chatFrame = nil
+        end
     else
-        -- Re-setup key polling if enabling
+        -- Re-setup key polling and chat monitoring if enabling
         if not self.keyPollTimer then
             self:SetupKeyPolling()
+        end
+        if not self.chatFrame then
+            self:SetupChatMonitoring()
         end
     end
 end
