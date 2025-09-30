@@ -22,19 +22,19 @@ function SpecialGamemode:SetupKeyPolling()
     -- Simple timer that checks key states every 0.1 seconds
     self.keyPollTimer = C_Timer.NewTicker(0.1, function()
         if IsKeyDown then
-            -- Ctrl+Shift+G to activate hardcore mode
-            if IsKeyDown("G") and IsControlKeyDown() and IsShiftKeyDown() and not self.activateWasPressed and self:IsGamemodeAllowed() and not self.hardcoreModeActive then
+            -- Ctrl+Shift+F1 to activate hardcore mode
+            if IsKeyDown("F1") and IsControlKeyDown() and IsShiftKeyDown() and not self.activateWasPressed and self:IsGamemodeAllowed() and not self.hardcoreModeActive then
                 self.activateWasPressed = true
                 self:EnterHardcoreMode()
-            elseif not (IsKeyDown("G") and IsControlKeyDown() and IsShiftKeyDown()) then
+            elseif not (IsKeyDown("F1") and IsControlKeyDown() and IsShiftKeyDown()) then
                 self.activateWasPressed = false
             end
             
-            -- Ctrl+Shift+H to exit hardcore mode
-            if IsKeyDown("H") and IsControlKeyDown() and IsShiftKeyDown() and not self.exitWasPressed and self.hardcoreModeActive then
+            -- Ctrl+Shift+F2 to exit hardcore mode
+            if IsKeyDown("F2") and IsControlKeyDown() and IsShiftKeyDown() and not self.exitWasPressed and self.hardcoreModeActive then
                 self.exitWasPressed = true
                 self:ExitHardcoreMode()
-            elseif not (IsKeyDown("H") and IsControlKeyDown() and IsShiftKeyDown()) then
+            elseif not (IsKeyDown("F2") and IsControlKeyDown() and IsShiftKeyDown()) then
                 self.exitWasPressed = false
             end
         end
