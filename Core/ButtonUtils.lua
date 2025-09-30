@@ -9,10 +9,10 @@ local ButtonUtils = {}
 -- Standard button configuration
 local BUTTON_CONFIG = {
     size = 28,
-    iconSize = 20,
-    borderSize = 32, -- Reduced from 52 to fix oversized border issue
-    borderAlpha = 0.3,
-    iconCrop = 0.07
+    iconSize = 28,
+    borderSize = 32, 
+    borderAlpha = .9,
+    iconCrop = 0, -- Crop 10% from each side for better fit
 }
 
 -- Create a standard square icon button
@@ -22,22 +22,7 @@ function ButtonUtils:CreateIconButton(name, parent, iconPath, options)
     local btn = CreateFrame("Button", name, parent)
     btn:SetSize(BUTTON_CONFIG.size, BUTTON_CONFIG.size)
     
-    -- Create a subtle rounded background that fits perfectly
-    local background = btn:CreateTexture(nil, "BACKGROUND")
-    background:SetTexture("Interface\\Buttons\\UI-EmptySlot")
-    background:SetSize(BUTTON_CONFIG.borderSize, BUTTON_CONFIG.borderSize) -- Match border size for consistency
-    background:SetPoint("CENTER")
-    background:SetTexCoord(0.2, 0.8, 0.2, 0.8) -- Crop to make it fit better
-    background:SetVertexColor(0.8, 0.8, 0.8, 0.3) -- Much lighter and more transparent
-    btn:SetNormalTexture(background)
-    
-    -- Create a clean border
-    local border = btn:CreateTexture(nil, "BORDER")
-    border:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
-    border:SetSize(BUTTON_CONFIG.borderSize, BUTTON_CONFIG.borderSize)
-    border:SetPoint("CENTER")
-    border:SetVertexColor(0.8, 0.8, 0.8, BUTTON_CONFIG.borderAlpha)
-    btn.border = border
+
     
     -- Create the pushed texture
     local pushedTexture = btn:CreateTexture(nil, "BACKGROUND")
