@@ -386,6 +386,35 @@ function Config:CreateInterfaceOptionsPanel()
         self:UpdatePlaygroundChildControls()
     end)
     yOffset = yOffset - 30
+    
+    -- Choose Toy Button (only show if feature is enabled)
+    local chooseToyButton = CreateFrame("Button", "BOLTChooseToyButton", content, "UIPanelButtonTemplate")
+    chooseToyButton:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
+    chooseToyButton:SetSize(120, 25)
+    chooseToyButton:SetText("Choose Toy")
+    chooseToyButton:SetScript("OnClick", function()
+        self:ShowToySelectionPopup()
+    end)
+    
+    -- Current selected toy display (inline with button)
+    local currentToyDisplay = CreateFrame("Frame", "BOLTCurrentToyDisplay", content)
+    currentToyDisplay:SetPoint("LEFT", chooseToyButton, "RIGHT", 10, 0)
+    currentToyDisplay:SetSize(250, 25)
+    
+    -- Toy icon
+    local toyIcon = currentToyDisplay:CreateTexture("BOLTCurrentToyIcon", "ARTWORK")
+    toyIcon:SetPoint("LEFT", currentToyDisplay, "LEFT", 0, 0)
+    toyIcon:SetSize(20, 20)
+    toyIcon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+    
+    -- Toy name text
+    local toyText = currentToyDisplay:CreateFontString("BOLTCurrentToyText", "OVERLAY", "GameFontHighlight")
+    toyText:SetPoint("LEFT", toyIcon, "RIGHT", 5, 0)
+    toyText:SetPoint("RIGHT", currentToyDisplay, "RIGHT", 0, 0)
+    toyText:SetJustifyH("LEFT")
+    toyText:SetText("None selected")
+    
+    yOffset = yOffset - 35
 
     -- Show FPS Counter
     local fpsCheckbox = CreateFrame("CheckButton", "BOLTFPSCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
@@ -478,16 +507,6 @@ function Config:CreateInterfaceOptionsPanel()
     end)
 
     yOffset = yOffset - 70
-    
-    -- Favorite Toy Selection (only show if feature is enabled)
-    local toyLabel = content:CreateFontString("BOLTToyLabel", "OVERLAY", "GameFontNormal")
-    toyLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
-    toyLabel:SetText("Favorite Toy:")
-    yOffset = yOffset - 25
-    
-    -- Create a custom toy selection frame with search
-    self:CreateToySelectionFrame(content, 50, yOffset)
-    yOffset = yOffset - 200  -- Reserve space for the larger toy selection frame
           
     -- Console commands section
     local commandsHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -607,6 +626,9 @@ function Config:RefreshOptionsPanel()
         end
         self:UpdateToySelection()
         
+        -- Update current toy display in main panel
+        self:UpdateCurrentToyDisplay()
+        
         -- Update child control states
         self:UpdateGameMenuChildControls()
         self:UpdatePlaygroundChildControls()
@@ -670,8 +692,8 @@ function Config:UpdatePlaygroundChildControls()
     
     -- Get references to child controls
     local favoriteToyCheckbox = _G["BOLTFavoriteToyCheckbox"]
-    local toyFrame = _G["BOLTToySelectionFrame"]
-    local toyLabel = _G["BOLTToyLabel"]
+    local chooseToyButton = _G["BOLTChooseToyButton"]
+    local currentToyDisplay = _G["BOLTCurrentToyDisplay"]
     local fpsCheckbox = _G["BOLTFPSCheckbox"]
     local speedometerCheckbox = _G["BOLTSpeedometerCheckbox"]
     local statsPositionLabel = _G["BOLTStatsPositionLabel"]
@@ -713,37 +735,54 @@ function Config:UpdatePlaygroundChildControls()
         end
     end
     
-    -- Show/hide toy selection based on both module and feature being enabled
+    -- Show/hide choose toy button and current toy display based on both module and feature being enabled
     local favoriteToyEnabled = playgroundEnabled and self.parent:GetConfig("playground", "showFavoriteToy")
     
-    if toyLabel then
+    if chooseToyButton then
         if favoriteToyEnabled then
-            toyLabel:Show()
+            chooseToyButton:Show()
+            chooseToyButton:SetEnabled(true)
         else
-            toyLabel:Hide()
+            chooseToyButton:Hide()
         end
     end
     
-    if toyFrame then
+    if currentToyDisplay then
         if favoriteToyEnabled then
-            toyFrame:Show()
+            currentToyDisplay:Show()
+            -- Update the current toy display
+            self:UpdateCurrentToyDisplay()
         else
-            toyFrame:Hide()
+            currentToyDisplay:Hide()
         end
-        
-        -- Enable/disable interaction with toy frame components
-        if self.searchBox then
-            self.searchBox:SetEnabled(favoriteToyEnabled)
+    end
+end
+
+function Config:UpdateCurrentToyDisplay()
+    local toyIcon = _G["BOLTCurrentToyIcon"]
+    local toyText = _G["BOLTCurrentToyText"]
+    
+    if not toyIcon or not toyText then
+        return
+    end
+    
+    local selectedToyId = self.parent:GetConfig("playground", "favoriteToyId")
+    
+    if selectedToyId and PlayerHasToy(selectedToyId) then
+        local _, toyName, toyIconPath = C_ToyBox.GetToyInfo(selectedToyId)
+        if toyName and toyName ~= "" then
+            _G["BOLTCurrentToyIcon"]:SetTexture(toyIconPath)
+            toyText:SetText(toyName)
+            toyText:SetTextColor(1, 1, 1) -- White text for selected toy
+        else
+            _G["BOLTCurrentToyIcon"]:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+            toyText:SetText("Unknown toy")
+            toyText:SetTextColor(1, 0.8, 0) -- Yellow text for unknown
         end
-        
-        if self.currentToyButton then
-            self.currentToyButton:SetEnabled(favoriteToyEnabled)
-        end
-        
-        -- Enable/disable toy list buttons
-        for _, button in pairs(self.toyButtons or {}) do
-            button:SetEnabled(favoriteToyEnabled)
-        end
+    else
+        _G["BOLTCurrentToyIcon"]:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+        toyText:SetText("None selected")
+        toyText:SetTextColor(0.5, 0.5, 0.5) -- Gray text for none selected
     end
 end
 
@@ -776,15 +815,67 @@ function Config:UpdateSkyridingChildControls()
     end
 end
 
+function Config:ShowToySelectionPopup()
+    -- Create or show existing popup
+    if not self.toyPopup then
+        self:CreateToySelectionPopup()
+    end
+    
+    -- Show the popup
+    self.toyPopup:Show()
+    
+    -- Populate toy list if not already done
+    if not self.toyListPopulated then
+        self:PopulateToyList()
+        self.toyListPopulated = true
+    end
+    
+    -- Update current selection display
+    self:UpdateToySelection()
+end
+
+function Config:CreateToySelectionPopup()
+    -- Create the main popup frame
+    local popup = CreateFrame("Frame", "BOLTToySelectionPopup", UIParent, "DialogBoxFrame")
+    popup:SetSize(450, 400)
+    popup:SetPoint("CENTER")
+    popup:SetFrameStrata("DIALOG")
+    popup:EnableMouse(true)
+    popup:SetMovable(true)
+    popup:RegisterForDrag("LeftButton")
+    popup:SetScript("OnDragStart", popup.StartMoving)
+    popup:SetScript("OnDragStop", popup.StopMovingOrSizing)
+    
+    -- Title
+    local title = popup:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("TOP", popup, "TOP", 0, -20)
+    title:SetText("Choose Favorite Toy")
+    
+    -- Close button
+    local closeButton = CreateFrame("Button", nil, popup, "UIPanelCloseButton")
+    closeButton:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -5, -5)
+    
+    -- Create the toy selection content inside the popup
+    self:CreateToySelectionFrame(popup, 15, -50)
+    
+    -- Store reference
+    self.toyPopup = popup
+    
+    -- Hide by default
+    popup:Hide()
+end
+
 function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
     -- Create the main container frame
     local toyFrame = CreateFrame("Frame", "BOLTToySelectionFrame", parent)
     toyFrame:SetPoint("TOPLEFT", parent, "TOPLEFT", xOffset, yOffset)
-    toyFrame:SetSize(420, 170)
+    toyFrame:SetSize(420, 320)
     
-    -- Create border
-    local border = CreateFrame("Frame", nil, toyFrame, "DialogBorderTemplate")
-    border:SetAllPoints()
+    -- Create border (only if not in a popup that already has a border)
+    if parent ~= self.toyPopup then
+        local border = CreateFrame("Frame", nil, toyFrame, "DialogBorderTemplate")
+        border:SetAllPoints()
+    end
     
     -- Search box
     local searchLabel = toyFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -793,7 +884,7 @@ function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
     
     local searchBox = CreateFrame("EditBox", "BOLTToySearchBox", toyFrame, "InputBoxTemplate")
     searchBox:SetPoint("TOPLEFT", searchLabel, "TOPRIGHT", 15, 0)
-    searchBox:SetSize(220, 20)
+    searchBox:SetSize(220, 28)
     searchBox:SetAutoFocus(false)
     searchBox:SetScript("OnTextChanged", function()
         self:FilterToyList()
@@ -802,7 +893,7 @@ function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
     -- Clear search button
     local clearButton = CreateFrame("Button", nil, toyFrame, "UIPanelButtonTemplate")
     clearButton:SetPoint("LEFT", searchBox, "RIGHT", 10, 0)
-    clearButton:SetSize(50, 22)
+    clearButton:SetSize(50, 28)
     clearButton:SetText("Clear")
     clearButton:SetScript("OnClick", function()
         searchBox:SetText("")
@@ -999,6 +1090,8 @@ function Config:UpdateToySelection()
         if toyName then
             self.currentToyIcon:SetTexture(toyIcon)
             self.currentToyText:SetText(toyName)
+            -- Also update the main panel display
+            self:UpdateCurrentToyDisplay()
             return
         end
     end
@@ -1006,6 +1099,8 @@ function Config:UpdateToySelection()
     -- No toy selected or invalid toy
     self.currentToyIcon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
     self.currentToyText:SetText("None selected (click to clear)")
+    -- Also update the main panel display
+    self:UpdateCurrentToyDisplay()
 end
 
 -- Register the module
