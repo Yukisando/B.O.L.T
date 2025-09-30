@@ -81,8 +81,28 @@ function SpecialGamemode:ExitHardcoreMode()
     
     -- Restore interface and camera
     UIParent:Show()
+    
+    -- Restore original camera zoom
     if self.originalCameraDistance then
-        SetCameraZoom(self.originalCameraDistance)
+        -- Directly restore the original camera distance without resetting first
+        if SetCameraZoom then
+            SetCameraZoom(self.originalCameraDistance)
+        else
+            -- Fallback: Use CameraZoomOut/CameraZoomIn to reach the original distance
+            local currentZoom = GetCameraZoom()
+            local targetZoom = self.originalCameraDistance
+            
+            -- Calculate how much we need to adjust
+            if currentZoom < targetZoom then
+                -- Need to zoom out to increase distance
+                local difference = targetZoom - currentZoom
+                CameraZoomOut(difference)
+            elseif currentZoom > targetZoom then
+                -- Need to zoom in to decrease distance
+                local difference = currentZoom - targetZoom
+                CameraZoomIn(difference)
+            end
+        end
         self.originalCameraDistance = nil
     end
     
