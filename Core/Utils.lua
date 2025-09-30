@@ -218,3 +218,34 @@ function BOLT:IsModuleEnabled(moduleName)
     local config = self:GetConfig(moduleName, "enabled")
     return config ~= false -- Default to true if not set
 end
+
+-- Get table keys utility function
+function BOLT:GetTableKeys(t)
+    local keys = {}
+    for k in pairs(t) do
+        table.insert(keys, k)
+    end
+    return keys
+end
+
+-- Open the configuration panel
+function BOLT:OpenConfigPanel()
+    if Settings and Settings.OpenToCategory then
+        -- Modern Settings API (Retail)
+        if self.modules.config and self.modules.config.settingsCategory then
+            Settings.OpenToCategory(self.modules.config.settingsCategory.ID)
+        else
+            self:Print("Settings panel not available. Please access B.O.L.T settings through Interface > AddOns.")
+        end
+    elseif InterfaceOptionsFrame_OpenToCategory then
+        -- Legacy Interface Options (Classic)
+        if self.modules.config and self.modules.config.optionsPanel then
+            InterfaceOptionsFrame_OpenToCategory(self.modules.config.optionsPanel)
+            InterfaceOptionsFrame_OpenToCategory(self.modules.config.optionsPanel) -- Call twice for proper focus
+        else
+            self:Print("Options panel not available. Please access B.O.L.T settings through Interface > AddOns.")
+        end
+    else
+        self:Print("Please access B.O.L.T settings through Interface > AddOns.")
+    end
+end

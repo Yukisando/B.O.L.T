@@ -6,7 +6,7 @@ local ADDON_NAME, BOLT = ...
 -- Create the main addon object
 BOLT = BOLT or {}
 BOLT.name = ADDON_NAME
-BOLT.version = "1.3.0"
+BOLT.version = "1.9.0"
 BOLT.modules = {}
 
 -- Default configuration

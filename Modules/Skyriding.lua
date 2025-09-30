@@ -83,7 +83,6 @@ function Skyriding:DeferUntilKeysUp(keys, callback, reason)
 
     local waited = 0
     local reasonText = reason or "action"
-    self.parent:Debug("Deferring " .. reasonText .. " until keys are released: " .. table.concat(keys, ", "))
     
     self.deferFrame:SetScript("OnUpdate", function(frame, elapsed)
         waited = waited + elapsed
@@ -99,11 +98,9 @@ function Skyriding:DeferUntilKeysUp(keys, callback, reason)
         
         if not stillHeld then
             frame:SetScript("OnUpdate", nil)
-            self.parent:Debug("All managed keys released; proceeding with " .. reasonText)
             callback()
         elseif waited >= 5 then
             frame:SetScript("OnUpdate", nil)
-            self.parent:Debug("Keys still held after 5s; proceeding to avoid deadlock (" .. reasonText .. ")")
             callback()
         end
     end)
@@ -131,16 +128,13 @@ end
 -- =========================
 
 function Skyriding:OnInitialize()
-    self.parent:Debug("Skyriding module initializing...")
+    -- Module initialization
 end
 
 function Skyriding:OnEnable()
     if not self.parent:IsModuleEnabled("skyriding") then
-        self.parent:Debug("Skyriding module is disabled, skipping OnEnable")
         return
     end
-
-    self.parent:Debug("Skyriding module enabling...")
 
     -- Initialize state
     isInCombat = InCombatLockdown()
@@ -158,8 +152,6 @@ function Skyriding:OnEnable()
 end
 
 function Skyriding:OnDisable()
-    self.parent:Debug("Skyriding module disabling...")
-
     -- Clear any pending state changes
     pendingStateChanges = {}
     ClearTransitionKeyRecord()
@@ -239,14 +231,12 @@ function Skyriding:CreateEventFrame()
     self.eventFrame:SetScript("OnEvent", function(_, event, ...)
         if event == "PLAYER_REGEN_DISABLED" then
             isInCombat = true
-            self.parent:Debug("Combat started - clearing active bindings")
             -- Clear any active overrides when combat starts
             if bindingsCurrentlyActive then
                 self:ClearSkyridingOverrides()
             end
         elseif event == "PLAYER_REGEN_ENABLED" then
             isInCombat = false
-            self.parent:Debug("Combat ended - mouse controls available again")
             -- No need to restore bindings automatically - they'll be applied when mouse is pressed
         elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
             local unitTarget = ...
@@ -265,11 +255,9 @@ function Skyriding:CreateEventFrame()
                 self:CheckSkyridingState()
             end)
         elseif (event == "PLAYER_STARTED_TURNING" or event == "PLAYER_STOPPED_TURNING") and self.parent:GetConfig("debug") then
-            self.parent:Debug(event)
         end
     end)
 
-    self.parent:Debug("Skyriding event frame created and events registered")
 end
 
 function Skyriding:StartMonitoring()
@@ -301,14 +289,12 @@ function Skyriding:StartMonitoring()
         end
     end)
 
-    self.parent:Debug("Started skyriding monitoring")
 end
 
 function Skyriding:StopMonitoring()
     if bindingCheckFrame then
         bindingCheckFrame:SetScript("OnUpdate", nil)
         bindingCheckFrame = nil
-        self.parent:Debug("Stopped skyriding monitoring")
     end
 end
 
@@ -329,14 +315,12 @@ function Skyriding:StartMouseMonitoring()
         end
     end)
 
-    self.parent:Debug("Started mouse button monitoring")
 end
 
 function Skyriding:StopMouseMonitoring()
     if mouseFrame then
         mouseFrame:SetScript("OnUpdate", nil)
         mouseFrame = nil
-        self.parent:Debug("Stopped mouse button monitoring")
     end
 end
 
@@ -373,7 +357,6 @@ function Skyriding:CheckMouseState()
                 local heldKeys = CheckKeysHeldDuringTransition(keys)
                 
                 if #heldKeys > 0 then
-                    self.parent:Debug("Keys held during mouse release: " .. table.concat(heldKeys, ", ") .. " - deferring override clear")
                 end
                 
                 self:ClearSkyridingOverrides()
@@ -406,7 +389,6 @@ function Skyriding:ApplySkyridingOverrides()
     -- Create override frame if needed
     if not overrideFrame then
         overrideFrame = CreateFrame("Frame", "BOLTSkyridingOverrideFrame")
-        self.parent:Debug("Created override binding frame")
     end
 
     -- Wait until relevant keys are UP before applying overrides
@@ -480,7 +462,6 @@ function Skyriding:ClearSkyridingOverrides()
     -- If keys are held, defer clearing until they're all released
     if #heldKeys > 0 then
         local reason = toggleMode and "exit skyriding with held keys" or "mouse release with held keys"
-        self.parent:Debug("Keys still held during override clear request: " .. table.concat(heldKeys, ", ") .. " - deferring clear")
         
         -- Wait until all managed keys are UP before clearing overrides
         self:DeferUntilKeysUp(keys, function()
@@ -534,14 +515,12 @@ function Skyriding:CheckSkyridingState()
                 -- Check if it's a dragonriding mount (mountTypeID 402 = Dragonriding)
                 if mountTypeID == 402 then
                     currentlyInSkyriding = true
-                    self.parent:Debug("Detected dragonriding mount (mountTypeID: " .. tostring(mountTypeID) .. ")")
                 end
 
                 -- Check for other flying mounts that might support dynamic flight
                 if not currentlyInSkyriding and mountTypeID == 248 and canFly then
                     if IsFlying() then
                         currentlyInSkyriding = true
-                        self.parent:Debug("Detected flying mount in dynamic flight mode")
                     end
                 end
             end
@@ -571,7 +550,6 @@ function Skyriding:CheckSkyridingState()
 
         -- Debounce rapid state changes (prevent toggle spam within 1 second)
         if (currentTime - lastStateChangeTime) < 1.0 and stateChangeDebounce > 0 then
-            self.parent:Debug("State change debounced - too rapid")
             return
         end
 
@@ -582,7 +560,6 @@ function Skyriding:CheckSkyridingState()
         isInSkyriding = currentlyInSkyriding
         
         if currentlyInSkyriding then
-            self.parent:Debug("Entered skyriding mode - ready for mouse-triggered overrides")
             ClearTransitionKeyRecord() -- Clear any previous transition key records
             
             -- In always-on mode, activate overrides immediately
@@ -604,14 +581,12 @@ function Skyriding:CheckSkyridingState()
                 end
             end
         else
-            self.parent:Debug("Exited skyriding mode - checking for held keys before clearing overrides")
             
             -- Check if any managed keys are currently held during this transition
             local keys = CollectManagedKeys(self.parent:GetConfig("skyriding", "enablePitchControl"))
             local heldKeys = CheckKeysHeldDuringTransition(keys)
             
             if #heldKeys > 0 then
-                self.parent:Debug("Keys held during skyriding exit: " .. table.concat(heldKeys, ", ") .. " - deferring override clear")
                 -- Store this as a pending state change
                 pendingStateChanges.clearOnLanding = true
                 
@@ -619,7 +594,6 @@ function Skyriding:CheckSkyridingState()
                 if bindingsCurrentlyActive then
                     self:DeferUntilKeysUp(keys, function()
                         if pendingStateChanges.clearOnLanding then
-                            self.parent:Debug("Keys released after landing - now clearing overrides")
                             -- Simply clear the overrides - keys are already up
                             self:ClearOverrideBindings()
                             bindingsCurrentlyActive = false
@@ -657,7 +631,6 @@ function Skyriding:EnterSkyridingMode()
         return
     end
 
-    self.parent:Debug("EnterSkyridingMode called - skyriding detection active")
     
     local toggleMode = self.parent:GetConfig("skyriding", "toggleMode")
     
@@ -676,7 +649,6 @@ end
 
 function Skyriding:ExitSkyridingMode()
     -- Compatibility wrapper for the new mouse-triggered system
-    self.parent:Debug("ExitSkyridingMode called - clearing any active overrides")
 
     -- Clear any active overrides when exiting skyriding mode
     if bindingsCurrentlyActive then
@@ -691,14 +663,12 @@ function Skyriding:ForceReleaseAllKeys()
     if overrideFrame then
         -- Simply clear existing overrides - this is safer than creating temporary mappings
         ClearOverrideBindings(overrideFrame)
-        self.parent:Debug("Cleared override bindings to release keys safely")
     end
 end
 
 function Skyriding:ClearOverrideBindings()
     if overrideFrame then
         ClearOverrideBindings(overrideFrame)
-        self.parent:Debug("Cleared all override bindings immediately")
     end
 end
 
@@ -707,19 +677,16 @@ function Skyriding:ApplySkyridingBindings()
     -- Override bindings are temporary and safe - they don't modify user's actual keybinds
 
     if not overrideFrame then
-        self.parent:Debug("Override frame not created, cannot apply bindings")
         return
     end
 
     -- Get the current bindings to override and apply
     for _, key in ipairs(GetAllBindingKeys("STRAFELEFT")) do
         SetOverrideBinding(overrideFrame, false, key, "TURNLEFT")
-        self.parent:Debug("Override: " .. key .. " -> TURNLEFT")
     end
 
     for _, key in ipairs(GetAllBindingKeys("STRAFERIGHT")) do
         SetOverrideBinding(overrideFrame, false, key, "TURNRIGHT")
-        self.parent:Debug("Override: " .. key .. " -> TURNRIGHT")
     end
 
     -- Apply vertical movement bindings if pitch control is enabled
@@ -728,22 +695,18 @@ function Skyriding:ApplySkyridingBindings()
 
         for _, key in ipairs(GetAllBindingKeys("MOVEFORWARD")) do
             SetOverrideBinding(overrideFrame, false, key, invertPitch and "PITCHDOWN" or "PITCHUP")
-            self.parent:Debug("Override: " .. key .. " -> " .. (invertPitch and "PITCHDOWN" or "PITCHUP"))
         end
 
         for _, key in ipairs(GetAllBindingKeys("MOVEBACKWARD")) do
             SetOverrideBinding(overrideFrame, false, key, invertPitch and "PITCHUP" or "PITCHDOWN")
-            self.parent:Debug("Override: " .. key .. " -> " .. (invertPitch and "PITCHUP" or "PITCHDOWN"))
         end
     end
 
-    self.parent:Debug("Applied skyriding override bindings")
 end
 
 function Skyriding:EmergencyReset()
     -- Emergency function to reset all bindings and state
     -- Can be called via slash command if something goes wrong
-    self.parent:Debug("Emergency reset of skyriding bindings")
 
     -- Clear any pending state changes
     pendingStateChanges = {}
@@ -774,7 +737,6 @@ function Skyriding:VerifyBindingState()
     local expectedActive = isInSkyriding and not isInCombat and (toggleMode or isLeftMouseDown)
     
     if bindingsCurrentlyActive ~= expectedActive then
-        self.parent:Debug("Binding state mismatch detected - expected: " .. tostring(expectedActive) .. ", actual: " .. tostring(bindingsCurrentlyActive))
         
         if expectedActive and not bindingsCurrentlyActive then
             -- Should be active but isn't - try to apply

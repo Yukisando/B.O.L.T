@@ -55,18 +55,14 @@ local function GetPlayerSpeedYPS()
 end
 
 function Playground:OnInitialize()
-    self.parent:Debug("Playground module initializing...")
 end
 
 function Playground:OnEnable()
-    self.parent:Debug("Playground module OnEnable called")
     
     if not self.parent:IsModuleEnabled("playground") then
-        self.parent:Debug("Playground module is disabled, skipping OnEnable")
         return
     end
     
-    self.parent:Debug("Playground module enabling...")
     
     -- Hook into the game menu show event
     self:HookGameMenu()
@@ -124,35 +120,28 @@ function Playground:HookGameMenu()
 end
 
 function Playground:UpdateGameMenu()
-    self.parent:Debug("Playground UpdateGameMenu called")
     
     if not self.parent:GetConfig("playground", "enabled") then
-        self.parent:Debug("Playground module disabled in config")
         return
     end
     
     -- Don't update UI elements during combat
     if InCombatLockdown() then
-        self.parent:Debug("In combat, skipping Playground UI update")
         return
     end
     
     -- Show favorite toy button if enabled
     if self.parent:GetConfig("playground", "showFavoriteToy") then
-        self.parent:Debug("Showing favorite toy button")
         self:ShowFavoriteToyButton()
     else
-        self.parent:Debug("Hiding favorite toy button (config disabled)")
         self:HideFavoriteToyButton()
     end
 end
 
 function Playground:ShowFavoriteToyButton()
-    self.parent:Debug("ShowFavoriteToyButton called")
     
     -- Create the button if it doesn't exist
     if not favoriteToyButton then
-        self.parent:Debug("Creating favorite toy button")
         self:CreateFavoriteToyButton()
     end
     
@@ -177,7 +166,6 @@ function Playground:ShowFavoriteToyButton()
     favoriteToyButton:Show()
     self:PositionFavoriteToyButton()
     
-    self.parent:Debug("Favorite toy button shown and positioned")
 end
 
 function Playground:HideFavoriteToyButton()
@@ -190,7 +178,6 @@ function Playground:CreateFavoriteToyButton()
     -- Create a secure action button using ButtonUtils
     favoriteToyButton = BOLT.ButtonUtils:CreateSecureActionButton("BOLTFavoriteToyButton", UIParent, "Interface\\Icons\\INV_Misc_Toy_10")
     
-    self.parent:Debug("Creating favorite toy button as SecureActionButtonTemplate")
     
     -- If that toy icon doesn't exist, fallback to a different one
     if not favoriteToyButton.icon:GetTexture() then
@@ -262,7 +249,6 @@ function Playground:UpdateFavoriteToyButton()
             -- Update the icon to match the actual toy using ButtonUtils
             BOLT.ButtonUtils:UpdateButtonIcon(favoriteToyButton, toyIcon)
             
-            self.parent:Debug("Updated secure toy button with macro for toyId: " .. toyId .. " (" .. toyName .. ")")
         else
             -- Toy data not ready yet, try again later
             C_Timer.After(0.5, function()
@@ -273,13 +259,11 @@ function Playground:UpdateFavoriteToyButton()
         -- Clear the macro if none selected and reset to default icon
         favoriteToyButton:SetAttribute("macrotext", "")
         BOLT.ButtonUtils:UpdateButtonIcon(favoriteToyButton, "Interface\\Icons\\INV_Misc_Toy_10")
-        self.parent:Debug("Cleared macro from secure button - no toy selected")
     end
 end
 
 function Playground:PositionFavoriteToyButton()
     BOLT.ButtonUtils:PositionAboveGameMenuLeft(favoriteToyButton)
-    self.parent:Debug("Favorite toy button positioned and shown")
 end
 
 -- Create a very basic speedometter (speed label) anchored at top-left of the screen.

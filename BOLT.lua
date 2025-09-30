@@ -19,24 +19,7 @@ SlashCmdList["BOLT"] = function(msg)
     
     if #args == 0 then
         -- Open the Interface Options to B.O.L.T panel
-        if Settings and Settings.OpenToCategory then
-            -- Modern Settings API (Retail)
-            if BOLT.modules.config and BOLT.modules.config.settingsCategory then
-                Settings.OpenToCategory(BOLT.modules.config.settingsCategory.ID)
-            else
-                BOLT:Print("Settings panel not available. Please access B.O.L.T settings through Interface > AddOns.")
-            end
-        elseif InterfaceOptionsFrame_OpenToCategory then
-            -- Legacy Interface Options (Classic)
-            if BOLT.modules.config and BOLT.modules.config.optionsPanel then
-                InterfaceOptionsFrame_OpenToCategory(BOLT.modules.config.optionsPanel)
-                InterfaceOptionsFrame_OpenToCategory(BOLT.modules.config.optionsPanel) -- Call twice for proper focus
-            else
-                BOLT:Print("Options panel not available. Please access B.O.L.T settings through Interface > AddOns.")
-            end
-        else
-            BOLT:Print("Please access B.O.L.T settings through Interface > AddOns.")
-        end
+        BOLT:OpenConfigPanel()
     elseif args[1] == "help" then
         BOLT:Print("B.O.L.T v" .. BOLT.version .. " - Brittle and Occasionally Lethal Tweaks")
         print("  |cffFFFFFF/bolt or /b|r - Open settings in Interface Options")
@@ -83,7 +66,7 @@ SlashCmdList["BOLT"] = function(msg)
             BOLT:Print("Module '" .. moduleName .. "' " .. status .. ". Type /reload to apply changes.")
         else
             BOLT:Print("Unknown module: " .. moduleName)
-            BOLT:Print("Available modules: " .. table.concat(tKeys(BOLT.modules), ", "))
+            BOLT:Print("Available modules: " .. table.concat(BOLT:GetTableKeys(BOLT.modules), ", "))
         end
     elseif args[1] == "reload" then
         ReloadUI()
@@ -96,34 +79,8 @@ SlashCmdList["BOLT"] = function(msg)
         end
     elseif args[1] == "config" then
         -- Open the Interface Options to B.O.L.T panel
-        if Settings and Settings.OpenToCategory then
-            -- Modern Settings API (Retail)
-            if BOLT.modules.config and BOLT.modules.config.settingsCategory then
-                Settings.OpenToCategory(BOLT.modules.config.settingsCategory.ID)
-            else
-                BOLT:Print("Settings panel not available. Please access B.O.L.T settings through Interface > AddOns.")
-            end
-        elseif InterfaceOptionsFrame_OpenToCategory then
-            -- Legacy Interface Options (Classic)
-            if BOLT.modules.config and BOLT.modules.config.optionsPanel then
-                InterfaceOptionsFrame_OpenToCategory(BOLT.modules.config.optionsPanel)
-                InterfaceOptionsFrame_OpenToCategory(BOLT.modules.config.optionsPanel) -- Call twice for proper focus
-            else
-                BOLT:Print("Options panel not available. Please access B.O.L.T settings through Interface > AddOns.")
-            end
-        else
-            BOLT:Print("Please access B.O.L.T settings through Interface > AddOns.")
-        end
+        BOLT:OpenConfigPanel()
     else
         BOLT:Print("Unknown command. Type '/bolt help' for available commands.")
     end
-end
-
--- Utility function to get table keys
-function tKeys(t)
-    local keys = {}
-    for k in pairs(t) do
-        table.insert(keys, k)
-    end
-    return keys
 end

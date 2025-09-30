@@ -21,15 +21,13 @@ local healingNumbersButton = nil
 local volumeButton = nil
 
 function GameMenu:OnInitialize()
-    self.parent:Debug("GameMenu module initializing...")
+    -- Module initialization
 end
 
 function GameMenu:OnEnable()
     if not self.parent:IsModuleEnabled("gameMenu") then
         return
     end
-    
-    self.parent:Debug("GameMenu module enabling...")
     
     -- Hook into the game menu show event
     self:HookGameMenu()
@@ -752,7 +750,6 @@ function GameMenu:OnReadyCheckClick()
     if IsInGroup() and (IsInRaid() or IsInGroup(LE_PARTY_CATEGORY_HOME)) then
         if UnitIsGroupLeader("player") or UnitIsGroupAssistant("player") then
             DoReadyCheck()
-            self.parent:Debug("Ready check initiated")
         else
             self.parent:Print("You must be the group leader or an assistant to start a ready check.")
         end
@@ -767,7 +764,6 @@ function GameMenu:OnCountdownClick()
             if C_PartyInfo and C_PartyInfo.DoCountdown then
                 C_PartyInfo.DoCountdown(5)
             end
-            self.parent:Debug("Countdown initiated")
         else
             self.parent:Print("You must be the group leader or an assistant to start a countdown.")
         end
