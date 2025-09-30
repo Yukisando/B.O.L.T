@@ -73,39 +73,16 @@ function GameMenu:HookGameMenu()
     -- Hook the GameMenuFrame show event
     if GameMenuFrame then
         GameMenuFrame:HookScript("OnShow", function()
-            -- Always try to show battle text toggles first (they work in combat)
-            if self.parent:GetConfig("gameMenu", "showBattleTextToggles") then
-                self:ShowBattleTextToggles()
-            end
-            
-            -- Check if we're in combat or a protected state before proceeding with other buttons
-            if InCombatLockdown() then
-                -- Defer the update until after combat
-                local frame = CreateFrame("Frame")
-                frame:RegisterEvent("PLAYER_REGEN_ENABLED")
-                frame:SetScript("OnEvent", function(self)
-                    self:UnregisterEvent("PLAYER_REGEN_ENABLED")
-                    GameMenu:UpdateGameMenu()
-                    self:SetScript("OnEvent", nil)
-                end)
-            else
-                -- Small delay to ensure the menu is fully loaded, but only if not in combat
-                C_Timer.After(0.05, function()
-                    if not InCombatLockdown() then
-                        self:UpdateGameMenu()
-                    end
-                end)
-            end
+            -- Small delay to ensure the menu is fully loaded
+            C_Timer.After(0.05, function()
+                self:UpdateGameMenu()
+            end)
         end)
         
         GameMenuFrame:HookScript("OnHide", function()
-            -- Only hide certain buttons if not in combat (battle text toggles can always be hidden)
-            if not InCombatLockdown() then
-                self:HideLeaveGroupButton()
-                self:HideReloadButton()
-                self:HideGroupTools()
-            end
-            -- Battle text toggles can be hidden even in combat since they don't affect protected functions
+            self:HideLeaveGroupButton()
+            self:HideReloadButton()
+            self:HideGroupTools()
             self:HideBattleTextToggles()
         end)
     end
@@ -116,14 +93,14 @@ function GameMenu:UpdateGameMenu()
         return
     end
     
-    -- Battle text toggles can be shown even during combat (they don't use protected functions)
+    -- Battle text toggles
     if self.parent:GetConfig("gameMenu", "showBattleTextToggles") then
         self:ShowBattleTextToggles()
     else
         self:HideBattleTextToggles()
     end
     
-    -- Handle volume button independently of battle text toggles
+    -- Volume button
     if self.parent:GetConfig("gameMenu", "showVolumeButton") then
         if not volumeButton then
             self:CreateVolumeButton()
@@ -135,11 +112,6 @@ function GameMenu:UpdateGameMenu()
         if volumeButton then
             volumeButton:Hide()
         end
-    end
-    
-    -- Don't update other UI elements during combat
-    if InCombatLockdown() then
-        return
     end
     
     -- Show reload button if enabled
@@ -254,6 +226,7 @@ end
 function GameMenu:HideBattleTextToggles()
     if damageNumbersButton then damageNumbersButton:Hide() end
     if healingNumbersButton then healingNumbersButton:Hide() end
+    if volumeButton then volumeButton:Hide() end
 end
 
 function GameMenu:CreateLeaveGroupButton()
@@ -320,6 +293,9 @@ function GameMenu:CreateLeaveGroupButton()
             else
                 GameTooltip:SetText("Leave Group", 1, 1, 1)
             end
+            if InCombatLockdown() then
+                GameTooltip:AddLine("|cFFFF6B6BNot available during combat|r", 1, 0.42, 0.42, true)
+            end
             GameTooltip:Show()
         end
         -- Play hover sound
@@ -371,6 +347,9 @@ function GameMenu:CreateReadyCheckButton()
         if not (UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")) then
             GameTooltip:AddLine("Requires group leader or assistant", 1, 0.2, 0.2, true)
         end
+        if InCombatLockdown() then
+            GameTooltip:AddLine("|cFFFF6B6BNot available during combat|r", 1, 0.42, 0.42, true)
+        end
         GameTooltip:Show()
         if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
             PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
@@ -391,6 +370,9 @@ function GameMenu:CreateCountdownButton()
         GameTooltip:AddLine("Start a 5-second pull timer", 0.8, 0.8, 0.8, true)
         if not (UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")) then
             GameTooltip:AddLine("Requires group leader or assistant", 1, 0.2, 0.2, true)
+        end
+        if InCombatLockdown() then
+            GameTooltip:AddLine("|cFFFF6B6BNot available during combat|r", 1, 0.42, 0.42, true)
         end
         GameTooltip:Show()
         if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
@@ -416,6 +398,9 @@ function GameMenu:CreateRaidMarkerButton()
         GameTooltip:AddLine("Right-click: Clear your marker", 0.8,0.8,0.8,true)
         if not (UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")) then
             GameTooltip:AddLine("Requires group leader or assistant", 1, 0.2, 0.2, true)
+        end
+        if InCombatLockdown() then
+            GameTooltip:AddLine("|cFFFF6B6BNot available during combat|r", 1, 0.42, 0.42, true)
         end
         GameTooltip:Show()
         if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
@@ -690,6 +675,9 @@ function GameMenu:CreateReloadButton()
             GameTooltip:SetText("Reload UI", 1, 1, 1)
             GameTooltip:AddLine("Left-click: Reload the user interface", 0.8, 0.8, 0.8, true)
             GameTooltip:AddLine("Right-click: Open B.O.L.T settings", 0.8, 0.8, 0.8, true)
+            if InCombatLockdown() then
+                GameTooltip:AddLine("|cFFFF6B6BNot available during combat|r", 1, 0.42, 0.42, true)
+            end
             GameTooltip:Show()
         end
         -- Play hover sound
