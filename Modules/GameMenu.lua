@@ -123,6 +123,20 @@ function GameMenu:UpdateGameMenu()
         self:HideBattleTextToggles()
     end
     
+    -- Handle volume button independently of battle text toggles
+    if self.parent:GetConfig("gameMenu", "showVolumeButton") then
+        if not volumeButton then
+            self:CreateVolumeButton()
+        end
+        if volumeButton then
+            volumeButton:Show()
+        end
+    else
+        if volumeButton then
+            volumeButton:Hide()
+        end
+    end
+    
     -- Don't update other UI elements during combat
     if InCombatLockdown() then
         return
@@ -240,7 +254,6 @@ end
 function GameMenu:HideBattleTextToggles()
     if damageNumbersButton then damageNumbersButton:Hide() end
     if healingNumbersButton then healingNumbersButton:Hide() end
-    if volumeButton then volumeButton:Hide() end
 end
 
 function GameMenu:CreateLeaveGroupButton()
