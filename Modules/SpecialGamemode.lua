@@ -98,7 +98,7 @@ function SpecialGamemode:OnChatMessage(event, message, sender, ...)
         },
         -- Dismount trigger (completely silent)
         {
-            trigger = "ok",
+            trigger = "oops!",
             channels = {"CHAT_MSG_YELL", "CHAT_MSG_PARTY", "CHAT_MSG_RAID", "CHAT_MSG_INSTANCE_CHAT"},
             action = function()
                 if IsMounted() then

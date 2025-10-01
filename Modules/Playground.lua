@@ -186,7 +186,7 @@ function Playground:CreateFavoriteToyButton()
             if toyName then
                 GameTooltip:SetOwner(favoriteToyButton, "ANCHOR_RIGHT")
                 GameTooltip:SetText("Use " .. toyName, 1, 1, 1)
-                GameTooltip:AddLine("Click to use toy directly", 0.8, 0.8, 0.8)
+                GameTooltip:AddLine("Click to use toy (Out of combat only)", 0.8, 0.8, 0.8)
                 GameTooltip:Show()
             end
         else

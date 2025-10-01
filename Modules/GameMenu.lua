@@ -647,14 +647,11 @@ end
 RegisterGroupStateUpdates()
 
 function GameMenu:CreateReloadButton()
-    -- Create a reload button with smaller content but normal icon area for hover/pressed effects
-    reloadButton = BOLT.ButtonUtils:CreateIconButton("BOLTReloadButton", UIParent, "Interface\\Buttons\\UI-RefreshButton", {
-        iconScale = 1,    -- Icon area is 90% of button size (affects hover/pressed area)
-        contentScale = 1.1  -- Actual reload symbol is 60% of the icon area (smaller visual)
-    })    -- If the refresh texture doesn't exist, fallback to a different one
-    if not reloadButton.icon:GetTexture() then
-        BOLT.ButtonUtils:UpdateButtonIcon(reloadButton, "Interface\\Icons\\Ability_Rogue_Preparation")
-    end
+    -- Create a reload button with a gear/engineering icon
+    reloadButton = BOLT.ButtonUtils:CreateIconButton("BOLTReloadButton", UIParent, "Interface\\Icons\\inv_misc_gear_01", {
+        iconScale = 1,
+        contentScale = 1.3
+    })
     
     -- Set the click handler for both left and right click
     reloadButton:SetScript("OnClick", function(self, button)
