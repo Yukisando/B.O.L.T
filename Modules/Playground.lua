@@ -92,53 +92,38 @@ end
 function Playground:HookGameMenu()
     -- Hook the GameMenuFrame show event
     if GameMenuFrame then
-        print("BOLT: Hooking GameMenuFrame for Playground")
         GameMenuFrame:HookScript("OnShow", function()
-            print("BOLT: GameMenuFrame OnShow triggered for Playground")
             -- Small delay to ensure the menu is fully loaded
             C_Timer.After(0.05, function()
-                print("BOLT: Calling UpdateGameMenu from timer")
                 self:UpdateGameMenu()
             end)
         end)
         
         GameMenuFrame:HookScript("OnHide", function()
-            print("BOLT: GameMenuFrame OnHide triggered for Playground")
             self:HideFavoriteToyButton()
         end)
-    else
-        print("BOLT: GameMenuFrame not found!")
     end
 end
 
 function Playground:UpdateGameMenu()
     
     if not self.parent:GetConfig("playground", "enabled") then
-        print("BOLT: Playground module is disabled")
         return
     end
     
-    print("BOLT: Playground UpdateGameMenu called")
-    
     -- Show favorite toy button if enabled
     if self.parent:GetConfig("playground", "showFavoriteToy") then
-        print("BOLT: showFavoriteToy is enabled, calling ShowFavoriteToyButton")
         self:ShowFavoriteToyButton()
     else
-        print("BOLT: showFavoriteToy is disabled, calling HideFavoriteToyButton")
         self:HideFavoriteToyButton()
     end
 end
 
 function Playground:ShowFavoriteToyButton()
-    print("BOLT: ShowFavoriteToyButton called")
     
     -- Create the button if it doesn't exist
     if not favoriteToyButton then
-        print("BOLT: favoriteToyButton doesn't exist, creating it")
         self:CreateFavoriteToyButton()
-    else
-        print("BOLT: favoriteToyButton already exists")
     end
     
     -- Update the secure button with the current toy
@@ -160,9 +145,7 @@ function Playground:ShowFavoriteToyButton()
     end
     
     favoriteToyButton:Show()
-    print("BOLT: favoriteToyButton:Show() called")
     self:PositionFavoriteToyButton()
-    print("BOLT: favoriteToyButton positioned")
     
 end
 
