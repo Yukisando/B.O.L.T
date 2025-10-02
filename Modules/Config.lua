@@ -241,14 +241,117 @@ function Config:CreateInterfaceOptionsPanel()
     end)
     yOffset = yOffset - 30
     
-    -- Keybinding info for toggle master volume
-    local keybindingInfo = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    keybindingInfo:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
-    keybindingInfo:SetPoint("TOPRIGHT", content, "TOPRIGHT", -50, yOffset)
-    keybindingInfo:SetText("|cff00ff00Tip:|r You can set a keybinding to toggle master volume mute. Go to |cffFFD700ESC > Key Bindings > AddOns > B.O.L.T|r")
-    keybindingInfo:SetTextColor(0.8, 0.8, 0.8)
-    keybindingInfo:SetJustifyH("LEFT")
-    keybindingInfo:SetWordWrap(true)
+    -- Keybinding section for toggle master volume
+    local keybindingLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    keybindingLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
+    keybindingLabel:SetText("Toggle Master Volume Keybinding:")
+    yOffset = yOffset - 25
+    
+    -- Keybinding button
+    local keybindButton = CreateFrame("Button", "BOLTVolumeKeybindButton", content, "UIPanelButtonTemplate")
+    keybindButton:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
+    keybindButton:SetSize(200, 25)
+    
+    local function UpdateKeybindButtonText()
+        local key1, key2 = GetBindingKey("BOLT_TOGGLE_MASTER_VOLUME")
+        if key1 then
+            local displayText = key1:gsub("%-", " + ")
+            if key2 then
+                displayText = displayText .. ", " .. key2:gsub("%-", " + ")
+            end
+            keybindButton:SetText(displayText)
+        else
+            keybindButton:SetText("Click to bind")
+        end
+    end
+    
+    UpdateKeybindButtonText()
+    
+    local bindingFrame = nil
+    local isBinding = false
+    
+    keybindButton:SetScript("OnClick", function(self)
+        if isBinding then return end
+        
+        isBinding = true
+        self:SetText("Press a key...")
+        
+        -- Create invisible frame to capture key input
+        if not bindingFrame then
+            bindingFrame = CreateFrame("Frame", nil, UIParent)
+            bindingFrame:SetFrameStrata("DIALOG")
+            bindingFrame:EnableKeyboard(true)
+            bindingFrame:SetPropagateKeyboardInput(false)
+        end
+        
+        bindingFrame:SetScript("OnKeyDown", function(frame, key)
+            -- Allow ESC to cancel
+            if key == "ESCAPE" then
+                isBinding = false
+                bindingFrame:Hide()
+                bindingFrame:SetScript("OnKeyDown", nil)
+                UpdateKeybindButtonText()
+                return
+            end
+            
+            -- Ignore modifier keys by themselves
+            if key == "LSHIFT" or key == "RSHIFT" or 
+               key == "LCTRL" or key == "RCTRL" or 
+               key == "LALT" or key == "RALT" then
+                return
+            end
+            
+            -- Build the key combination
+            local keyCombo = ""
+            if IsControlKeyDown() then
+                keyCombo = "CTRL-"
+            end
+            if IsAltKeyDown() then
+                keyCombo = keyCombo .. "ALT-"
+            end
+            if IsShiftKeyDown() then
+                keyCombo = keyCombo .. "SHIFT-"
+            end
+            keyCombo = keyCombo .. key
+            
+            -- Clear existing bindings for this action
+            local key1, key2 = GetBindingKey("BOLT_TOGGLE_MASTER_VOLUME")
+            if key1 then SetBinding(key1, nil) end
+            if key2 then SetBinding(key2, nil) end
+            
+            -- Set the new binding
+            local result = SetBinding(keyCombo, "BOLT_TOGGLE_MASTER_VOLUME")
+            if result then
+                SaveBindings(GetCurrentBindingSet())
+                keybindButton:SetText(keyCombo:gsub("%-", " + "))
+                C_Timer.After(0.5, UpdateKeybindButtonText)
+            else
+                keybindButton:SetText("Binding failed - try another key")
+                C_Timer.After(1.5, UpdateKeybindButtonText)
+            end
+            
+            isBinding = false
+            bindingFrame:Hide()
+            bindingFrame:SetScript("OnKeyDown", nil)
+        end)
+        
+        bindingFrame:Show()
+        bindingFrame:SetFocus()
+    end)
+    
+    -- Clear keybinding button
+    local clearKeybindButton = CreateFrame("Button", "BOLTVolumeClearKeybindButton", content, "UIPanelButtonTemplate")
+    clearKeybindButton:SetPoint("LEFT", keybindButton, "RIGHT", 10, 0)
+    clearKeybindButton:SetSize(80, 25)
+    clearKeybindButton:SetText("Clear")
+    clearKeybindButton:SetScript("OnClick", function()
+        local key1, key2 = GetBindingKey("BOLT_TOGGLE_MASTER_VOLUME")
+        if key1 then SetBinding(key1, nil) end
+        if key2 then SetBinding(key2, nil) end
+        SaveBindings(GetCurrentBindingSet())
+        UpdateKeybindButtonText()
+    end)
+    
     yOffset = yOffset - 35
     
     -- Add separator line after Game Menu module

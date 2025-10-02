@@ -10,6 +10,9 @@
 ## X-Website: https://github.com/Yukisando/BOLT
 ## X-Curse-Project-ID: 1335396
 
+# Localization
+Locales.lua
+
 # Bindings
 Bindings.xml
 

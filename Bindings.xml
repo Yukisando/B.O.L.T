@@ -1,5 +1,5 @@
 <Bindings>
-	<Binding name="BOLT_TOGGLE_MASTER_VOLUME" category="ADDONS" header="B.O.L.T">
+	<Binding name="BOLT_TOGGLE_MASTER_VOLUME" category="B.O.L.T">
 		BOLT_ToggleMasterVolume()
 	</Binding>
 </Bindings>
