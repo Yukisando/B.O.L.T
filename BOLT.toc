@@ -10,6 +10,9 @@
 ## X-Website: https://github.com/Yukisando/BOLT
 ## X-Curse-Project-ID: 1335396
 
+# Bindings
+Bindings.xml
+
 # Core files
 BOLT.lua
 Core\Core.lua

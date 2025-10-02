@@ -860,5 +860,29 @@ function GameMenu:UpdateVolumeDisplay()
     end
 end
 
+-- Global function for keybinding to toggle master volume
+function BOLT_ToggleMasterVolume()
+    -- Access the global BOLT addon
+    local BOLT = _G["BOLT"]
+    
+    -- Get the GameMenu module
+    if BOLT and BOLT.modules and BOLT.modules.gameMenu then
+        BOLT.modules.gameMenu:OnVolumeButtonLeftClick()
+    else
+        -- Fallback if module isn't available
+        local currentVolume = tonumber(GetCVar("Sound_MasterVolume")) or 1
+        
+        if currentVolume == 0 then
+            -- Unmute: restore to 50%
+            SetCVar("Sound_MasterVolume", "0.5")
+            print("|cff00aaff[B.O.L.T]|r Audio unmuted (50%)")
+        else
+            -- Mute
+            SetCVar("Sound_MasterVolume", "0")
+            print("|cff00aaff[B.O.L.T]|r Audio muted")
+        end
+    end
+end
+
 -- Register the module
 BOLT:RegisterModule("gameMenu", GameMenu)

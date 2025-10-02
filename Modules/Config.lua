@@ -241,6 +241,16 @@ function Config:CreateInterfaceOptionsPanel()
     end)
     yOffset = yOffset - 30
     
+    -- Keybinding info for toggle master volume
+    local keybindingInfo = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    keybindingInfo:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
+    keybindingInfo:SetPoint("TOPRIGHT", content, "TOPRIGHT", -50, yOffset)
+    keybindingInfo:SetText("|cff00ff00Tip:|r You can set a keybinding to toggle master volume mute. Go to |cffFFD700ESC > Key Bindings > AddOns > B.O.L.T|r")
+    keybindingInfo:SetTextColor(0.8, 0.8, 0.8)
+    keybindingInfo:SetJustifyH("LEFT")
+    keybindingInfo:SetWordWrap(true)
+    yOffset = yOffset - 35
+    
     -- Add separator line after Game Menu module
     local gameMenuSeparator = content:CreateTexture(nil, "ARTWORK")
     gameMenuSeparator:SetTexture("Interface\\Common\\UI-TooltipDivider-Transparent")
