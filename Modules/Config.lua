@@ -239,7 +239,7 @@ function Config:CreateInterfaceOptionsPanel()
         self.parent:SetConfig(enabled, "gameMenu", "showVolumeButton")
         self.parent:Print("Volume button " .. (enabled and "enabled" or "disabled") .. ". Type /reload to apply if needed.")
     end)
-    yOffset = yOffset - 30
+    yOffset = yOffset - 40
     
     -- Keybinding section for toggle master volume
     local keybindingLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -264,6 +264,14 @@ function Config:CreateInterfaceOptionsPanel()
             keybindButton:SetText("Click to bind")
         end
     end
+    
+    -- Store the update function for refresh
+    self.UpdateKeybindButtonText = UpdateKeybindButtonText
+    
+    -- Refresh on show
+    keybindButton:SetScript("OnShow", function()
+        UpdateKeybindButtonText()
+    end)
     
     UpdateKeybindButtonText()
     
@@ -746,6 +754,11 @@ function Config:RefreshOptionsPanel()
         self:UpdateGameMenuChildControls()
         self:UpdatePlaygroundChildControls()
         self:UpdateSkyridingChildControls()
+        
+        -- Update keybinding button display
+        if self.UpdateKeybindButtonText then
+            self.UpdateKeybindButtonText()
+        end
     end)
 end
 
