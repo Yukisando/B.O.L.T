@@ -21,6 +21,26 @@ local pendingStateChanges = {}
 local keysPressedDuringTransition = {}
 
 -- =========================
+-- Flight style detection
+-- =========================
+
+-- Returns "STEADY", "SKYRIDING", or "UNKNOWN"
+local function GetFlightStyle()
+    local steady = C_UnitAuras.GetPlayerAuraBySpellID(404468) -- Flight Style: Steady
+    if steady then return "STEADY" end
+    -- no aura: if you have skyriding unlocked, this means Skyriding is selected
+    -- (feature unlock check is optional)
+    local unlocked = C_MountJournal.IsDragonridingUnlocked and C_MountJournal.IsDragonridingUnlocked()
+    if unlocked then return "SKYRIDING" end
+    return "UNKNOWN"
+end
+
+-- Optional: is the current zone an "advanced flight (Skyriding) supported" area?
+local function IsAdvancedArea()
+    return IsAdvancedFlyableArea() and true or false
+end
+
+-- =========================
 -- Helpers for key handling
 -- =========================
 
@@ -385,6 +405,15 @@ function Skyriding:ApplySkyridingOverrides()
     if bindingsCurrentlyActive then
         return
     end
+    
+    -- Safety check: Only apply if we're in SKYRIDING mode
+    local flightStyle = GetFlightStyle()
+    if flightStyle ~= "SKYRIDING" then
+        if self.parent:GetConfig("debug") then
+            self.parent:Print("Cannot apply overrides - flight style is " .. flightStyle)
+        end
+        return
+    end
 
     -- Create override frame if needed
     if not overrideFrame then
@@ -500,6 +529,30 @@ function Skyriding:CheckSkyridingState()
         local canFly = IsFlyableArea()
 
         if canFly then
+            -- First check: Make sure we're in SKYRIDING mode, not STEADY flight
+            local flightStyle = GetFlightStyle()
+            if flightStyle ~= "SKYRIDING" then
+                -- Not in skyriding mode (either STEADY or UNKNOWN), don't activate
+                currentlyInSkyriding = false
+                if isInSkyriding and self.parent:GetConfig("debug") then
+                    self.parent:Print("Flight style is " .. flightStyle .. " - 3D movement disabled")
+                end
+                -- Early exit to prevent any activation
+                if currentlyInSkyriding ~= isInSkyriding then
+                    local currentTime = GetTime()
+                    if (currentTime - lastStateChangeTime) < 1.0 and stateChangeDebounce > 0 then
+                        return
+                    end
+                    lastStateChangeTime = currentTime
+                    stateChangeDebounce = 1.0
+                    isInSkyriding = currentlyInSkyriding
+                    if bindingsCurrentlyActive then
+                        self:ClearSkyridingOverrides()
+                    end
+                    ClearTransitionKeyRecord()
+                end
+                return
+            end
             -- Get current mount info - use a safer approach
             local mountID = nil
             if C_MountJournal and C_MountJournal.GetMountFromSpell then
@@ -568,16 +621,21 @@ function Skyriding:CheckSkyridingState()
                 -- Wait a brief moment for the skyriding state to stabilize, then apply
                 C_Timer.After(0.1, function()
                     if isInSkyriding and not bindingsCurrentlyActive then
-                        self:ApplySkyridingOverrides()
+                        -- Double-check we're still in SKYRIDING mode before applying
+                        local flightStyle = GetFlightStyle()
+                        if flightStyle == "SKYRIDING" then
+                            self:ApplySkyridingOverrides()
+                        end
                     end
                 end)
             end
             
             if self.parent:GetConfig("debug") then
+                local flightStyle = GetFlightStyle()
                 if toggleMode then
-                    self.parent:Print("Skyriding mode detected - 3D movement controls always active")
+                    self.parent:Print("Skyriding mode detected (" .. flightStyle .. ") - 3D movement controls always active")
                 else
-                    self.parent:Print("Skyriding mode detected - hold left mouse button to activate overrides")
+                    self.parent:Print("Skyriding mode detected (" .. flightStyle .. ") - hold left mouse button to activate overrides")
                 end
             end
         else
