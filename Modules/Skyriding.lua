@@ -14,8 +14,6 @@ local bindingsCurrentlyActive = false
 local bindingCheckFrame = nil
 local overrideFrame = nil
 local isInCombat = false
-local stateChangeDebounce = 0
-local lastStateChangeTime = 0
 local mouseFrame = nil
 local pendingStateChanges = {}
 local keysPressedDuringTransition = {}
@@ -26,18 +24,21 @@ local keysPressedDuringTransition = {}
 
 -- Returns "STEADY", "SKYRIDING", or "UNKNOWN"
 local function GetFlightStyle()
-    local steady = C_UnitAuras.GetPlayerAuraBySpellID(404468) -- Flight Style: Steady
-    if steady then return "STEADY" end
-    -- no aura: if you have skyriding unlocked, this means Skyriding is selected
-    -- (feature unlock check is optional)
-    local unlocked = C_MountJournal.IsDragonridingUnlocked and C_MountJournal.IsDragonridingUnlocked()
-    if unlocked then return "SKYRIDING" end
+    if C_UnitAuras.GetPlayerAuraBySpellID(404468) then return "STEADY" end
+    if C_MountJournal.IsDragonridingUnlocked and C_MountJournal.IsDragonridingUnlocked() then
+        return "SKYRIDING"
+    end
     return "UNKNOWN"
 end
 
--- Optional: is the current zone an "advanced flight (Skyriding) supported" area?
-local function IsAdvancedArea()
-    return IsAdvancedFlyableArea() and true or false
+-- Check if Skyriding is selected (Steady Flight buff absent = Skyriding)
+local function IsSkyridingSelected()
+    return C_UnitAuras.GetPlayerAuraBySpellID(404468) == nil
+end
+
+-- Check if current zone supports advanced flight (Skyriding physics)
+local function IsSkyridingPossibleHere()
+    return IsAdvancedFlyableArea()
 end
 
 -- =========================
@@ -46,18 +47,21 @@ end
 
 -- Get ALL keys bound to an action (primary, secondary, etc.)
 local function GetAllBindingKeys(action)
-    local keys, i = {}, 1
-    while true do
-        local key = select(i, GetBindingKey(action))
-        if not key then break end
-        table.insert(keys, key)
-        i = i + 1
-    end
-    return keys
+    local t = { GetBindingKey(action) }
+    return t
 end
+
+-- Cache for managed keys to avoid rebuilding every time
+local managedKeysCache = {}
+local lastPitchSetting = nil
 
 -- Build the list of keys we manage (for gating)
 local function CollectManagedKeys(enablePitch)
+    -- Return cached result if setting hasn't changed
+    if lastPitchSetting == enablePitch and managedKeysCache[enablePitch] then
+        return managedKeysCache[enablePitch]
+    end
+    
     local managed = {}
     local function add(list) for _, k in ipairs(list or {}) do table.insert(managed, k) end end
     add(GetAllBindingKeys("STRAFELEFT"))
@@ -66,6 +70,11 @@ local function CollectManagedKeys(enablePitch)
         add(GetAllBindingKeys("MOVEFORWARD"))
         add(GetAllBindingKeys("MOVEBACKWARD"))
     end
+    
+    -- Cache the result
+    managedKeysCache[enablePitch] = managed
+    lastPitchSetting = enablePitch
+    
     return managed
 end
 
@@ -158,8 +167,6 @@ function Skyriding:OnEnable()
 
     -- Initialize state
     isInCombat = InCombatLockdown()
-    stateChangeDebounce = 0
-    lastStateChangeTime = 0
 
     -- Create event handling frame
     self:CreateEventFrame()
@@ -194,8 +201,6 @@ function Skyriding:OnDisable()
     isLeftMouseDown = false
     bindingsCurrentlyActive = false
     isInCombat = false
-    stateChangeDebounce = 0
-    lastStateChangeTime = 0
 
     -- Stop monitoring
     self:StopMonitoring()
@@ -233,6 +238,7 @@ function Skyriding:CreateEventFrame()
     self.eventFrame = CreateFrame("Frame")
 
     -- Register relevant events
+    self.eventFrame:RegisterEvent("UNIT_AURA")
     self.eventFrame:RegisterEvent("MOUNT_JOURNAL_USABILITY_CHANGED")
     self.eventFrame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
     self.eventFrame:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
@@ -244,10 +250,6 @@ function Skyriding:CreateEventFrame()
     self.eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED") -- Combat start
     self.eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")  -- Combat end
 
-    -- Optional debug events
-    self.eventFrame:RegisterEvent("PLAYER_STARTED_TURNING")
-    self.eventFrame:RegisterEvent("PLAYER_STOPPED_TURNING")
-
     self.eventFrame:SetScript("OnEvent", function(_, event, ...)
         if event == "PLAYER_REGEN_DISABLED" then
             isInCombat = true
@@ -258,6 +260,12 @@ function Skyriding:CreateEventFrame()
         elseif event == "PLAYER_REGEN_ENABLED" then
             isInCombat = false
             -- No need to restore bindings automatically - they'll be applied when mouse is pressed
+        elseif event == "UNIT_AURA" then
+            local unit = ...
+            if unit == "player" then
+                -- Flight style changed (Steady <-> Skyriding toggle)
+                self:CheckSkyridingState()
+            end
         elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
             local unitTarget = ...
             if unitTarget == "player" then
@@ -274,7 +282,6 @@ function Skyriding:CreateEventFrame()
             C_Timer.After(0.2, function()
                 self:CheckSkyridingState()
             end)
-        elseif (event == "PLAYER_STARTED_TURNING" or event == "PLAYER_STOPPED_TURNING") and self.parent:GetConfig("debug") then
         end
     end)
 
@@ -285,25 +292,14 @@ function Skyriding:StartMonitoring()
         return
     end
 
-    -- Create a frame that periodically checks skyriding state
+    -- Create a lightweight frame for safety verification only (no more state polling)
     bindingCheckFrame = CreateFrame("Frame")
     bindingCheckFrame:SetScript("OnUpdate", function(frame, elapsed)
-        frame.timeSinceLastUpdate = (frame.timeSinceLastUpdate or 0) + elapsed
         frame.timeSinceLastStateCheck = (frame.timeSinceLastStateCheck or 0) + elapsed
 
-        -- Update debounce timer
-        if stateChangeDebounce > 0 then
-            stateChangeDebounce = stateChangeDebounce - elapsed
-        end
-
-        -- Check every 0.5 seconds (not too frequent to avoid performance issues)
-        if frame.timeSinceLastUpdate >= 0.5 then
-            frame.timeSinceLastUpdate = 0
-            self:CheckSkyridingState()
-        end
-
-        -- Verify binding state integrity every 2 seconds as a safety measure
-        if frame.timeSinceLastStateCheck >= 2.0 then
+        -- Verify binding state integrity every 5 seconds as a safety measure
+        -- This is just a watchdog - real state changes are event-driven
+        if frame.timeSinceLastStateCheck >= 5.0 then
             frame.timeSinceLastStateCheck = 0
             self:VerifyBindingState()
         end
@@ -350,15 +346,8 @@ function Skyriding:CheckMouseState()
     
     -- Only process if we're in skyriding mode
     if not isInSkyriding then
-        if isLeftMouseDown ~= currentMouseDown then
-            isLeftMouseDown = currentMouseDown
-        end
-        return
-    end
-    
-    -- Update mouse state tracking
-    if isLeftMouseDown ~= currentMouseDown then
         isLeftMouseDown = currentMouseDown
+        return
     end
     
     if toggleMode then
@@ -368,6 +357,7 @@ function Skyriding:CheckMouseState()
         end
     else
         -- Hold mode: Require left mouse button to be held for 3D movement
+        -- CRITICAL FIX: Compare BEFORE updating the cached state
         if currentMouseDown ~= isLeftMouseDown then
             if currentMouseDown then
                 self:ApplySkyridingOverrides()
@@ -381,6 +371,8 @@ function Skyriding:CheckMouseState()
                 
                 self:ClearSkyridingOverrides()
             end
+            -- Update cached state AFTER comparison
+            isLeftMouseDown = currentMouseDown
         end
     end
     
@@ -407,10 +399,9 @@ function Skyriding:ApplySkyridingOverrides()
     end
     
     -- Safety check: Only apply if we're in SKYRIDING mode
-    local flightStyle = GetFlightStyle()
-    if flightStyle ~= "SKYRIDING" then
+    if not IsSkyridingSelected() then
         if self.parent:GetConfig("debug") then
-            self.parent:Print("Cannot apply overrides - flight style is " .. flightStyle)
+            self.parent:Print("Cannot apply overrides - not in Skyriding mode")
         end
         return
     end
@@ -521,95 +512,11 @@ end
 -- =========================
 
 function Skyriding:CheckSkyridingState()
-    local isMounted = IsMounted()
-    local currentlyInSkyriding = false
+    -- Simple, accurate detection: mounted + advanced flyable area + skyriding selected
+    local currentlyInSkyriding = IsMounted() and IsSkyridingPossibleHere() and IsSkyridingSelected()
 
-    if isMounted then
-        -- Check if we can fly (basic requirement for skyriding)
-        local canFly = IsFlyableArea()
-
-        if canFly then
-            -- First check: Make sure we're in SKYRIDING mode, not STEADY flight
-            local flightStyle = GetFlightStyle()
-            if flightStyle ~= "SKYRIDING" then
-                -- Not in skyriding mode (either STEADY or UNKNOWN), don't activate
-                currentlyInSkyriding = false
-                if isInSkyriding and self.parent:GetConfig("debug") then
-                    self.parent:Print("Flight style is " .. flightStyle .. " - 3D movement disabled")
-                end
-                -- Early exit to prevent any activation
-                if currentlyInSkyriding ~= isInSkyriding then
-                    local currentTime = GetTime()
-                    if (currentTime - lastStateChangeTime) < 1.0 and stateChangeDebounce > 0 then
-                        return
-                    end
-                    lastStateChangeTime = currentTime
-                    stateChangeDebounce = 1.0
-                    isInSkyriding = currentlyInSkyriding
-                    if bindingsCurrentlyActive then
-                        self:ClearSkyridingOverrides()
-                    end
-                    ClearTransitionKeyRecord()
-                end
-                return
-            end
-            -- Get current mount info - use a safer approach
-            local mountID = nil
-            if C_MountJournal and C_MountJournal.GetMountFromSpell then
-                local shapeShiftFormID = GetShapeshiftFormID and GetShapeshiftFormID()
-                if shapeShiftFormID and shapeShiftFormID > 0 then
-                    mountID = C_MountJournal.GetMountFromSpell(shapeShiftFormID)
-                end
-            end
-
-            if mountID then
-                local creatureDisplayID, description, source, isSelfMount, mountTypeID = C_MountJournal.GetMountInfoExtraByID(mountID)
-
-                -- Check if it's a dragonriding mount (mountTypeID 402 = Dragonriding)
-                if mountTypeID == 402 then
-                    currentlyInSkyriding = true
-                end
-
-                -- Check for other flying mounts that might support dynamic flight
-                if not currentlyInSkyriding and mountTypeID == 248 and canFly then
-                    if IsFlying() then
-                        currentlyInSkyriding = true
-                    end
-                end
-            end
-
-            -- Alternative check: Look for dragonriding-specific buffs or abilities
-            if not currentlyInSkyriding and canFly and IsFlying() then
-                local skyridingSpells = {
-                    372610, -- Surge Forward
-                    361584, -- Skyward Ascent
-                    372611, -- Whirling Surge
-                    377236, -- Dragonriding (base ability)
-                }
-
-                for _, spellID in ipairs(skyridingSpells) do
-                    if IsSpellKnown(spellID) then
-                        currentlyInSkyriding = true
-                        break
-                    end
-                end
-            end
-        end
-    end
-
-    -- Handle state changes with debouncing to prevent rapid toggling
+    -- Handle state changes
     if currentlyInSkyriding ~= isInSkyriding then
-        local currentTime = GetTime()
-
-        -- Debounce rapid state changes (prevent toggle spam within 1 second)
-        if (currentTime - lastStateChangeTime) < 1.0 and stateChangeDebounce > 0 then
-            return
-        end
-
-        lastStateChangeTime = currentTime
-        stateChangeDebounce = 1.0
-
-        -- Update the skyriding state
         isInSkyriding = currentlyInSkyriding
         
         if currentlyInSkyriding then
@@ -618,12 +525,11 @@ function Skyriding:CheckSkyridingState()
             -- In always-on mode, activate overrides immediately
             local toggleMode = self.parent:GetConfig("skyriding", "toggleMode")
             if toggleMode then
-                -- Wait a brief moment for the skyriding state to stabilize, then apply
-                C_Timer.After(0.1, function()
+                -- Wait a tiny moment for the skyriding state to stabilize, then apply
+                C_Timer.After(0.05, function()
                     if isInSkyriding and not bindingsCurrentlyActive then
                         -- Double-check we're still in SKYRIDING mode before applying
-                        local flightStyle = GetFlightStyle()
-                        if flightStyle == "SKYRIDING" then
+                        if IsSkyridingSelected() then
                             self:ApplySkyridingOverrides()
                         end
                     end
@@ -631,15 +537,13 @@ function Skyriding:CheckSkyridingState()
             end
             
             if self.parent:GetConfig("debug") then
-                local flightStyle = GetFlightStyle()
                 if toggleMode then
-                    self.parent:Print("Skyriding mode detected (" .. flightStyle .. ") - 3D movement controls always active")
+                    self.parent:Print("Skyriding detected - 3D movement controls always active")
                 else
-                    self.parent:Print("Skyriding mode detected (" .. flightStyle .. ") - hold left mouse button to activate overrides")
+                    self.parent:Print("Skyriding detected - hold left mouse button to activate overrides")
                 end
             end
         else
-            
             -- Check if any managed keys are currently held during this transition
             local keys = CollectManagedKeys(self.parent:GetConfig("skyriding", "enablePitchControl"))
             local heldKeys = CheckKeysHeldDuringTransition(keys)
@@ -670,9 +574,9 @@ function Skyriding:CheckSkyridingState()
             
             if self.parent:GetConfig("debug") then
                 if #heldKeys > 0 then
-                    self.parent:Print("Skyriding mode disabled - waiting for key release to restore controls")
+                    self.parent:Print("Skyriding ended - waiting for key release to restore controls")
                 else
-                    self.parent:Print("Skyriding mode disabled")
+                    self.parent:Print("Skyriding ended")
                 end
             end
         end
@@ -784,13 +688,17 @@ function Skyriding:EmergencyReset()
     isInSkyriding = false
     isLeftMouseDown = false
     bindingsCurrentlyActive = false
-    stateChangeDebounce = 0
 
     self.parent:Print("Emergency reset complete - all movement keys restored to normal")
 end
 
 -- Enhanced safety function to verify binding state integrity
 function Skyriding:VerifyBindingState()
+    -- Skip corrective actions when in combat to avoid spammy attempts
+    if InCombatLockdown() then
+        return
+    end
+    
     local toggleMode = self.parent:GetConfig("skyriding", "toggleMode")
     local expectedActive = isInSkyriding and not isInCombat and (toggleMode or isLeftMouseDown)
     
