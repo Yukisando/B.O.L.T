@@ -31,6 +31,21 @@ function GameMenu:OnEnable()
     
     -- Hook into the game menu show event
     self:HookGameMenu()
+    
+    -- group-state watcher
+    if not self.groupUpdateFrame then
+        local f = CreateFrame("Frame")
+        f:RegisterEvent("GROUP_ROSTER_UPDATE")
+        f:RegisterEvent("PLAYER_ROLES_ASSIGNED")
+        f:RegisterEvent("PARTY_LEADER_CHANGED")
+        f:RegisterEvent("PLAYER_ENTERING_WORLD")
+        f:SetScript("OnEvent", function()
+            if GameMenuFrame and GameMenuFrame:IsShown() then
+                self:RefreshGroupToolsState()
+            end
+        end)
+        self.groupUpdateFrame = f
+    end
 end
 
 function GameMenu:OnDisable()
@@ -67,6 +82,13 @@ function GameMenu:OnDisable()
         volumeButton:Hide()
         volumeButton = nil
     end
+    
+    -- Clean up group update frame
+    if self.groupUpdateFrame then
+        self.groupUpdateFrame:UnregisterAllEvents()
+        self.groupUpdateFrame:SetScript("OnEvent", nil)
+        self.groupUpdateFrame = nil
+    end
 end
 
 function GameMenu:HookGameMenu()
@@ -77,6 +99,20 @@ function GameMenu:HookGameMenu()
             C_Timer.After(0.05, function()
                 self:UpdateGameMenu()
             end)
+            
+            -- Watch CVARs while menu is open
+            if not self.cvarWatcher then
+                local f = CreateFrame("Frame")
+                f:RegisterEvent("CVAR_UPDATE")
+                f:SetScript("OnEvent", function(_, _, name)
+                    if name == "Sound_MasterVolume" or name == "Sound_EnableMusic" then
+                        self:UpdateVolumeDisplay()
+                    elseif name == "floatingCombatTextCombatDamage" or name == "floatingCombatTextCombatHealing" then
+                        self:RefreshBattleTextTogglesState()
+                    end
+                end)
+                self.cvarWatcher = f
+            end
         end)
         
         GameMenuFrame:HookScript("OnHide", function()
@@ -84,6 +120,13 @@ function GameMenu:HookGameMenu()
             self:HideReloadButton()
             self:HideGroupTools()
             self:HideBattleTextToggles()
+            
+            -- Clean up CVAR watcher
+            if self.cvarWatcher then
+                self.cvarWatcher:UnregisterEvent("CVAR_UPDATE")
+                self.cvarWatcher:SetScript("OnEvent", nil)
+                self.cvarWatcher = nil
+            end
         end)
     end
 end
@@ -207,17 +250,9 @@ function GameMenu:ShowBattleTextToggles()
     if not healingNumbersButton then
         self:CreateHealingNumbersButton()
     end
-    if not volumeButton and self.parent:GetConfig("gameMenu", "showVolumeButton") then
-        self:CreateVolumeButton()
-    end
 
     damageNumbersButton:Show()
     healingNumbersButton:Show()
-    
-    -- Only show volume button if enabled in config
-    if volumeButton and self.parent:GetConfig("gameMenu", "showVolumeButton") then
-        volumeButton:Show()
-    end
 
     self:PositionBattleTextToggles()
     self:RefreshBattleTextTogglesState()
@@ -226,96 +261,31 @@ end
 function GameMenu:HideBattleTextToggles()
     if damageNumbersButton then damageNumbersButton:Hide() end
     if healingNumbersButton then healingNumbersButton:Hide() end
-    if volumeButton then volumeButton:Hide() end
+    -- do NOT hide volumeButton here
 end
 
 function GameMenu:CreateLeaveGroupButton()
-    -- Create a button similar to the existing game menu buttons
-    -- First try the modern template, fallback to creating manually
-    local template = "UIPanelButtonTemplate"
-    leaveGroupButton = CreateFrame("Button", "BOLTLeaveGroupButton", GameMenuFrame, template)
-    
-    -- If that didn't work, try without template and style manually
-    if not leaveGroupButton:GetNormalTexture() then
-        leaveGroupButton = CreateFrame("Button", "BOLTLeaveGroupButton", GameMenuFrame)
-        
-        -- Create textures manually to match game menu buttons
-        local normalTexture = leaveGroupButton:CreateTexture(nil, "BACKGROUND")
-        normalTexture:SetTexture("Interface\\Buttons\\UI-Panel-Button-Up")
-        normalTexture:SetTexCoord(0, 0.625, 0, 0.6875)
-        normalTexture:SetAllPoints()
-        leaveGroupButton:SetNormalTexture(normalTexture)
-        
-        local pushedTexture = leaveGroupButton:CreateTexture(nil, "BACKGROUND")
-        pushedTexture:SetTexture("Interface\\Buttons\\UI-Panel-Button-Down")
-        pushedTexture:SetTexCoord(0, 0.625, 0, 0.6875)
-        pushedTexture:SetAllPoints()
-        leaveGroupButton:SetPushedTexture(pushedTexture)
-        
-        local highlightTexture = leaveGroupButton:CreateTexture(nil, "HIGHLIGHT")
-        highlightTexture:SetTexture("Interface\\Buttons\\UI-Panel-Button-Highlight")
-        highlightTexture:SetTexCoord(0, 0.625, 0, 0.6875)
-        highlightTexture:SetAllPoints()
-        highlightTexture:SetBlendMode("ADD")
-        leaveGroupButton:SetHighlightTexture(highlightTexture)
-    end
-    
-    -- Set button properties to match other game menu buttons
-    leaveGroupButton:SetSize(144, 28)  -- Increased height to match other buttons
+    leaveGroupButton = CreateFrame("Button", nil, GameMenuFrame, "GameMenuButtonTemplate")
+    leaveGroupButton:SetSize(144, 28)
     leaveGroupButton:SetText("Leave Group")
-    
-    -- Set font to match other buttons
-    local fontString = leaveGroupButton:GetFontString() or leaveGroupButton:CreateFontString(nil, "OVERLAY")
-    fontString:SetFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
-    fontString:SetPoint("CENTER")
-    fontString:SetTextColor(1, 1, 1, 1) 
-    leaveGroupButton:SetFontString(fontString)
-    
-    -- Enable mouse interaction
-    leaveGroupButton:EnableMouse(true)
+    leaveGroupButton:SetScript("OnClick", function() self:OnLeaveGroupClick() end)
     leaveGroupButton:SetMotionScriptsWhileDisabled(true)
-    
-    -- Set the click handler
-    leaveGroupButton:SetScript("OnClick", function()
-        self:OnLeaveGroupClick()
-    end)
-    
-    -- Add hover sound effect like other buttons
     leaveGroupButton:SetScript("OnEnter", function()
-        if GameTooltip then
-            GameTooltip:SetOwner(leaveGroupButton, "ANCHOR_RIGHT")
-            local groupType = self.parent:GetGroupTypeString()
-            if groupType then
-                GameTooltip:SetText("Leave " .. groupType, 1, 1, 1)
-                if UnitIsGroupLeader("player") then
-                    GameTooltip:AddLine("Leadership will be transferred automatically", 0.8, 0.8, 0.8, true)
-                end
-            else
-                GameTooltip:SetText("Leave Group", 1, 1, 1)
-            end
-            if InCombatLockdown() then
-                GameTooltip:AddLine("|cFFFF6B6BNot available during combat|r", 1, 0.42, 0.42, true)
-            end
-            GameTooltip:Show()
+        GameTooltip:SetOwner(leaveGroupButton, "ANCHOR_RIGHT")
+        local groupType = self.parent:GetGroupTypeString()
+        GameTooltip:SetText(groupType and ("Leave "..groupType) or "Leave Group", 1, 1, 1)
+        if UnitIsGroupLeader("player") then
+            GameTooltip:AddLine("Leadership will be transferred automatically", 0.8, 0.8, 0.8, true)
         end
-        -- Play hover sound
+        if InCombatLockdown() then
+            GameTooltip:AddLine("|cFFFF6B6BNot available during combat|r", 1, 0.42, 0.42, true)
+        end
+        GameTooltip:Show()
         if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
             PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
         end
     end)
-    
-    leaveGroupButton:SetScript("OnLeave", function()
-        if GameTooltip then
-            GameTooltip:Hide()
-        end
-    end)
-    
-    -- Add click sound
-    leaveGroupButton:SetScript("OnMouseDown", function()
-        if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION then
-            PlaySound(SOUNDKIT.IG_MAINMENU_OPTION)
-        end
-    end)
+    leaveGroupButton:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 end
 
 function GameMenu:PositionLeaveGroupButton()
@@ -336,7 +306,7 @@ function GameMenu:PositionLeaveGroupButton()
 end
 
 function GameMenu:CreateReadyCheckButton()
-    readyCheckButton = BOLT.ButtonUtils:CreateIconButton("BOLTGMReadyCheck", GameMenuFrame, "Interface\\RaidFrame\\ReadyCheck-Ready")
+    readyCheckButton = BOLT.ButtonUtils:CreateIconButton(nil, GameMenuFrame, "Interface\\RaidFrame\\ReadyCheck-Ready")
     readyCheckButton:SetScript("OnClick", function()
         self:OnReadyCheckClick()
     end)
@@ -359,7 +329,7 @@ function GameMenu:CreateReadyCheckButton()
 end
 
 function GameMenu:CreateCountdownButton()
-    countdownButton = BOLT.ButtonUtils:CreateIconButton("BOLTGMCountdown", GameMenuFrame, "Interface\\Icons\\Spell_Holy_BorrowedTime")
+    countdownButton = BOLT.ButtonUtils:CreateIconButton(nil, GameMenuFrame, "Interface\\Icons\\Spell_Holy_BorrowedTime")
     countdownButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
     countdownButton:SetScript("OnClick", function()
         self:OnCountdownClick()
@@ -383,7 +353,7 @@ function GameMenu:CreateCountdownButton()
 end
 
 function GameMenu:CreateRaidMarkerButton()
-    raidMarkerButton = BOLT.ButtonUtils:CreateIconButton("BOLTGMRaidMarker", GameMenuFrame, "Interface\\TARGETINGFRAME\\UI-RaidTargetingIcons")
+    raidMarkerButton = BOLT.ButtonUtils:CreateIconButton(nil, GameMenuFrame, "Interface\\TARGETINGFRAME\\UI-RaidTargetingIcons")
     -- We'll adjust tex coords based on selected marker in RefreshGroupToolsState
     raidMarkerButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     raidMarkerButton:SetScript("OnClick", function(_, button)
@@ -411,7 +381,7 @@ function GameMenu:CreateRaidMarkerButton()
 end
 
 function GameMenu:CreateDamageNumbersButton()
-    damageNumbersButton = BOLT.ButtonUtils:CreateIconButton("BOLTGMDamageNumbers", GameMenuFrame, "Interface\\Icons\\Spell_Fire_FireBolt02")
+    damageNumbersButton = BOLT.ButtonUtils:CreateIconButton(nil, GameMenuFrame, "Interface\\Icons\\Spell_Fire_FireBolt02")
     damageNumbersButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
     damageNumbersButton:SetScript("OnClick", function()
         self:OnDamageNumbersClick()
@@ -431,7 +401,7 @@ function GameMenu:CreateDamageNumbersButton()
 end
 
 function GameMenu:CreateHealingNumbersButton()
-    healingNumbersButton = BOLT.ButtonUtils:CreateIconButton("BOLTGMHealingNumbers", GameMenuFrame, "Interface\\Icons\\Spell_Holy_GreaterHeal")
+    healingNumbersButton = BOLT.ButtonUtils:CreateIconButton(nil, GameMenuFrame, "Interface\\Icons\\Spell_Holy_GreaterHeal")
     healingNumbersButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
     healingNumbersButton:SetScript("OnClick", function()
         self:OnHealingNumbersClick()
@@ -452,7 +422,7 @@ end
 
 function GameMenu:CreateVolumeButton()
     -- Create volume button with background using ButtonUtils
-    volumeButton = BOLT.ButtonUtils:CreateVolumeButton("BOLTGMVolume", GameMenuFrame, {
+    volumeButton = BOLT.ButtonUtils:CreateVolumeButton(nil, GameMenuFrame, {
         showBackground = true
     })
     
@@ -496,26 +466,15 @@ function GameMenu:CreateVolumeButton()
     
     -- Mouse wheel support for volume adjustment
     volumeButton:EnableMouseWheel(true)
-    volumeButton:SetScript("OnMouseWheel", function(button, delta)
-        local currentVolume = tonumber(GetCVar("Sound_MasterVolume")) or 1
-        local increment = 0.05 -- 5% increments
-        local newVolume = currentVolume + (delta > 0 and increment or -increment)
-        
-        -- Clamp volume between 0 and 1
-        newVolume = math.max(0, math.min(1, newVolume))
-        
-        SetCVar("Sound_MasterVolume", tostring(newVolume))
-        
-        -- Update the volume display
+    volumeButton:SetScript("OnMouseWheel", function(_, delta)
+        local vol = tonumber(GetCVar("Sound_MasterVolume")) or 1
+        local step = 0.05
+        local newVol = math.max(0, math.min(1, vol + (delta > 0 and step or -step)))
+        SetCVar("Sound_MasterVolume", tostring(newVol))
         GameMenu:UpdateVolumeDisplay()
-        
-        -- Play sound feedback
         if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
             PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
         end
-        
-        -- Show volume percentage feedback
-        local volumePercent = math.floor(newVolume * 100)
     end)
     
     -- Initialize volume display
@@ -551,19 +510,19 @@ function GameMenu:PositionBattleTextToggles()
         healingNumbersButton:SetPoint("BOTTOMLEFT", volumeButton, "TOPLEFT", 0, 6)
         -- Damage button above healing button
         damageNumbersButton:SetPoint("BOTTOMLEFT", healingNumbersButton, "TOPLEFT", 0, 6)
-        
-        -- Set frame levels
-        local level = GameMenuFrame:GetFrameLevel()
-        volumeButton:SetFrameLevel(level + 2)
     else
         -- Original positioning if no volume button or volume button disabled
         healingNumbersButton:SetPoint("BOTTOMRIGHT", GameMenuFrame, "BOTTOMLEFT", -8, 12)
         damageNumbersButton:SetPoint("BOTTOMLEFT", healingNumbersButton, "TOPLEFT", 0, 6)
     end
     
+    -- Set frame levels once at the end
     local level = GameMenuFrame:GetFrameLevel()
     damageNumbersButton:SetFrameLevel(level + 2)
     healingNumbersButton:SetFrameLevel(level + 2)
+    if volumeButton then
+        volumeButton:SetFrameLevel(level + 2)
+    end
 end
 
 function GameMenu:RefreshBattleTextTogglesState()
@@ -628,27 +587,9 @@ function GameMenu:RefreshGroupToolsState()
     end
 end
 
--- Event hook to keep enable/disable state current
-local function RegisterGroupStateUpdates()
-    if GameMenu._groupUpdateFrame then return end
-    local f = CreateFrame("Frame")
-    f:RegisterEvent("GROUP_ROSTER_UPDATE")
-    f:RegisterEvent("PLAYER_ROLES_ASSIGNED")
-    f:RegisterEvent("PARTY_LEADER_CHANGED")
-    f:RegisterEvent("PLAYER_ENTERING_WORLD")
-    f:SetScript("OnEvent", function()
-        if GameMenuFrame and GameMenuFrame:IsShown() then
-            GameMenu:RefreshGroupToolsState()
-        end
-    end)
-    GameMenu._groupUpdateFrame = f
-end
-
-RegisterGroupStateUpdates()
-
 function GameMenu:CreateReloadButton()
     -- Create a reload button with a gear/engineering icon
-    reloadButton = BOLT.ButtonUtils:CreateIconButton("BOLTReloadButton", UIParent, "Interface\\Icons\\inv_misc_gear_01", {
+    reloadButton = BOLT.ButtonUtils:CreateIconButton(nil, UIParent, "Interface\\Icons\\inv_misc_gear_01", {
         iconScale = 1,
         contentScale = 1.3
     })
@@ -688,13 +629,6 @@ function GameMenu:CreateReloadButton()
             GameTooltip:Hide()
         end
     end)
-    
-    -- Add click sound
-    reloadButton:SetScript("OnMouseDown", function()
-        if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION then
-            PlaySound(SOUNDKIT.IG_MAINMENU_OPTION)
-        end
-    end)
 end
 
 function GameMenu:PositionReloadButton()
@@ -715,10 +649,11 @@ function GameMenu:OnOpenSettings()
         -- Use the exact same logic as the /cs slash command
         if Settings and Settings.OpenToCategory then
             -- Modern Settings API (Retail)
-            if self.parent.modules.config and self.parent.modules.config.settingsCategory then
-                Settings.OpenToCategory(self.parent.modules.config.settingsCategory.ID)
+            local cat = self.parent.modules.config and self.parent.modules.config.settingsCategory
+            if cat and cat.GetID then
+                Settings.OpenToCategory(cat:GetID())
             else
-                self.parent:Print("Settings panel not available. Please access B.O.L.T settings through Interface > AddOns.")
+                self.parent:Print("Settings panel not available. Open Interface > AddOns.")
             end
         elseif InterfaceOptionsFrame_OpenToCategory then
             -- Legacy Interface Options (Classic)

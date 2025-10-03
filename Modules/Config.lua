@@ -7,22 +7,23 @@ local ADDON_NAME, BOLT = ...
 local Config = {}
 
 function Config:OnInitialize()
+    self.widgets = {} -- Store widget references instead of creating globals
     self:CreateInterfaceOptionsPanel()
     -- Don't create standalone frame during init
     
     -- Register events for initial toy list population only
     self.eventFrame = CreateFrame("Frame")
     self.eventFrame:RegisterEvent("ADDON_LOADED")
+    self.eventFrame:RegisterEvent("TOYS_UPDATED")
     self.toyListPopulated = false -- Track if we've already populated the toy list
     self.eventFrame:SetScript("OnEvent", function(_, event, ...)
         if event == "ADDON_LOADED" then
             local addonName = ...
             if addonName == ADDON_NAME then
-                -- Delay toy list population to ensure game data is ready
-                C_Timer.After(2.0, function()
-                    self:PopulateToyListOnce()
-                end)
+                -- Let TOYS_UPDATED handle population
             end
+        elseif event == "TOYS_UPDATED" then
+            self:PopulateToyListOnce()
         end
     end)
 end
@@ -35,8 +36,8 @@ end
 function Config:CreateReloadIndicator(parent, anchorFrame)
     local indicator = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     indicator:SetPoint("LEFT", anchorFrame.Text, "RIGHT", 10, 0)
-    indicator:SetText("|cFFFF6B6B(Need reload)|r")
-    indicator:SetTextColor(1, 0.42, 0.42) -- Light red color
+    indicator:SetText("|cFFFF6B6B(Requires /reload)|r")
+    indicator:Hide() -- Hidden by default, show only when needed
     return indicator
 end
 
@@ -50,7 +51,7 @@ function Config:PopulateToyListOnce()
     if self.toyFrame then
         self:PopulateToyList()
         self.toyListPopulated = true
-        print("BOLT: Toy list populated successfully")
+        self.parent:Print("Toy list populated successfully")
     end
 end
 
@@ -59,9 +60,9 @@ function Config:CreateInterfaceOptionsPanel()
     local panel = CreateFrame("Frame", "BOLTOptionsPanel")
     panel.name = "B.O.L.T"
     
-    -- Add OnShow script to refresh checkbox states
+    -- Add OnShow script to refresh all UI states
     panel:SetScript("OnShow", function()
-        self:RefreshOptionsPanel()
+        self:RefreshAll()
     end)
     
     -- Create a scroll frame for the content
@@ -74,9 +75,9 @@ function Config:CreateInterfaceOptionsPanel()
     content:SetSize(scrollFrame:GetWidth() - 20, 1) -- Width minus scrollbar space, height will be set dynamically
     scrollFrame:SetScrollChild(content)
     
-    -- Store references for later use
-    self.scrollFrame = scrollFrame
-    self.scrollChild = content
+    -- Store references for later use (use distinct names to avoid collision with toy scroll frame)
+    self.optionsScrollFrame = scrollFrame
+    self.optionsScrollChild = content
     
     -- Title
     local title = content:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
@@ -97,12 +98,15 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
     
     -- Enable/Disable Game Menu Module
-    local gameMenuCheckbox = CreateFrame("CheckButton", "BOLTGameMenuCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local gameMenuCheckbox = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
     gameMenuCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
     gameMenuCheckbox.Text:SetText("Enable Game Menu Module")
+    self.widgets.gameMenuCheckbox = gameMenuCheckbox
     
     -- Add reload indicator
     local gameMenuReloadIndicator = self:CreateReloadIndicator(content, gameMenuCheckbox)
+    gameMenuReloadIndicator:Show() -- This setting requires reload
+    self.widgets.gameMenuReloadIndicator = gameMenuReloadIndicator
     
     gameMenuCheckbox:SetScript("OnShow", function()
         local enabled = self.parent:IsModuleEnabled("gameMenu")
@@ -120,12 +124,15 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
     
     -- Show Leave Group Button
-    local leaveGroupCheckbox = CreateFrame("CheckButton", "BOLTLeaveGroupCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local leaveGroupCheckbox = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
     leaveGroupCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     leaveGroupCheckbox.Text:SetText("Show Leave Group/Delve Button")
+    self.widgets.leaveGroupCheckbox = leaveGroupCheckbox
     
     -- Add reload indicator
     local leaveGroupReloadIndicator = self:CreateReloadIndicator(content, leaveGroupCheckbox)
+    leaveGroupReloadIndicator:Show() -- This setting requires reload
+    self.widgets.leaveGroupReloadIndicator = leaveGroupReloadIndicator
     
     leaveGroupCheckbox:SetScript("OnShow", function()
         leaveGroupCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showLeaveGroup"))
@@ -138,12 +145,15 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
     
     -- Show Reload UI Button
-    local reloadCheckbox = CreateFrame("CheckButton", "BOLTReloadCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local reloadCheckbox = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
     reloadCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     reloadCheckbox.Text:SetText("Show Reload UI Button")
+    self.widgets.reloadCheckbox = reloadCheckbox
     
     -- Add reload indicator
     local reloadUIReloadIndicator = self:CreateReloadIndicator(content, reloadCheckbox)
+    reloadUIReloadIndicator:Show() -- This setting requires reload
+    self.widgets.reloadUIReloadIndicator = reloadUIReloadIndicator
     
     reloadCheckbox:SetScript("OnShow", function()
         reloadCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showReloadButton"))
@@ -156,9 +166,10 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
 
     -- Show Group Tools (Ready/Countdown/Raid Marker)
-    local groupToolsCheckbox = CreateFrame("CheckButton", "BOLTGroupToolsCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local groupToolsCheckbox = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
     groupToolsCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     groupToolsCheckbox.Text:SetText("Show Group Tools (Ready/Countdown/Raid Marker)")
+    self.widgets.groupToolsCheckbox = groupToolsCheckbox
     groupToolsCheckbox:SetScript("OnShow", function()
         groupToolsCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "groupToolsEnabled"))
     end)
@@ -170,12 +181,14 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
 
     -- Raid Marker selection dropdown
-    local markerLabel = content:CreateFontString("BOLTRaidMarkerLabel", "OVERLAY", "GameFontNormal")
+    local markerLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     markerLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 70, yOffset)
     markerLabel:SetText("Raid marker for the button:")
+    self.widgets.raidMarkerLabel = markerLabel
 
-    local dropdown = CreateFrame("Frame", "BOLTRaidMarkerDropdown", content, "UIDropDownMenuTemplate")
+    local dropdown = CreateFrame("Frame", nil, content, "UIDropDownMenuTemplate")
     dropdown:SetPoint("TOPLEFT", markerLabel, "BOTTOMLEFT", -16, -6)
+    self.widgets.raidMarkerDropdown = dropdown
 
     local markerNames = {"Star","Circle","Diamond","Triangle","Moon","Square","Cross","Skull","Clear"}
 
@@ -214,9 +227,10 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 70
     
     -- Show Battle Text Toggles
-    local battleTextCheckbox = CreateFrame("CheckButton", "BOLTBattleTextCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local battleTextCheckbox = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
     battleTextCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     battleTextCheckbox.Text:SetText("Show Battle Text Toggles (Damage/Healing Numbers)")
+    self.widgets.battleTextCheckbox = battleTextCheckbox
     battleTextCheckbox:SetScript("OnShow", function()
         battleTextCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showBattleTextToggles"))
     end)
@@ -228,9 +242,10 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
     
     -- Show Volume Button
-    local volumeButtonCheckbox = CreateFrame("CheckButton", "BOLTVolumeButtonCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local volumeButtonCheckbox = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
     volumeButtonCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     volumeButtonCheckbox.Text:SetText("Show Volume Control Button")
+    self.widgets.volumeButtonCheckbox = volumeButtonCheckbox
     volumeButtonCheckbox:SetScript("OnShow", function()
         volumeButtonCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showVolumeButton"))
     end)
@@ -248,9 +263,10 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 25
     
     -- Keybinding button
-    local keybindButton = CreateFrame("Button", "BOLTVolumeKeybindButton", content, "UIPanelButtonTemplate")
+    local keybindButton = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
     keybindButton:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     keybindButton:SetSize(200, 25)
+    self.widgets.keybindButton = keybindButton
     
     local function UpdateKeybindButtonText()
         local key1, key2 = GetBindingKey("BOLT_TOGGLE_MASTER_VOLUME")
@@ -309,6 +325,9 @@ function Config:CreateInterfaceOptionsPanel()
                 return
             end
             
+            -- Normalize key to uppercase
+            key = key:upper()
+            
             -- Build the key combination
             local keyCombo = ""
             if IsControlKeyDown() then
@@ -348,10 +367,11 @@ function Config:CreateInterfaceOptionsPanel()
     end)
     
     -- Clear keybinding button
-    local clearKeybindButton = CreateFrame("Button", "BOLTVolumeClearKeybindButton", content, "UIPanelButtonTemplate")
+    local clearKeybindButton = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
     clearKeybindButton:SetPoint("LEFT", keybindButton, "RIGHT", 10, 0)
     clearKeybindButton:SetSize(80, 25)
     clearKeybindButton:SetText("Clear")
+    self.widgets.clearKeybindButton = clearKeybindButton
     clearKeybindButton:SetScript("OnClick", function()
         local key1, key2 = GetBindingKey("BOLT_TOGGLE_MASTER_VOLUME")
         if key1 then SetBinding(key1, nil) end
@@ -376,12 +396,15 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
     
     -- Enable/Disable Skyriding Module
-    local skyridingCheckbox = CreateFrame("CheckButton", "BOLTSkyridingCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local skyridingCheckbox = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
     skyridingCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
     skyridingCheckbox.Text:SetText("Enable Skyriding Module")
+    self.widgets.skyridingCheckbox = skyridingCheckbox
     
     -- Add reload indicator
     local skyridingReloadIndicator = self:CreateReloadIndicator(content, skyridingCheckbox)
+    skyridingReloadIndicator:Show() -- This setting requires reload
+    self.widgets.skyridingReloadIndicator = skyridingReloadIndicator
     
     skyridingCheckbox:SetScript("OnShow", function()
         local enabled = self.parent:IsModuleEnabled("skyriding")
@@ -399,9 +422,10 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
     
     -- Enable Pitch Control Checkbox
-    local pitchControlCheckbox = CreateFrame("CheckButton", "BOLTPitchControlCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local pitchControlCheckbox = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
     pitchControlCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     pitchControlCheckbox.Text:SetText("Enable pitch control (W/S for up/down while holding mouse)")
+    self.widgets.pitchControlCheckbox = pitchControlCheckbox
     pitchControlCheckbox:SetScript("OnShow", function()
         pitchControlCheckbox:SetChecked(self.parent:GetConfig("skyriding", "enablePitchControl"))
     end)
@@ -415,9 +439,10 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
     
     -- Invert Pitch Checkbox
-    local invertPitchCheckbox = CreateFrame("CheckButton", "BOLTInvertPitchCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local invertPitchCheckbox = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
     invertPitchCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 70, yOffset)
     invertPitchCheckbox.Text:SetText("Invert pitch (W=dive, S=climb)")
+    self.widgets.invertPitchCheckbox = invertPitchCheckbox
     invertPitchCheckbox:SetScript("OnShow", function()
         invertPitchCheckbox:SetChecked(self.parent:GetConfig("skyriding", "invertPitch"))
     end)
@@ -429,9 +454,10 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
     
     -- Toggle Mode Checkbox
-    local toggleModeCheckbox = CreateFrame("CheckButton", "BOLTToggleModeCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local toggleModeCheckbox = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
     toggleModeCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     toggleModeCheckbox.Text:SetText("Always-on mode (no mouse button required)")
+    self.widgets.toggleModeCheckbox = toggleModeCheckbox
     toggleModeCheckbox:SetScript("OnShow", function()
         toggleModeCheckbox:SetChecked(self.parent:GetConfig("skyriding", "toggleMode"))
     end)
@@ -466,12 +492,15 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
     
     -- Enable/Disable Playground Module
-    local playgroundCheckbox = CreateFrame("CheckButton", "BOLTPlaygroundCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local playgroundCheckbox = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
     playgroundCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 30, yOffset)
     playgroundCheckbox.Text:SetText("Enable Playground Module")
+    self.widgets.playgroundCheckbox = playgroundCheckbox
     
     -- Add reload indicator
     local playgroundReloadIndicator = self:CreateReloadIndicator(content, playgroundCheckbox)
+    playgroundReloadIndicator:Show() -- This setting requires reload
+    self.widgets.playgroundReloadIndicator = playgroundReloadIndicator
     
     playgroundCheckbox:SetScript("OnShow", function()
         local enabled = self.parent:IsModuleEnabled("playground")
@@ -489,12 +518,15 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
     
     -- Show Favorite Toy Button
-    local favoriteToyCheckbox = CreateFrame("CheckButton", "BOLTFavoriteToyCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local favoriteToyCheckbox = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
     favoriteToyCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     favoriteToyCheckbox.Text:SetText("Show Favorite Toy Button")
+    self.widgets.favoriteToyCheckbox = favoriteToyCheckbox
     
     -- Add reload indicator
     local favoriteToyReloadIndicator = self:CreateReloadIndicator(content, favoriteToyCheckbox)
+    favoriteToyReloadIndicator:Show() -- This setting requires reload
+    self.widgets.favoriteToyReloadIndicator = favoriteToyReloadIndicator
     
     favoriteToyCheckbox:SetScript("OnShow", function()
         favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground", "showFavoriteToy"))
@@ -509,38 +541,43 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
     
     -- Choose Toy Button (only show if feature is enabled)
-    local chooseToyButton = CreateFrame("Button", "BOLTChooseToyButton", content, "UIPanelButtonTemplate")
+    local chooseToyButton = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
     chooseToyButton:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     chooseToyButton:SetSize(120, 25)
     chooseToyButton:SetText("Choose Toy")
     chooseToyButton:SetScript("OnClick", function()
         self:ShowToySelectionPopup()
     end)
+    self.widgets.chooseToyButton = chooseToyButton
     
     -- Current selected toy display (inline with button)
-    local currentToyDisplay = CreateFrame("Frame", "BOLTCurrentToyDisplay", content)
+    local currentToyDisplay = CreateFrame("Frame", nil, content)
     currentToyDisplay:SetPoint("LEFT", chooseToyButton, "RIGHT", 10, 0)
     currentToyDisplay:SetSize(250, 25)
+    self.widgets.currentToyDisplay = currentToyDisplay
     
     -- Toy icon
-    local toyIcon = currentToyDisplay:CreateTexture("BOLTCurrentToyIcon", "ARTWORK")
+    local toyIcon = currentToyDisplay:CreateTexture(nil, "ARTWORK")
     toyIcon:SetPoint("LEFT", currentToyDisplay, "LEFT", 0, 0)
     toyIcon:SetSize(20, 20)
     toyIcon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+    self.widgets.currentToyIcon = toyIcon
     
     -- Toy name text
-    local toyText = currentToyDisplay:CreateFontString("BOLTCurrentToyText", "OVERLAY", "GameFontHighlight")
+    local toyText = currentToyDisplay:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     toyText:SetPoint("LEFT", toyIcon, "RIGHT", 5, 0)
     toyText:SetPoint("RIGHT", currentToyDisplay, "RIGHT", 0, 0)
     toyText:SetJustifyH("LEFT")
     toyText:SetText("None selected")
+    self.widgets.currentToyText = toyText
     
     yOffset = yOffset - 35
 
     -- Show FPS Counter
-    local fpsCheckbox = CreateFrame("CheckButton", "BOLTFPSCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local fpsCheckbox = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
     fpsCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     fpsCheckbox.Text:SetText("Show FPS Counter")
+    self.widgets.fpsCheckbox = fpsCheckbox
     fpsCheckbox:SetScript("OnShow", function()
         fpsCheckbox:SetChecked(self.parent:GetConfig("playground", "showFPS"))
     end)
@@ -558,9 +595,10 @@ function Config:CreateInterfaceOptionsPanel()
     yOffset = yOffset - 30
 
     -- Show Speedometer (speed %)
-    local speedometerCheckbox = CreateFrame("CheckButton", "BOLTSpeedometerCheckbox", content, "InterfaceOptionsCheckButtonTemplate")
+    local speedometerCheckbox = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
     speedometerCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     speedometerCheckbox.Text:SetText("Show Speedometer (speed %)")
+    self.widgets.speedometerCheckbox = speedometerCheckbox
     speedometerCheckbox:SetScript("OnShow", function()
         speedometerCheckbox:SetChecked(self.parent:GetConfig("playground", "showSpeedometer"))
     end)
@@ -579,12 +617,14 @@ function Config:CreateInterfaceOptionsPanel()
 
 
     -- Stats Position Dropdown
-    local statsPositionLabel = content:CreateFontString("BOLTStatsPositionLabel", "OVERLAY", "GameFontNormal")
+    local statsPositionLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     statsPositionLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 70, yOffset)
     statsPositionLabel:SetText("Stats position:")
+    self.widgets.statsPositionLabel = statsPositionLabel
 
-    local statsPositionDropdown = CreateFrame("Frame", "BOLTStatsPositionDropdown", content, "UIDropDownMenuTemplate")
+    local statsPositionDropdown = CreateFrame("Frame", nil, content, "UIDropDownMenuTemplate")
     statsPositionDropdown:SetPoint("TOPLEFT", statsPositionLabel, "BOTTOMLEFT", -16, -6)
+    self.widgets.statsPositionDropdown = statsPositionDropdown
 
     local positionOptions = {"Bottom Left", "Bottom Right", "Top Left", "Top Right"}
     local positionValues = {"BOTTOMLEFT", "BOTTOMRIGHT", "TOPLEFT", "TOPRIGHT"}
@@ -678,67 +718,69 @@ function Config:CreateInterfaceOptionsPanel()
     self.optionsPanel = panel
 end
 
+-- Convenience method to refresh all UI states
+function Config:RefreshAll()
+    self:RefreshOptionsPanel()
+    self:UpdateGameMenuChildControls()
+    self:UpdatePlaygroundChildControls()
+    self:UpdateSkyridingChildControls()
+    self:UpdateCurrentToyDisplay()
+end
+
 function Config:RefreshOptionsPanel()
     -- Small delay to ensure UI is ready
     C_Timer.After(0.05, function()
+        local w = self.widgets
+        
         -- Refresh all checkbox states in the main options panel
-        local gameMenuCheckbox = _G["BOLTGameMenuCheckbox"]
-        if gameMenuCheckbox then
+        if w.gameMenuCheckbox then
             local enabled = self.parent:IsModuleEnabled("gameMenu")
-            gameMenuCheckbox:SetChecked(enabled)
+            w.gameMenuCheckbox:SetChecked(enabled)
         end
         
-        local leaveGroupCheckbox = _G["BOLTLeaveGroupCheckbox"]
-        if leaveGroupCheckbox then
-            leaveGroupCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showLeaveGroup"))
+        if w.leaveGroupCheckbox then
+            w.leaveGroupCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showLeaveGroup"))
         end
         
-        local reloadCheckbox = _G["BOLTReloadCheckbox"]
-        if reloadCheckbox then
-            reloadCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showReloadButton"))
+        if w.reloadCheckbox then
+            w.reloadCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showReloadButton"))
         end
 
-        local groupToolsCheckbox = _G["BOLTGroupToolsCheckbox"]
-        if groupToolsCheckbox then
-            groupToolsCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "groupToolsEnabled"))
+        if w.groupToolsCheckbox then
+            w.groupToolsCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "groupToolsEnabled"))
         end
-        local raidMarkerDropdown = _G["BOLTRaidMarkerDropdown"]
-        if raidMarkerDropdown then
+        
+        if w.raidMarkerDropdown then
             local idx = self.parent:GetConfig("gameMenu", "raidMarkerIndex") or 1
             -- Set the text again in case marker changed elsewhere
             if idx == 0 then
-                UIDropDownMenu_SetText(raidMarkerDropdown, "Clear (no marker)")
+                UIDropDownMenu_SetText(w.raidMarkerDropdown, "Clear (no marker)")
             else
                 local names = {"Star","Circle","Diamond","Triangle","Moon","Square","Cross","Skull"}
-                UIDropDownMenu_SetText(raidMarkerDropdown, names[idx] or "Star")
+                UIDropDownMenu_SetText(w.raidMarkerDropdown, names[idx] or "Star")
             end
         end
         
-        local playgroundCheckbox = _G["BOLTPlaygroundCheckbox"]
-        if playgroundCheckbox then
+        if w.playgroundCheckbox then
             local enabled = self.parent:IsModuleEnabled("playground")
-            playgroundCheckbox:SetChecked(enabled)
+            w.playgroundCheckbox:SetChecked(enabled)
         end
         
-        local favoriteToyCheckbox = _G["BOLTFavoriteToyCheckbox"]
-        if favoriteToyCheckbox then
-            favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground", "showFavoriteToy"))
+        if w.favoriteToyCheckbox then
+            w.favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground", "showFavoriteToy"))
         end
         
-        local skyridingCheckbox = _G["BOLTSkyridingCheckbox"]
-        if skyridingCheckbox then
+        if w.skyridingCheckbox then
             local enabled = self.parent:IsModuleEnabled("skyriding")
-            skyridingCheckbox:SetChecked(enabled)
+            w.skyridingCheckbox:SetChecked(enabled)
         end
         
-        local pitchControlCheckbox = _G["BOLTPitchControlCheckbox"]
-        if pitchControlCheckbox then
-            pitchControlCheckbox:SetChecked(self.parent:GetConfig("skyriding", "enablePitchControl"))
+        if w.pitchControlCheckbox then
+            w.pitchControlCheckbox:SetChecked(self.parent:GetConfig("skyriding", "enablePitchControl"))
         end
         
-        local invertPitchCheckbox = _G["BOLTInvertPitchCheckbox"]
-        if invertPitchCheckbox then
-            invertPitchCheckbox:SetChecked(self.parent:GetConfig("skyriding", "invertPitch"))
+        if w.invertPitchCheckbox then
+            w.invertPitchCheckbox:SetChecked(self.parent:GetConfig("skyriding", "invertPitch"))
         end
         
         -- Update toy selection frame
@@ -765,130 +807,124 @@ end
 -- Update child control states based on parent module status
 function Config:UpdateGameMenuChildControls()
     local gameMenuEnabled = self.parent:IsModuleEnabled("gameMenu")
-    
-    -- Get references to child controls
-    local leaveGroupCheckbox = _G["BOLTLeaveGroupCheckbox"]
-    local reloadCheckbox = _G["BOLTReloadCheckbox"]
-    local groupToolsCheckbox = _G["BOLTGroupToolsCheckbox"]
-    local battleTextCheckbox = _G["BOLTBattleTextCheckbox"]
-    local volumeButtonCheckbox = _G["BOLTVolumeButtonCheckbox"]
-    local raidMarkerDropdown = _G["BOLTRaidMarkerDropdown"]
-    local raidMarkerLabel = _G["BOLTRaidMarkerLabel"]
+    local w = self.widgets
     
     -- Enable/disable child controls based on parent module
-    if leaveGroupCheckbox then
-        leaveGroupCheckbox:SetEnabled(gameMenuEnabled)
-        leaveGroupCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
+    if w.leaveGroupCheckbox then
+        w.leaveGroupCheckbox:SetEnabled(gameMenuEnabled)
+        w.leaveGroupCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
     end
     
-    if reloadCheckbox then
-        reloadCheckbox:SetEnabled(gameMenuEnabled)
-        reloadCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
+    if w.reloadCheckbox then
+        w.reloadCheckbox:SetEnabled(gameMenuEnabled)
+        w.reloadCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
     end
-    if groupToolsCheckbox then
-        groupToolsCheckbox:SetEnabled(gameMenuEnabled)
-        groupToolsCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
+    
+    if w.groupToolsCheckbox then
+        w.groupToolsCheckbox:SetEnabled(gameMenuEnabled)
+        w.groupToolsCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
     end
-    if battleTextCheckbox then
-        battleTextCheckbox:SetEnabled(gameMenuEnabled)
-        battleTextCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
+    
+    if w.battleTextCheckbox then
+        w.battleTextCheckbox:SetEnabled(gameMenuEnabled)
+        w.battleTextCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
     end
-    if volumeButtonCheckbox then
-        volumeButtonCheckbox:SetEnabled(gameMenuEnabled)
-        volumeButtonCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
+    
+    if w.volumeButtonCheckbox then
+        w.volumeButtonCheckbox:SetEnabled(gameMenuEnabled)
+        w.volumeButtonCheckbox:SetAlpha(gameMenuEnabled and 1.0 or 0.5)
     end
+    
     local groupToolsEnabled = self.parent:GetConfig("gameMenu", "groupToolsEnabled") and gameMenuEnabled
-    if raidMarkerDropdown then
+    if w.raidMarkerDropdown then
         if groupToolsEnabled then
-            if UIDropDownMenu_EnableDropDown then UIDropDownMenu_EnableDropDown(raidMarkerDropdown) end
-            raidMarkerDropdown:SetAlpha(1.0)
+            if UIDropDownMenu_EnableDropDown then
+                UIDropDownMenu_EnableDropDown(w.raidMarkerDropdown)
+            end
+            w.raidMarkerDropdown:SetAlpha(1.0)
         else
-            if UIDropDownMenu_DisableDropDown then UIDropDownMenu_DisableDropDown(raidMarkerDropdown) end
-            raidMarkerDropdown:SetAlpha(0.5)
+            if UIDropDownMenu_DisableDropDown then
+                UIDropDownMenu_DisableDropDown(w.raidMarkerDropdown)
+            end
+            w.raidMarkerDropdown:SetAlpha(0.5)
         end
     end
-    if raidMarkerLabel then
-        raidMarkerLabel:SetAlpha(groupToolsEnabled and 1.0 or 0.5)
+    
+    if w.raidMarkerLabel then
+        w.raidMarkerLabel:SetAlpha(groupToolsEnabled and 1.0 or 0.5)
     end
 end
 
 -- Update child control states for Playground module
 function Config:UpdatePlaygroundChildControls()
     local playgroundEnabled = self.parent:IsModuleEnabled("playground")
-    
-    -- Get references to child controls
-    local favoriteToyCheckbox = _G["BOLTFavoriteToyCheckbox"]
-    local chooseToyButton = _G["BOLTChooseToyButton"]
-    local currentToyDisplay = _G["BOLTCurrentToyDisplay"]
-    local fpsCheckbox = _G["BOLTFPSCheckbox"]
-    local speedometerCheckbox = _G["BOLTSpeedometerCheckbox"]
-    local statsPositionLabel = _G["BOLTStatsPositionLabel"]
-    local statsPositionDropdown = _G["BOLTStatsPositionDropdown"]
+    local w = self.widgets
     
     -- Enable/disable child controls based on parent module
-    if favoriteToyCheckbox then
-        favoriteToyCheckbox:SetEnabled(playgroundEnabled)
-        favoriteToyCheckbox:SetAlpha(playgroundEnabled and 1.0 or 0.5)
+    if w.favoriteToyCheckbox then
+        w.favoriteToyCheckbox:SetEnabled(playgroundEnabled)
+        w.favoriteToyCheckbox:SetAlpha(playgroundEnabled and 1.0 or 0.5)
     end
 
-    if fpsCheckbox then
-        fpsCheckbox:SetEnabled(playgroundEnabled)
-        fpsCheckbox:SetAlpha(playgroundEnabled and 1.0 or 0.5)
+    if w.fpsCheckbox then
+        w.fpsCheckbox:SetEnabled(playgroundEnabled)
+        w.fpsCheckbox:SetAlpha(playgroundEnabled and 1.0 or 0.5)
     end
 
-    if speedometerCheckbox then
-        speedometerCheckbox:SetEnabled(playgroundEnabled)
-        speedometerCheckbox:SetAlpha(playgroundEnabled and 1.0 or 0.5)
+    if w.speedometerCheckbox then
+        w.speedometerCheckbox:SetEnabled(playgroundEnabled)
+        w.speedometerCheckbox:SetAlpha(playgroundEnabled and 1.0 or 0.5)
     end
 
     -- Show/hide stats position controls based on whether FPS or speedometer is enabled
     local showStatsControls = playgroundEnabled and (self.parent:GetConfig("playground", "showFPS") or self.parent:GetConfig("playground", "showSpeedometer"))
     
-    if statsPositionLabel then
+    if w.statsPositionLabel then
         if showStatsControls then
-            statsPositionLabel:Show()
+            w.statsPositionLabel:Show()
         else
-            statsPositionLabel:Hide()
+            w.statsPositionLabel:Hide()
         end
     end
     
-    if statsPositionDropdown then
+    if w.statsPositionDropdown then
         if showStatsControls then
-            statsPositionDropdown:Show()
-            UIDropDownMenu_EnableDropDown(statsPositionDropdown)
+            w.statsPositionDropdown:Show()
+            if UIDropDownMenu_EnableDropDown then
+                UIDropDownMenu_EnableDropDown(w.statsPositionDropdown)
+            end
         else
-            statsPositionDropdown:Hide()
+            w.statsPositionDropdown:Hide()
         end
     end
     
     -- Show/hide choose toy button and current toy display based on both module and feature being enabled
     local favoriteToyEnabled = playgroundEnabled and self.parent:GetConfig("playground", "showFavoriteToy")
     
-    if chooseToyButton then
+    if w.chooseToyButton then
         if favoriteToyEnabled then
-            chooseToyButton:Show()
-            chooseToyButton:SetEnabled(true)
+            w.chooseToyButton:Show()
+            w.chooseToyButton:SetEnabled(true)
         else
-            chooseToyButton:Hide()
+            w.chooseToyButton:Hide()
         end
     end
     
-    if currentToyDisplay then
+    if w.currentToyDisplay then
         if favoriteToyEnabled then
-            currentToyDisplay:Show()
+            w.currentToyDisplay:Show()
             -- Update the current toy display
             self:UpdateCurrentToyDisplay()
         else
-            currentToyDisplay:Hide()
+            w.currentToyDisplay:Hide()
         end
     end
 end
 
 function Config:UpdateCurrentToyDisplay()
-    local toyIcon = _G["BOLTCurrentToyIcon"]
-    local toyText = _G["BOLTCurrentToyText"]
+    local w = self.widgets
     
-    if not toyIcon or not toyText then
+    if not w.currentToyIcon or not w.currentToyText then
         return
     end
     
@@ -897,18 +933,18 @@ function Config:UpdateCurrentToyDisplay()
     if selectedToyId and PlayerHasToy(selectedToyId) then
         local _, toyName, toyIconPath = C_ToyBox.GetToyInfo(selectedToyId)
         if toyName and toyName ~= "" then
-            _G["BOLTCurrentToyIcon"]:SetTexture(toyIconPath)
-            toyText:SetText(toyName)
-            toyText:SetTextColor(1, 1, 1) -- White text for selected toy
+            w.currentToyIcon:SetTexture(toyIconPath)
+            w.currentToyText:SetText(toyName)
+            w.currentToyText:SetTextColor(1, 1, 1) -- White text for selected toy
         else
-            _G["BOLTCurrentToyIcon"]:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-            toyText:SetText("Unknown toy")
-            toyText:SetTextColor(1, 0.8, 0) -- Yellow text for unknown
+            w.currentToyIcon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+            w.currentToyText:SetText("Unknown toy")
+            w.currentToyText:SetTextColor(1, 0.8, 0) -- Yellow text for unknown
         end
     else
-        _G["BOLTCurrentToyIcon"]:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-        toyText:SetText("None selected")
-        toyText:SetTextColor(0.5, 0.5, 0.5) -- Gray text for none selected
+        w.currentToyIcon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+        w.currentToyText:SetText("None selected")
+        w.currentToyText:SetTextColor(0.5, 0.5, 0.5) -- Gray text for none selected
     end
 end
 
@@ -916,28 +952,24 @@ end
 function Config:UpdateSkyridingChildControls()
     local skyridingEnabled = self.parent:IsModuleEnabled("skyriding")
     local pitchControlEnabled = self.parent:GetConfig("skyriding", "enablePitchControl")
-    
-    -- Get references to child controls
-    local pitchControlCheckbox = _G["BOLTPitchControlCheckbox"]
-    local invertPitchCheckbox = _G["BOLTInvertPitchCheckbox"]
-    local toggleModeCheckbox = _G["BOLTToggleModeCheckbox"]
+    local w = self.widgets
     
     -- Enable/disable child controls based on parent module
-    if pitchControlCheckbox then
-        pitchControlCheckbox:SetEnabled(skyridingEnabled)
-        pitchControlCheckbox:SetAlpha(skyridingEnabled and 1.0 or 0.5)
+    if w.pitchControlCheckbox then
+        w.pitchControlCheckbox:SetEnabled(skyridingEnabled)
+        w.pitchControlCheckbox:SetAlpha(skyridingEnabled and 1.0 or 0.5)
     end
     
-    if invertPitchCheckbox then
+    if w.invertPitchCheckbox then
         -- Invert pitch is only available when both skyriding and pitch control are enabled
         local shouldEnable = skyridingEnabled and pitchControlEnabled
-        invertPitchCheckbox:SetEnabled(shouldEnable)
-        invertPitchCheckbox:SetAlpha(shouldEnable and 1.0 or 0.5)
+        w.invertPitchCheckbox:SetEnabled(shouldEnable)
+        w.invertPitchCheckbox:SetAlpha(shouldEnable and 1.0 or 0.5)
     end
     
-    if toggleModeCheckbox then
-        toggleModeCheckbox:SetEnabled(skyridingEnabled)
-        toggleModeCheckbox:SetAlpha(skyridingEnabled and 1.0 or 0.5)
+    if w.toggleModeCheckbox then
+        w.toggleModeCheckbox:SetEnabled(skyridingEnabled)
+        w.toggleModeCheckbox:SetAlpha(skyridingEnabled and 1.0 or 0.5)
     end
 end
 
@@ -1068,14 +1100,14 @@ function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
     scrollFrame:SetScrollChild(scrollChild)
     scrollChild:SetSize(370, 1) -- Height will be set dynamically
     
-    -- Store references for later use
+    -- Store references for later use (use distinct names to avoid collision with options scroll frame)
     self.toyFrame = toyFrame
     self.searchBox = searchBox
     self.currentToyButton = currentToy
     self.currentToyIcon = currentIcon
     self.currentToyText = currentText
-    self.scrollFrame = scrollFrame
-    self.scrollChild = scrollChild
+    self.toyScrollFrame = scrollFrame
+    self.toyScrollChild = scrollChild
     self.toyButtons = {}
     
     -- Set up frame show handler to populate toys when visible
@@ -1092,14 +1124,14 @@ function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
 end
 
 function Config:PopulateToyList()
-    if not self.scrollChild then 
+    if not self.toyScrollChild then 
         return 
     end
     
     -- Clear existing buttons
     for _, button in pairs(self.toyButtons) do
         button:Hide()
-        button:SetParent(nil)
+        -- Keep parented for reuse
     end
     self.toyButtons = {}
     
@@ -1116,7 +1148,8 @@ function Config:PopulateToyList()
                 table.insert(self.allToys, {
                     id = toyId,
                     name = toyName,
-                    icon = icon
+                    icon = icon,
+                    lcname = toyName:lower() -- Cache lowercased name for performance
                 })
                 ownedCount = ownedCount + 1
             end
@@ -1130,17 +1163,17 @@ function Config:PopulateToyList()
 end
 
 function Config:FilterToyList()
-    if not self.scrollChild or not self.allToys then return end
+    if not self.toyScrollChild or not self.allToys then return end
     
     local searchText = ""
     if self.searchBox then
         searchText = self.searchBox:GetText():lower()
     end
     
-    -- Filter toys based on search
+    -- Filter toys based on search (using cached lowercased names for performance)
     local filteredToys = {}
     for _, toy in ipairs(self.allToys) do
-        if searchText == "" or toy.name:lower():find(searchText, 1, true) then
+        if searchText == "" or toy.lcname:find(searchText, 1, true) then
             table.insert(filteredToys, toy)
         end
     end
@@ -1152,7 +1185,7 @@ function Config:FilterToyList()
     for i, toy in ipairs(filteredToys) do
         local button = self.toyButtons[i]
         if not button then
-            button = CreateFrame("Button", nil, self.scrollChild)
+            button = CreateFrame("Button", nil, self.toyScrollChild)
             button:SetSize(360, buttonHeight)
             
             -- No background - cleaner look
@@ -1179,7 +1212,7 @@ function Config:FilterToyList()
             self.toyButtons[i] = button
         end
         
-        button:SetPoint("TOPLEFT", self.scrollChild, "TOPLEFT", 0, -yOffset)
+        button:SetPoint("TOPLEFT", self.toyScrollChild, "TOPLEFT", 0, -yOffset)
         button.icon:SetTexture(toy.icon)
         button.text:SetText(toy.name)
         
@@ -1204,7 +1237,7 @@ function Config:FilterToyList()
     end
     
     -- Update scroll child height
-    self.scrollChild:SetHeight(math.max(yOffset, 1))
+    self.toyScrollChild:SetHeight(math.max(yOffset, 1))
 end
 
 function Config:UpdateToySelection()
