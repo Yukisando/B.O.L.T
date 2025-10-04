@@ -72,6 +72,9 @@ function Playground:OnEnable()
     
     -- Initialize special gamemode functionality
     self:InitializeSpecialGamemode()
+    
+    -- Register the copy mount slash command
+    self:RegisterCopyMountCommand()
 end
 
 function Playground:OnDisable()
@@ -506,5 +509,172 @@ function Playground:ToggleSpecialGamemode(enabled)
     self.parent:SetConfig(enabled, "playground", "allowSpecialGamemode")
 end
 
+-- Mount Copy Feature
+-- Gets the mount spell ID that the target unit is currently using
+function Playground:GetTargetMountSpellID()
+    if not UnitExists("target") then
+        return nil
+    end
+    
+    -- Use UnitAura to check all buffs on the target
+    local i = 1
+    while true do
+        local auraData = C_UnitAuras and C_UnitAuras.GetAuraDataByIndex("target", i, "HELPFUL")
+        if not auraData then
+            -- Try old API if new one doesn't exist or we've run out of auras
+            local name, icon, count, debuffType, duration, expirationTime, source, isStealable, 
+                  nameplateShowPersonal, spellId = UnitAura("target", i, "HELPFUL")
+            
+            if not name then
+                break
+            end
+            
+            -- Check if this aura is a mount
+            if spellId and C_MountJournal and C_MountJournal.GetMountFromSpell then
+                local mountID = C_MountJournal.GetMountFromSpell(spellId)
+                if mountID then
+                    return spellId, mountID
+                end
+            end
+        else
+            -- New API (Dragonflight+)
+            if auraData.spellId and C_MountJournal and C_MountJournal.GetMountFromSpell then
+                local mountID = C_MountJournal.GetMountFromSpell(auraData.spellId)
+                if mountID then
+                    return auraData.spellId, mountID
+                end
+            end
+        end
+        
+        i = i + 1
+        if i > 40 then break end -- Safety limit
+    end
+    
+    return nil
+end
+
+-- Checks if the player knows a specific mount
+function Playground:PlayerKnowsMount(mountID)
+    if not mountID or not C_MountJournal then
+        return false
+    end
+    
+    -- Get mount info to check if player has it
+    local name, spellID, icon, isActive, isUsable, sourceType, isFavorite, 
+          isFactionSpecific, faction, shouldHideOnChar, isCollected = C_MountJournal.GetMountInfoByID(mountID)
+    
+    return isCollected == true
+end
+
+-- Gets the spell name for a mount
+function Playground:GetMountSpellName(spellID)
+    if not spellID then
+        return nil
+    end
+    
+    -- Use modern API if available, fallback to old API
+    local spellName
+    if C_Spell and C_Spell.GetSpellName then
+        spellName = C_Spell.GetSpellName(spellID)
+    elseif GetSpellInfo then
+        spellName = GetSpellInfo(spellID)
+    end
+    
+    return spellName
+end
+
+-- Tries to copy the target's mount, prints messages about the attempt
+function Playground:TryCopyTargetMount()
+    -- Check if feature is enabled
+    if not self.parent:GetConfig("playground", "copyTargetMount") then
+        return false
+    end
+    
+    -- Can't mount in combat
+    if InCombatLockdown() then
+        self.parent:Print("Cannot copy mount while in combat!")
+        return false
+    end
+    
+    -- Check for target
+    if not UnitExists("target") then
+        self.parent:Print("No target selected!")
+        return false
+    end
+    
+    -- Get target's mount
+    local spellID, mountID = self:GetTargetMountSpellID()
+    
+    if not spellID or not mountID then
+        -- Target doesn't have a mount or we couldn't detect it
+        self.parent:Print("Target is not on a mount!")
+        return false
+    end
+    
+    -- Check if player knows this mount
+    if not self:PlayerKnowsMount(mountID) then
+        -- Player doesn't have this mount
+        local mountName = self:GetMountSpellName(spellID) or "Unknown Mount"
+        self.parent:Print("You don't have " .. mountName .. "!")
+        return false
+    end
+    
+    -- Get the mount name for the message
+    local mountName = self:GetMountSpellName(spellID) or "Unknown Mount"
+    
+    -- If player is already mounted, dismount first
+    if IsMounted() then
+        C_MountJournal.Dismiss()
+    end
+    
+    -- Summon the mount using the mount ID
+    C_MountJournal.SummonByID(mountID)
+    self.parent:Print("Summoning " .. mountName .. " (copying target)")
+    
+    return true
+end
+
+-- Create a slash command for manual mount copying
+function Playground:RegisterCopyMountCommand()
+    SLASH_BOLTCOPYMOUNT1 = "/copymount"
+    SLASH_BOLTCOPYMOUNT2 = "/cm"
+    
+    SlashCmdList["BOLTCOPYMOUNT"] = function(msg)
+        if not self.parent:IsModuleEnabled("playground") then
+            self.parent:Print("Playground module is not enabled!")
+            return
+        end
+        
+        if not self.parent:GetConfig("playground", "copyTargetMount") then
+            self.parent:Print("Copy Target Mount feature is not enabled! Enable it in Interface > AddOns > B.O.L.T")
+            return
+        end
+        
+        self:TryCopyTargetMount()
+    end
+end
+
 -- Register the module
 BOLT:RegisterModule("playground", Playground)
+
+-- Global function for keybinding
+function BOLT_CopyTargetMount()
+    if not BOLT or not BOLT.modules or not BOLT.modules.playground then
+        return
+    end
+    
+    local playground = BOLT.modules.playground
+    
+    -- Check if module is enabled
+    if not playground.parent:IsModuleEnabled("playground") then
+        return
+    end
+    
+    -- Check if feature is enabled
+    if not playground.parent:GetConfig("playground", "copyTargetMount") then
+        return
+    end
+    
+    -- Try to copy the target's mount
+    playground:TryCopyTargetMount()
+end

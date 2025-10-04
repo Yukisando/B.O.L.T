@@ -29,6 +29,7 @@ BOLT.defaults = {
             showFPS = true,
             showSpeedometer = true,
             statsPosition = "BOTTOMLEFT", -- Default to bottom left corner
+            copyTargetMount = false, -- When enabled, summon random mount copies target's mount if known
         },
         skyriding = {
             enabled = false,

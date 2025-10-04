@@ -2,4 +2,7 @@
 	<Binding name="BOLT_TOGGLE_MASTER_VOLUME" category="B.O.L.T">
 		BOLT_ToggleMasterVolume()
 	</Binding>
+	<Binding name="BOLT_COPY_TARGET_MOUNT" category="B.O.L.T">
+		BOLT_CopyTargetMount()
+	</Binding>
 </Bindings>

@@ -668,6 +668,168 @@ function Config:CreateInterfaceOptionsPanel()
     end)
 
     yOffset = yOffset - 70
+    
+    -- Copy Target Mount Feature
+    local copyTargetMountCheckbox = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    copyTargetMountCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
+    copyTargetMountCheckbox.Text:SetText("Enable Copy Target Mount")
+    self.widgets.copyTargetMountCheckbox = copyTargetMountCheckbox
+    copyTargetMountCheckbox:SetScript("OnShow", function()
+        copyTargetMountCheckbox:SetChecked(self.parent:GetConfig("playground", "copyTargetMount"))
+    end)
+    copyTargetMountCheckbox:SetScript("OnClick", function()
+        local enabled = copyTargetMountCheckbox:GetChecked()
+        self.parent:SetConfig(enabled, "playground", "copyTargetMount")
+        self.parent:Print("Copy Target Mount " .. (enabled and "enabled" or "disabled") .. ".")
+    end)
+    yOffset = yOffset - 30
+    
+    -- Add description text for the feature
+    local copyMountDesc = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    copyMountDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 70, yOffset)
+    copyMountDesc:SetText("Copies your target's mount if you have it learned. Use keybind or /copymount command.")
+    copyMountDesc:SetTextColor(0.7, 0.7, 0.7)
+    copyMountDesc:SetWidth(500)
+    copyMountDesc:SetJustifyH("LEFT")
+    copyMountDesc:SetWordWrap(true)
+    self.widgets.copyMountDesc = copyMountDesc
+    yOffset = yOffset - 30
+    
+    -- Keybinding section for copy target mount
+    local copyMountKeybindingLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    copyMountKeybindingLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 70, yOffset)
+    copyMountKeybindingLabel:SetText("Copy Target Mount Keybinding:")
+    self.widgets.copyMountKeybindingLabel = copyMountKeybindingLabel
+    yOffset = yOffset - 25
+    
+    -- Keybinding button
+    local copyMountKeybindButton = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+    copyMountKeybindButton:SetPoint("TOPLEFT", content, "TOPLEFT", 70, yOffset)
+    copyMountKeybindButton:SetSize(200, 25)
+    self.widgets.copyMountKeybindButton = copyMountKeybindButton
+    
+    local function UpdateCopyMountKeybindButtonText()
+        local key1, key2 = GetBindingKey("BOLT_COPY_TARGET_MOUNT")
+        if key1 then
+            local displayText = key1:gsub("%-", " + ")
+            if key2 then
+                displayText = displayText .. ", " .. key2:gsub("%-", " + ")
+            end
+            copyMountKeybindButton:SetText(displayText)
+        else
+            copyMountKeybindButton:SetText("Click to bind")
+        end
+    end
+    
+    -- Store the update function for refresh
+    self.UpdateCopyMountKeybindButtonText = UpdateCopyMountKeybindButtonText
+    
+    -- Refresh on show
+    copyMountKeybindButton:SetScript("OnShow", function()
+        UpdateCopyMountKeybindButtonText()
+    end)
+    
+    UpdateCopyMountKeybindButtonText()
+    
+    local copyMountBindingFrame = nil
+    local isCopyMountBinding = false
+    
+    copyMountKeybindButton:SetScript("OnClick", function(self)
+        if isCopyMountBinding then return end
+        
+        isCopyMountBinding = true
+        self:SetText("Press a key...")
+        
+        -- Create invisible frame to capture key input
+        if not copyMountBindingFrame then
+            copyMountBindingFrame = CreateFrame("Frame", nil, UIParent)
+            copyMountBindingFrame:SetFrameStrata("DIALOG")
+            copyMountBindingFrame:EnableKeyboard(true)
+            copyMountBindingFrame:SetPropagateKeyboardInput(false)
+        end
+        
+        copyMountBindingFrame:SetScript("OnKeyDown", function(frame, key)
+            -- Allow ESC to cancel
+            if key == "ESCAPE" then
+                isCopyMountBinding = false
+                copyMountBindingFrame:Hide()
+                copyMountBindingFrame:SetScript("OnKeyDown", nil)
+                UpdateCopyMountKeybindButtonText()
+                return
+            end
+            
+            -- Ignore modifier keys by themselves
+            if key == "LSHIFT" or key == "RSHIFT" or 
+               key == "LCTRL" or key == "RCTRL" or 
+               key == "LALT" or key == "RALT" then
+                return
+            end
+            
+            -- Normalize key to uppercase
+            key = key:upper()
+            
+            -- Build the key combination
+            local keyCombo = ""
+            if IsControlKeyDown() then
+                keyCombo = "CTRL-"
+            end
+            if IsAltKeyDown() then
+                keyCombo = keyCombo .. "ALT-"
+            end
+            if IsShiftKeyDown() then
+                keyCombo = keyCombo .. "SHIFT-"
+            end
+            keyCombo = keyCombo .. key
+            
+            -- Clear existing bindings for this action
+            local key1, key2 = GetBindingKey("BOLT_COPY_TARGET_MOUNT")
+            if key1 then SetBinding(key1, nil) end
+            if key2 then SetBinding(key2, nil) end
+            
+            -- Set the new binding
+            local result = SetBinding(keyCombo, "BOLT_COPY_TARGET_MOUNT")
+            if result then
+                SaveBindings(GetCurrentBindingSet())
+                copyMountKeybindButton:SetText(keyCombo:gsub("%-", " + "))
+                C_Timer.After(0.5, UpdateCopyMountKeybindButtonText)
+            else
+                copyMountKeybindButton:SetText("Binding failed - try another key")
+                C_Timer.After(1.5, UpdateCopyMountKeybindButtonText)
+            end
+            
+            isCopyMountBinding = false
+            copyMountBindingFrame:Hide()
+            copyMountBindingFrame:SetScript("OnKeyDown", nil)
+        end)
+        
+        copyMountBindingFrame:Show()
+        copyMountBindingFrame:SetFocus()
+    end)
+    
+    -- Clear keybinding button
+    local clearCopyMountKeybindButton = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+    clearCopyMountKeybindButton:SetPoint("LEFT", copyMountKeybindButton, "RIGHT", 10, 0)
+    clearCopyMountKeybindButton:SetSize(80, 25)
+    clearCopyMountKeybindButton:SetText("Clear")
+    self.widgets.clearCopyMountKeybindButton = clearCopyMountKeybindButton
+    clearCopyMountKeybindButton:SetScript("OnClick", function()
+        local key1, key2 = GetBindingKey("BOLT_COPY_TARGET_MOUNT")
+        if key1 then SetBinding(key1, nil) end
+        if key2 then SetBinding(key2, nil) end
+        SaveBindings(GetCurrentBindingSet())
+        UpdateCopyMountKeybindButtonText()
+    end)
+    
+    yOffset = yOffset - 35
+    
+    -- Slash command note
+    local copyMountSlashNote = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    copyMountSlashNote:SetPoint("TOPLEFT", content, "TOPLEFT", 70, yOffset)
+    copyMountSlashNote:SetText("You can also use |cffFFD100/copymount|r or |cffFFD100/cm|r")
+    copyMountSlashNote:SetTextColor(0.7, 0.7, 0.7)
+    self.widgets.copyMountSlashNote = copyMountSlashNote
+    
+    yOffset = yOffset - 30
           
     -- Console commands section
     local commandsHeader = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -725,6 +887,14 @@ function Config:RefreshAll()
     self:UpdatePlaygroundChildControls()
     self:UpdateSkyridingChildControls()
     self:UpdateCurrentToyDisplay()
+    
+    -- Refresh keybind buttons
+    if self.UpdateKeybindButtonText then
+        self.UpdateKeybindButtonText()
+    end
+    if self.UpdateCopyMountKeybindButtonText then
+        self.UpdateCopyMountKeybindButtonText()
+    end
 end
 
 function Config:RefreshOptionsPanel()
@@ -874,6 +1044,11 @@ function Config:UpdatePlaygroundChildControls()
     if w.speedometerCheckbox then
         w.speedometerCheckbox:SetEnabled(playgroundEnabled)
         w.speedometerCheckbox:SetAlpha(playgroundEnabled and 1.0 or 0.5)
+    end
+    
+    if w.copyTargetMountCheckbox then
+        w.copyTargetMountCheckbox:SetEnabled(playgroundEnabled)
+        w.copyTargetMountCheckbox:SetAlpha(playgroundEnabled and 1.0 or 0.5)
     end
 
     -- Show/hide stats position controls based on whether FPS or speedometer is enabled
