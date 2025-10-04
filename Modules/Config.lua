@@ -803,7 +803,6 @@ function Config:CreateInterfaceOptionsPanel()
         end)
         
         copyMountBindingFrame:Show()
-        copyMountBindingFrame:SetFocus()
     end)
     
     -- Clear keybinding button
