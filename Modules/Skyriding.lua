@@ -419,7 +419,7 @@ end
 
 function Skyriding:CheckSkyridingState()
     -- Simple, accurate detection: mounted + advanced flyable area + skyriding selected + actually airborne if you add IsFlying()
-    local currentlyInSkyriding = IsMounted() and IsSkyridingPossibleHere() and IsSkyridingSelected()
+    local currentlyInSkyriding = IsMounted() and IsSkyridingPossibleHere() and IsSkyridingSelected() and IsFlying()
 
     -- Handle state changes
     if currentlyInSkyriding ~= isInSkyriding then

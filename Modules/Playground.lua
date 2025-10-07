@@ -154,7 +154,12 @@ end
 
 function Playground:HideFavoriteToyButton()
     if favoriteToyButton then
-        favoriteToyButton:Hide()
+        -- Defer the hide call to avoid taint issues when called from protected contexts
+        C_Timer.After(0, function()
+            if favoriteToyButton then
+                favoriteToyButton:Hide()
+            end
+        end)
     end
 end
 
