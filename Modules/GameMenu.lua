@@ -136,25 +136,27 @@ function GameMenu:UpdateGameMenu()
         return
     end
     
-    -- Battle text toggles
-    if self.parent:GetConfig("gameMenu", "showBattleTextToggles") then
-        self:ShowBattleTextToggles()
-    else
-        self:HideBattleTextToggles()
-    end
-    
-    -- Volume button
+    -- Volume button - MUST be created/positioned BEFORE battle text toggles
+    -- because battle text toggles position relative to volume button
     if self.parent:GetConfig("gameMenu", "showVolumeButton") then
         if not volumeButton then
             self:CreateVolumeButton()
         end
         if volumeButton then
             volumeButton:Show()
+            self:PositionVolumeButton()
         end
     else
         if volumeButton then
             volumeButton:Hide()
         end
+    end
+    
+    -- Battle text toggles
+    if self.parent:GetConfig("gameMenu", "showBattleTextToggles") then
+        self:ShowBattleTextToggles()
+    else
+        self:HideBattleTextToggles()
     end
     
     -- Show reload button if enabled
@@ -481,6 +483,26 @@ function GameMenu:CreateVolumeButton()
     self:UpdateVolumeDisplay()
 end
 
+function GameMenu:PositionVolumeButton()
+    if not volumeButton then return end
+    
+    volumeButton:ClearAllPoints()
+    
+    -- Position volume button at bottom-left of GameMenuFrame
+    if damageNumbersButton and healingNumbersButton and 
+       self.parent:GetConfig("gameMenu", "showBattleTextToggles") then
+        -- If battle text toggles are shown, position below them
+        volumeButton:SetPoint("BOTTOMRIGHT", GameMenuFrame, "BOTTOMLEFT", -8, 12)
+    else
+        -- Otherwise, position at bottom-left on its own
+        volumeButton:SetPoint("BOTTOMRIGHT", GameMenuFrame, "BOTTOMLEFT", -8, 12)
+    end
+    
+    -- Set frame level
+    local level = GameMenuFrame:GetFrameLevel()
+    volumeButton:SetFrameLevel(level + 2)
+end
+
 function GameMenu:PositionGroupTools()
     if not (readyCheckButton and countdownButton and raidMarkerButton) then return end
     readyCheckButton:ClearAllPoints()
@@ -501,11 +523,9 @@ function GameMenu:PositionBattleTextToggles()
     damageNumbersButton:ClearAllPoints()
     healingNumbersButton:ClearAllPoints()
     
-    -- Position volume button if it exists and is enabled
+    -- Position volume button first if it exists and is enabled
     if volumeButton and self.parent:GetConfig("gameMenu", "showVolumeButton") then
-        volumeButton:ClearAllPoints()
-        -- Volume button at the bottom
-        volumeButton:SetPoint("BOTTOMRIGHT", GameMenuFrame, "BOTTOMLEFT", -8, 12)
+        self:PositionVolumeButton()
         -- Healing button above volume button
         healingNumbersButton:SetPoint("BOTTOMLEFT", volumeButton, "TOPLEFT", 0, 6)
         -- Damage button above healing button
@@ -520,9 +540,6 @@ function GameMenu:PositionBattleTextToggles()
     local level = GameMenuFrame:GetFrameLevel()
     damageNumbersButton:SetFrameLevel(level + 2)
     healingNumbersButton:SetFrameLevel(level + 2)
-    if volumeButton then
-        volumeButton:SetFrameLevel(level + 2)
-    end
 end
 
 function GameMenu:RefreshBattleTextTogglesState()
