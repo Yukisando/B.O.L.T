@@ -27,7 +27,7 @@ end
 
 -- Check if current zone supports advanced flight (Skyriding physics)
 local function IsSkyridingPossibleHere()
-    return IsAdvancedFlyableArea()
+    return IsFlyableArea()
 end
 
 -- =========================
