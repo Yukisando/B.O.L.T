@@ -605,11 +605,15 @@ function GameMenu:RefreshGroupToolsState()
 end
 
 function GameMenu:CreateReloadButton()
-    -- Create a reload button with a gear/engineering icon
-    reloadButton = BOLT.ButtonUtils:CreateIconButton(nil, UIParent, "Interface\\Icons\\inv_misc_gear_01", {
+    -- Make it a child of GameMenuFrame so it auto-hides with the menu
+    reloadButton = BOLT.ButtonUtils:CreateIconButton(nil, GameMenuFrame, "Interface\\Icons\\inv_misc_gear_01", {
         iconScale = 1,
         contentScale = 1.3
     })
+    
+    -- Inherit parent visibility fully
+    if reloadButton.SetIgnoreParentAlpha then reloadButton:SetIgnoreParentAlpha(false) end
+    if reloadButton.SetIgnoreParentScale then reloadButton:SetIgnoreParentScale(false) end
     
     -- Set the click handler for both left and right click
     reloadButton:SetScript("OnClick", function(self, button)

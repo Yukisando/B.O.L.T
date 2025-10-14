@@ -20,6 +20,11 @@ local pendingStateChanges = {}
 -- Flight style detection
 -- =========================
 
+-- Central guard for protected actions
+local function SafeToMutateBindings()
+    return not InCombatLockdown()
+end
+
 -- Check if Skyriding is selected (Steady Flight buff absent = Skyriding)
 local function IsSkyridingSelected()
     return C_UnitAuras.GetPlayerAuraBySpellID(404468) == nil
@@ -27,7 +32,17 @@ end
 
 -- Check if current zone supports advanced flight (Skyriding physics)
 local function IsSkyridingPossibleHere()
-    return IsFlyableArea()
+    -- advflyable can be true indoors; require outdoors to avoid false positives
+    return IsAdvancedFlyableArea() and IsOutdoors()
+end
+
+-- Single source of truth for "are we in Skyriding?"
+local function IsSkyridingActiveNow()
+    local mounted   = IsMounted()
+    local advZone   = IsAdvancedFlyableArea()
+    local outdoors  = IsOutdoors()
+    local steadyOn  = (C_UnitAuras.GetPlayerAuraBySpellID(404468) ~= nil)
+    return mounted and advZone and outdoors and not steadyOn
 end
 
 -- =========================
@@ -163,10 +178,11 @@ function Skyriding:OnDisable()
         local keys = CollectManagedKeys(self.parent:GetConfig("skyriding", "enablePitchControl"))
         if AnyKeyDown(keys) then
             self:DeferUntilKeysUp(keys, function()
-                self:ClearOverrideBindings()
+                if not SafeToMutateBindings() then return end
+                self:ClearSkyridingOverrides()
             end, "module disable with held keys")
         else
-            self:ClearOverrideBindings()
+            self:ClearSkyridingOverrides()
         end
     end
 
@@ -230,8 +246,9 @@ function Skyriding:CreateEventFrame()
     self.eventFrame:SetScript("OnEvent", function(_, event, ...)
         if event == "PLAYER_REGEN_DISABLED" then
             isInCombat = true
-            -- Clear any active overrides when combat starts
-            if bindingsCurrentlyActive then
+            -- Only clear active overrides when combat starts if not currently in skyriding
+            -- (allow skyriding controls to work in combat)
+            if bindingsCurrentlyActive and not isInSkyriding then
                 self:ClearSkyridingOverrides()
             end
         elseif event == "PLAYER_REGEN_ENABLED" then
@@ -240,16 +257,22 @@ function Skyriding:CreateEventFrame()
         elseif event == "GLOBAL_MOUSE_DOWN" then
             local button = ...
             if button == "LeftButton" then
-                isLeftMouseDown = true
-                if isInSkyriding and not self.parent:GetConfig("skyriding", "toggleMode") then
-                    self:ApplySkyridingOverrides()
+                -- Don't change state during combat to keep it in sync with binding state
+                if not InCombatLockdown() then
+                    isLeftMouseDown = true
+                    if isInSkyriding and not self.parent:GetConfig("skyriding", "toggleMode") then
+                        self:ApplySkyridingOverrides()
+                    end
                 end
             end
         elseif event == "GLOBAL_MOUSE_UP" then
             local button = ...
             if button == "LeftButton" then
-                isLeftMouseDown = false
-                if not self.parent:GetConfig("skyriding", "toggleMode") then
+                -- Don't change state during combat to keep it in sync with binding state
+                if not InCombatLockdown() then
+                    isLeftMouseDown = false
+                    -- In toggleMode, mouse release shouldn't clear overrides
+                    if self.parent:GetConfig("skyriding", "toggleMode") then return end
                     self:ClearSkyridingOverrides()
                 end
             end
@@ -263,6 +286,7 @@ function Skyriding:CreateEventFrame()
             local unitTarget = ...
             if unitTarget == "player" then
                 C_Timer.After(0.1, function()
+                    if not SafeToMutateBindings() then return end
                     self:CheckSkyridingState()
                 end)
             end
@@ -273,6 +297,7 @@ function Skyriding:CreateEventFrame()
                event == "PLAYER_ENTERING_WORLD" then
             -- Small delay to ensure mount state has updated
             C_Timer.After(0.2, function()
+                if not SafeToMutateBindings() then return end
                 self:CheckSkyridingState()
             end)
         end
@@ -308,8 +333,11 @@ function Skyriding:StopMonitoring()
 end
 
 function Skyriding:ApplySkyridingOverrides()
-    -- Don't apply if in combat or if not enabled
-    if isInCombat or not self.parent:GetConfig("skyriding", "enabled") then
+    -- Don't touch bindings in combat
+    if not SafeToMutateBindings() then return end
+    
+    -- Don't apply if not enabled
+    if not self.parent:GetConfig("skyriding", "enabled") then
         return
     end
     
@@ -359,10 +387,8 @@ function Skyriding:ApplySkyridingOverrides()
 end
 
 function Skyriding:ClearSkyridingOverrides()
-    -- Don't clear if in combat
-    if isInCombat then
-        return
-    end
+    -- Don't touch bindings in combat
+    if not SafeToMutateBindings() then return end
     
     -- Don't clear if not currently active
     if not bindingsCurrentlyActive then
@@ -418,8 +444,24 @@ end
 -- =========================
 
 function Skyriding:CheckSkyridingState()
-    -- Simple, accurate detection: mounted + advanced flyable area + skyriding selected + actually airborne if you add IsFlying()
-    local currentlyInSkyriding = IsMounted() and IsSkyridingPossibleHere() and IsSkyridingSelected() and IsFlying()
+    -- Use single source of truth
+    local currentlyInSkyriding = IsSkyridingActiveNow()
+
+    if self.parent:GetConfig("debug") then
+        local mounted   = IsMounted()
+        local advZone   = IsAdvancedFlyableArea()
+        local outdoors  = IsOutdoors()
+        local steadyOn  = (C_UnitAuras.GetPlayerAuraBySpellID(404468) ~= nil)
+        self.parent:Print(("Skyriding state: mounted=%s adv=%s outdoors=%s steady=%s inSky=%s"):
+            format(tostring(mounted), tostring(advZone), tostring(outdoors), tostring(steadyOn), tostring(currentlyInSkyriding)))
+    end
+
+    -- Only manage bindings out of combat to avoid protected-action blocks
+    if not SafeToMutateBindings() then
+        -- Just update the flag; let VerifyBindingState() repair post-combat
+        isInSkyriding = currentlyInSkyriding
+        return
+    end
 
     -- Handle state changes
     if currentlyInSkyriding ~= isInSkyriding then
@@ -431,13 +473,16 @@ function Skyriding:CheckSkyridingState()
             if toggleMode then
                 -- Wait a tiny moment for the skyriding state to stabilize, then apply
                 C_Timer.After(0.05, function()
-                    if isInSkyriding and not bindingsCurrentlyActive then
-                        -- Double-check we're still in SKYRIDING mode before applying
-                        if IsSkyridingSelected() then
-                            self:ApplySkyridingOverrides()
-                        end
+                    if not SafeToMutateBindings() then return end
+                    if isInSkyriding and not bindingsCurrentlyActive and IsSkyridingActiveNow() then
+                        self:ApplySkyridingOverrides()
                     end
                 end)
+            else
+                -- hold-to-override mode: only apply when LMB already down
+                if isLeftMouseDown and not bindingsCurrentlyActive then
+                    self:ApplySkyridingOverrides()
+                end
             end
             
             if self.parent:GetConfig("debug") then
@@ -480,6 +525,7 @@ function Skyriding:CheckSkyridingState()
                 
                 -- 5s watchdog just in case the OS truly ate the key-up
                 C_Timer.After(5, function()
+                    if not SafeToMutateBindings() then return end
                     if pendingStateChanges.clearOnLanding then
                         pendingStateChanges.clearOnLanding = false
                         self:ClearOverrideBindings()
@@ -527,6 +573,9 @@ function Skyriding:ExitSkyridingMode()
 end
 
 function Skyriding:ForceReleaseAllKeys()
+    -- Don't touch bindings in combat
+    if not SafeToMutateBindings() then return end
+    
     -- Safer approach: Just clear any existing overrides without creating new problematic ones
     -- The key release will happen naturally when overrides are cleared
     
@@ -537,12 +586,18 @@ function Skyriding:ForceReleaseAllKeys()
 end
 
 function Skyriding:ClearOverrideBindings()
+    -- Don't touch bindings in combat
+    if not SafeToMutateBindings() then return end
+    
     if overrideFrame then
         ClearOverrideBindings(overrideFrame)
     end
 end
 
 function Skyriding:ApplySkyridingBindings()
+    -- Don't touch bindings in combat
+    if not SafeToMutateBindings() then return end
+    
     -- Use override bindings to remap keys to movement commands
     -- The client handles the actual movement API calls
 
@@ -555,7 +610,7 @@ function Skyriding:ApplySkyridingBindings()
 
     local function bindTo(cmd, bindingName)
         for _, phys in ipairs(GetAllBindingKeys(bindingName)) do
-            SetOverrideBinding(overrideFrame, false, phys, cmd)
+            SetOverrideBindingPriority(overrideFrame, false, phys, cmd)
         end
     end
 
@@ -595,15 +650,28 @@ function Skyriding:EmergencyReset()
     self.parent:Print("Emergency reset complete - all movement keys restored to normal")
 end
 
+-- Pitch control hot-swap handler
+function Skyriding:OnPitchSettingChanged()
+    InvalidateManagedKeysCache()
+    if bindingsCurrentlyActive and SafeToMutateBindings() then
+        local keys = CollectManagedKeys(self.parent:GetConfig("skyriding", "enablePitchControl"))
+        self:DeferUntilKeysUp(keys, function()
+            if not SafeToMutateBindings() then return end
+            self:ClearOverrideBindings()
+            self:ApplySkyridingBindings()
+        end, "pitch setting changed")
+    end
+end
+
 -- Enhanced safety function to verify binding state integrity
 function Skyriding:VerifyBindingState()
     -- Skip corrective actions when in combat to avoid spammy attempts
-    if InCombatLockdown() then
+    if not SafeToMutateBindings() then
         return
     end
     
     local toggleMode = self.parent:GetConfig("skyriding", "toggleMode")
-    local expectedActive = isInSkyriding and not isInCombat and (toggleMode or isLeftMouseDown)
+    local expectedActive = isInSkyriding and (toggleMode or isLeftMouseDown)
     
     if bindingsCurrentlyActive ~= expectedActive then
         
@@ -619,3 +687,16 @@ end
 
 -- Register the module
 BOLT:RegisterModule("skyriding", Skyriding)
+
+-- Emergency reset slash command
+SLASH_BOLTRESET1 = "/boltreset"
+SLASH_BOLTRESET2 = "/boltnuke"
+SlashCmdList["BOLTRESET"] = function()
+    if InCombatLockdown() then
+        print("B.O.L.T: Can't reset in combat.")
+        return
+    end
+    if Skyriding and Skyriding.EmergencyReset then
+        Skyriding:EmergencyReset()
+    end
+end

@@ -90,11 +90,7 @@ end
 
 -- Safe leave group function
 function BOLT:LeaveGroup()
-    -- Don't allow leaving group during combat
-    if InCombatLockdown() then
-        self:Print("Cannot leave group during combat.")
-        return
-    end
+    -- Allow leaving group even during combat (as requested by user)
     
     -- Check if we're in a delve first using the proper delve detection
     if C_PartyInfo and (C_PartyInfo.IsDelveInProgress() or C_PartyInfo.IsDelveComplete()) then
