@@ -463,13 +463,36 @@ function Skyriding:CheckSkyridingState()
         return
     end
 
-    -- Handle state changes
-    if currentlyInSkyriding ~= isInSkyriding then
+    -- Handle state changes OR verify current state is applied correctly
+    local stateChanged = (currentlyInSkyriding ~= isInSkyriding)
+    
+    if stateChanged then
         isInSkyriding = currentlyInSkyriding
+    end
+    
+    if currentlyInSkyriding then
+        local toggleMode = self.parent:GetConfig("skyriding", "toggleMode")
         
-        if currentlyInSkyriding then
-            -- In always-on mode, activate overrides immediately
-            local toggleMode = self.parent:GetConfig("skyriding", "toggleMode")
+        -- Apply overrides if state just changed OR if they should be active but aren't
+        local shouldApply = false
+        if stateChanged then
+            -- State just changed to skyriding
+            shouldApply = true
+        elseif toggleMode and not bindingsCurrentlyActive then
+            -- In toggle mode, bindings should always be active while in skyriding
+            shouldApply = true
+            if self.parent:GetConfig("debug") then
+                self.parent:Print("Toggle mode: Bindings not active, will apply now")
+            end
+        elseif not toggleMode and isLeftMouseDown and not bindingsCurrentlyActive then
+            -- In hold mode, bindings should be active when mouse is down
+            shouldApply = true
+            if self.parent:GetConfig("debug") then
+                self.parent:Print("Hold mode: Mouse down but bindings not active, will apply now")
+            end
+        end
+        
+        if shouldApply then
             if toggleMode then
                 -- Wait a tiny moment for the skyriding state to stabilize, then apply
                 C_Timer.After(0.05, function()
@@ -485,16 +508,17 @@ function Skyriding:CheckSkyridingState()
                 end
             end
             
-            if self.parent:GetConfig("debug") then
+            if self.parent:GetConfig("debug") and stateChanged then
                 if toggleMode then
                     self.parent:Print("Skyriding detected - 3D movement controls always active")
                 else
                     self.parent:Print("Skyriding detected - hold left mouse button to activate overrides")
                 end
             end
-        else
-            -- Do NOT tear down immediately. Enter await-release if any key is currently down.
-            if bindingsCurrentlyActive then
+        end
+    else
+        -- Exiting skyriding mode
+        if stateChanged and bindingsCurrentlyActive then
                 local keys = CollectManagedKeys(self.parent:GetConfig("skyriding", "enablePitchControl"))
                 
                 -- Check if any managed keys are currently held
