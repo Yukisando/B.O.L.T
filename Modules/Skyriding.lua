@@ -10,6 +10,7 @@ local Skyriding = {}
 -- State management
 local isInSkyriding = false
 local isLeftMouseDown = false
+local isRightMouseDown = false
 local bindingsCurrentlyActive = false
 local bindingCheckFrame = nil
 local overrideFrame = nil
@@ -42,7 +43,8 @@ local function IsSkyridingActiveNow()
     local advZone   = IsAdvancedFlyableArea()
     local outdoors  = IsOutdoors()
     local steadyOn  = (C_UnitAuras.GetPlayerAuraBySpellID(404468) ~= nil)
-    return mounted and advZone and outdoors and not steadyOn
+    local flying    = IsFlying() -- Only active when actually flying
+    return mounted and advZone and outdoors and not steadyOn and flying
 end
 
 -- =========================
@@ -189,6 +191,7 @@ function Skyriding:OnDisable()
     -- Reset state variables
     isInSkyriding = false
     isLeftMouseDown = false
+    isRightMouseDown = false
     bindingsCurrentlyActive = false
     isInCombat = false
 
@@ -260,8 +263,17 @@ function Skyriding:CreateEventFrame()
                 -- Don't change state during combat to keep it in sync with binding state
                 if not InCombatLockdown() then
                     isLeftMouseDown = true
-                    if isInSkyriding and not self.parent:GetConfig("skyriding", "toggleMode") then
+                    -- Only activate if ONLY left mouse is down (not both left and right)
+                    if isInSkyriding and not self.parent:GetConfig("skyriding", "toggleMode") and not isRightMouseDown then
                         self:ApplySkyridingOverrides()
+                    end
+                end
+            elseif button == "RightButton" then
+                if not InCombatLockdown() then
+                    isRightMouseDown = true
+                    -- If both buttons are now down, clear overrides
+                    if isLeftMouseDown and bindingsCurrentlyActive then
+                        self:ClearSkyridingOverrides()
                     end
                 end
             end
@@ -274,6 +286,15 @@ function Skyriding:CreateEventFrame()
                     -- In toggleMode, mouse release shouldn't clear overrides
                     if self.parent:GetConfig("skyriding", "toggleMode") then return end
                     self:ClearSkyridingOverrides()
+                end
+            elseif button == "RightButton" then
+                if not InCombatLockdown() then
+                    local wasRightDown = isRightMouseDown
+                    isRightMouseDown = false
+                    -- If left is still down and right was just released, reactivate
+                    if isLeftMouseDown and wasRightDown and isInSkyriding and not self.parent:GetConfig("skyriding", "toggleMode") then
+                        self:ApplySkyridingOverrides()
+                    end
                 end
             end
         elseif event == "UNIT_AURA" then
@@ -452,8 +473,9 @@ function Skyriding:CheckSkyridingState()
         local advZone   = IsAdvancedFlyableArea()
         local outdoors  = IsOutdoors()
         local steadyOn  = (C_UnitAuras.GetPlayerAuraBySpellID(404468) ~= nil)
-        self.parent:Print(("Skyriding state: mounted=%s adv=%s outdoors=%s steady=%s inSky=%s"):
-            format(tostring(mounted), tostring(advZone), tostring(outdoors), tostring(steadyOn), tostring(currentlyInSkyriding)))
+        local flying    = IsFlying()
+        self.parent:Print(("Skyriding state: mounted=%s adv=%s outdoors=%s steady=%s flying=%s inSky=%s"):
+            format(tostring(mounted), tostring(advZone), tostring(outdoors), tostring(steadyOn), tostring(flying), tostring(currentlyInSkyriding)))
     end
 
     -- Only manage bindings out of combat to avoid protected-action blocks
@@ -484,11 +506,11 @@ function Skyriding:CheckSkyridingState()
             if self.parent:GetConfig("debug") then
                 self.parent:Print("Toggle mode: Bindings not active, will apply now")
             end
-        elseif not toggleMode and isLeftMouseDown and not bindingsCurrentlyActive then
-            -- In hold mode, bindings should be active when mouse is down
+        elseif not toggleMode and isLeftMouseDown and not isRightMouseDown and not bindingsCurrentlyActive then
+            -- In hold mode, bindings should be active when ONLY left mouse is down
             shouldApply = true
             if self.parent:GetConfig("debug") then
-                self.parent:Print("Hold mode: Mouse down but bindings not active, will apply now")
+                self.parent:Print("Hold mode: Left mouse down (right up) but bindings not active, will apply now")
             end
         end
         
@@ -502,8 +524,8 @@ function Skyriding:CheckSkyridingState()
                     end
                 end)
             else
-                -- hold-to-override mode: only apply when LMB already down
-                if isLeftMouseDown and not bindingsCurrentlyActive then
+                -- hold-to-override mode: only apply when ONLY LMB is down (not both buttons)
+                if isLeftMouseDown and not isRightMouseDown and not bindingsCurrentlyActive then
                     self:ApplySkyridingOverrides()
                 end
             end
@@ -667,6 +689,7 @@ function Skyriding:EmergencyReset()
     -- Reset state
     isInSkyriding = false
     isLeftMouseDown = false
+    isRightMouseDown = false
     bindingsCurrentlyActive = false
 
     self.parent:Print("Emergency reset complete - all movement keys restored to normal")
@@ -693,7 +716,8 @@ function Skyriding:VerifyBindingState()
     end
     
     local toggleMode = self.parent:GetConfig("skyriding", "toggleMode")
-    local expectedActive = isInSkyriding and (toggleMode or isLeftMouseDown)
+    -- Only active if left mouse down AND right mouse NOT down (in hold mode)
+    local expectedActive = isInSkyriding and (toggleMode or (isLeftMouseDown and not isRightMouseDown))
     
     if bindingsCurrentlyActive ~= expectedActive then
         
