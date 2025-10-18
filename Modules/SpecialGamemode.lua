@@ -145,7 +145,14 @@ function SpecialGamemode:EnterHardcoreMode()
     -- Send group chat message
     if GetNumGroupMembers() > 0 then
         local chatType = IsInRaid() and "RAID" or "PARTY"
-        SendChatMessage("Hardcore mode activated!", chatType)
+        if C_ChatInfo and C_ChatInfo.SendChatMessage then
+            C_ChatInfo.SendChatMessage("Hardcore mode activated!", chatType)
+        else
+            -- Fallback: display a local message in the primary chat frame
+            if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
+                DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000[B.O.L.T]|r Hardcore mode activated!")
+            end
+        end
     end
     
     -- Start the effect timer (applies effects every 0.2 seconds)
@@ -195,7 +202,13 @@ function SpecialGamemode:ExitHardcoreMode()
     -- Send group chat message
     if GetNumGroupMembers() > 0 then
         local chatType = IsInRaid() and "RAID" or "PARTY"
-        SendChatMessage("Hardcore mode deactivated!", chatType)
+        if C_ChatInfo and C_ChatInfo.SendChatMessage then
+            C_ChatInfo.SendChatMessage("Hardcore mode deactivated!", chatType)
+        else
+            if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
+                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[B.O.L.T]|r Hardcore mode deactivated!")
+            end
+        end
     end
     
     -- Show exit message
@@ -310,8 +323,9 @@ function SpecialGamemode:ShowModeMessage(text, duration)
     alpha:SetToAlpha(0)
     alpha:SetDuration(duration or 2.0)
     alpha:SetScript("OnFinished", function()
-        messageFrame:Hide()
-        messageFrame = nil
+        if messageFrame then
+            messageFrame:Hide()
+        end
     end)
     
     fadeOut:Play()

@@ -35,7 +35,6 @@ BOLT.defaults = {
             enabled = false,
             enablePitchControl = true,
             invertPitch = true,
-            toggleMode = false,
         },
     }
 }

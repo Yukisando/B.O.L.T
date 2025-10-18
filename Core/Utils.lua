@@ -3,11 +3,12 @@
 
 local ADDON_NAME, BOLT = ...
 
--- Add trim function to string metatable
+-- Add trim function to string metatable (define local helper and assign only if missing)
+local function _bolt_string_trim(s)
+    return s and s:match("^%s*(.-)%s*$") or s
+end
 if not string.trim then
-    function string.trim(s)
-        return s:match("^%s*(.-)%s*$")
-    end
+    string.trim = _bolt_string_trim
 end
 
 -- Check if player is in any kind of group
@@ -233,15 +234,18 @@ function BOLT:OpenConfigPanel()
         else
             self:Print("Settings panel not available. Please access B.O.L.T settings through Interface > AddOns.")
         end
-    elseif InterfaceOptionsFrame_OpenToCategory then
-        -- Legacy Interface Options (Classic)
-        if self.modules.config and self.modules.config.optionsPanel then
-            InterfaceOptionsFrame_OpenToCategory(self.modules.config.optionsPanel)
-            InterfaceOptionsFrame_OpenToCategory(self.modules.config.optionsPanel) -- Call twice for proper focus
-        else
-            self:Print("Options panel not available. Please access B.O.L.T settings through Interface > AddOns.")
-        end
     else
-        self:Print("Please access B.O.L.T settings through Interface > AddOns.")
+        local legacyOpen = rawget(_G, "InterfaceOptionsFrame_OpenToCategory")
+        if type(legacyOpen) == "function" then
+            -- Legacy Interface Options (Classic)
+            if self.modules.config and self.modules.config.optionsPanel then
+                legacyOpen(self.modules.config.optionsPanel)
+                legacyOpen(self.modules.config.optionsPanel) -- Call twice for proper focus
+            else
+                self:Print("Options panel not available. Please access B.O.L.T settings through Interface > AddOns.")
+            end
+        else
+            self:Print("Please access B.O.L.T settings through Interface > AddOns.")
+        end
     end
 end

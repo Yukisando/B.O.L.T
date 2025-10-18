@@ -189,10 +189,9 @@ function GameMenu:ShowLeaveGroupButton()
     
     -- Update button text and show it
     local groupType = self.parent:GetGroupTypeString()
-    if groupType then
+    if groupType and leaveGroupButton then
         leaveGroupButton:SetText("Leave " .. groupType)
         leaveGroupButton:Show()
-        
         -- Position the button
         self:PositionLeaveGroupButton()
     end
@@ -210,7 +209,7 @@ function GameMenu:ShowReloadButton()
         self:CreateReloadButton()
     end
     
-    reloadButton:Show()
+    if reloadButton then reloadButton:Show() end
     self:PositionReloadButton()
 end
 
@@ -231,9 +230,9 @@ function GameMenu:ShowGroupTools()
         self:CreateRaidMarkerButton()
     end
 
-    readyCheckButton:Show()
-    countdownButton:Show()
-    raidMarkerButton:Show()
+    if readyCheckButton then readyCheckButton:Show() end
+    if countdownButton then countdownButton:Show() end
+    if raidMarkerButton then raidMarkerButton:Show() end
 
     self:PositionGroupTools()
     self:RefreshGroupToolsState()
@@ -253,8 +252,8 @@ function GameMenu:ShowBattleTextToggles()
         self:CreateHealingNumbersButton()
     end
 
-    damageNumbersButton:Show()
-    healingNumbersButton:Show()
+    if damageNumbersButton then damageNumbersButton:Show() end
+    if healingNumbersButton then healingNumbersButton:Show() end
 
     self:PositionBattleTextToggles()
     self:RefreshBattleTextTogglesState()
@@ -665,27 +664,13 @@ function GameMenu:OnOpenSettings()
     -- Hide the game menu first
     HideUIPanel(GameMenuFrame)
     
-    -- Small delay to ensure UI is hidden before opening settings
+    -- Small delay to ensure UI is hidden before opening settings; delegate to
+    -- the central OpenConfigPanel helper which handles Settings vs legacy UI.
     C_Timer.After(0.1, function()
-        -- Use the exact same logic as the /cs slash command
-        if Settings and Settings.OpenToCategory then
-            -- Modern Settings API (Retail)
-            local cat = self.parent.modules.config and self.parent.modules.config.settingsCategory
-            if cat and cat.GetID then
-                Settings.OpenToCategory(cat:GetID())
-            else
-                self.parent:Print("Settings panel not available. Open Interface > AddOns.")
-            end
-        elseif InterfaceOptionsFrame_OpenToCategory then
-            -- Legacy Interface Options (Classic)
-            if self.parent.modules.config and self.parent.modules.config.optionsPanel then
-                InterfaceOptionsFrame_OpenToCategory(self.parent.modules.config.optionsPanel)
-                InterfaceOptionsFrame_OpenToCategory(self.parent.modules.config.optionsPanel) -- Call twice for proper focus
-            else
-                self.parent:Print("Options panel not available. Please access B.O.L.T settings through Interface > AddOns.")
-            end
+        if self.parent and self.parent.OpenConfigPanel then
+            self.parent:OpenConfigPanel()
         else
-            self.parent:Print("Please access B.O.L.T settings through Interface > AddOns.")
+            self.parent:Print("Settings panel not available. Open Interface > AddOns.")
         end
     end)
 end

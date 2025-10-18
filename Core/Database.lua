@@ -37,6 +37,27 @@ function BOLT:InitializeDatabase()
         self.db.profile = BOLTDB.profiles[playerKey]
         self:MergeDefaults(self.db.profile, self.defaults.profile)
     end
+
+    -- Migrate deprecated saved-variable keys
+    -- Older versions used skyriding.toggleMode; remove it from any stored
+    -- profiles so the deprecated setting can't reappear or confuse logic.
+    local migrated = false
+    if BOLTDB.profiles then
+        for pkey, profile in pairs(BOLTDB.profiles) do
+            if profile and profile.skyriding and profile.skyriding.toggleMode ~= nil then
+                profile.skyriding.toggleMode = nil
+                migrated = true
+            end
+        end
+    end
+    if self.db.profile and self.db.profile.skyriding and self.db.profile.skyriding.toggleMode ~= nil then
+        self.db.profile.skyriding.toggleMode = nil
+        migrated = true
+    end
+    if migrated then
+        -- Persist the cleaned profile for the current player
+        self:SaveProfile()
+    end
 end
 
 -- Merge default values into existing table

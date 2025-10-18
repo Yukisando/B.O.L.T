@@ -3,7 +3,7 @@
 
 local ADDON_NAME, BOLT = ...
 
--- Create the Config module
+-- Config module
 local Config = {}
 
 function Config:OnInitialize()
@@ -23,61 +23,98 @@ function Config:OnInitialize()
                 -- Let TOYS_UPDATED handle population
             end
         elseif event == "TOYS_UPDATED" then
-            self:PopulateToyListOnce()
+            if not self.toyListPopulated and self.toyFrame then
+                self:PopulateToyList()
+                self.toyListPopulated = true
+                self.parent:Print("Toy list populated successfully")
+            end
         end
     end)
 end
 
-function Config:OnEnable()
-    -- Module enabled
-end
+    -- Shared keybinding capture helper (defined once and reused)
+    local _bindingCaptureFrame = nil
+    local function StartKeybindingCapture(button, bindingAction, updateFunc)
+        if not button then return end
+        if button._isBinding then return end
+        button._isBinding = true
+        button:SetText("Press a key...")
 
--- Helper function to create a "Need reload" indicator next to checkboxes
-function Config:CreateReloadIndicator(parent, anchorFrame)
-    local indicator = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    indicator:SetPoint("LEFT", anchorFrame.Text, "RIGHT", 10, 0)
-    indicator:SetText("|cFFFF6B6B(Requires /reload)|r")
-    indicator:Hide() -- Hidden by default, show only when needed
-    return indicator
-end
+        if not _bindingCaptureFrame then
+            _bindingCaptureFrame = CreateFrame("Frame", nil, UIParent)
+            _bindingCaptureFrame:SetFrameStrata("DIALOG")
+            _bindingCaptureFrame:EnableKeyboard(true)
+            _bindingCaptureFrame:SetPropagateKeyboardInput(false)
+        end
 
-function Config:PopulateToyListOnce()
-    -- Only populate the toy list once to avoid lag
-    if self.toyListPopulated then
-        return
+        local frame = _bindingCaptureFrame
+        frame:SetScript("OnKeyDown", function(_, key)
+            if key == "ESCAPE" then
+                button._isBinding = false
+                frame:Hide()
+                frame:SetScript("OnKeyDown", nil)
+                if updateFunc then updateFunc() end
+                return
+            end
+            if key == "LSHIFT" or key == "RSHIFT" or key == "LCTRL" or key == "RCTRL" or key == "LALT" or key == "RALT" then
+                return
+            end
+            key = key:upper()
+            local keyCombo = ""
+            if IsControlKeyDown() then keyCombo = "CTRL-" end
+            if IsAltKeyDown() then keyCombo = keyCombo .. "ALT-" end
+            if IsShiftKeyDown() then keyCombo = keyCombo .. "SHIFT-" end
+            keyCombo = keyCombo .. key
+            local k1, k2 = GetBindingKey(bindingAction)
+            if k1 then SetBinding(k1, nil) end
+            if k2 then SetBinding(k2, nil) end
+            local result = SetBinding(keyCombo, bindingAction)
+            if result then
+                SaveBindings(GetCurrentBindingSet())
+                if updateFunc then C_Timer.After(0.5, updateFunc) end
+            else
+                button:SetText("Binding failed - try another key")
+                if updateFunc then C_Timer.After(1.5, updateFunc) end
+            end
+            button._isBinding = false
+            frame:Hide()
+            frame:SetScript("OnKeyDown", nil)
+        end)
+        frame:Show()
+        frame:SetFocus()
     end
-    
-    -- Populate toy list if the toy selection frame exists
-    if self.toyFrame then
-        self:PopulateToyList()
-        self.toyListPopulated = true
-        self.parent:Print("Toy list populated successfully")
-    end
-end
 
-function Config:CreateInterfaceOptionsPanel()
-    -- Create the main options panel that integrates with WoW's Interface > AddOns
-    local panel = CreateFrame("Frame", "BOLTOptionsPanel")
-    panel.name = "B.O.L.T"
-    
-    -- Add OnShow script to refresh all UI states
-    panel:SetScript("OnShow", function()
-        self:RefreshAll()
-    end)
-    
-    -- Create a scroll frame for the content
-    local scrollFrame = CreateFrame("ScrollFrame", "BOLTScrollFrame", panel, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 4, -4)
-    scrollFrame:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -26, 4)
-    
-    -- Create the scroll child (the actual content container)
-    local content = CreateFrame("Frame", "BOLTScrollChild", scrollFrame)
-    content:SetSize(scrollFrame:GetWidth() - 20, 1) -- Width minus scrollbar space, height will be set dynamically
-    scrollFrame:SetScrollChild(content)
-    
-    -- Store references for later use (use distinct names to avoid collision with toy scroll frame)
-    self.optionsScrollFrame = scrollFrame
-    self.optionsScrollChild = content
+    function Config:CreateReloadIndicator(parent, anchorFrame)
+        local indicator = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        indicator:SetPoint("LEFT", anchorFrame.Text, "RIGHT", 10, 0)
+        indicator:SetText("|cFFFF6B6B(Requires /reload)|r")
+        indicator:Hide() -- Hidden by default, show only when needed
+        return indicator
+    end
+
+    function Config:CreateInterfaceOptionsPanel()
+        -- Create the main options panel that integrates with WoW's Interface > AddOns
+        local panel = CreateFrame("Frame", "BOLTOptionsPanel")
+        panel.name = "B.O.L.T"
+        
+        -- Add OnShow script to refresh all UI states
+        panel:SetScript("OnShow", function()
+            self:RefreshAll()
+        end)
+        
+        -- Create a scroll frame for the content
+        local scrollFrame = CreateFrame("ScrollFrame", "BOLTScrollFrame", panel, "UIPanelScrollFrameTemplate")
+        scrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 4, -4)
+        scrollFrame:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -26, 4)
+        
+        -- Create the scroll child (the actual content container)
+        local content = CreateFrame("Frame", "BOLTScrollChild", scrollFrame)
+        content:SetSize(scrollFrame:GetWidth() - 20, 1) -- Width minus scrollbar space, height will be set dynamically
+        scrollFrame:SetScrollChild(content)
+        
+        -- Store references for later use (use distinct names to avoid collision with toy scroll frame)
+        self.optionsScrollFrame = scrollFrame
+        self.optionsScrollChild = content
     
     -- Title
     local title = content:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
@@ -433,6 +470,10 @@ function Config:CreateInterfaceOptionsPanel()
         local enabled = pitchControlCheckbox:GetChecked()
         self.parent:SetConfig(enabled, "skyriding", "enablePitchControl")
         self.parent:Print("Skyriding pitch control " .. (enabled and "enabled" or "disabled") .. ".")
+        -- HOT SWAP bindings immediately if module is live
+        if self.parent.modules and self.parent.modules.skyriding and self.parent.modules.skyriding.OnPitchSettingChanged then
+            self.parent.modules.skyriding:OnPitchSettingChanged()
+        end
         -- Update child controls when toggled
         self:UpdateSkyridingChildControls()
     end)
@@ -450,29 +491,21 @@ function Config:CreateInterfaceOptionsPanel()
         local enabled = invertPitchCheckbox:GetChecked()
         self.parent:SetConfig(enabled, "skyriding", "invertPitch")
         self.parent:Print("Skyriding pitch " .. (enabled and "inverted" or "normal") .. ".")
+        -- HOT SWAP bindings immediately if module is live
+        if self.parent.modules and self.parent.modules.skyriding and self.parent.modules.skyriding.OnPitchSettingChanged then
+            self.parent.modules.skyriding:OnPitchSettingChanged()
+        end
     end)
     yOffset = yOffset - 30
     
-    -- Toggle Mode Checkbox
-    local toggleModeCheckbox = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    toggleModeCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
-    toggleModeCheckbox.Text:SetText("Always-on mode (no mouse button required)")
-    self.widgets.toggleModeCheckbox = toggleModeCheckbox
-    toggleModeCheckbox:SetScript("OnShow", function()
-        toggleModeCheckbox:SetChecked(self.parent:GetConfig("skyriding", "toggleMode"))
-    end)
-    toggleModeCheckbox:SetScript("OnClick", function()
-        local enabled = toggleModeCheckbox:GetChecked()
-        self.parent:SetConfig(enabled, "skyriding", "toggleMode")
-        self.parent:Print("Skyriding " .. (enabled and "always-on mode enabled" or "hold mode enabled") .. ".")
-    end)
+    -- Spacer (Always-on mode removed)
     yOffset = yOffset - 30
     
     -- Description text for Skyriding module
     local skyridingDesc = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     skyridingDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 50, yOffset)
     skyridingDesc:SetPoint("TOPRIGHT", content, "TOPRIGHT", -50, yOffset)
-    skyridingDesc:SetText("While active, strafe keys (A/D) become horizontal turning, and optionally W/S control pitch up/down for full 3D movement. Always On Mode can lead to stuck keys.")
+    skyridingDesc:SetText("Hold Left Mouse while Skyriding: A/D turn horizontally; optionally W/S pitch up/down. Release LMB to restore normal movement.")
     skyridingDesc:SetTextColor(0.8, 0.8, 0.8)
     skyridingDesc:SetJustifyH("LEFT")
     skyridingDesc:SetWordWrap(true)
@@ -872,8 +905,11 @@ function Config:CreateInterfaceOptionsPanel()
         local category = Settings.RegisterCanvasLayoutCategory(panel, "B.O.L.T")
         self.settingsCategory = category
         Settings.RegisterAddOnCategory(category)
-    elseif InterfaceOptions_AddCategory then
-        InterfaceOptions_AddCategory(panel)
+    else
+        local legacyAdd = rawget(_G, "InterfaceOptions_AddCategory")
+        if type(legacyAdd) == "function" then
+            legacyAdd(panel)
+        end
     end
     
     self.optionsPanel = panel
@@ -1141,10 +1177,7 @@ function Config:UpdateSkyridingChildControls()
         w.invertPitchCheckbox:SetAlpha(shouldEnable and 1.0 or 0.5)
     end
     
-    if w.toggleModeCheckbox then
-        w.toggleModeCheckbox:SetEnabled(skyridingEnabled)
-        w.toggleModeCheckbox:SetAlpha(skyridingEnabled and 1.0 or 0.5)
-    end
+    -- Toggle mode removed; nothing to update here
 end
 
 function Config:ShowToySelectionPopup()

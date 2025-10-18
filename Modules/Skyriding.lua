@@ -1,6 +1,6 @@
--- B.O.L.T Skyriding Module (lean version)
+-- B.O.L.T Skyriding Module (mouse-hold only)
 -- A/D -> horizontal turn, optional W/S -> pitch (climb/dive)
--- Active while Skyriding. In hold mode, only while LMB is held (not both buttons).
+-- Active only while Skyriding AND holding Left Mouse (not both buttons).
 
 local ADDON_NAME, BOLT = ...
 
@@ -26,7 +26,7 @@ local function IsSkyridingSelected()
     return C_UnitAuras.GetPlayerAuraBySpellID(404468) == nil
 end
 
--- Pragmatic single source of truth
+-- Single source of truth
 local function IsSkyridingActiveNow()
     return IsMounted()
        and IsAdvancedFlyableArea()
@@ -72,7 +72,7 @@ local function DeferUntilKeysUp(keys, cb, timeout)
     if not deferFrame then deferFrame = CreateFrame("Frame") end
     local waiting = {}
     for i=1,#keys do if IsKeyDown(keys[i]) then waiting[keys[i]] = true end end
-    local waited, limit = 0, timeout or 2.0
+    local waited, limit = 0, timeout or 1.5
     deferFrame:SetScript("OnUpdate", function(_, dt)
         waited = waited + dt
         local held = false
@@ -116,7 +116,6 @@ local function Activate(reason)
     if active or not Safe() then return end
     if not BOLT:GetConfig("skyriding","enabled") then return end
     if not IsSkyridingSelected() then return end
-
     if not overrideFrame then
         overrideFrame = CreateFrame("Frame","BOLTSkyridingOverrideFrame")
     end
@@ -127,9 +126,8 @@ local function Activate(reason)
         ApplyBindings(enablePitch, BOLT:GetConfig("skyriding","invertPitch"))
         active = true
         if BOLT:GetConfig("debug") then
-            local toggle = BOLT:GetConfig("skyriding","toggleMode")
             local pitch  = enablePitch and (BOLT:GetConfig("skyriding","invertPitch") and " W=dive S=climb" or " W=climb S=dive") or ""
-            BOLT:Print(("Skyriding overrides ON%s%s"):format(toggle and " (toggle)" or " (hold LMB)", pitch))
+            BOLT:Print(("Skyriding overrides ON (hold LMB)%s"):format(pitch))
         end
     end, 1.0)
 end
@@ -151,16 +149,17 @@ end
 -- =========================
 -- State driver
 -- =========================
+local function ShouldBeActive()
+    -- Only active when: skyriding AND LMB down AND RMB not down
+    return inSkyriding and leftDown and not rightDown
+end
+
 local function Recalc()
     if not Safe() then return end
     inSkyriding = IsSkyridingActiveNow()
-
-    local toggle = BOLT:GetConfig("skyriding","toggleMode")
-    local shouldBeActive = inSkyriding and (toggle or (leftDown and not rightDown))
-
-    if shouldBeActive and not active then
+    if ShouldBeActive() and not active then
         Activate("recalc")
-    elseif not shouldBeActive and active then
+    elseif not ShouldBeActive() and active then
         Deactivate("recalc")
     end
 end
@@ -175,10 +174,11 @@ local function StartWatchdog()
         if t >= 3 then
             t = 0
             if Safe() then
-                local toggle = BOLT:GetConfig("skyriding","toggleMode")
-                local shouldBeActive = IsSkyridingActiveNow() and (toggle or (leftDown and not rightDown))
-                if shouldBeActive and not active then Activate("watchdog")
-                elseif not shouldBeActive and active then Deactivate("watchdog") end
+                if ShouldBeActive() and not active then
+                    Activate("watchdog")
+                elseif not ShouldBeActive() and active then
+                    Deactivate("watchdog")
+                end
             end
         end
     end)
@@ -215,7 +215,6 @@ function Skyriding:CreateEventFrame()
     self.eventFrame:SetScript("OnEvent", function(_, event, ...)
         if event == "PLAYER_REGEN_DISABLED" then
             inCombat = true
-            -- if not actually skyriding, clear immediately to be safe
             if active and not inSkyriding and Safe() then Deactivate("combat") end
 
         elseif event == "PLAYER_REGEN_ENABLED" then
@@ -227,13 +226,11 @@ function Skyriding:CreateEventFrame()
             local btn = ...
             if btn == "LeftButton" then
                 leftDown = true
-                -- hold mode: only if right NOT down
-                if not BOLT:GetConfig("skyriding","toggleMode") and inSkyriding and not rightDown then
+                if inSkyriding and not rightDown then
                     Activate("LMB down")
                 end
             elseif btn == "RightButton" then
                 rightDown = true
-                -- if both down, we disable (let normal camera turn take over)
                 if active then Deactivate("RMB down") end
             end
 
@@ -242,15 +239,11 @@ function Skyriding:CreateEventFrame()
             local btn = ...
             if btn == "LeftButton" then
                 leftDown = false
-                if not BOLT:GetConfig("skyriding","toggleMode") then
-                    -- in hold mode, releasing LMB ends overrides
-                    if active then Deactivate("LMB up") end
-                end
+                if active then Deactivate("LMB up") end
             elseif btn == "RightButton" then
                 local wasRight = rightDown
                 rightDown = false
-                -- if LMB still down and we were skyriding, resume in hold mode
-                if wasRight and leftDown and inSkyriding and not BOLT:GetConfig("skyriding","toggleMode") then
+                if wasRight and leftDown and inSkyriding then
                     Activate("RMB up resume")
                 end
             end
@@ -319,12 +312,12 @@ function Skyriding:OnPitchSettingChanged()
 end
 
 function Skyriding:EmergencyReset()
-    if InCombatLockdown() then print("B.O.L.T: Can't reset in combat.") return end
+    if InCombatLockdown() then self.parent:Print("B.O.L.T: Can't reset in combat.") return end
     if deferFrame then deferFrame:SetScript("OnUpdate", nil) end
     if overrideFrame then ClearOverrideBindings(overrideFrame) end
     leftDown, rightDown = false, false
     inSkyriding, active = false, false
-    print("B.O.L.T: Emergency reset complete.")
+    self.parent:Print("B.O.L.T: Emergency reset complete.")
 end
 
 -- =========================
