@@ -6,6 +6,21 @@ local ADDON_NAME, BOLT = ...
 -- Create the GameMenu module
 local GameMenu = {}
 
+-- Reusable raid target texture coordinates (4x4 sprite sheet)
+local MARKER_TEXCOORDS = {
+    [1] = {0, 0.25, 0, 0.25},      -- Star
+    [2] = {0.25, 0.5, 0, 0.25},    -- Circle
+    [3] = {0.5, 0.75, 0, 0.25},    -- Diamond
+    [4] = {0.75, 1, 0, 0.25},      -- Triangle
+    [5] = {0, 0.25, 0.25, 0.5},    -- Moon
+    [6] = {0.25, 0.5, 0.25, 0.5},  -- Square
+    [7] = {0.5, 0.75, 0.25, 0.5},  -- Cross
+    [8] = {0.75, 1, 0.25, 0.5},    -- Skull
+}
+local function GetMarkerTexCoords(i)
+    return unpack(MARKER_TEXCOORDS[i] or MARKER_TEXCOORDS[1])
+end
+
 -- Reference to the Leave Group button
 local leaveGroupButton = nil
 -- Reference to the Reload UI button
@@ -88,6 +103,12 @@ function GameMenu:OnDisable()
         self.groupUpdateFrame:UnregisterAllEvents()
         self.groupUpdateFrame:SetScript("OnEvent", nil)
         self.groupUpdateFrame = nil
+    end
+    -- Clean up CVAR watcher if present
+    if self.cvarWatcher then
+        self.cvarWatcher:UnregisterAllEvents()
+        self.cvarWatcher:SetScript("OnEvent", nil)
+        self.cvarWatcher = nil
     end
 end
 
@@ -266,14 +287,15 @@ function GameMenu:HideBattleTextToggles()
 end
 
 function GameMenu:CreateLeaveGroupButton()
+    local mod = self
     leaveGroupButton = CreateFrame("Button", nil, GameMenuFrame, "GameMenuButtonTemplate")
     leaveGroupButton:SetSize(144, 28)
     leaveGroupButton:SetText("Leave Group")
-    leaveGroupButton:SetScript("OnClick", function() self:OnLeaveGroupClick() end)
+    leaveGroupButton:SetScript("OnClick", function() mod:OnLeaveGroupClick() end)
     leaveGroupButton:SetMotionScriptsWhileDisabled(true)
     leaveGroupButton:SetScript("OnEnter", function()
         GameTooltip:SetOwner(leaveGroupButton, "ANCHOR_RIGHT")
-        local groupType = self.parent:GetGroupTypeString()
+        local groupType = mod.parent:GetGroupTypeString()
         GameTooltip:SetText(groupType and ("Leave "..groupType) or "Leave Group", 1, 1, 1)
         if UnitIsGroupLeader("player") then
             GameTooltip:AddLine("Leadership will be transferred automatically", 0.8, 0.8, 0.8, true)
@@ -307,9 +329,11 @@ function GameMenu:PositionLeaveGroupButton()
 end
 
 function GameMenu:CreateReadyCheckButton()
+    local mod = self
     readyCheckButton = BOLT.ButtonUtils:CreateIconButton(nil, GameMenuFrame, "Interface\\RaidFrame\\ReadyCheck-Ready")
     readyCheckButton:SetScript("OnClick", function()
-        self:OnReadyCheckClick()
+        if InCombatLockdown() then mod.parent:Print("Ready check not available in combat.") return end
+        mod:OnReadyCheckClick()
     end)
     readyCheckButton:SetScript("OnEnter", function()
         GameTooltip:SetOwner(readyCheckButton, "ANCHOR_RIGHT")
@@ -330,10 +354,12 @@ function GameMenu:CreateReadyCheckButton()
 end
 
 function GameMenu:CreateCountdownButton()
+    local mod = self
     countdownButton = BOLT.ButtonUtils:CreateIconButton(nil, GameMenuFrame, "Interface\\Icons\\Spell_Holy_BorrowedTime")
     countdownButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
     countdownButton:SetScript("OnClick", function()
-        self:OnCountdownClick()
+        if InCombatLockdown() then mod.parent:Print("Countdown not available in combat.") return end
+        mod:OnCountdownClick()
     end)
     countdownButton:SetScript("OnEnter", function()
         GameTooltip:SetOwner(countdownButton, "ANCHOR_RIGHT")
@@ -354,15 +380,17 @@ function GameMenu:CreateCountdownButton()
 end
 
 function GameMenu:CreateRaidMarkerButton()
+    local mod = self
     raidMarkerButton = BOLT.ButtonUtils:CreateIconButton(nil, GameMenuFrame, "Interface\\TARGETINGFRAME\\UI-RaidTargetingIcons")
     -- We'll adjust tex coords based on selected marker in RefreshGroupToolsState
     raidMarkerButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     raidMarkerButton:SetScript("OnClick", function(_, button)
-        self:OnRaidMarkerClick(button)
+        if InCombatLockdown() then mod.parent:Print("Cannot change raid marker during combat.") return end
+        mod:OnRaidMarkerClick(button)
     end)
     raidMarkerButton:SetScript("OnEnter", function()
         GameTooltip:SetOwner(raidMarkerButton, "ANCHOR_RIGHT")
-        local idx = self.parent:GetConfig("gameMenu", "raidMarkerIndex") or 1
+        local idx = mod.parent:GetConfig("gameMenu", "raidMarkerIndex") or 1
         local names = {"Star","Circle","Diamond","Triangle","Moon","Square","Cross","Skull"}
         GameTooltip:SetText("Raid Marker", 1, 1, 1)
         GameTooltip:AddLine("Left-click: Set your own marker (" .. (names[idx] or "Unknown") .. ")", 0.8,0.8,0.8,true)
@@ -382,10 +410,11 @@ function GameMenu:CreateRaidMarkerButton()
 end
 
 function GameMenu:CreateDamageNumbersButton()
+    local mod = self
     damageNumbersButton = BOLT.ButtonUtils:CreateIconButton(nil, GameMenuFrame, "Interface\\Icons\\Spell_Fire_FireBolt02")
     damageNumbersButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
     damageNumbersButton:SetScript("OnClick", function()
-        self:OnDamageNumbersClick()
+        mod:OnDamageNumbersClick()
     end)
     damageNumbersButton:SetScript("OnEnter", function()
         GameTooltip:SetOwner(damageNumbersButton, "ANCHOR_RIGHT")
@@ -402,10 +431,11 @@ function GameMenu:CreateDamageNumbersButton()
 end
 
 function GameMenu:CreateHealingNumbersButton()
+    local mod = self
     healingNumbersButton = BOLT.ButtonUtils:CreateIconButton(nil, GameMenuFrame, "Interface\\Icons\\Spell_Holy_GreaterHeal")
     healingNumbersButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
     healingNumbersButton:SetScript("OnClick", function()
-        self:OnHealingNumbersClick()
+        mod:OnHealingNumbersClick()
     end)
     healingNumbersButton:SetScript("OnEnter", function()
         GameTooltip:SetOwner(healingNumbersButton, "ANCHOR_RIGHT")
@@ -422,6 +452,7 @@ function GameMenu:CreateHealingNumbersButton()
 end
 
 function GameMenu:CreateVolumeButton()
+    local mod = self
     -- Create volume button with background using ButtonUtils
     volumeButton = BOLT.ButtonUtils:CreateVolumeButton(nil, GameMenuFrame, {
         showBackground = true
@@ -436,11 +467,11 @@ function GameMenu:CreateVolumeButton()
     volumeButton.volumeText:SetScale(1) -- Smaller scale to fit nicely
     
     -- Left click for mute/unmute, right click for music toggle
-    volumeButton:SetScript("OnClick", function(self, button)
+    volumeButton:SetScript("OnClick", function(_, button)
         if button == "LeftButton" then
-            GameMenu:OnVolumeButtonLeftClick()
+            mod:OnVolumeButtonLeftClick()
         elseif button == "RightButton" then
-            GameMenu:OnVolumeButtonRightClick()
+            mod:OnVolumeButtonRightClick()
         end
     end)
     
@@ -472,30 +503,22 @@ function GameMenu:CreateVolumeButton()
         local step = 0.05
         local newVol = math.max(0, math.min(1, vol + (delta > 0 and step or -step)))
         SetCVar("Sound_MasterVolume", tostring(newVol))
-        GameMenu:UpdateVolumeDisplay()
+        mod:UpdateVolumeDisplay()
         if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
             PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
         end
     end)
     
     -- Initialize volume display
-    self:UpdateVolumeDisplay()
+    mod:UpdateVolumeDisplay()
 end
 
 function GameMenu:PositionVolumeButton()
     if not volumeButton then return end
     
     volumeButton:ClearAllPoints()
-    
-    -- Position volume button at bottom-left of GameMenuFrame
-    if damageNumbersButton and healingNumbersButton and 
-       self.parent:GetConfig("gameMenu", "showBattleTextToggles") then
-        -- If battle text toggles are shown, position below them
-        volumeButton:SetPoint("BOTTOMRIGHT", GameMenuFrame, "BOTTOMLEFT", -8, 12)
-    else
-        -- Otherwise, position at bottom-left on its own
-        volumeButton:SetPoint("BOTTOMRIGHT", GameMenuFrame, "BOTTOMLEFT", -8, 12)
-    end
+    -- Position volume button to the left of the GameMenuFrame (outside the frame)
+    volumeButton:SetPoint("BOTTOMRIGHT", GameMenuFrame, "BOTTOMLEFT", -8, 12)
     
     -- Set frame level
     local level = GameMenuFrame:GetFrameLevel()
@@ -521,7 +544,6 @@ function GameMenu:PositionBattleTextToggles()
     if not (damageNumbersButton and healingNumbersButton) then return end
     damageNumbersButton:ClearAllPoints()
     healingNumbersButton:ClearAllPoints()
-    
     -- Position volume button first if it exists and is enabled
     if volumeButton and self.parent:GetConfig("gameMenu", "showVolumeButton") then
         self:PositionVolumeButton()
@@ -530,9 +552,9 @@ function GameMenu:PositionBattleTextToggles()
         -- Damage button above healing button
         damageNumbersButton:SetPoint("BOTTOMLEFT", healingNumbersButton, "TOPLEFT", 0, 6)
     else
-        -- Original positioning if no volume button or volume button disabled
-        healingNumbersButton:SetPoint("BOTTOMRIGHT", GameMenuFrame, "BOTTOMLEFT", -8, 12)
-        damageNumbersButton:SetPoint("BOTTOMLEFT", healingNumbersButton, "TOPLEFT", 0, 6)
+    -- Default: stack outside on the left edge of the GameMenuFrame
+    healingNumbersButton:SetPoint("BOTTOMRIGHT", GameMenuFrame, "BOTTOMLEFT", -8, 12)
+    damageNumbersButton:SetPoint("BOTTOMLEFT", healingNumbersButton, "TOPLEFT", 0, 6)
     end
     
     -- Set frame levels once at the end
@@ -577,33 +599,18 @@ function GameMenu:RefreshGroupToolsState()
     -- Update raid marker icon tex coords to reflect chosen marker
     if raidMarkerButton and raidMarkerButton.icon then
         if canCommand then
-            raidMarkerButton:Enable()
-            raidMarkerButton:SetAlpha(1)
+            raidMarkerButton:Enable(); raidMarkerButton:SetAlpha(1)
         else
-            raidMarkerButton:Disable()
-            raidMarkerButton:SetAlpha(0.4)
+            raidMarkerButton:Disable(); raidMarkerButton:SetAlpha(0.4)
         end
         local idx = self.parent:GetConfig("gameMenu", "raidMarkerIndex") or 1
-        -- Raid target sheet is 4x4 grid; indices 1..8 left-to-right, top-to-bottom (WoW ordering)
-        local function GetMarkerTexCoords(i)
-            local map = {
-                [1] = {0, 0.25, 0, 0.25},      -- Star
-                [2] = {0.25, 0.5, 0, 0.25},    -- Circle
-                [3] = {0.5, 0.75, 0, 0.25},    -- Diamond
-                [4] = {0.75, 1, 0, 0.25},      -- Triangle
-                [5] = {0, 0.25, 0.25, 0.5},    -- Moon
-                [6] = {0.25, 0.5, 0.25, 0.5},  -- Square
-                [7] = {0.5, 0.75, 0.25, 0.5},  -- Cross
-                [8] = {0.75, 1, 0.25, 0.5},    -- Skull
-            }
-            return unpack(map[i] or map[1])
-        end
         raidMarkerButton.icon:SetTexture("Interface\\TARGETINGFRAME\\UI-RaidTargetingIcons")
         raidMarkerButton.icon:SetTexCoord(GetMarkerTexCoords(idx))
     end
 end
 
 function GameMenu:CreateReloadButton()
+    local mod = self
     -- Make it a child of GameMenuFrame so it auto-hides with the menu
     reloadButton = BOLT.ButtonUtils:CreateIconButton(nil, GameMenuFrame, "Interface\\Icons\\inv_misc_gear_01", {
         iconScale = 1,
@@ -615,11 +622,11 @@ function GameMenu:CreateReloadButton()
     if reloadButton.SetIgnoreParentScale then reloadButton:SetIgnoreParentScale(false) end
     
     -- Set the click handler for both left and right click
-    reloadButton:SetScript("OnClick", function(self, button)
+    reloadButton:SetScript("OnClick", function(_, button)
         if button == "LeftButton" then
-            GameMenu:OnReloadClick()
+            mod:OnReloadClick()
         elseif button == "RightButton" then
-            GameMenu:OnOpenSettings()
+            mod:OnOpenSettings()
         end
     end)
     
@@ -666,11 +673,12 @@ function GameMenu:OnOpenSettings()
     
     -- Small delay to ensure UI is hidden before opening settings; delegate to
     -- the central OpenConfigPanel helper which handles Settings vs legacy UI.
+    local mod = self
     C_Timer.After(0.1, function()
-        if self.parent and self.parent.OpenConfigPanel then
-            self.parent:OpenConfigPanel()
+        if mod.parent and mod.parent.OpenConfigPanel then
+            mod.parent:OpenConfigPanel()
         else
-            self.parent:Print("Settings panel not available. Open Interface > AddOns.")
+            mod.parent:Print("Settings panel not available. Open Interface > AddOns.")
         end
     end)
 end

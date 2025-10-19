@@ -75,6 +75,26 @@ function Playground:OnEnable()
     
     -- Register the copy mount slash command
     self:RegisterCopyMountCommand()
+
+    -- Keep favorite toy button in sync with toy system updates
+    if not self.toyEventFrame then
+        local f = CreateFrame("Frame")
+        f:RegisterEvent("TOYS_UPDATED")
+        f:RegisterEvent("PLAYER_LOGIN")
+        f:SetScript("OnEvent", function(_, event)
+            if event == "TOYS_UPDATED" or event == "PLAYER_LOGIN" then
+                -- Defer slightly to avoid race conditions during load
+                C_Timer.After(0.05, function()
+                    if self and self.UpdateFavoriteToyButton then
+                        self:UpdateFavoriteToyButton()
+                    end
+                end)
+            end
+        end)
+        self.toyEventFrame = f
+    end
+    -- Initial sync
+    self:UpdateFavoriteToyButton()
 end
 
 function Playground:OnDisable()
@@ -89,6 +109,12 @@ function Playground:OnDisable()
         speedometerFrame:Hide()
         speedometerFrame:SetScript("OnUpdate", nil)
         speedometerFrame = nil
+    end
+
+    if self.toyEventFrame then
+        self.toyEventFrame:UnregisterAllEvents()
+        self.toyEventFrame:SetScript("OnEvent", nil)
+        self.toyEventFrame = nil
     end
 end
 
@@ -114,8 +140,10 @@ function Playground:UpdateGameMenu()
         return
     end
     
-    -- Show favorite toy button if enabled
-    if self.parent:GetConfig("playground", "showFavoriteToy") then
+    -- Show favorite toy button if enabled or if a favorite toy is set
+    local showFav = self.parent:GetConfig("playground", "showFavoriteToy")
+    local favId = self.parent:GetConfig("playground", "favoriteToyId")
+    if showFav or (favId ~= nil) then
         self:ShowFavoriteToyButton()
     else
         self:HideFavoriteToyButton()
@@ -186,10 +214,11 @@ function Playground:CreateFavoriteToyButton()
         end
     end
     
-    -- Configure the secure button for macro usage (which can call /usetoy)
-    -- This is a more reliable approach than direct toy usage
+    -- Configure the secure button for macro usage (which can call toy APIs)
     favoriteToyButton:SetAttribute("type", "macro")
-    favoriteToyButton:RegisterForClicks("LeftButtonUp")
+    favoriteToyButton:RegisterForClicks("AnyUp")
+    -- Start with an empty macro to avoid accidental calls
+    favoriteToyButton:SetAttribute("macrotext", "")
     
     -- Delay the initial update to ensure game data is loaded
     C_Timer.After(0.1, function()
@@ -232,33 +261,65 @@ function Playground:UpdateFavoriteToyButton()
     if not favoriteToyButton then
         return
     end
-    
     local toyId = self.parent:GetConfig("playground", "favoriteToyId")
-    
-    if toyId and PlayerHasToy(toyId) then
-        -- Get toy info
-        local _, toyName, toyIcon = C_ToyBox.GetToyInfo(toyId)
-        
-        -- Ensure we have valid toy data
-        if toyName and toyIcon then
-            -- Set up a macro that uses the toy - this works with SecureActionButtonTemplate
-            local macroText = "/usetoy " .. toyName .. "\n/run HideUIPanel(GameMenuFrame)"
-            favoriteToyButton:SetAttribute("macrotext", macroText)
-            
-            -- Update the icon to match the actual toy using ButtonUtils
-            BOLT.ButtonUtils:UpdateButtonIcon(favoriteToyButton, toyIcon)
-            
-        else
-            -- Toy data not ready yet, try again later
-            C_Timer.After(0.5, function()
-                self:UpdateFavoriteToyButton()
-            end)
-        end
-    else
-        -- Clear the macro if none selected and reset to default icon
-        favoriteToyButton:SetAttribute("macrotext", "")
-        BOLT.ButtonUtils:UpdateButtonIcon(favoriteToyButton, "Interface\\Icons\\INV_Misc_Toy_10")
+
+    -- Avoid changing secure attributes while in combat to prevent taint
+    if InCombatLockdown() then
+        C_Timer.After(1.0, function()
+            if self and self.UpdateFavoriteToyButton then pcall(function() self:UpdateFavoriteToyButton() end) end
+        end)
+        return
     end
+
+    if toyId then
+        -- Try to determine ownership using itemId extracted from GetToyInfo when available
+        local info = {}
+        local ok = pcall(function() info = {C_ToyBox.GetToyInfo(toyId)} end)
+        local toyName, toyIcon, itemIdFromInfo
+        if ok then
+            toyName = info[1]
+            toyIcon = info[2]
+            for _,v in ipairs(info) do
+                if type(v) == "string" then
+                    local found = string.match(v, "item:(%d+)")
+                    if found then itemIdFromInfo = tonumber(found); break end
+                end
+            end
+        end
+        -- Determine ownership: prefer PlayerHasToy on the extracted item id
+        local owned = false
+        if itemIdFromInfo and type(PlayerHasToy) == "function" then
+            local ok2, val = pcall(function() return PlayerHasToy(itemIdFromInfo) end)
+            if ok2 and val then owned = true end
+        end
+        if not owned and type(PlayerHasToy) == "function" then
+            local ok3, val2 = pcall(function() return PlayerHasToy(toyId) end)
+            if ok3 and val2 then owned = true end
+        end
+        if owned and toyName then
+            -- Prefer using the toy ID when constructing the macro to avoid name-escaping problems
+            local macroText
+            if C_ToyBox and C_ToyBox.UseToyByID then
+                macroText = "/run C_ToyBox.UseToyByID(" .. tostring(toyId) .. ")\n/run HideUIPanel(GameMenuFrame)"
+            else
+                macroText = "/usetoy " .. toyName .. "\n/run HideUIPanel(GameMenuFrame)"
+            end
+            favoriteToyButton:SetAttribute("macrotext", macroText)
+            BOLT.ButtonUtils:UpdateButtonIcon(favoriteToyButton, toyIcon or "Interface\\Icons\\INV_Misc_Toy_10")
+            -- Update alpha based on usability when API available
+            if C_ToyBox and C_ToyBox.IsToyUsable then
+                favoriteToyButton:SetAlpha(C_ToyBox.IsToyUsable(toyId) and 1.0 or 0.7)
+            else
+                favoriteToyButton:SetAlpha(1.0)
+            end
+            return
+        end
+    end
+
+    -- Fallback: clear macro and reset icon
+    favoriteToyButton:SetAttribute("macrotext", "")
+    BOLT.ButtonUtils:UpdateButtonIcon(favoriteToyButton, "Interface\\Icons\\INV_Misc_Toy_10")
+    favoriteToyButton:SetAlpha(0.5)
 end
 
 function Playground:PositionFavoriteToyButton()
@@ -534,30 +595,19 @@ function Playground:GetTargetMountSpellID()
     -- Use UnitAura to check all buffs on the target
     local i = 1
     while true do
-        local auraData = C_UnitAuras and C_UnitAuras.GetAuraDataByIndex("target", i, "HELPFUL")
-        if not auraData then
-            -- Try old API if new one doesn't exist or we've run out of auras
-            local name, icon, count, debuffType, duration, expirationTime, source, isStealable, 
-                  nameplateShowPersonal, spellId = UnitAura("target", i, "HELPFUL")
-            
-            if not name then
-                break
-            end
-            
-            -- Check if this aura is a mount
-            if spellId and C_MountJournal and C_MountJournal.GetMountFromSpell then
-                local mountID = C_MountJournal.GetMountFromSpell(spellId)
-                if mountID then
-                    return spellId, mountID
-                end
+        local auraData = C_UnitAuras and C_UnitAuras.GetAuraDataByIndex and C_UnitAuras.GetAuraDataByIndex("target", i, "HELPFUL")
+        if auraData and auraData.spellId then
+            if C_MountJournal and C_MountJournal.GetMountFromSpell then
+                local mountID = C_MountJournal.GetMountFromSpell(auraData.spellId)
+                if mountID then return auraData.spellId, mountID end
             end
         else
-            -- New API (Dragonflight+)
-            if auraData.spellId and C_MountJournal and C_MountJournal.GetMountFromSpell then
-                local mountID = C_MountJournal.GetMountFromSpell(auraData.spellId)
-                if mountID then
-                    return auraData.spellId, mountID
-                end
+            -- Fallback to older UnitAura signature where the 10th return is the spellId in many clients
+            local name, _, _, _, _, _, _, _, _, spellId = UnitAura("target", i, "HELPFUL")
+            if not name then break end
+            if spellId and C_MountJournal and C_MountJournal.GetMountFromSpell then
+                local mountID = C_MountJournal.GetMountFromSpell(spellId)
+                if mountID then return spellId, mountID end
             end
         end
         
@@ -574,10 +624,9 @@ function Playground:PlayerKnowsMount(mountID)
         return false
     end
     
-    -- Get mount info to check if player has it
-    local name, spellID, icon, isActive, isUsable, sourceType, isFavorite, 
-          isFactionSpecific, faction, shouldHideOnChar, isCollected = C_MountJournal.GetMountInfoByID(mountID)
-    
+    -- Query mount info; the returned tuple varies across clients, but isCollected is typically the last boolean
+    local info = {C_MountJournal.GetMountInfoByID(mountID)}
+    local isCollected = info[11] or info[10] or false
     return isCollected == true
 end
 
@@ -637,16 +686,25 @@ function Playground:TryCopyTargetMount()
     -- Get the mount name for the message
     local mountName = self:GetMountSpellName(spellID) or "Unknown Mount"
     
-    -- If player is already mounted, dismount first
+    -- If player is already mounted, dismount first (use available API)
     if IsMounted() then
-        C_MountJournal.Dismiss()
+        if C_MountJournal and C_MountJournal.Dismiss then
+            C_MountJournal.Dismiss()
+        elseif Dismount then
+            Dismount()
+        end
     end
-    
-    -- Summon the mount using the mount ID
-    C_MountJournal.SummonByID(mountID)
-    self.parent:Print("Summoning " .. mountName .. " (copying target)")
-    
-    return true
+
+    -- Summon the mount using the mount ID if supported
+    if C_MountJournal and C_MountJournal.SummonByID then
+        C_MountJournal.SummonByID(mountID)
+        self.parent:Print("Summoning " .. mountName .. " (copying target)")
+        return true
+    else
+        -- No modern API available to summon by ID on this client
+        self.parent:Print("Cannot summon mount on this client (missing API).")
+        return false
+    end
 end
 
 -- Create a slash command for manual mount copying

@@ -227,25 +227,10 @@ end
 
 -- Open the configuration panel
 function BOLT:OpenConfigPanel()
-    if Settings and Settings.OpenToCategory then
-        -- Modern Settings API (Retail)
-        if self.modules.config and self.modules.config.settingsCategory then
-            Settings.OpenToCategory(self.modules.config.settingsCategory.ID)
-        else
-            self:Print("Settings panel not available. Please access B.O.L.T settings through Interface > AddOns.")
-        end
+    -- Use modern Settings API (Retail). If Settings is not present, inform the user.
+    if Settings and Settings.OpenToCategory and self.modules.config and self.modules.config.settingsCategory then
+        Settings.OpenToCategory(self.modules.config.settingsCategory.ID)
     else
-        local legacyOpen = rawget(_G, "InterfaceOptionsFrame_OpenToCategory")
-        if type(legacyOpen) == "function" then
-            -- Legacy Interface Options (Classic)
-            if self.modules.config and self.modules.config.optionsPanel then
-                legacyOpen(self.modules.config.optionsPanel)
-                legacyOpen(self.modules.config.optionsPanel) -- Call twice for proper focus
-            else
-                self:Print("Options panel not available. Please access B.O.L.T settings through Interface > AddOns.")
-            end
-        else
-            self:Print("Please access B.O.L.T settings through Interface > AddOns.")
-        end
+        self:Print("B.O.L.T settings are not available on this client.")
     end
 end
