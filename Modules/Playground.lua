@@ -622,14 +622,16 @@ function Playground:GetMountSpellName(spellID)
     end
     
     -- Use modern API if available, fallback to old API
-    local spellName
-    if C_Spell and C_Spell.GetSpellName then
-        spellName = C_Spell.GetSpellName(spellID)
-    elseif GetSpellInfo then
-        spellName = GetSpellInfo(spellID)
+    -- Use modern C_Spell API (introduced 11.0.0)
+    if C_Spell and C_Spell.GetSpellInfo then
+        local spellInfo = C_Spell.GetSpellInfo(spellID)
+        return spellInfo and spellInfo.name
+    elseif C_Spell and C_Spell.GetSpellName then
+        -- Fallback for older API
+        return C_Spell.GetSpellName(spellID)
     end
     
-    return spellName
+    return nil
 end
 
 -- Tries to copy the target's mount, prints messages about the attempt

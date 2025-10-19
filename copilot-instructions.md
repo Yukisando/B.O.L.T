@@ -23,7 +23,7 @@
 
 ### Project Context
 - This is a World of Warcraft addon written in Lua
-- Uses WoW API and addon development patterns
+- Uses the latest WoW API and addon development patterns and check online if there is any doubts
 - Follows standard WoW addon structure with `.toc` file and modular organization
 - Focus on performance and minimal memory footprint typical for WoW addons
 - As you remove and add features, make sure they are reflected and tweakable (when it makes sense) in the config UI as well as the readme
