@@ -272,31 +272,16 @@ function Playground:UpdateFavoriteToyButton()
     end
 
     if toyId then
-        -- Try to determine ownership using itemId extracted from GetToyInfo when available
-        local info = {}
-        local ok = pcall(function() info = {C_ToyBox.GetToyInfo(toyId)} end)
-        local toyName, toyIcon, itemIdFromInfo
-        if ok then
-            toyName = info[1]
-            toyIcon = info[2]
-            for _,v in ipairs(info) do
-                if type(v) == "string" then
-                    local found = string.match(v, "item:(%d+)")
-                    if found then itemIdFromInfo = tonumber(found); break end
-                end
+        -- C_ToyBox.GetToyInfo returns: itemID, toyName, icon, isFavorite, hasFanfare, itemQuality
+        local itemID, toyName, toyIcon = C_ToyBox.GetToyInfo(toyId)
+        
+        -- Check ownership using PlayerHasToy with itemID
+        if itemID and toyName and PlayerHasToy(itemID) then
+            -- Icon fallback from item cache if needed
+            if not toyIcon and GetItemInfo then
+                toyIcon = select(10, GetItemInfo(itemID))
             end
-        end
-        -- Determine ownership: prefer PlayerHasToy on the extracted item id
-        local owned = false
-        if itemIdFromInfo and type(PlayerHasToy) == "function" then
-            local ok2, val = pcall(function() return PlayerHasToy(itemIdFromInfo) end)
-            if ok2 and val then owned = true end
-        end
-        if not owned and type(PlayerHasToy) == "function" then
-            local ok3, val2 = pcall(function() return PlayerHasToy(toyId) end)
-            if ok3 and val2 then owned = true end
-        end
-        if owned and toyName then
+            
             -- Prefer using the toy ID when constructing the macro to avoid name-escaping problems
             local macroText
             if C_ToyBox and C_ToyBox.UseToyByID then

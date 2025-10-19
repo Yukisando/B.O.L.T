@@ -399,6 +399,8 @@ function Config:RefreshOptionsPanel()
         if w.leaveGroupCheckbox then w.leaveGroupCheckbox:SetChecked(self.parent:GetConfig("gameMenu","showLeaveGroup")) end
         if w.reloadCheckbox then w.reloadCheckbox:SetChecked(self.parent:GetConfig("gameMenu","showReloadButton")) end
         if w.groupToolsCheckbox then w.groupToolsCheckbox:SetChecked(self.parent:GetConfig("gameMenu","groupToolsEnabled")) end
+        if w.battleTextCheckbox then w.battleTextCheckbox:SetChecked(self.parent:GetConfig("gameMenu","showBattleTextToggles")) end
+        if w.volumeButtonCheckbox then w.volumeButtonCheckbox:SetChecked(self.parent:GetConfig("gameMenu","showVolumeButton")) end
         -- Update raid marker visuals
         if w.raidMarkerButtons then
             local idx = self.parent:GetConfig("gameMenu","raidMarkerIndex") or 1

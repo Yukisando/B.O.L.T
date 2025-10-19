@@ -6,7 +6,8 @@ local ADDON_NAME, BOLT = ...
 -- Create the main addon object
 BOLT = BOLT or {}
 BOLT.name = ADDON_NAME
-BOLT.version = "1.9.0"
+-- Sync version with TOC file (which should match git tags)
+BOLT.version = GetAddOnMetadata(ADDON_NAME, "Version") or "dev"
 BOLT.modules = {}
 
 -- Default configuration
