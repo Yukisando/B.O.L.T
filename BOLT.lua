@@ -3,6 +3,19 @@
 
 local ADDON_NAME, BOLT = ...
 
+-- Initialize the BOLT object if not already created
+BOLT = BOLT or {}
+BOLT.modules = BOLT.modules or {}
+
+-- Register a module (called by module files at load time)
+function BOLT:RegisterModule(name, module)
+    if not self.modules[name] then
+        self.modules[name] = module
+        module.name = name
+        module.parent = self
+    end
+end
+
 -- The core framework and modules are loaded via the .toc file
 -- This file serves as the main entry point and can contain
 -- any additional initialization or global commands

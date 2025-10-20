@@ -6,8 +6,7 @@ local ADDON_NAME, BOLT = ...
 -- Create the main addon object
 BOLT = BOLT or {}
 BOLT.name = ADDON_NAME
--- Sync version with TOC file (which should match git tags)
-BOLT.version = GetAddOnMetadata(ADDON_NAME, "Version") or "dev"
+BOLT.version = "dev" -- Will be set from TOC after ADDON_LOADED
 BOLT.modules = {}
 
 -- Default configuration
@@ -42,6 +41,9 @@ BOLT.defaults = {
 
 -- Initialize the addon
 function BOLT:OnInitialize()
+    -- Set version from TOC file (synced with git tags)
+    self.version = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version") or "dev"
+    
     -- Initialize database
     self:InitializeDatabase()
     
@@ -49,15 +51,6 @@ function BOLT:OnInitialize()
     self:InitializeModules()
     
     self:Print("B.O.L.T v" .. self.version .. " loaded successfully!")
-end
-
--- Register a module
-function BOLT:RegisterModule(name, module)
-    if not self.modules[name] then
-        self.modules[name] = module
-        module.name = name
-        module.parent = self
-    end
 end
 
 -- Initialize all registered modules

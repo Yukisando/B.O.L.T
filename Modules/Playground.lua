@@ -160,20 +160,18 @@ function Playground:ShowFavoriteToyButton()
     -- Update the secure button with the current toy
     self:UpdateFavoriteToyButton()
     
-    -- Always enable the button so it's clickable - the secure action will handle usability
+    -- Use alpha to indicate usability (secure buttons should remain enabled)
     local toyId = self.parent:GetConfig("playground", "favoriteToyId")
     if favoriteToyButton then
         if toyId and PlayerHasToy(toyId) then
-            favoriteToyButton:Enable()
             favoriteToyButton:SetAlpha(1.0)
             
-            -- Update visual state based on usability, but keep button enabled
+            -- Update visual state based on usability
             if not C_ToyBox.IsToyUsable(toyId) then
-                favoriteToyButton:SetAlpha(0.7) -- Slightly dimmed but still clearly clickable
+                favoriteToyButton:SetAlpha(0.7) -- Slightly dimmed when not usable
             end
         else
-            favoriteToyButton:Enable() -- Still enable so user can click and get feedback
-            favoriteToyButton:SetAlpha(0.5)
+            favoriteToyButton:SetAlpha(0.5) -- More dimmed when toy not owned
         end
 
         favoriteToyButton:Show()
