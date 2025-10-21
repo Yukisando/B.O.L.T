@@ -320,7 +320,7 @@ function GameMenu:PositionLeaveGroupButton()
     leaveGroupButton:ClearAllPoints()
     
     -- Position the button below the entire GameMenuFrame
-    leaveGroupButton:SetPoint("TOP", GameMenuFrame, "BOTTOM", 0, -10)
+    leaveGroupButton:SetPoint("BOTTOM", GameMenuFrame, "TOP", 0, 10)
     
     -- Ensure the button is clickable and visible
     leaveGroupButton:SetFrameLevel(GameMenuFrame:GetFrameLevel() + 2)
