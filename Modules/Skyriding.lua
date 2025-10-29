@@ -113,6 +113,12 @@ local function ApplyBindings(enablePitch, invertPitch)
 end
 
 local function Activate(reason)
+    if BOLT:GetConfig("debug") then
+        BOLT:Print(("Skyriding Activate called: reason=%s, active=%s, safe=%s, enabled=%s, skyridingSelected=%s"):format(
+            tostring(reason), tostring(active), tostring(Safe()), 
+            tostring(BOLT:GetConfig("skyriding","enabled")), tostring(IsSkyridingSelected())
+        ))
+    end
     if active or not Safe() then return end
     if not BOLT:GetConfig("skyriding","enabled") then return end
     if not IsSkyridingSelected() then return end
@@ -274,7 +280,11 @@ end
 function Skyriding:OnInitialize() end
 
 function Skyriding:OnEnable()
-    if not self.parent:IsModuleEnabled("skyriding") then return end
+    local moduleEnabled = self.parent:IsModuleEnabled("skyriding")
+    if BOLT:GetConfig("debug") then
+        BOLT:Print(("Skyriding OnEnable: module enabled = %s"):format(tostring(moduleEnabled)))
+    end
+    if not moduleEnabled then return end
     inCombat = InCombatLockdown()
     self:CreateEventFrame()
     StartWatchdog()

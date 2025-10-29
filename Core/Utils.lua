@@ -213,7 +213,11 @@ end
 -- Check if a module is enabled
 function BOLT:IsModuleEnabled(moduleName)
     local config = self:GetConfig(moduleName, "enabled")
-    return config ~= false -- Default to true if not set
+    -- If config is nil, use the default value from the defaults table
+    if config == nil then
+        return self.defaults.profile[moduleName] and self.defaults.profile[moduleName].enabled or false
+    end
+    return config == true
 end
 
 -- Get table keys utility function

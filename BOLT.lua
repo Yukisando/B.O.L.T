@@ -41,6 +41,7 @@ SlashCmdList["BOLT"] = function(msg)
         print("  |cffFFFFFF/bolt status|r - Show module status")
         print("  |cffFFFFFF/bolt toggle <module>|r - Toggle a module")
         print("  |cffFFFFFF/bolt toggle debug|r - Toggle debug mode")
+        print("  |cffFFFFFF/bolt debug config|r - Show configuration debug info")
         print("  |cffFFFFFF/bolt reload|r - Reload the addon")
         print("  |cffFFFFFF/bolt reset|r - Emergency reset of skyriding bindings")
     elseif args[1] == "status" then
@@ -93,6 +94,17 @@ SlashCmdList["BOLT"] = function(msg)
     elseif args[1] == "config" then
         -- Open the Interface Options to B.O.L.T panel
         BOLT:OpenConfigPanel()
+    elseif args[1] == "debug" and args[2] == "config" then
+        -- Show debug configuration information
+        BOLT:Print("=== B.O.L.T Debug Configuration ===")
+        for name, module in pairs(BOLT.modules) do
+            local enabled = BOLT:IsModuleEnabled(name)
+            local configValue = BOLT:GetConfig(name, "enabled")
+            BOLT:Print(("Module '%s': IsModuleEnabled=%s, config value=%s"):format(name, tostring(enabled), tostring(configValue)))
+        end
+        BOLT:Print("Debug mode: " .. tostring(BOLT:GetConfig("debug")))
+        local playerKey = UnitName("player") .. " - " .. GetRealmName()
+        BOLT:Print("Player key: " .. playerKey)
     else
         BOLT:Print("Unknown command. Type '/bolt help' for available commands.")
     end

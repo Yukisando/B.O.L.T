@@ -118,7 +118,11 @@ function Config:CreateInterfaceOptionsPanel()
     gmEnable:SetScript("OnClick", function()
         local v = gmEnable:GetChecked()
         self.parent:SetConfig(v, "gameMenu", "enabled")
-        self:RefreshAll()
+        -- Update other controls without refreshing this checkbox
+        self:UpdateGameMenuChildControls()
+        self:UpdatePlaygroundChildControls()
+        self:UpdateSkyridingChildControls()
+        self:UpdateCurrentToyDisplay()
     end)
     self.widgets.gameMenuCheckbox = gmEnable
     y = y - 30
@@ -225,7 +229,14 @@ function Config:CreateInterfaceOptionsPanel()
     y = y - 26
     local skyEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
     skyEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y); skyEnable.Text:SetText("Enable Skyriding Module")
-    skyEnable:SetScript("OnClick", function() self.parent:SetConfig(skyEnable:GetChecked(), "skyriding", "enabled"); self:RefreshAll() end)
+    skyEnable:SetScript("OnClick", function() 
+        self.parent:SetConfig(skyEnable:GetChecked(), "skyriding", "enabled")
+        -- Update other controls without refreshing this checkbox
+        self:UpdateGameMenuChildControls()
+        self:UpdatePlaygroundChildControls()
+        self:UpdateSkyridingChildControls()
+        self:UpdateCurrentToyDisplay()
+    end)
     self.widgets.skyridingCheckbox = skyEnable
     y = y - 26
     local pitchCB = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
@@ -244,7 +255,14 @@ function Config:CreateInterfaceOptionsPanel()
     y = y - 26
     local pgEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
     pgEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y); pgEnable.Text:SetText("Enable Playground Module")
-    pgEnable:SetScript("OnClick", function() self.parent:SetConfig(pgEnable:GetChecked(), "playground", "enabled"); self:RefreshAll() end)
+    pgEnable:SetScript("OnClick", function() 
+        self.parent:SetConfig(pgEnable:GetChecked(), "playground", "enabled")
+        -- Update other controls without refreshing this checkbox
+        self:UpdateGameMenuChildControls()
+        self:UpdatePlaygroundChildControls()
+        self:UpdateSkyridingChildControls()
+        self:UpdateCurrentToyDisplay()
+    end)
     self.widgets.playgroundCheckbox = pgEnable
     y = y - 26
     
