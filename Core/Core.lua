@@ -1,6 +1,5 @@
 -- B.O.L.T Core Framework (Brittle and Occasionally Lethal Tweaks)
 -- Main addon initialization and management
-
 local ADDON_NAME, BOLT = ...
 
 -- Create the main addon object
@@ -13,6 +12,7 @@ BOLT.modules = {}
 BOLT.defaults = {
     profile = {
         debug = false,
+        autoCollapseBuffs = true,
         gameMenu = {
             enabled = true,
             showLeaveGroup = true,
@@ -20,22 +20,22 @@ BOLT.defaults = {
             groupToolsEnabled = true,
             raidMarkerIndex = 1, -- 1=Star, 2=Circle, ... 8=Skull; set 0 to clear
             showBattleTextToggles = true,
-            showVolumeButton = true,
+            showVolumeButton = true
         },
         playground = {
             enabled = true,
-            showFavoriteToy = false,
+            showFavoriteToy = true,
             favoriteToyId = nil,
             showFPS = true,
             showSpeedometer = true,
-            statsPosition = "TOPRIGHT",
-            copyTargetMount = true,
+            statsPosition = "BOTTOMRIGHT",
+            copyTargetMount = true
         },
         skyriding = {
-            enabled = false,
+            enabled = true,
             enablePitchControl = true,
-            invertPitch = true,
-        },
+            invertPitch = true
+        }
     }
 }
 
@@ -43,13 +43,13 @@ BOLT.defaults = {
 function BOLT:OnInitialize()
     -- Set version from TOC file (synced with git tags)
     self.version = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version") or "dev"
-    
+
     -- Initialize database
     self:InitializeDatabase()
-    
+
     -- Initialize modules
     self:InitializeModules()
-    
+
     self:Print("B.O.L.T v" .. self.version .. " loaded successfully!")
 end
 
@@ -68,6 +68,39 @@ function BOLT:EnableModules()
         if module.OnEnable then
             module:OnEnable()
         end
+    end
+
+    -- Handle auto collapse buffs
+    self:InitializeBuffCollapseHandler()
+end
+
+-- Initialize buff collapse event handler
+function BOLT:InitializeBuffCollapseHandler()
+    if not self.buffCollapseFrame then
+        self.buffCollapseFrame = CreateFrame("Frame")
+        self.buffCollapseFrame:RegisterEvent("PLAYER_LOGIN")
+        self.buffCollapseFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+
+        self.buffCollapseFrame:SetScript("OnEvent", function(frame, event)
+            if self:GetConfig("autoCollapseBuffs") then
+                self:ApplyBuffCollapseSettings()
+            end
+        end)
+    end
+end
+
+-- Apply buff collapse settings
+function BOLT:ApplyBuffCollapseSettings()
+    if self:GetConfig("autoCollapseBuffs") then
+        -- Delay to ensure the buff frame is loaded
+        C_Timer.After(0.5, function()
+            if BuffFrame and BuffFrame.CollapseAndExpandButton then
+                -- false = collapsed, true = expanded
+                BuffFrame.CollapseAndExpandButton:SetChecked(false)
+                BuffFrame.CollapseAndExpandButton:UpdateOrientation()
+                BuffFrame:SetBuffsExpandedState()
+            end
+        end)
     end
 end
 

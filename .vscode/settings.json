@@ -34,5 +34,10 @@
     "SetCameraZoom",
     "DEFAULT_CHAT_FRAME"
   ],
-  "Lua.type.weakUnionCheck": true
+  "Lua.type.weakUnionCheck": true,
+  "workbench.colorCustomizations": {
+    "editorIndentGuide.activeBackground": "#20b0f3",
+    "minimap.background": "#00000000",
+    "scrollbar.shadow": "#00000000"
+  }
 }
