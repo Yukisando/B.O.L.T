@@ -78,7 +78,7 @@ function WowheadLink:CreateLinkFrame()
     editBox:SetScript("OnEscapePressed", function()
         linkFrame:Hide()
     end)
-    
+
     -- Detect Ctrl+C in the editbox to close the window
     editBox:SetScript("OnKeyDown", function(self, key)
         if key == "C" and IsControlKeyDown() then
