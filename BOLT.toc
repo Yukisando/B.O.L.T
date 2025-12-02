@@ -13,8 +13,7 @@
 # Localization
 Locales.lua
 
-# Bindings
-Bindings.xml
+## Bindings: Bindings.xml
 
 # Core files
 BOLT.lua

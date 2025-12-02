@@ -7,6 +7,8 @@ local L = {}
 L["BINDING_HEADER_B_O_L_T"] = "B.O.L.T"
 L["BINDING_NAME_BOLT_TOGGLE_MASTER_VOLUME"] = "Toggle Master Volume"
 L["BINDING_NAME_BOLT_COPY_TARGET_MOUNT"] = "Copy Target Mount"
+L["BINDING_NAME_BOLT_SHOW_WOWHEAD_LINK"] = "Wowhead link"
+
 
 -- Register localization
 if GetLocale() == "enUS" or GetLocale() == "enGB" then
@@ -15,14 +17,16 @@ elseif GetLocale() == "frFR" then
     L["BINDING_HEADER_B_O_L_T"] = "B.O.L.T"
     L["BINDING_NAME_BOLT_TOGGLE_MASTER_VOLUME"] = "Basculer le volume principal"
     L["BINDING_NAME_BOLT_COPY_TARGET_MOUNT"] = "Copier la monture de la cible"
+    L["BINDING_NAME_BOLT_SHOW_WOWHEAD_LINK"] = "Wowhead link"
 elseif GetLocale() == "deDE" then
     L["BINDING_HEADER_B_O_L_T"] = "B.O.L.T"
     L["BINDING_NAME_BOLT_TOGGLE_MASTER_VOLUME"] = "Hauptlautstärke umschalten"
-    L["BINDING_NAME_BOLT_COPY_TARGET_MOUNT"] = "Reittier des Ziels kopieren"
+    L["BINDING_NAME_BOLT_SHOW_WOWHEAD_LINK"] = "Wowhead link"
 elseif GetLocale() == "esES" or GetLocale() == "esMX" then
     L["BINDING_HEADER_B_O_L_T"] = "B.O.L.T"
     L["BINDING_NAME_BOLT_TOGGLE_MASTER_VOLUME"] = "Alternar volumen maestro"
     L["BINDING_NAME_BOLT_COPY_TARGET_MOUNT"] = "Copiar montura del objetivo"
+        L["BINDING_NAME_BOLT_SHOW_WOWHEAD_LINK"] = "Wowhead link"
 end
 
 -- Apply localization to global scope

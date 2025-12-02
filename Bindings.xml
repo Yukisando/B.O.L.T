@@ -5,7 +5,7 @@
 	<Binding name="BOLT_COPY_TARGET_MOUNT" category="B.O.L.T">
 		BOLT_CopyTargetMount()
 	</Binding>
-	<Binding name="BOLT_SHOW_WOWHEAD_LINK" category="B.O.L.T" header="WOWHEAD_LINK">
+	<Binding name="BOLT_SHOW_WOWHEAD_LINK" category="B.O.L.T">
 		BOLT_ShowWowheadLink()
 	</Binding>
 </Bindings>
