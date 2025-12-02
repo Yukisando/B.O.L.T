@@ -166,6 +166,7 @@ function Config:CreateInterfaceOptionsPanel()
         self:UpdateGameMenuChildControls()
         self:UpdatePlaygroundChildControls()
         self:UpdateSkyridingChildControls()
+        self:UpdateWowheadChildControls()
         self:UpdateCurrentToyDisplay()
     end)
     self.widgets.gameMenuCheckbox = gmEnable
@@ -308,6 +309,7 @@ function Config:CreateInterfaceOptionsPanel()
         self:UpdateGameMenuChildControls()
         self:UpdatePlaygroundChildControls()
         self:UpdateSkyridingChildControls()
+        self:UpdateWowheadChildControls()
         self:UpdateCurrentToyDisplay()
     end)
     self.widgets.skyridingCheckbox = skyEnable
@@ -347,6 +349,7 @@ function Config:CreateInterfaceOptionsPanel()
         self:UpdateGameMenuChildControls()
         self:UpdatePlaygroundChildControls()
         self:UpdateSkyridingChildControls()
+        self:UpdateWowheadChildControls()
         self:UpdateCurrentToyDisplay()
     end)
     self.widgets.playgroundCheckbox = pgEnable
@@ -501,6 +504,66 @@ function Config:CreateInterfaceOptionsPanel()
     self.widgets.clearCopyMountKeybindButton = clearCopyKB
     y = y - 40
 
+    -- Wowhead Link section
+    local wowheadLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    wowheadLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
+    wowheadLabel:SetText("Wowhead Link")
+    y = y - 26
+    local wowheadEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    wowheadEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y);
+    wowheadEnable.Text:SetText("Enable Wowhead Link Module")
+    wowheadEnable:SetScript("OnClick", function()
+        self.parent:SetConfig(wowheadEnable:GetChecked(), "wowheadLink", "enabled")
+        self:UpdateWowheadChildControls()
+    end)
+    self.widgets.wowheadCheckbox = wowheadEnable
+    y = y - 26
+
+    -- Wowhead keybinding
+    local wowheadKBLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    wowheadKBLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    wowheadKBLabel:SetText("Show Wowhead Link Keybinding:")
+    y = y - 26
+    local wowheadKB = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+    wowheadKB:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y);
+    wowheadKB:SetSize(200, 25)
+    self.widgets.wowheadKeybindButton = wowheadKB
+    local function UpdateWowheadKB()
+        local k1, k2 = GetBindingKey("BOLT_SHOW_WOWHEAD_LINK")
+        if k1 then
+            local s = k1:gsub("%-", " + ")
+            if k2 then
+                s = s .. ", " .. k2:gsub("%-", " + ")
+            end
+            wowheadKB:SetText(s)
+        else
+            wowheadKB:SetText("Click to bind (default: Ctrl+C)")
+        end
+    end
+    self.UpdateWowheadKeybindButtonText = UpdateWowheadKB
+    wowheadKB:SetScript("OnClick", function()
+        StartKeybindingCapture(wowheadKB, "BOLT_SHOW_WOWHEAD_LINK", UpdateWowheadKB)
+    end)
+    wowheadKB:SetScript("OnShow", UpdateWowheadKB);
+    UpdateWowheadKB()
+    local clearWowheadKB = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+    clearWowheadKB:SetPoint("LEFT", wowheadKB, "RIGHT", 10, 0);
+    clearWowheadKB:SetSize(80, 25);
+    clearWowheadKB:SetText("Clear")
+    clearWowheadKB:SetScript("OnClick", function()
+        local k1, k2 = GetBindingKey("BOLT_SHOW_WOWHEAD_LINK");
+        if k1 then
+            SetBinding(k1, nil)
+        end
+        if k2 then
+            SetBinding(k2, nil)
+        end
+        SaveBindings(GetCurrentBindingSet());
+        UpdateWowheadKB()
+    end)
+    self.widgets.clearWowheadKeybindButton = clearWowheadKB
+    y = y - 40
+
     -- Reload button and version
     local reloadBtn = CreateFrame("Button", "BOLTOptionsReloadButton", content, "UIPanelButtonTemplate")
     reloadBtn:SetSize(120, 25);
@@ -538,6 +601,7 @@ function Config:RefreshAll()
     self:UpdateGameMenuChildControls()
     self:UpdatePlaygroundChildControls()
     self:UpdateSkyridingChildControls()
+    self:UpdateWowheadChildControls()
     self:UpdateCurrentToyDisplay()
 end
 
@@ -590,6 +654,9 @@ function Config:RefreshOptionsPanel()
         if w.invertPitchCheckbox then
             w.invertPitchCheckbox:SetChecked(self.parent:GetConfig("skyriding", "invertPitch"))
         end
+        if w.wowheadCheckbox then
+            w.wowheadCheckbox:SetChecked(self.parent:IsModuleEnabled("wowheadLink"))
+        end
         -- Update stats position buttons
         if w.statsPositionButtons then
             local cur = self.parent:GetConfig("playground", "statsPosition") or "BOTTOMLEFT"
@@ -603,6 +670,9 @@ function Config:RefreshOptionsPanel()
         end
         if self.UpdateCopyMountKeybindButtonText then
             self.UpdateCopyMountKeybindButtonText()
+        end
+        if self.UpdateWowheadKeybindButtonText then
+            self.UpdateWowheadKeybindButtonText()
         end
     end)
 end
@@ -706,6 +776,19 @@ function Config:UpdateSkyridingChildControls()
         local should = sk and pitch;
         w.invertPitchCheckbox:SetEnabled(should);
         w.invertPitchCheckbox:SetAlpha(should and 1 or 0.5)
+    end
+end
+
+function Config:UpdateWowheadChildControls()
+    local enabled = self.parent:IsModuleEnabled("wowheadLink")
+    local w = self.widgets
+    if w.wowheadKeybindButton then
+        w.wowheadKeybindButton:SetEnabled(enabled)
+        w.wowheadKeybindButton:SetAlpha(enabled and 1 or 0.5)
+    end
+    if w.clearWowheadKeybindButton then
+        w.clearWowheadKeybindButton:SetEnabled(enabled)
+        w.clearWowheadKeybindButton:SetAlpha(enabled and 1 or 0.5)
     end
 end
 

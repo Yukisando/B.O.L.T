@@ -35,6 +35,9 @@ BOLT.defaults = {
             enabled = true,
             enablePitchControl = true,
             invertPitch = true
+        },
+        wowheadLink = {
+            enabled = true
         }
     }
 }

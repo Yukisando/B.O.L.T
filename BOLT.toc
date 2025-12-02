@@ -29,3 +29,4 @@ Modules\GameMenu.lua
 Modules\Skyriding.lua
 Modules\Playground.lua
 Modules\SpecialGamemode.lua
+Modules\WowheadLink.lua
