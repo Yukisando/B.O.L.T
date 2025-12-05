@@ -6,9 +6,7 @@ local Config = {}
 -- Centralized keybinding capture helper
 local _bindingCaptureFrame
 local function StartKeybindingCapture(button, bindingAction, updateFunc)
-    if not button or button._isBinding then
-        return
-    end
+    if not button or button._isBinding then return end
     button._isBinding = true
     button:SetText("Press a key...")
     if not _bindingCaptureFrame then
@@ -23,42 +21,26 @@ local function StartKeybindingCapture(button, bindingAction, updateFunc)
             button._isBinding = false
             f:Hide()
             f:SetScript("OnKeyDown", nil)
-            if updateFunc then
-                updateFunc()
-            end
+            if updateFunc then updateFunc() end
             return
         end
         if key == "LSHIFT" or key == "RSHIFT" or key == "LCTRL" or key == "RCTRL" or key == "LALT" or key == "RALT" then
             return
         end
         local combo = ""
-        if IsControlKeyDown() then
-            combo = "CTRL-"
-        end
-        if IsAltKeyDown() then
-            combo = combo .. "ALT-"
-        end
-        if IsShiftKeyDown() then
-            combo = combo .. "SHIFT-"
-        end
+        if IsControlKeyDown() then combo = "CTRL-" end
+        if IsAltKeyDown() then combo = combo .. "ALT-" end
+        if IsShiftKeyDown() then combo = combo .. "SHIFT-" end
         combo = combo .. key:upper()
-        local k1, k2 = GetBindingKey(bindingAction)
-        if k1 then
-            SetBinding(k1, nil)
-        end
-        if k2 then
-            SetBinding(k2, nil)
-        end
+        local k1,k2 = GetBindingKey(bindingAction)
+        if k1 then SetBinding(k1, nil) end
+        if k2 then SetBinding(k2, nil) end
         if SetBinding(combo, bindingAction) then
             SaveBindings(GetCurrentBindingSet())
-            if updateFunc then
-                C_Timer.After(0.5, updateFunc)
-            end
+            if updateFunc then C_Timer.After(0.5, updateFunc) end
         else
             button:SetText("Binding failed - try another key")
-            if updateFunc then
-                C_Timer.After(1.5, updateFunc)
-            end
+            if updateFunc then C_Timer.After(1.5, updateFunc) end
         end
         button._isBinding = false
         f:Hide()
@@ -66,6 +48,15 @@ local function StartKeybindingCapture(button, bindingAction, updateFunc)
     end)
     f:Show()
     f:SetFocus()
+end
+
+local function TrimWhitespace(text)
+    if type(text) ~= "string" then
+        return ""
+    end
+
+    local trimmed = text:match("^%s*(.-)%s*$")
+    return trimmed or ""
 end
 
 function Config:OnInitialize()
@@ -77,16 +68,12 @@ function Config:OnInitialize()
     self.eventFrame:RegisterEvent("PLAYER_LOGIN")
     self.toyListPopulated = false
     self.eventFrame:SetScript("OnEvent", function(_, event, ...)
-        if self._toyDebug and self.parent and self.parent.Print then
-            self.parent:Print(("Config Event: %s"):format(tostring(event)))
-        end
+        if self._toyDebug and self.parent and self.parent.Print then self.parent:Print(("Config Event: %s"):format(tostring(event))) end
         if (event == "TOYS_UPDATED" or event == "PLAYER_LOGIN") and self.toyFrame then
             -- On login or when the toy API signals an update, try to populate.
             -- Delay slightly on login to allow Blizzard Collections to finish initializing.
             C_Timer.After(0.1, function()
-                if not self then
-                    return
-                end
+                if not self then return end
                 -- If we haven't successfully populated yet, try again
                 self:PopulateToyList()
                 self.toyListPopulated = true
@@ -109,9 +96,7 @@ end
 function Config:CreateInterfaceOptionsPanel()
     local panel = CreateFrame("Frame", "BOLTOptionsPanel")
     panel.name = "B.O.L.T"
-    panel:SetScript("OnShow", function()
-        self:RefreshAll()
-    end)
+    panel:SetScript("OnShow", function() self:RefreshAll() end)
 
     local scrollFrame = CreateFrame("ScrollFrame", "BOLTScrollFrame", panel, "UIPanelScrollFrameTemplate")
     scrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 4, -4)
@@ -130,26 +115,6 @@ function Config:CreateInterfaceOptionsPanel()
 
     local y = -60
 
-    -- General settings section
-    local generalLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    generalLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
-    generalLabel:SetText("General")
-    y = y - 24
-
-    local autoCollapseBuffsCB = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    autoCollapseBuffsCB:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
-    autoCollapseBuffsCB.Text:SetText("Auto Collapse Buffs (hides permanent buffs)")
-    autoCollapseBuffsCB:SetScript("OnClick", function()
-        local v = autoCollapseBuffsCB:GetChecked()
-        self.parent:SetConfig(v, "autoCollapseBuffs")
-        -- Apply immediately
-        if self.parent.ApplyBuffCollapseSettings then
-            self.parent:ApplyBuffCollapseSettings()
-        end
-    end)
-    self.widgets.autoCollapseBuffsCheckbox = autoCollapseBuffsCB
-    y = y - 36
-
     -- Game Menu section
     local gmLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     gmLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
@@ -159,416 +124,45 @@ function Config:CreateInterfaceOptionsPanel()
     local gmEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
     gmEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
     gmEnable.Text:SetText("Enable Game Menu Module")
-    gmEnable:SetScript("OnClick", function()
-        local v = gmEnable:GetChecked()
-        self.parent:SetConfig(v, "gameMenu", "enabled")
-        -- Update other controls without refreshing this checkbox
+    gmEnable:SetScript("OnClick", function(button)
+        local checked = button:GetChecked()
+        self.parent:SetModuleEnabled("gameMenu", checked)
         self:UpdateGameMenuChildControls()
-        self:UpdatePlaygroundChildControls()
-        self:UpdateSkyridingChildControls()
-        self:UpdateWowheadChildControls()
-        self:UpdateCurrentToyDisplay()
     end)
     self.widgets.gameMenuCheckbox = gmEnable
+    self.widgets.gameMenuReloadIndicator = self:CreateReloadIndicator(content, gmEnable)
+    y = y - 36
+
+    local chillLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    chillLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
+    chillLabel:SetText("Chill Music")
+    y = y - 24
+
+    local chillEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    chillEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    chillEnable.Text:SetText("Enable Chill Music Module")
+    chillEnable:SetScript("OnClick", function(button)
+        local checked = button:GetChecked()
+        self.parent:SetModuleEnabled("chillMusic", checked)
+        self:UpdateChillMusicChildControls()
+    end)
+    self.widgets.chillMusicCheckbox = chillEnable
+    self.widgets.chillMusicReloadIndicator = self:CreateReloadIndicator(content, chillEnable)
     y = y - 30
 
-    -- Raid marker: modern icon buttons
-    local markerLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    markerLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 70, y)
-    markerLabel:SetText("Raid marker for the button:")
-    y = y - 26
+    local chillDesc = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    chillDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    chillDesc:SetWidth(520)
+    chillDesc:SetJustifyH("LEFT")
+    chillDesc:SetText("Replaces zone music with a curated chill playlist, automatically switching between indoor tavern tracks and outdoor ambience when you move around Azeroth.")
+    self.widgets.chillMusicDescription = chillDesc
+    y = y - 30
 
-    local markerContainer = CreateFrame("Frame", nil, content)
-    markerContainer:SetPoint("TOPLEFT", markerLabel, "BOTTOMLEFT", 0, -4)
-    markerContainer:SetSize(220, 24)
-    self.widgets.raidMarkerContainer = markerContainer
-
-    local function GetMarkerTexCoords(i)
-        local map = {
-            [1] = {0, 0.25, 0, 0.25},
-            [2] = {0.25, 0.5, 0, 0.25},
-            [3] = {0.5, 0.75, 0, 0.25},
-            [4] = {0.75, 1, 0, 0.25},
-            [5] = {0, 0.25, 0.25, 0.5},
-            [6] = {0.25, 0.5, 0.25, 0.5},
-            [7] = {0.5, 0.75, 0.25, 0.5},
-            [8] = {0.75, 1, 0.25, 0.5}
-        }
-        return unpack(map[i])
-    end
-
-    local markerButtons = {}
-    for i = 1, 8 do
-        local b = CreateFrame("Button", nil, markerContainer)
-        b:SetSize(20, 20)
-        b:SetPoint("LEFT", markerContainer, "LEFT", (i - 1) * 24, 0)
-        local icon = b:CreateTexture(nil, "ARTWORK")
-        icon:SetAllPoints()
-        icon:SetTexture("Interface\\TARGETINGFRAME\\UI-RaidTargetingIcons")
-        icon:SetTexCoord(GetMarkerTexCoords(i))
-        b:SetScript("OnClick", function()
-            self.parent:SetConfig(i, "gameMenu", "raidMarkerIndex")
-            for _, rb in ipairs(markerButtons) do
-                rb:SetAlpha(0.6)
-            end
-            b:SetAlpha(1)
-        end)
-        markerButtons[i] = b
-    end
-    local clearBtn = CreateFrame("Button", nil, markerContainer, "UIPanelButtonTemplate")
-    clearBtn:SetSize(60, 20)
-    clearBtn:SetPoint("LEFT", markerContainer, "LEFT", 8 * 24, 0)
-    clearBtn:SetText("Clear")
-    clearBtn:SetScript("OnClick", function()
-        self.parent:SetConfig(0, "gameMenu", "raidMarkerIndex")
-        for _, rb in ipairs(markerButtons) do
-            rb:SetAlpha(0.6)
-        end
-        clearBtn:SetAlpha(1)
-    end)
-    self.widgets.raidMarkerButtons = markerButtons
-    self.widgets.raidMarkerClearButton = clearBtn
-
-    y = y - 36
-
-    -- Battle text toggles, volume etc. (checkboxes only here)
-    local battleCB = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    battleCB:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y);
-    battleCB.Text:SetText("Show Battle Text Toggles")
-    self.widgets.battleTextCheckbox = battleCB
-    battleCB:SetScript("OnClick", function()
-        self.parent:SetConfig(battleCB:GetChecked(), "gameMenu", "showBattleTextToggles")
-    end)
-    y = y - 26
-
-    local volCB = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    volCB:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y);
-    volCB.Text:SetText("Show Volume Control Button")
-    self.widgets.volumeButtonCheckbox = volCB
-    volCB:SetScript("OnClick", function()
-        self.parent:SetConfig(volCB:GetChecked(), "gameMenu", "showVolumeButton")
-    end)
-    y = y - 36
-
-    -- Keybinding for master volume
-    local kbLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    kbLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
-    kbLabel:SetText("Toggle Master Volume Keybinding:")
-    y = y - 26
-    local keybindButton = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
-    keybindButton:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y);
-    keybindButton:SetSize(200, 25)
-    self.widgets.keybindButton = keybindButton
-    local function UpdateKeybindButtonText()
-        local k1, k2 = GetBindingKey("BOLT_TOGGLE_MASTER_VOLUME")
-        if k1 then
-            local s = k1:gsub("%-", " + ")
-            if k2 then
-                s = s .. ", " .. k2:gsub("%-", " + ")
-            end
-            keybindButton:SetText(s)
-        else
-            keybindButton:SetText("Click to bind")
-        end
-    end
-    self.UpdateKeybindButtonText = UpdateKeybindButtonText
-    keybindButton:SetScript("OnClick", function()
-        StartKeybindingCapture(keybindButton, "BOLT_TOGGLE_MASTER_VOLUME", UpdateKeybindButtonText)
-    end)
-    keybindButton:SetScript("OnShow", UpdateKeybindButtonText);
-    UpdateKeybindButtonText()
-    local clearKB = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
-    clearKB:SetPoint("LEFT", keybindButton, "RIGHT", 10, 0);
-    clearKB:SetSize(80, 25);
-    clearKB:SetText("Clear")
-    clearKB:SetScript("OnClick", function()
-        local k1, k2 = GetBindingKey("BOLT_TOGGLE_MASTER_VOLUME");
-        if k1 then
-            SetBinding(k1, nil)
-        end
-        if k2 then
-            SetBinding(k2, nil)
-        end
-        SaveBindings(GetCurrentBindingSet());
-        UpdateKeybindButtonText()
-    end)
-    self.widgets.clearKeybindButton = clearKB
-    y = y - 40
-
-    -- Skyriding options
-    local skyLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    skyLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
-    skyLabel:SetText("Skyriding")
-    y = y - 26
-    local skyEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    skyEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y);
-    skyEnable.Text:SetText("Enable Skyriding Module")
-    skyEnable:SetScript("OnClick", function()
-        self.parent:SetConfig(skyEnable:GetChecked(), "skyriding", "enabled")
-        -- Update other controls without refreshing this checkbox
-        self:UpdateGameMenuChildControls()
-        self:UpdatePlaygroundChildControls()
-        self:UpdateSkyridingChildControls()
-        self:UpdateWowheadChildControls()
-        self:UpdateCurrentToyDisplay()
-    end)
-    self.widgets.skyridingCheckbox = skyEnable
-    y = y - 26
-    local pitchCB = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    pitchCB:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y);
-    pitchCB.Text:SetText("Enable pitch control (W/S)")
-    pitchCB:SetScript("OnClick", function()
-        self.parent:SetConfig(pitchCB:GetChecked(), "skyriding", "enablePitchControl");
-        if self.parent.modules and self.parent.modules.skyriding and self.parent.modules.skyriding.OnPitchSettingChanged then
-            self.parent.modules.skyriding:OnPitchSettingChanged()
-        end
-    end)
-    self.widgets.pitchControlCheckbox = pitchCB
-    y = y - 26
-    local invertCB = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    invertCB:SetPoint("TOPLEFT", content, "TOPLEFT", 70, y);
-    invertCB.Text:SetText("Invert pitch (W=dive)")
-    invertCB:SetScript("OnClick", function()
-        self.parent:SetConfig(invertCB:GetChecked(), "skyriding", "invertPitch");
-        if self.parent.modules and self.parent.modules.skyriding and self.parent.modules.skyriding.OnPitchSettingChanged then
-            self.parent.modules.skyriding:OnPitchSettingChanged()
-        end
-    end)
-    self.widgets.invertPitchCheckbox = invertCB
-    y = y - 36
-    local pgLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    pgLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
-    pgLabel:SetText("Playground")
-    y = y - 26
-    local pgEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    pgEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y);
-    pgEnable.Text:SetText("Enable Playground Module")
-    pgEnable:SetScript("OnClick", function()
-        self.parent:SetConfig(pgEnable:GetChecked(), "playground", "enabled")
-        -- Update other controls without refreshing this checkbox
-        self:UpdateGameMenuChildControls()
-        self:UpdatePlaygroundChildControls()
-        self:UpdateSkyridingChildControls()
-        self:UpdateWowheadChildControls()
-        self:UpdateCurrentToyDisplay()
-    end)
-    self.widgets.playgroundCheckbox = pgEnable
-    y = y - 26
-
-    -- FPS and Speedometer toggles
-    local fpsCheckbox = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    fpsCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y);
-    fpsCheckbox.Text:SetText("Show FPS Counter")
-    fpsCheckbox:SetScript("OnClick", function()
-        self.parent:SetConfig(fpsCheckbox:GetChecked(), "playground", "showFPS");
-        self:RefreshAll()
-    end)
-    fpsCheckbox:SetScript("OnShow", function()
-        fpsCheckbox:SetChecked(self.parent:GetConfig("playground", "showFPS"))
-    end)
-    self.widgets.fpsCheckbox = fpsCheckbox
-    y = y - 26
-
-    local speedometerCheckbox = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    speedometerCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y);
-    speedometerCheckbox.Text:SetText("Show Speedometer (speed %)")
-    speedometerCheckbox:SetScript("OnClick", function()
-        self.parent:SetConfig(speedometerCheckbox:GetChecked(), "playground", "showSpeedometer");
-        self:RefreshAll()
-    end)
-    speedometerCheckbox:SetScript("OnShow", function()
-        speedometerCheckbox:SetChecked(self.parent:GetConfig("playground", "showSpeedometer"))
-    end)
-    self.widgets.speedometerCheckbox = speedometerCheckbox
-    y = y - 26
-
-    local statsLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    statsLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 70, y)
-    statsLabel:SetText("Stats position:")
-    y = y - 24
-    local posContainer = CreateFrame("Frame", nil, content)
-    posContainer:SetPoint("TOPLEFT", statsLabel, "BOTTOMLEFT", 0, -6)
-    posContainer:SetSize(220, 36)
-    self.widgets.statsPositionContainer = posContainer
-    -- Fixed order: top positions on top row, bottom positions on bottom row
-    local posValues = {"TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT"}
-    local posNames = {"Top Left", "Top Right", "Bottom Left", "Bottom Right"}
-    local posButtons = {}
-    for i = 1, 4 do
-        local btn = CreateFrame("Button", nil, posContainer, "UIPanelButtonTemplate")
-        btn:SetSize(100, 18)
-        if i <= 2 then
-            btn:SetPoint("TOPLEFT", posContainer, "TOPLEFT", (i - 1) * 104, 0)
-        else
-            btn:SetPoint("TOPLEFT", posContainer, "TOPLEFT", (i - 3) * 104, -20)
-        end
-        btn:SetText(posNames[i])
-        btn:SetScript("OnClick", function()
-            self.parent:SetConfig(posValues[i], "playground", "statsPosition")
-            if self.parent.modules and self.parent.modules.playground and
-                self.parent.modules.playground.UpdateStatsPosition then
-                self.parent.modules.playground:UpdateStatsPosition()
-            end
-            for _, b in ipairs(posButtons) do
-                b:SetAlpha(0.7)
-            end
-            btn:SetAlpha(1)
-        end)
-        posButtons[i] = btn
-    end
-    self.widgets.statsPositionButtons = posButtons
-    y = y - 70
-
-    -- Favorite Toy toggle and chooser
-    local favoriteToyCheckbox = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    favoriteToyCheckbox:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
-    favoriteToyCheckbox.Text:SetText("Show Favorite Toy Button")
-    favoriteToyCheckbox:SetScript("OnClick", function()
-        self.parent:SetConfig(favoriteToyCheckbox:GetChecked(), "playground", "showFavoriteToy")
-        self:RefreshAll()
-    end)
-    favoriteToyCheckbox:SetScript("OnShow", function()
-        favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground", "showFavoriteToy"))
-    end)
-    self.widgets.favoriteToyCheckbox = favoriteToyCheckbox
-    y = y - 26
-
-    local chooseToyButton = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
-    chooseToyButton:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
-    chooseToyButton:SetSize(120, 25)
-    chooseToyButton:SetText("Choose Toy")
-    chooseToyButton:SetScript("OnClick", function()
-        self:ShowToySelectionPopup()
-    end)
-    self.widgets.chooseToyButton = chooseToyButton
-
-    local currentToyDisplay = CreateFrame("Frame", nil, content)
-    currentToyDisplay:SetPoint("LEFT", chooseToyButton, "RIGHT", 10, 0)
-    currentToyDisplay:SetSize(250, 25)
-    local currentToyIcon = currentToyDisplay:CreateTexture(nil, "ARTWORK")
-    currentToyIcon:SetPoint("LEFT", currentToyDisplay, "LEFT", 0, 0)
-    currentToyIcon:SetSize(20, 20)
-    currentToyIcon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-    local currentToyText = currentToyDisplay:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    currentToyText:SetPoint("LEFT", currentToyIcon, "RIGHT", 5, 0)
-    currentToyText:SetPoint("RIGHT", currentToyDisplay, "RIGHT", 0, 0)
-    currentToyText:SetJustifyH("LEFT")
-    currentToyText:SetText("None selected")
-    self.widgets.currentToyDisplay = currentToyDisplay
-    self.widgets.currentToyIcon = currentToyIcon
-    self.widgets.currentToyText = currentToyText
-    y = y - 36
-
-    -- Copy target mount keybind
-    local copyKBLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    copyKBLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 70, y)
-    copyKBLabel:SetText("Copy Target Mount Keybinding:")
-    y = y - 26
-    local copyKB = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
-    copyKB:SetPoint("TOPLEFT", content, "TOPLEFT", 70, y);
-    copyKB:SetSize(200, 25)
-    self.widgets.copyMountKeybindButton = copyKB
-    local function UpdateCopyKB()
-        local k1, k2 = GetBindingKey("BOLT_COPY_TARGET_MOUNT")
-        if k1 then
-            local s = k1:gsub("%-", " + ")
-            if k2 then
-                s = s .. ", " .. k2:gsub("%-", " + ")
-            end
-            copyKB:SetText(s)
-        else
-            copyKB:SetText("Click to bind")
-        end
-    end
-    self.UpdateCopyMountKeybindButtonText = UpdateCopyKB
-    copyKB:SetScript("OnClick", function()
-        StartKeybindingCapture(copyKB, "BOLT_COPY_TARGET_MOUNT", UpdateCopyKB)
-    end)
-    copyKB:SetScript("OnShow", UpdateCopyKB);
-    UpdateCopyKB()
-    local clearCopyKB = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
-    clearCopyKB:SetPoint("LEFT", copyKB, "RIGHT", 10, 0);
-    clearCopyKB:SetSize(80, 25);
-    clearCopyKB:SetText("Clear")
-    clearCopyKB:SetScript("OnClick", function()
-        local k1, k2 = GetBindingKey("BOLT_COPY_TARGET_MOUNT");
-        if k1 then
-            SetBinding(k1, nil)
-        end
-        if k2 then
-            SetBinding(k2, nil)
-        end
-        SaveBindings(GetCurrentBindingSet());
-        UpdateCopyKB()
-    end)
-    self.widgets.clearCopyMountKeybindButton = clearCopyKB
-    y = y - 40
-
-    -- Wowhead Link section
-    local wowheadLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    wowheadLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
-    wowheadLabel:SetText("Wowhead Link")
-    y = y - 26
-    local wowheadEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    wowheadEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y);
-    wowheadEnable.Text:SetText("Enable Wowhead Link Module")
-    wowheadEnable:SetScript("OnClick", function()
-        self.parent:SetConfig(wowheadEnable:GetChecked(), "wowheadLink", "enabled")
-        self:UpdateWowheadChildControls()
-    end)
-    self.widgets.wowheadCheckbox = wowheadEnable
-    y = y - 26
-
-    -- Wowhead keybinding
-    local wowheadKBLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    wowheadKBLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
-    wowheadKBLabel:SetText("Show Wowhead Link Keybinding:")
-    y = y - 26
-    local wowheadKB = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
-    wowheadKB:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y);
-    wowheadKB:SetSize(200, 25)
-    self.widgets.wowheadKeybindButton = wowheadKB
-    local function UpdateWowheadKB()
-        local k1, k2 = GetBindingKey("BOLT_SHOW_WOWHEAD_LINK")
-        if k1 then
-            local s = k1:gsub("%-", " + ")
-            if k2 then
-                s = s .. ", " .. k2:gsub("%-", " + ")
-            end
-            wowheadKB:SetText(s)
-        else
-            wowheadKB:SetText("Click to bind (default: Ctrl+C)")
-        end
-    end
-    self.UpdateWowheadKeybindButtonText = UpdateWowheadKB
-    wowheadKB:SetScript("OnClick", function()
-        StartKeybindingCapture(wowheadKB, "BOLT_SHOW_WOWHEAD_LINK", UpdateWowheadKB)
-    end)
-    wowheadKB:SetScript("OnShow", UpdateWowheadKB);
-    UpdateWowheadKB()
-    local clearWowheadKB = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
-    clearWowheadKB:SetPoint("LEFT", wowheadKB, "RIGHT", 10, 0);
-    clearWowheadKB:SetSize(80, 25);
-    clearWowheadKB:SetText("Clear")
-    clearWowheadKB:SetScript("OnClick", function()
-        local k1, k2 = GetBindingKey("BOLT_SHOW_WOWHEAD_LINK");
-        if k1 then
-            SetBinding(k1, nil)
-        end
-        if k2 then
-            SetBinding(k2, nil)
-        end
-        SaveBindings(GetCurrentBindingSet());
-        UpdateWowheadKB()
-    end)
-    self.widgets.clearWowheadKeybindButton = clearWowheadKB
-    y = y - 40
+    y = self:CreateChillMusicSelectors(content, y)
 
     -- Reload button and version
     local reloadBtn = CreateFrame("Button", "BOLTOptionsReloadButton", content, "UIPanelButtonTemplate")
-    reloadBtn:SetSize(120, 25);
-    reloadBtn:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y);
-    reloadBtn:SetText("Reload UI")
+    reloadBtn:SetSize(120,25); reloadBtn:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y); reloadBtn:SetText("Reload UI")
     reloadBtn:SetScript("OnClick", ReloadUI)
     y = y - 40
     local versionText = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -577,9 +171,7 @@ function Config:CreateInterfaceOptionsPanel()
     y = y - 30
 
     content:SetHeight(math.abs(y) + 100)
-    scrollFrame:SetScript("OnSizeChanged", function(frame, w, h)
-        content:SetWidth(w - 20)
-    end)
+    scrollFrame:SetScript("OnSizeChanged", function(frame,w,h) content:SetWidth(w - 20) end)
 
     -- Register Settings category
     if Settings and Settings.RegisterCanvasLayoutCategory then
@@ -587,12 +179,382 @@ function Config:CreateInterfaceOptionsPanel()
         self.settingsCategory = category
         Settings.RegisterAddOnCategory(category)
     else
-        if self.parent and self.parent.Print then
-            self.parent:Print("B.O.L.T: Settings API not found; options not registered.")
-        end
+        if self.parent and self.parent.Print then self.parent:Print("B.O.L.T: Settings API not found; options not registered.") end
     end
 
     self.optionsPanel = panel
+end
+
+function Config:CreateChillMusicSelectors(content, y)
+    local module = self.parent.modules and self.parent.modules.chillMusic
+    if not module then
+        return y
+    end
+
+    local w = self.widgets
+    w.chillMusicCategoryLabels = w.chillMusicCategoryLabels or {}
+    w.chillMusicTrackContainers = w.chillMusicTrackContainers or {}
+    w.chillMusicTrackCheckboxes = w.chillMusicTrackCheckboxes or {}
+    w.chillMusicCustomFrames = w.chillMusicCustomFrames or {}
+    w.chillMusicCustomInputs = w.chillMusicCustomInputs or {}
+
+    local categories = {
+        { key = "indoors", title = "Indoor Tracks" },
+        { key = "outdoors", title = "Outdoor Tracks" },
+    }
+
+    for _, info in ipairs(categories) do
+        local label = w.chillMusicCategoryLabels[info.key]
+        if not label then
+            label = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+            w.chillMusicCategoryLabels[info.key] = label
+        end
+        label:ClearAllPoints()
+        label:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+        label:SetText(info.title)
+        y = y - 24
+
+        local container = w.chillMusicTrackContainers[info.key]
+        if not container then
+            container = CreateFrame("Frame", nil, content)
+            container:SetWidth(520)
+            w.chillMusicTrackContainers[info.key] = container
+        end
+        container:ClearAllPoints()
+        container:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+
+        local listHeight = self:RebuildChillMusicTrackList(info.key)
+        y = y - listHeight - 12
+
+        local customFrame, customHeight = self:CreateChillMusicCustomControls(content, info.key, y)
+        y = y - customHeight - 24
+    end
+
+    local nowPlaying = w.chillMusicNowPlayingLabel
+    if not nowPlaying then
+        nowPlaying = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        w.chillMusicNowPlayingLabel = nowPlaying
+    end
+    nowPlaying:ClearAllPoints()
+    nowPlaying:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    nowPlaying:SetWidth(520)
+    nowPlaying:SetJustifyH("LEFT")
+    y = y - 18
+
+    self:RefreshChillMusicTrackCheckboxes()
+    self:RefreshChillMusicNowPlaying()
+
+    return y
+end
+
+function Config:RebuildChillMusicTrackList(category)
+    local module = self.parent.modules and self.parent.modules.chillMusic
+    if not module then
+        return 0
+    end
+
+    local w = self.widgets
+    local container = w.chillMusicTrackContainers and w.chillMusicTrackContainers[category]
+    if not container then
+        return 0
+    end
+
+    local playlist = module:GetBasePlaylist(category) or {}
+    local rowHeight = 24
+    local rows = container.rows or {}
+    container.rows = rows
+
+    w.chillMusicTrackCheckboxes[category] = {}
+
+    local rowIndex = 0
+    local config = self
+    local moduleEnabled = self.parent:IsModuleEnabled("chillMusic")
+
+    for index, track in ipairs(playlist) do
+        rowIndex = rowIndex + 1
+        local row = rows[rowIndex]
+        if not row then
+            row = CreateFrame("Button", nil, container)
+            row:SetSize(520, rowHeight)
+            row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+            local highlight = row:GetHighlightTexture()
+            if highlight then
+                highlight:SetAlpha(0.35)
+            end
+            rows[rowIndex] = row
+
+            local checkbox = CreateFrame("CheckButton", nil, row, "InterfaceOptionsCheckButtonTemplate")
+            checkbox:SetPoint("LEFT", row, "LEFT", 0, 0)
+            row.checkbox = checkbox
+        end
+
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -((rowIndex - 1) * rowHeight))
+        row:Show()
+
+        local checkbox = row.checkbox
+        checkbox:SetEnabled(moduleEnabled)
+        checkbox:SetScript("OnClick", function(button)
+            config:SetChillMusicTrackEnabled(category, track.key, button:GetChecked())
+        end)
+        checkbox:SetChecked(module:IsTrackEnabled(category, track))
+
+        checkbox.Text:SetText(track.label or track.file or track.key or ("Track " .. index))
+        checkbox.Text:ClearAllPoints()
+        checkbox.Text:SetPoint("LEFT", checkbox, "RIGHT", 0, 0)
+        checkbox.Text:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+        checkbox.Text:SetJustifyH("LEFT")
+        checkbox.Text:SetTextColor(1, 0.82, 0)
+
+        local highlight = row:GetHighlightTexture()
+        if track.isCustom then
+            if highlight then
+                highlight:SetAlpha(0.35)
+            end
+            row:SetScript("OnMouseUp", function(_, button)
+                if button ~= "LeftButton" then
+                    return
+                end
+                if not config.parent:IsModuleEnabled("chillMusic") then
+                    return
+                end
+                if checkbox:IsMouseOver() then
+                    return
+                end
+                config:RemoveCustomTrack(category, track.key)
+            end)
+        else
+            if highlight then
+                highlight:SetAlpha(0)
+            end
+            row:SetScript("OnMouseUp", nil)
+        end
+
+        if track.key then
+            w.chillMusicTrackCheckboxes[category][track.key] = checkbox
+        end
+    end
+
+    for i = rowIndex + 1, #rows do
+        local row = rows[i]
+        if row then
+            row:Hide()
+            row:SetScript("OnMouseUp", nil)
+        end
+    end
+
+    if rowIndex == 0 then
+        if not container.emptyLabel then
+            container.emptyLabel = container:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            container.emptyLabel:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
+            container.emptyLabel:SetJustifyH("LEFT")
+        end
+        container.emptyLabel:SetText("No tracks available")
+        container.emptyLabel:Show()
+        container:SetHeight(18)
+    else
+        if container.emptyLabel then
+            container.emptyLabel:Hide()
+        end
+        container:SetHeight(rowIndex * rowHeight)
+    end
+
+    return container:GetHeight()
+end
+
+function Config:CreateChillMusicCustomControls(content, category, y)
+    local w = self.widgets
+    w.chillMusicCustomFrames = w.chillMusicCustomFrames or {}
+    w.chillMusicCustomInputs = w.chillMusicCustomInputs or {}
+
+    local frame = w.chillMusicCustomFrames[category]
+    if not frame then
+        frame = CreateFrame("Frame", nil, content)
+        frame:SetSize(520, 72)
+        w.chillMusicCustomFrames[category] = frame
+
+        local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        title:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+        title:SetText("Add SoundKit Track")
+
+        local idLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        idLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, -18)
+        idLabel:SetText("SoundKit ID:")
+
+        local idInput = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
+        idInput:SetAutoFocus(false)
+        idInput:SetSize(120, 24)
+        idInput:SetPoint("LEFT", idLabel, "RIGHT", 6, 0)
+        idInput:SetNumeric(true)
+        idInput:SetMaxLetters(6)
+
+        local addButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        addButton:SetSize(90, 24)
+        addButton:SetPoint("LEFT", idInput, "RIGHT", 12, 0)
+        addButton:SetText("Add ID")
+        addButton:SetScript("OnClick", function()
+            self:AddCustomTrackFromInputs(category)
+        end)
+
+        local clearButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        clearButton:SetSize(70, 24)
+        clearButton:SetPoint("LEFT", addButton, "RIGHT", 8, 0)
+        clearButton:SetText("Clear")
+        clearButton:SetScript("OnClick", function()
+            idInput:SetText("")
+            self:UpdateChillMusicCustomAddState(category)
+        end)
+
+        local hint = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        hint:SetPoint("TOPLEFT", idLabel, "BOTTOMLEFT", 0, -14)
+        hint:SetWidth(520)
+        hint:SetJustifyH("LEFT")
+        hint:SetText("Enter the SoundKit ID (number). Click a custom track above to remove it from the list.")
+
+        w.chillMusicCustomInputs[category] = {
+            soundKit = idInput,
+            addButton = addButton,
+            clearButton = clearButton,
+        }
+
+        idInput:SetScript("OnTextChanged", function()
+            self:UpdateChillMusicCustomAddState(category)
+        end)
+    end
+
+    frame:ClearAllPoints()
+    frame:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    frame:SetWidth(520)
+
+    self:UpdateChillMusicCustomAddState(category)
+
+    return frame, frame:GetHeight() or 72
+end
+
+function Config:UpdateChillMusicCustomAddState(category)
+    local inputs = self.widgets and self.widgets.chillMusicCustomInputs and self.widgets.chillMusicCustomInputs[category]
+    if not inputs then
+        return
+    end
+
+    local enabled = self.parent:IsModuleEnabled("chillMusic")
+    local soundKitText = TrimWhitespace(inputs.soundKit:GetText() or "")
+    local soundKitValue = tonumber(soundKitText)
+
+    if inputs.addButton then
+        inputs.addButton:SetEnabled(enabled and soundKitValue and soundKitValue > 0)
+    end
+    if inputs.clearButton then
+        inputs.clearButton:SetEnabled(enabled and soundKitText ~= "")
+    end
+    if inputs.soundKit then
+        inputs.soundKit:SetEnabled(enabled)
+    end
+end
+
+function Config:AddCustomTrackFromInputs(category)
+    local module = self.parent.modules and self.parent.modules.chillMusic
+    if not module then
+        return
+    end
+
+    local inputs = self.widgets and self.widgets.chillMusicCustomInputs and self.widgets.chillMusicCustomInputs[category]
+    if not inputs then
+        return
+    end
+
+    local soundKitText = TrimWhitespace(inputs.soundKit:GetText() or "")
+    local soundKitId = tonumber(soundKitText)
+
+    if not soundKitId or soundKitId <= 0 then
+        if self.parent and self.parent.Print then
+            self.parent:Print("Chill Music: Please enter a valid SoundKit ID.")
+        end
+        return
+    end
+
+    local track, err = module:AddCustomTrack(category, soundKitId)
+    if track then
+        if self.parent and self.parent.Print then
+            local label = track.label or track.file or track.key or "custom track"
+            self.parent:Print(string.format("Chill Music: Added custom %s track '%s'.", category, label))
+        end
+        inputs.soundKit:SetText("")
+        self:RebuildChillMusicTrackList(category)
+        self:RefreshChillMusicTrackCheckboxes()
+    else
+        if self.parent and self.parent.Print then
+            self.parent:Print("Chill Music: Unable to add track - " .. (err or "invalid data"))
+        end
+    end
+
+    self:UpdateChillMusicCustomAddState(category)
+end
+
+function Config:RemoveCustomTrack(category, trackKey)
+    local module = self.parent.modules and self.parent.modules.chillMusic
+    if not module then
+        return
+    end
+
+    local track = module:GetTrackByKey(category, trackKey)
+    if module:RemoveCustomTrack(category, trackKey) then
+        if self.parent and self.parent.Print then
+            local label = track and (track.label or track.file or track.key) or trackKey or "track"
+            self.parent:Print(string.format("Chill Music: Removed custom %s track '%s'.", category, label))
+        end
+        self:RebuildChillMusicTrackList(category)
+        self:RefreshChillMusicTrackCheckboxes()
+    else
+        if self.parent and self.parent.Print then
+            self.parent:Print("Chill Music: Unable to remove track.")
+        end
+    end
+
+    self:UpdateChillMusicCustomAddState(category)
+end
+
+function Config:UpdateChillMusicChildControls()
+    local enabled = self.parent:IsModuleEnabled("chillMusic")
+    local w = self.widgets
+
+    if w.chillMusicDescription then
+        w.chillMusicDescription:SetAlpha(enabled and 1 or 0.5)
+    end
+
+    if w.chillMusicCategoryLabels then
+        for _, label in pairs(w.chillMusicCategoryLabels) do
+            if label then
+                label:SetAlpha(enabled and 1 or 0.5)
+            end
+        end
+    end
+
+    if w.chillMusicTrackCheckboxes then
+        for _, checkboxes in pairs(w.chillMusicTrackCheckboxes) do
+            for _, checkbox in pairs(checkboxes) do
+                if checkbox then
+                    checkbox:SetEnabled(enabled)
+                end
+            end
+        end
+    end
+
+    if w.chillMusicCustomInputs then
+        for category in pairs(w.chillMusicCustomInputs) do
+            self:UpdateChillMusicCustomAddState(category)
+        end
+    end
+
+    if w.chillMusicNowPlayingLabel then
+        w.chillMusicNowPlayingLabel:SetAlpha(enabled and 1 or 0.5)
+    end
+
+    self:RefreshChillMusicTrackCheckboxes()
+
+    if enabled then
+        self:RefreshChillMusicNowPlaying()
+    end
 end
 
 -- Refresh logic
@@ -600,204 +562,147 @@ function Config:RefreshAll()
     self:RefreshOptionsPanel()
     self:UpdateGameMenuChildControls()
     self:UpdatePlaygroundChildControls()
+    self:UpdateChillMusicChildControls()
     self:UpdateSkyridingChildControls()
-    self:UpdateWowheadChildControls()
     self:UpdateCurrentToyDisplay()
 end
 
 function Config:RefreshOptionsPanel()
     C_Timer.After(0.05, function()
         local w = self.widgets
-        if w.autoCollapseBuffsCheckbox then
-            w.autoCollapseBuffsCheckbox:SetChecked(self.parent:GetConfig("autoCollapseBuffs"))
-        end
-        if w.gameMenuCheckbox then
-            w.gameMenuCheckbox:SetChecked(self.parent:IsModuleEnabled("gameMenu"))
-        end
-        if w.leaveGroupCheckbox then
-            w.leaveGroupCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showLeaveGroup"))
-        end
-        if w.reloadCheckbox then
-            w.reloadCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showReloadButton"))
-        end
-        if w.groupToolsCheckbox then
-            w.groupToolsCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "groupToolsEnabled"))
-        end
-        if w.battleTextCheckbox then
-            w.battleTextCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showBattleTextToggles"))
-        end
-        if w.volumeButtonCheckbox then
-            w.volumeButtonCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showVolumeButton"))
-        end
+        if w.gameMenuCheckbox then w.gameMenuCheckbox:SetChecked(self.parent:IsModuleEnabled("gameMenu")) end
+        if w.leaveGroupCheckbox then w.leaveGroupCheckbox:SetChecked(self.parent:GetConfig("gameMenu","showLeaveGroup")) end
+        if w.reloadCheckbox then w.reloadCheckbox:SetChecked(self.parent:GetConfig("gameMenu","showReloadButton")) end
+        if w.groupToolsCheckbox then w.groupToolsCheckbox:SetChecked(self.parent:GetConfig("gameMenu","groupToolsEnabled")) end
+        if w.battleTextCheckbox then w.battleTextCheckbox:SetChecked(self.parent:GetConfig("gameMenu","showBattleTextToggles")) end
+        if w.volumeButtonCheckbox then w.volumeButtonCheckbox:SetChecked(self.parent:GetConfig("gameMenu","showVolumeButton")) end
         -- Update raid marker visuals
         if w.raidMarkerButtons then
-            local idx = self.parent:GetConfig("gameMenu", "raidMarkerIndex") or 1
-            for i, b in ipairs(w.raidMarkerButtons) do
-                b:SetAlpha((i == idx) and 1 or 0.6)
-            end
-            if w.raidMarkerClearButton then
-                w.raidMarkerClearButton:SetAlpha(idx == 0 and 1 or 0.6)
-            end
+            local idx = self.parent:GetConfig("gameMenu","raidMarkerIndex") or 1
+            for i,b in ipairs(w.raidMarkerButtons) do b:SetAlpha((i==idx) and 1 or 0.6) end
+            if w.raidMarkerClearButton then w.raidMarkerClearButton:SetAlpha(idx==0 and 1 or 0.6) end
         end
-        if w.playgroundCheckbox then
-            w.playgroundCheckbox:SetChecked(self.parent:IsModuleEnabled("playground"))
-        end
-        if w.favoriteToyCheckbox then
-            w.favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground", "showFavoriteToy"))
-        end
-        if w.skyridingCheckbox then
-            w.skyridingCheckbox:SetChecked(self.parent:IsModuleEnabled("skyriding"))
-        end
-        if w.pitchControlCheckbox then
-            w.pitchControlCheckbox:SetChecked(self.parent:GetConfig("skyriding", "enablePitchControl"))
-        end
-        if w.invertPitchCheckbox then
-            w.invertPitchCheckbox:SetChecked(self.parent:GetConfig("skyriding", "invertPitch"))
-        end
-        if w.wowheadCheckbox then
-            w.wowheadCheckbox:SetChecked(self.parent:IsModuleEnabled("wowheadLink"))
-        end
-        -- Update stats position buttons
-        if w.statsPositionButtons then
-            local cur = self.parent:GetConfig("playground", "statsPosition") or "BOTTOMLEFT"
-            for i, btn in ipairs(w.statsPositionButtons) do
-                btn:SetAlpha((cur == ({"TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT"})[i]) and 1 or 0.7)
-            end
-        end
-        -- Keybind displays
-        if self.UpdateKeybindButtonText then
-            self.UpdateKeybindButtonText()
-        end
-        if self.UpdateCopyMountKeybindButtonText then
-            self.UpdateCopyMountKeybindButtonText()
-        end
-        if self.UpdateWowheadKeybindButtonText then
-            self.UpdateWowheadKeybindButtonText()
-        end
-    end)
+        if w.playgroundCheckbox then w.playgroundCheckbox:SetChecked(self.parent:IsModuleEnabled("playground")) end
+        if w.chillMusicCheckbox then w.chillMusicCheckbox:SetChecked(self.parent:IsModuleEnabled("chillMusic")) end
+        if w.favoriteToyCheckbox then w.favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground","showFavoriteToy")) end
+        if w.skyridingCheckbox then w.skyridingCheckbox:SetChecked(self.parent:IsModuleEnabled("skyriding")) end
+        if w.pitchControlCheckbox then w.pitchControlCheckbox:SetChecked(self.parent:GetConfig("skyriding","enablePitchControl")) end
+        end)
+    end
+
+    function Config:SetChillMusicTrackEnabled(category, trackKey, enabled)
+    if not category or not trackKey then
+        return
+    end
+
+    local optionKey = (category == "indoors") and "indoorSelection" or "outdoorSelection"
+    local current = self.parent:GetConfig("chillMusic", optionKey)
+    if type(current) == "table" then
+        current = CopyTable(current)
+    else
+        current = {}
+    end
+
+    if enabled then
+        current[trackKey] = nil
+    else
+        current[trackKey] = false
+    end
+
+    if current and next(current) == nil then
+        current = nil
+    end
+
+    self.parent:SetConfig(current, "chillMusic", optionKey)
+
+    if self.parent.modules and self.parent.modules.chillMusic and self.parent.modules.chillMusic.OnTrackSelectionChanged then
+        self.parent.modules.chillMusic:OnTrackSelectionChanged()
+    end
+
+    self:RefreshChillMusicTrackCheckboxes()
 end
 
-function Config:UpdateGameMenuChildControls()
-    local enabled = self.parent:IsModuleEnabled("gameMenu")
+function Config:RefreshChillMusicTrackCheckboxes()
+    local module = self.parent.modules and self.parent.modules.chillMusic
+    if not module then
+        return
+    end
+
     local w = self.widgets
-    if w.leaveGroupCheckbox then
-        w.leaveGroupCheckbox:SetEnabled(enabled);
-        w.leaveGroupCheckbox:SetAlpha(enabled and 1 or 0.5)
+    if not w.chillMusicTrackCheckboxes then
+        return
     end
-    if w.reloadCheckbox then
-        w.reloadCheckbox:SetEnabled(enabled);
-        w.reloadCheckbox:SetAlpha(enabled and 1 or 0.5)
-    end
-    if w.groupToolsCheckbox then
-        w.groupToolsCheckbox:SetEnabled(enabled);
-        w.groupToolsCheckbox:SetAlpha(enabled and 1 or 0.5)
-    end
-    if w.battleTextCheckbox then
-        w.battleTextCheckbox:SetEnabled(enabled);
-        w.battleTextCheckbox:SetAlpha(enabled and 1 or 0.5)
-    end
-    if w.volumeButtonCheckbox then
-        w.volumeButtonCheckbox:SetEnabled(enabled);
-        w.volumeButtonCheckbox:SetAlpha(enabled and 1 or 0.5)
-    end
-    local groupTools = enabled and self.parent:GetConfig("gameMenu", "groupToolsEnabled")
-    if w.raidMarkerButtons then
-        for _, b in ipairs(w.raidMarkerButtons) do
-            b:SetEnabled(groupTools);
-            b:SetAlpha(groupTools and b:GetAlpha() or 0.5)
+
+    for category, checkboxes in pairs(w.chillMusicTrackCheckboxes) do
+        for key, cb in pairs(checkboxes) do
+            local track = module:GetTrackByKey(category, key)
+            if cb and track then
+                local checked = module:IsTrackEnabled(category, track)
+                cb:SetChecked(checked)
+            end
         end
-        if w.raidMarkerClearButton then
-            w.raidMarkerClearButton:SetEnabled(groupTools);
-            w.raidMarkerClearButton:SetAlpha(groupTools and w.raidMarkerClearButton:GetAlpha() or 0.5)
-        end
-    end
-    if w.raidMarkerLabel then
-        w.raidMarkerLabel:SetAlpha(groupTools and 1 or 0.5)
     end
 end
 
-function Config:UpdatePlaygroundChildControls()
-    local enabled = self.parent:IsModuleEnabled("playground")
-    local w = self.widgets
-    if w.favoriteToyCheckbox then
-        w.favoriteToyCheckbox:SetEnabled(enabled);
-        w.favoriteToyCheckbox:SetAlpha(enabled and 1 or 0.5)
+function Config:RefreshChillMusicNowPlaying()
+    local label = self.widgets and self.widgets.chillMusicNowPlayingLabel
+    if not label then
+        return
     end
-    if w.fpsCheckbox then
-        w.fpsCheckbox:SetEnabled(enabled);
-        w.fpsCheckbox:SetAlpha(enabled and 1 or 0.5)
+
+    local module = self.parent.modules and self.parent.modules.chillMusic
+    if not module then
+        label:SetText("Now Playing: (module not loaded)")
+        return
     end
-    if w.speedometerCheckbox then
-        w.speedometerCheckbox:SetEnabled(enabled);
-        w.speedometerCheckbox:SetAlpha(enabled and 1 or 0.5)
+
+    if not self.parent:IsModuleEnabled("chillMusic") then
+        label:SetText("Now Playing: (module disabled)")
+        return
     end
-    if w.copyTargetMountCheckbox then
-        w.copyTargetMountCheckbox:SetEnabled(enabled);
-        w.copyTargetMountCheckbox:SetAlpha(enabled and 1 or 0.5)
+
+    if not GetCVarBool("Sound_EnableMusic") then
+        label:SetText("Now Playing: (music disabled in audio settings)")
+        return
     end
-    local showStats = enabled and
-                          (self.parent:GetConfig("playground", "showFPS") or
-                              self.parent:GetConfig("playground", "showSpeedometer"))
-    if w.statsPositionContainer then
-        if showStats then
-            w.statsPositionContainer:Show()
-        else
-            w.statsPositionContainer:Hide()
-        end
+
+    local track, environment = module:GetCurrentTrackInfo()
+    if not track then
+        label:SetText("Now Playing: (waiting for next track)")
+        return
     end
-    -- Always expose the chooser so users can pick a favorite even if the UI toggle is off
-    if w.chooseToyButton then
-        if enabled then
-            w.chooseToyButton:Show()
-        else
-            w.chooseToyButton:Hide()
-        end
+
+    local envLabel = (environment == "indoors") and "Indoor" or "Outdoor"
+    label:SetText(string.format("Now Playing: %s [%s]", track.label or track.file or track.key or "Unknown", envLabel))
+end
+
+function Config:UpdateChillMusicNowPlaying(track, environment)
+    if not track then
+        self:RefreshChillMusicNowPlaying()
+        return
     end
-    -- Current toy display is shown when module enabled AND a favorite toy is set
-    if w.currentToyDisplay then
-        local fav = self.parent:GetConfig("playground", "favoriteToyId")
-        if enabled and fav then
-            w.currentToyDisplay:Show()
-        else
-            w.currentToyDisplay:Hide()
-        end
+
+    local label = self.widgets and self.widgets.chillMusicNowPlayingLabel
+    if not label then
+        return
     end
+
+    local envLabel = (environment == "indoors") and "Indoor" or "Outdoor"
+    label:SetText(string.format("Now Playing: %s [%s]", track.label or track.file or track.key or "Unknown", envLabel))
 end
 
 function Config:UpdateSkyridingChildControls()
     local sk = self.parent:IsModuleEnabled("skyriding")
-    local pitch = self.parent:GetConfig("skyriding", "enablePitchControl")
+    local pitch = self.parent:GetConfig("skyriding","enablePitchControl")
     local w = self.widgets
-    if w.pitchControlCheckbox then
-        w.pitchControlCheckbox:SetEnabled(sk);
-        w.pitchControlCheckbox:SetAlpha(sk and 1 or 0.5)
-    end
-    if w.invertPitchCheckbox then
-        local should = sk and pitch;
-        w.invertPitchCheckbox:SetEnabled(should);
-        w.invertPitchCheckbox:SetAlpha(should and 1 or 0.5)
-    end
-end
-
-function Config:UpdateWowheadChildControls()
-    local enabled = self.parent:IsModuleEnabled("wowheadLink")
-    local w = self.widgets
-    if w.wowheadKeybindButton then
-        w.wowheadKeybindButton:SetEnabled(enabled)
-        w.wowheadKeybindButton:SetAlpha(enabled and 1 or 0.5)
-    end
-    if w.clearWowheadKeybindButton then
-        w.clearWowheadKeybindButton:SetEnabled(enabled)
-        w.clearWowheadKeybindButton:SetAlpha(enabled and 1 or 0.5)
-    end
+    if w.pitchControlCheckbox then w.pitchControlCheckbox:SetEnabled(sk); w.pitchControlCheckbox:SetAlpha(sk and 1 or 0.5) end
+    if w.invertPitchCheckbox then local should = sk and pitch; w.invertPitchCheckbox:SetEnabled(should); w.invertPitchCheckbox:SetAlpha(should and 1 or 0.5) end
 end
 
 function Config:UpdateCurrentToyDisplay()
     local w = self.widgets
-    if not w.currentToyIcon or not w.currentToyText then
-        return
-    end
-    local toyID = self.parent:GetConfig("playground", "favoriteToyId")
+    if not w.currentToyIcon or not w.currentToyText then return end
+    local toyID = self.parent:GetConfig("playground","favoriteToyId")
     if toyID then
         -- C_ToyBox.GetToyInfo returns: itemID, toyName, icon, isFavorite, hasFanfare, itemQuality
         local itemID, toyName, icon = C_ToyBox.GetToyInfo(toyID)
@@ -824,14 +729,9 @@ end
 
 function Config:CreateToySelectionPopup()
     local popup = CreateFrame("Frame", "BOLTToySelectionPopup", UIParent, "DialogBoxFrame")
-    popup:SetSize(450, 400);
-    popup:SetPoint("CENTER");
-    popup:SetFrameStrata("DIALOG")
-    local title = popup:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", popup, "TOP", 0, -20)
-    title:SetText("Choose Favorite Toy")
-    local close = CreateFrame("Button", nil, popup, "UIPanelCloseButton")
-    close:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -5, -5)
+    popup:SetSize(450,400); popup:SetPoint("CENTER"); popup:SetFrameStrata("DIALOG")
+    local title = popup:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge") title:SetPoint("TOP", popup, "TOP", 0, -20) title:SetText("Choose Favorite Toy")
+    local close = CreateFrame("Button", nil, popup, "UIPanelCloseButton") close:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -5, -5)
     self:CreateToySelectionFrame(popup, 15, -50)
     self.toyPopup = popup
     popup:Hide()
@@ -839,69 +739,21 @@ end
 
 function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
     local toyFrame = CreateFrame("Frame", "BOLTToySelectionFrame", parent)
-    toyFrame:SetPoint("TOPLEFT", parent, "TOPLEFT", xOffset, yOffset);
-    toyFrame:SetSize(420, 320)
-    local searchLabel = toyFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    searchLabel:SetPoint("TOPLEFT", toyFrame, "TOPLEFT", 15, -15)
-    searchLabel:SetText("Search:")
-    local searchBox = CreateFrame("EditBox", "BOLTToySearchBox", toyFrame, "InputBoxTemplate")
-    searchBox:SetPoint("TOPLEFT", searchLabel, "TOPRIGHT", 15, 0);
-    searchBox:SetSize(220, 28);
-    searchBox:SetAutoFocus(false)
-    searchBox:SetScript("OnTextChanged", function()
-        self:FilterToyList()
-    end)
-    local clear = CreateFrame("Button", nil, toyFrame, "UIPanelButtonTemplate")
-    clear:SetPoint("LEFT", searchBox, "RIGHT", 10, 0);
-    clear:SetSize(50, 28);
-    clear:SetText("Clear");
-    clear:SetScript("OnClick", function()
-        searchBox:SetText("");
-        self:FilterToyList()
-    end)
-    local refresh = CreateFrame("Button", nil, toyFrame, "UIPanelButtonTemplate")
-    refresh:SetPoint("LEFT", clear, "RIGHT", 8, 0);
-    refresh:SetSize(60, 28);
-    refresh:SetText("Refresh")
-    refresh:SetScript("OnClick", function()
-        self:PopulateToyList();
-        self:UpdateToySelection()
-    end)
-    local currentLabel = toyFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    currentLabel:SetPoint("TOPLEFT", toyFrame, "TOPLEFT", 15, -50);
-    currentLabel:SetText("Current:")
-    local currentToy = CreateFrame("Button", "BOLTCurrentToyButton", toyFrame);
-    currentToy:SetPoint("LEFT", currentLabel, "RIGHT", 15, 0);
-    currentToy:SetSize(220, 28)
-    local currentIcon = currentToy:CreateTexture(nil, "ARTWORK")
-    currentIcon:SetPoint("LEFT", currentToy, "LEFT", 4, 0);
-    currentIcon:SetSize(20, 20)
-    local currentText = currentToy:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    currentText:SetPoint("LEFT", currentIcon, "RIGHT", 8, 0)
-    currentText:SetPoint("RIGHT", currentToy, "RIGHT", -8, 0)
-    currentText:SetJustifyH("LEFT")
-    currentText:SetText("None selected")
-    currentToy:SetScript("OnClick", function()
-        self.parent:SetConfig(nil, "playground", "favoriteToyId");
-        self:UpdateToySelection();
-        if self.parent.modules.playground and self.parent.modules.playground.UpdateFavoriteToyButton then
-            self.parent.modules.playground:UpdateFavoriteToyButton()
-        end
-    end)
-    local scrollFrame = CreateFrame("ScrollFrame", "BOLTToyScrollFrame", toyFrame, "UIPanelScrollFrameTemplate");
-    scrollFrame:SetPoint("TOPLEFT", toyFrame, "TOPLEFT", 15, -85);
-    scrollFrame:SetPoint("BOTTOMRIGHT", toyFrame, "BOTTOMRIGHT", -35, 15)
-    local scrollChild = CreateFrame("Frame", nil, scrollFrame);
-    scrollFrame:SetScrollChild(scrollChild);
-    scrollChild:SetSize(370, 1)
-    self.toyFrame = toyFrame;
-    self.searchBox = searchBox;
-    self.currentToyButton = currentToy;
-    self.currentToyIcon = currentIcon;
-    self.currentToyText = currentText;
-    self.toyScrollFrame = scrollFrame;
-    self.toyScrollChild = scrollChild;
-    self.toyButtons = {}
+    toyFrame:SetPoint("TOPLEFT", parent, "TOPLEFT", xOffset, yOffset); toyFrame:SetSize(420,320)
+    local searchLabel = toyFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal") searchLabel:SetPoint("TOPLEFT", toyFrame, "TOPLEFT", 15, -15) searchLabel:SetText("Search:")
+    local searchBox = CreateFrame("EditBox", "BOLTToySearchBox", toyFrame, "InputBoxTemplate") searchBox:SetPoint("TOPLEFT", searchLabel, "TOPRIGHT", 15, 0); searchBox:SetSize(220,28); searchBox:SetAutoFocus(false)
+    searchBox:SetScript("OnTextChanged", function() self:FilterToyList() end)
+    local clear = CreateFrame("Button", nil, toyFrame, "UIPanelButtonTemplate") clear:SetPoint("LEFT", searchBox, "RIGHT", 10, 0); clear:SetSize(50,28); clear:SetText("Clear"); clear:SetScript("OnClick", function() searchBox:SetText(""); self:FilterToyList() end)
+    local refresh = CreateFrame("Button", nil, toyFrame, "UIPanelButtonTemplate") refresh:SetPoint("LEFT", clear, "RIGHT", 8, 0); refresh:SetSize(60,28); refresh:SetText("Refresh")
+    refresh:SetScript("OnClick", function() self:PopulateToyList(); self:UpdateToySelection() end)
+    local currentLabel = toyFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal") currentLabel:SetPoint("TOPLEFT", toyFrame, "TOPLEFT", 15, -50); currentLabel:SetText("Current:")
+    local currentToy = CreateFrame("Button", "BOLTCurrentToyButton", toyFrame); currentToy:SetPoint("LEFT", currentLabel, "RIGHT", 15, 0); currentToy:SetSize(220,28)
+    local currentIcon = currentToy:CreateTexture(nil, "ARTWORK") currentIcon:SetPoint("LEFT", currentToy, "LEFT", 4, 0); currentIcon:SetSize(20,20)
+    local currentText = currentToy:CreateFontString(nil, "OVERLAY", "GameFontHighlight") currentText:SetPoint("LEFT", currentIcon, "RIGHT", 8, 0) currentText:SetPoint("RIGHT", currentToy, "RIGHT", -8, 0) currentText:SetJustifyH("LEFT") currentText:SetText("None selected")
+    currentToy:SetScript("OnClick", function() self.parent:SetConfig(nil, "playground", "favoriteToyId"); self:UpdateToySelection(); if self.parent.modules.playground and self.parent.modules.playground.UpdateFavoriteToyButton then self.parent.modules.playground:UpdateFavoriteToyButton() end end)
+    local scrollFrame = CreateFrame("ScrollFrame", "BOLTToyScrollFrame", toyFrame, "UIPanelScrollFrameTemplate"); scrollFrame:SetPoint("TOPLEFT", toyFrame, "TOPLEFT", 15, -85); scrollFrame:SetPoint("BOTTOMRIGHT", toyFrame, "BOTTOMRIGHT", -35, 15)
+    local scrollChild = CreateFrame("Frame", nil, scrollFrame); scrollFrame:SetScrollChild(scrollChild); scrollChild:SetSize(370,1)
+    self.toyFrame = toyFrame; self.searchBox = searchBox; self.currentToyButton = currentToy; self.currentToyIcon = currentIcon; self.currentToyText = currentText; self.toyScrollFrame = scrollFrame; self.toyScrollChild = scrollChild; self.toyButtons = {}
     toyFrame:SetScript("OnShow", function()
         C_Timer.After(0.1, function()
             if not self.toyListPopulated then
@@ -915,12 +767,8 @@ function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
 end
 
 function Config:PopulateToyList()
-    if not self.toyScrollChild then
-        return
-    end
-    for _, b in pairs(self.toyButtons) do
-        b:Hide()
-    end
+    if not self.toyScrollChild then return end
+    for _,b in pairs(self.toyButtons) do b:Hide() end
     self.toyButtons = {}
     self.allToys = {}
 
@@ -953,14 +801,12 @@ function Config:PopulateToyList()
         end
     end
 
-    table.sort(self.allToys, function(a, b)
-        return a.name < b.name
-    end)
+    table.sort(self.allToys, function(a,b) return a.name < b.name end)
     self:FilterToyList()
 
     -- Schedule icon-cache retry for toys missing icons
     local needsIcon = false
-    for _, t in ipairs(self.allToys) do
+    for _,t in ipairs(self.allToys) do
         if not t.icon and t.itemId then
             needsIcon = true
             break
@@ -969,11 +815,9 @@ function Config:PopulateToyList()
 
     if needsIcon then
         C_Timer.After(0.5, function()
-            if not self or not self.allToys then
-                return
-            end
+            if not self or not self.allToys then return end
             local changed = false
-            for _, t in ipairs(self.allToys) do
+            for _,t in ipairs(self.allToys) do
                 if not t.icon and t.itemId and GetItemInfo then
                     local maybeIcon = select(10, GetItemInfo(t.itemId))
                     if maybeIcon then
@@ -990,13 +834,9 @@ function Config:PopulateToyList()
 end
 
 function Config:FilterToyList()
-    if not self.toyScrollChild or not self.allToys then
-        return
-    end
+    if not self.toyScrollChild or not self.allToys then return end
     local searchText = ""
-    if self.searchBox then
-        searchText = self.searchBox:GetText():lower()
-    end
+    if self.searchBox then searchText = self.searchBox:GetText():lower() end
     local filteredToys = {}
     for _, toy in ipairs(self.allToys) do
         if searchText == "" or toy.lcname:find(searchText, 1, true) then
@@ -1032,33 +872,23 @@ function Config:FilterToyList()
             button.icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
         end
         -- Ensure full UVs so icon draws correctly
-        button.icon:SetTexCoord(0, 1, 0, 1)
+        button.icon:SetTexCoord(0,1,0,1)
         button.text:SetText(toy.name)
         button:SetScript("OnClick", function()
             self.parent:SetConfig(toy.id, "playground", "favoriteToyId")
-            if self.parent and self.parent.Print then
-                self.parent:Print("Favorite toy set to: " .. toy.name)
-            end
+            if self.parent and self.parent.Print then self.parent:Print("Favorite toy set to: " .. toy.name) end
             self:UpdateToySelection()
-            if self.parent.modules.playground and self.parent.modules.playground.UpdateFavoriteToyButton then
-                self.parent.modules.playground:UpdateFavoriteToyButton()
-            end
+            if self.parent.modules.playground and self.parent.modules.playground.UpdateFavoriteToyButton then self.parent.modules.playground:UpdateFavoriteToyButton() end
         end)
         button:Show()
         yOffset = yOffset + buttonHeight
     end
-    for i = #filteredToys + 1, #self.toyButtons do
-        if self.toyButtons[i] then
-            self.toyButtons[i]:Hide()
-        end
-    end
+    for i = #filteredToys + 1, #self.toyButtons do if self.toyButtons[i] then self.toyButtons[i]:Hide() end end
     self.toyScrollChild:SetHeight(math.max(yOffset, 1))
 end
 
 function Config:UpdateToySelection()
-    if not self.currentToyButton then
-        return
-    end
+    if not self.currentToyButton then return end
     local currentToyID = self.parent:GetConfig("playground", "favoriteToyId")
     if currentToyID then
         -- C_ToyBox.GetToyInfo returns: itemID, toyName, icon, isFavorite, hasFanfare, itemQuality

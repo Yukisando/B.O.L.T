@@ -43,10 +43,10 @@ function GameMenu:OnEnable()
     if not self.parent:IsModuleEnabled("gameMenu") then
         return
     end
-    
+
     -- Hook into the game menu show event
     self:HookGameMenu()
-    
+
     -- group-state watcher
     if not self.groupUpdateFrame then
         local f = CreateFrame("Frame")
@@ -70,7 +70,7 @@ function GameMenu:OnDisable()
         leaveGroupButton = nil
     end
     if reloadButton then
-        reloadButton:Hide() 
+        reloadButton:Hide()
         reloadButton = nil
     end
     if readyCheckButton then
@@ -97,7 +97,7 @@ function GameMenu:OnDisable()
         volumeButton:Hide()
         volumeButton = nil
     end
-    
+
     -- Clean up group update frame
     if self.groupUpdateFrame then
         self.groupUpdateFrame:UnregisterAllEvents()
@@ -120,7 +120,7 @@ function GameMenu:HookGameMenu()
             C_Timer.After(0.05, function()
                 self:UpdateGameMenu()
             end)
-            
+
             -- Watch CVARs while menu is open
             if not self.cvarWatcher then
                 local f = CreateFrame("Frame")
@@ -135,13 +135,13 @@ function GameMenu:HookGameMenu()
                 self.cvarWatcher = f
             end
         end)
-        
+
         GameMenuFrame:HookScript("OnHide", function()
             self:HideLeaveGroupButton()
             self:HideReloadButton()
             self:HideGroupTools()
             self:HideBattleTextToggles()
-            
+
             -- Clean up CVAR watcher
             if self.cvarWatcher then
                 self.cvarWatcher:UnregisterEvent("CVAR_UPDATE")
@@ -156,7 +156,7 @@ function GameMenu:UpdateGameMenu()
     if not self.parent:GetConfig("gameMenu", "enabled") then
         return
     end
-    
+
     -- Volume button - MUST be created/positioned BEFORE battle text toggles
     -- because battle text toggles position relative to volume button
     if self.parent:GetConfig("gameMenu", "showVolumeButton") then
@@ -172,21 +172,21 @@ function GameMenu:UpdateGameMenu()
             volumeButton:Hide()
         end
     end
-    
+
     -- Battle text toggles
     if self.parent:GetConfig("gameMenu", "showBattleTextToggles") then
         self:ShowBattleTextToggles()
     else
         self:HideBattleTextToggles()
     end
-    
+
     -- Show reload button if enabled
     if self.parent:GetConfig("gameMenu", "showReloadButton") then
         self:ShowReloadButton()
     else
         self:HideReloadButton()
     end
-    
+
     -- Check if player is in a group for leave group button
     if self.parent:GetConfig("gameMenu", "showLeaveGroup") and self.parent:IsInGroup() then
         self:ShowLeaveGroupButton()
@@ -195,7 +195,9 @@ function GameMenu:UpdateGameMenu()
     end
 
     -- Group tools (ready check, countdown, raid marker)
-    if self.parent:GetConfig("gameMenu", "groupToolsEnabled") and self.parent:IsInGroup() then
+    -- Show raid marker whenever group tools are enabled; ready check and countdown
+    -- will be shown only when the player is in a group.
+    if self.parent:GetConfig("gameMenu", "groupToolsEnabled") then
         self:ShowGroupTools()
     else
         self:HideGroupTools()
@@ -207,7 +209,7 @@ function GameMenu:ShowLeaveGroupButton()
     if not leaveGroupButton then
         self:CreateLeaveGroupButton()
     end
-    
+
     -- Update button text and show it
     local groupType = self.parent:GetGroupTypeString()
     if groupType and leaveGroupButton then
@@ -229,7 +231,7 @@ function GameMenu:ShowReloadButton()
     if not reloadButton then
         self:CreateReloadButton()
     end
-    
+
     if reloadButton then reloadButton:Show() end
     self:PositionReloadButton()
 end
@@ -251,9 +253,17 @@ function GameMenu:ShowGroupTools()
         self:CreateRaidMarkerButton()
     end
 
-    if readyCheckButton then readyCheckButton:Show() end
-    if countdownButton then countdownButton:Show() end
+    -- Show raid marker always when group tools are enabled.
     if raidMarkerButton then raidMarkerButton:Show() end
+
+    -- Only show ready check and countdown when the user is in a group
+    if self.parent:IsInGroup() then
+        if readyCheckButton then readyCheckButton:Show() end
+        if countdownButton then countdownButton:Show() end
+    else
+        if readyCheckButton then readyCheckButton:Hide() end
+        if countdownButton then countdownButton:Hide() end
+    end
 
     self:PositionGroupTools()
     self:RefreshGroupToolsState()
@@ -315,13 +325,13 @@ function GameMenu:PositionLeaveGroupButton()
     if not leaveGroupButton then
         return
     end
-    
+
     -- Clear any existing anchor points
     leaveGroupButton:ClearAllPoints()
-    
+
     -- Position the button below the entire GameMenuFrame
     leaveGroupButton:SetPoint("BOTTOM", GameMenuFrame, "TOP", 0, 10)
-    
+
     -- Ensure the button is clickable and visible
     leaveGroupButton:SetFrameLevel(GameMenuFrame:GetFrameLevel() + 2)
     leaveGroupButton:EnableMouse(true)
@@ -336,7 +346,7 @@ function GameMenu:CreateReadyCheckButton()
         mod:OnReadyCheckClick()
     end)
     readyCheckButton:SetScript("OnEnter", function()
-        GameTooltip:SetOwner(readyCheckButton, "ANCHOR_RIGHT")
+        GameTooltip:SetOwner(readyCheckButton, "ANCHOR_LEFT")
         GameTooltip:SetText("Ready Check", 1, 1, 1)
         GameTooltip:AddLine("Start a ready check for your group", 0.8, 0.8, 0.8, true)
         if not (UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")) then
@@ -362,7 +372,7 @@ function GameMenu:CreateCountdownButton()
         mod:OnCountdownClick()
     end)
     countdownButton:SetScript("OnEnter", function()
-        GameTooltip:SetOwner(countdownButton, "ANCHOR_RIGHT")
+        GameTooltip:SetOwner(countdownButton, "ANCHOR_LEFT")
         GameTooltip:SetText("Countdown", 1, 1, 1)
         GameTooltip:AddLine("Start a 5-second pull timer", 0.8, 0.8, 0.8, true)
         if not (UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")) then
@@ -389,13 +399,14 @@ function GameMenu:CreateRaidMarkerButton()
         mod:OnRaidMarkerClick(button)
     end)
     raidMarkerButton:SetScript("OnEnter", function()
-        GameTooltip:SetOwner(raidMarkerButton, "ANCHOR_RIGHT")
+        GameTooltip:SetOwner(raidMarkerButton, "ANCHOR_LEFT")
         local idx = mod.parent:GetConfig("gameMenu", "raidMarkerIndex") or 1
         local names = {"Star","Circle","Diamond","Triangle","Moon","Square","Cross","Skull"}
         GameTooltip:SetText("Raid Marker", 1, 1, 1)
         GameTooltip:AddLine("Left-click: Set your own marker (" .. (names[idx] or "Unknown") .. ")", 0.8,0.8,0.8,true)
         GameTooltip:AddLine("Right-click: Clear your marker", 0.8,0.8,0.8,true)
-        if not (UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")) then
+        -- Inform the user when they are in a group but are not leader/assist; solo players can set their own marker
+        if IsInGroup() and not (UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")) then
             GameTooltip:AddLine("Requires group leader or assistant", 1, 0.2, 0.2, true)
         end
         if InCombatLockdown() then
@@ -457,7 +468,7 @@ function GameMenu:CreateVolumeButton()
     volumeButton = BOLT.ButtonUtils:CreateVolumeButton(nil, GameMenuFrame, {
         showBackground = true
     })
-    
+
     -- Add volume display text overlay - properly centered
     volumeButton.volumeText = volumeButton:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     volumeButton.volumeText:SetPoint("CENTER", volumeButton, "CENTER", 0, 0)
@@ -465,7 +476,7 @@ function GameMenu:CreateVolumeButton()
     volumeButton.volumeText:SetJustifyH("CENTER")
     volumeButton.volumeText:SetWidth(28) -- Match button width
     volumeButton.volumeText:SetScale(1) -- Smaller scale to fit nicely
-    
+
     -- Left click for mute/unmute, right click for music toggle
     volumeButton:SetScript("OnClick", function(_, button)
         if button == "LeftButton" then
@@ -474,10 +485,10 @@ function GameMenu:CreateVolumeButton()
             mod:OnVolumeButtonRightClick()
         end
     end)
-    
+
     -- Enable both left and right-click
     volumeButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    
+
     volumeButton:SetScript("OnEnter", function()
         GameTooltip:SetOwner(volumeButton, "ANCHOR_RIGHT")
         local masterVolume = GetCVar("Sound_MasterVolume") or "1"
@@ -491,11 +502,11 @@ function GameMenu:CreateVolumeButton()
         GameTooltip:AddLine("Mouse wheel: Adjust volume", 0.8, 0.8, 0.8, true)
         GameTooltip:Show()
     end)
-    
-    volumeButton:SetScript("OnLeave", function() 
-        if GameTooltip then GameTooltip:Hide() end 
+
+    volumeButton:SetScript("OnLeave", function()
+        if GameTooltip then GameTooltip:Hide() end
     end)
-    
+
     -- Mouse wheel support for volume adjustment
     volumeButton:EnableMouseWheel(true)
     volumeButton:SetScript("OnMouseWheel", function(_, delta)
@@ -508,35 +519,75 @@ function GameMenu:CreateVolumeButton()
             PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
         end
     end)
-    
+
     -- Initialize volume display
     mod:UpdateVolumeDisplay()
 end
 
 function GameMenu:PositionVolumeButton()
     if not volumeButton then return end
-    
+
     volumeButton:ClearAllPoints()
     -- Position volume button to the left of the GameMenuFrame (outside the frame)
     volumeButton:SetPoint("BOTTOMRIGHT", GameMenuFrame, "BOTTOMLEFT", -8, 12)
-    
+
     -- Set frame level
     local level = GameMenuFrame:GetFrameLevel()
     volumeButton:SetFrameLevel(level + 2)
 end
 
 function GameMenu:PositionGroupTools()
-    if not (readyCheckButton and countdownButton and raidMarkerButton) then return end
-    readyCheckButton:ClearAllPoints()
-    countdownButton:ClearAllPoints()
+    -- Position group tool buttons dynamically depending on which are visible.
+    -- The buttons should anchor to the outside of the GameMenuFrame on the right
+    -- and stack upwards if more than one is present. The bottom-most button is
+    -- anchored to GameMenuFrame BOTTOMRIGHT.
+    if not raidMarkerButton then return end
+
+    -- Clear points for all buttons if they exist
     raidMarkerButton:ClearAllPoints()
-    -- Place on the left side of GameMenuFrame, vertically stacked
-    readyCheckButton:SetPoint("TOPRIGHT", GameMenuFrame, "TOPLEFT", -8, -12)
-    countdownButton:SetPoint("TOPLEFT", readyCheckButton, "BOTTOMLEFT", 0, -6)
-    raidMarkerButton:SetPoint("TOPLEFT", countdownButton, "BOTTOMLEFT", 0, -6)
+    if countdownButton then countdownButton:ClearAllPoints() end
+    if readyCheckButton then readyCheckButton:ClearAllPoints() end
+
     local level = GameMenuFrame:GetFrameLevel()
-    readyCheckButton:SetFrameLevel(level + 2)
-    countdownButton:SetFrameLevel(level + 2)
+
+    -- If only raid marker is visible, anchor it at the bottom
+    if raidMarkerButton:IsShown() and
+       (not countdownButton or not countdownButton:IsShown()) and
+       (not readyCheckButton or not readyCheckButton:IsShown()) then
+        raidMarkerButton:SetPoint("BOTTOMLEFT", GameMenuFrame, "BOTTOMRIGHT", 8, 12)
+        raidMarkerButton:SetFrameLevel(level + 2)
+        return
+    end
+
+    -- If countdown exists and is visible but readyCheck may be missing
+    if countdownButton and countdownButton:IsShown() and
+       (not readyCheckButton or not readyCheckButton:IsShown()) then
+        -- countdown is bottom, raid marker above it
+        countdownButton:SetPoint("BOTTOMLEFT", GameMenuFrame, "BOTTOMRIGHT", 8, 12)
+        raidMarkerButton:SetPoint("BOTTOMLEFT", countdownButton, "TOPLEFT", 0, 6)
+        countdownButton:SetFrameLevel(level + 2)
+        raidMarkerButton:SetFrameLevel(level + 2)
+        return
+    end
+
+    -- Otherwise, if readyCheck is visible (and possibly others), stack: ready -> countdown -> raid
+    if readyCheckButton and readyCheckButton:IsShown() then
+        readyCheckButton:SetPoint("BOTTOMLEFT", GameMenuFrame, "BOTTOMRIGHT", 8, 12)
+        readyCheckButton:SetFrameLevel(level + 2)
+        if countdownButton and countdownButton:IsShown() then
+            countdownButton:SetPoint("BOTTOMLEFT", readyCheckButton, "TOPLEFT", 0, 6)
+            countdownButton:SetFrameLevel(level + 2)
+        end
+        if raidMarkerButton and raidMarkerButton:IsShown() then
+            local anchor = (countdownButton and countdownButton:IsShown()) and countdownButton or readyCheckButton
+            raidMarkerButton:SetPoint("BOTTOMLEFT", anchor, "TOPLEFT", 0, 6)
+            raidMarkerButton:SetFrameLevel(level + 2)
+        end
+        return
+    end
+
+    -- If none of the above matched, ensure raid marker has a fallback anchor
+    raidMarkerButton:SetPoint("BOTTOMLEFT", GameMenuFrame, "BOTTOMRIGHT", 8, 12)
     raidMarkerButton:SetFrameLevel(level + 2)
 end
 
@@ -556,7 +607,7 @@ function GameMenu:PositionBattleTextToggles()
     healingNumbersButton:SetPoint("BOTTOMRIGHT", GameMenuFrame, "BOTTOMLEFT", -8, 12)
     damageNumbersButton:SetPoint("BOTTOMLEFT", healingNumbersButton, "TOPLEFT", 0, 6)
     end
-    
+
     -- Set frame levels once at the end
     local level = GameMenuFrame:GetFrameLevel()
     damageNumbersButton:SetFrameLevel(level + 2)
@@ -575,8 +626,10 @@ function GameMenu:RefreshBattleTextTogglesState()
 end
 
 function GameMenu:RefreshGroupToolsState()
-    -- Enable state: Ready/Countdown require leader or assist; Raid marker requires leader or assist
+    -- Enable state: Ready/Countdown require leader or assist; Raid marker does too in group,
+    -- but is allowed for solo players (so they can set their own marker while not in a group)
     local canCommand = UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")
+    local canChangeRaidMarker = canCommand or (not IsInGroup())
     if readyCheckButton then
         if canCommand then
             readyCheckButton:Enable()
@@ -598,7 +651,7 @@ function GameMenu:RefreshGroupToolsState()
 
     -- Update raid marker icon tex coords to reflect chosen marker
     if raidMarkerButton and raidMarkerButton.icon then
-        if canCommand then
+        if canChangeRaidMarker then
             raidMarkerButton:Enable(); raidMarkerButton:SetAlpha(1)
         else
             raidMarkerButton:Disable(); raidMarkerButton:SetAlpha(0.4)
@@ -607,6 +660,18 @@ function GameMenu:RefreshGroupToolsState()
         raidMarkerButton.icon:SetTexture("Interface\\TARGETINGFRAME\\UI-RaidTargetingIcons")
         raidMarkerButton.icon:SetTexCoord(GetMarkerTexCoords(idx))
     end
+
+    -- Show or hide ready/countdown buttons based on whether the user is in a group
+    if self.parent:IsInGroup() then
+        if readyCheckButton then readyCheckButton:Show() end
+        if countdownButton then countdownButton:Show() end
+    else
+        if readyCheckButton then readyCheckButton:Hide() end
+        if countdownButton then countdownButton:Hide() end
+    end
+
+    -- Ensure positioning updates based on visible buttons
+    self:PositionGroupTools()
 end
 
 function GameMenu:CreateReloadButton()
@@ -616,11 +681,11 @@ function GameMenu:CreateReloadButton()
         iconScale = 1,
         contentScale = 1.3
     })
-    
+
     -- Inherit parent visibility fully
     if reloadButton.SetIgnoreParentAlpha then reloadButton:SetIgnoreParentAlpha(false) end
     if reloadButton.SetIgnoreParentScale then reloadButton:SetIgnoreParentScale(false) end
-    
+
     -- Set the click handler for both left and right click
     reloadButton:SetScript("OnClick", function(_, button)
         if button == "LeftButton" then
@@ -629,10 +694,10 @@ function GameMenu:CreateReloadButton()
             mod:OnOpenSettings()
         end
     end)
-    
+
     -- Register for right-click
     reloadButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    
+
     -- Add hover effects
     reloadButton:SetScript("OnEnter", function()
         if GameTooltip then
@@ -650,7 +715,7 @@ function GameMenu:CreateReloadButton()
             PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
         end
     end)
-    
+
     reloadButton:SetScript("OnLeave", function()
         if GameTooltip then
             GameTooltip:Hide()
@@ -670,7 +735,7 @@ end
 function GameMenu:OnOpenSettings()
     -- Hide the game menu first
     HideUIPanel(GameMenuFrame)
-    
+
     -- Small delay to ensure UI is hidden before opening settings; delegate to
     -- the central OpenConfigPanel helper which handles Settings vs legacy UI.
     local mod = self
@@ -686,7 +751,7 @@ end
 function GameMenu:OnLeaveGroupClick()
     -- Hide the game menu first
     HideUIPanel(GameMenuFrame)
-    
+
     -- Small delay to allow UI to close cleanly
     C_Timer.After(0.1, function()
         self.parent:LeaveGroup()
@@ -724,7 +789,8 @@ function GameMenu:OnRaidMarkerClick(button)
         self.parent:Print("Raid markers not available.")
         return
     end
-    if not (UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")) then
+    -- Only require leader/assistant when in a group; solo players may still set/clear their marker
+    if IsInGroup() and not (UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")) then
         self.parent:Print("You must be the group leader or an assistant to change raid markers.")
         return
     end
@@ -743,10 +809,10 @@ function GameMenu:OnDamageNumbersClick()
     local currentValue = GetCVar("floatingCombatTextCombatDamage")
     local newValue = (currentValue == "1") and "0" or "1"
     SetCVar("floatingCombatTextCombatDamage", newValue)
-    
+
     -- Refresh the button state immediately
     self:RefreshBattleTextTogglesState()
-    
+
     local state = (newValue == "1") and "ON" or "OFF"
     self.parent:Print("Damage numbers: " .. state)
 end
@@ -755,10 +821,10 @@ function GameMenu:OnHealingNumbersClick()
     local currentValue = GetCVar("floatingCombatTextCombatHealing")
     local newValue = (currentValue == "1") and "0" or "1"
     SetCVar("floatingCombatTextCombatHealing", newValue)
-    
+
     -- Refresh the button state immediately
     self:RefreshBattleTextTogglesState()
-    
+
     local state = (newValue == "1") and "ON" or "OFF"
     self.parent:Print("Healing numbers: " .. state)
 end
@@ -766,7 +832,7 @@ end
 function GameMenu:OnVolumeButtonLeftClick()
     -- Toggle mute/unmute
     local currentVolume = tonumber(GetCVar("Sound_MasterVolume")) or 1
-    
+
     if currentVolume == 0 then
         -- Unmute: restore previous volume or set to 50% if no previous volume stored
         local previousVolume = self.previousVolume or 0.5
@@ -778,7 +844,7 @@ function GameMenu:OnVolumeButtonLeftClick()
         SetCVar("Sound_MasterVolume", "0")
         self.parent:Print("Audio muted")
     end
-    
+
     -- Update the volume display
     self:UpdateVolumeDisplay()
 end
@@ -788,7 +854,7 @@ function GameMenu:OnVolumeButtonRightClick()
     local currentMusic = GetCVar("Sound_EnableMusic")
     local newValue = (currentMusic == "1") and "0" or "1"
     SetCVar("Sound_EnableMusic", newValue)
-    
+
     local state = (newValue == "1") and "ON" or "OFF"
     self.parent:Print("Music: " .. state)
 end
@@ -813,14 +879,14 @@ end
 function BOLT_ToggleMasterVolume()
     -- Access the global BOLT addon
     local BOLT = _G["BOLT"]
-    
+
     -- Get the GameMenu module
     if BOLT and BOLT.modules and BOLT.modules.gameMenu then
         BOLT.modules.gameMenu:OnVolumeButtonLeftClick()
     else
         -- Fallback if module isn't available
         local currentVolume = tonumber(GetCVar("Sound_MasterVolume")) or 1
-        
+
         if currentVolume == 0 then
             -- Unmute: restore to 50%
             SetCVar("Sound_MasterVolume", "0.5")

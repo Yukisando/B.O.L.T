@@ -32,7 +32,8 @@
     "LE_PARTY_CATEGORY_HOME",
     "LeaveParty",
     "SetCameraZoom",
-    "DEFAULT_CHAT_FRAME"
+    "DEFAULT_CHAT_FRAME",
+    "BuffFrame"
   ],
   "Lua.type.weakUnionCheck": true,
   "workbench.colorCustomizations": {
