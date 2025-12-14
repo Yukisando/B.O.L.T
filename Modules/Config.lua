@@ -131,7 +131,121 @@ function Config:CreateInterfaceOptionsPanel()
     end)
     self.widgets.gameMenuCheckbox = gmEnable
     self.widgets.gameMenuReloadIndicator = self:CreateReloadIndicator(content, gmEnable)
+
+    -- Game Menu options
+    y = y - 30
+
+    local leaveGroupEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    leaveGroupEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    leaveGroupEnable.Text:SetText("Show Leave Group Button")
+    leaveGroupEnable:SetScript("OnClick", function(button)
+        self.parent:SetConfig(button:GetChecked(), "gameMenu", "showLeaveGroup")
+        self:UpdateGameMenuChildControls()
+    end)
+    self.widgets.leaveGroupCheckbox = leaveGroupEnable
+    y = y - 30
+
+    local reloadEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    reloadEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    reloadEnable.Text:SetText("Show Reload UI Button")
+    reloadEnable:SetScript("OnClick", function(button)
+        self.parent:SetConfig(button:GetChecked(), "gameMenu", "showReloadButton")
+        self:UpdateGameMenuChildControls()
+    end)
+    self.widgets.reloadCheckbox = reloadEnable
+    y = y - 30
+
+    local groupToolsEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    groupToolsEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    groupToolsEnable.Text:SetText("Enable Group Tools (Ready/Countdown/Raid Marker)")
+    groupToolsEnable:SetScript("OnClick", function(button)
+        self.parent:SetConfig(button:GetChecked(), "gameMenu", "groupToolsEnabled")
+        self:UpdateGameMenuChildControls()
+    end)
+    self.widgets.groupToolsCheckbox = groupToolsEnable
+    y = y - 30
+
+    local battleTextEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    battleTextEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    battleTextEnable.Text:SetText("Show Battle Text Toggles")
+    battleTextEnable:SetScript("OnClick", function(button)
+        self.parent:SetConfig(button:GetChecked(), "gameMenu", "showBattleTextToggles")
+        self:UpdateGameMenuChildControls()
+    end)
+    self.widgets.battleTextCheckbox = battleTextEnable
+    y = y - 30
+
+    local volumeEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    volumeEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    volumeEnable.Text:SetText("Show Volume Control Button")
+    volumeEnable:SetScript("OnClick", function(button)
+        self.parent:SetConfig(button:GetChecked(), "gameMenu", "showVolumeButton")
+        self:UpdateGameMenuChildControls()
+    end)
+    self.widgets.volumeButtonCheckbox = volumeEnable
     y = y - 36
+
+    -- Raid marker selector (for Group Tools)
+    local markerLabel = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    markerLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    markerLabel:SetText("Raid Marker Icon:")
+    y = y - 22
+
+    local MARKER_TEXCOORDS = {
+        [1] = {0, 0.25, 0, 0.25},
+        [2] = {0.25, 0.5, 0, 0.25},
+        [3] = {0.5, 0.75, 0, 0.25},
+        [4] = {0.75, 1, 0, 0.25},
+        [5] = {0, 0.25, 0.25, 0.5},
+        [6] = {0.25, 0.5, 0.25, 0.5},
+        [7] = {0.5, 0.75, 0.25, 0.5},
+        [8] = {0.75, 1, 0.25, 0.5},
+    }
+
+    self.widgets.raidMarkerButtons = self.widgets.raidMarkerButtons or {}
+    local buttons = self.widgets.raidMarkerButtons
+    local btnSize = 22
+    local startX = 50
+    local startY = y
+    for i = 1, 8 do
+        local b = buttons[i]
+        if not b then
+            b = CreateFrame("Button", nil, content)
+            b:SetSize(btnSize, btnSize)
+            b.tex = b:CreateTexture(nil, "ARTWORK")
+            b.tex:SetAllPoints(b)
+            b.tex:SetTexture("Interface\\TARGETINGFRAME\\UI-RaidTargetingIcons")
+            b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square")
+            buttons[i] = b
+        end
+        b:ClearAllPoints()
+        b:SetPoint("TOPLEFT", content, "TOPLEFT", startX + ((i - 1) * (btnSize + 4)), startY)
+        local tc = MARKER_TEXCOORDS[i]
+        b.tex:SetTexCoord(tc[1], tc[2], tc[3], tc[4])
+        b:SetScript("OnClick", function()
+            self.parent:SetConfig(i, "gameMenu", "raidMarkerIndex")
+            self:RefreshOptionsPanel()
+            self:UpdateGameMenuChildControls()
+        end)
+        b:Show()
+    end
+
+    local clearBtn = self.widgets.raidMarkerClearButton
+    if not clearBtn then
+        clearBtn = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+        clearBtn:SetSize(48, btnSize)
+        clearBtn:SetText("Clear")
+        clearBtn:SetScript("OnClick", function()
+            self.parent:SetConfig(0, "gameMenu", "raidMarkerIndex")
+            self:RefreshOptionsPanel()
+            self:UpdateGameMenuChildControls()
+        end)
+        self.widgets.raidMarkerClearButton = clearBtn
+    end
+    clearBtn:ClearAllPoints()
+    clearBtn:SetPoint("TOPLEFT", content, "TOPLEFT", startX + (8 * (btnSize + 4)) + 8, startY + 1)
+
+    y = y - 40
 
     local chillLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     chillLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
@@ -159,6 +273,101 @@ function Config:CreateInterfaceOptionsPanel()
     y = y - 30
 
     y = self:CreateChillMusicSelectors(content, y)
+
+    -- Playground section
+    local pgLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    pgLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
+    pgLabel:SetText("Playground")
+    y = y - 24
+
+    local pgEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    pgEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    pgEnable.Text:SetText("Enable Playground Module")
+    pgEnable:SetScript("OnClick", function(button)
+        local checked = button:GetChecked()
+        self.parent:SetModuleEnabled("playground", checked)
+        self:UpdatePlaygroundChildControls()
+    end)
+    self.widgets.playgroundCheckbox = pgEnable
+    self.widgets.playgroundReloadIndicator = self:CreateReloadIndicator(content, pgEnable)
+    y = y - 30
+
+    local favToyEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    favToyEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    favToyEnable.Text:SetText("Show Favorite Toy Button in Game Menu")
+    favToyEnable:SetScript("OnClick", function(button)
+        self.parent:SetConfig(button:GetChecked(), "playground", "showFavoriteToy")
+        self:UpdatePlaygroundChildControls()
+    end)
+    self.widgets.favoriteToyCheckbox = favToyEnable
+    y = y - 32
+
+    local chooseToyBtn = self.widgets.chooseToyButton
+    if not chooseToyBtn then
+        chooseToyBtn = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+        chooseToyBtn:SetSize(160, 24)
+        chooseToyBtn:SetText("Choose Favorite Toy")
+        chooseToyBtn:SetScript("OnClick", function() self:ShowToySelectionPopup() end)
+        self.widgets.chooseToyButton = chooseToyBtn
+
+        local toyRow = CreateFrame("Frame", nil, content)
+        toyRow:SetSize(360, 24)
+        self.widgets.currentToyRow = toyRow
+
+        local icon = toyRow:CreateTexture(nil, "ARTWORK")
+        icon:SetPoint("LEFT", toyRow, "LEFT", 0, 0)
+        icon:SetSize(20, 20)
+        self.widgets.currentToyIcon = icon
+
+        local text = toyRow:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        text:SetPoint("LEFT", icon, "RIGHT", 8, 0)
+        text:SetJustifyH("LEFT")
+        text:SetText("None selected")
+        self.widgets.currentToyText = text
+    end
+
+    chooseToyBtn:ClearAllPoints()
+    chooseToyBtn:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    self.widgets.currentToyRow:ClearAllPoints()
+    self.widgets.currentToyRow:SetPoint("LEFT", chooseToyBtn, "RIGHT", 12, 0)
+    y = y - 36
+
+    -- Skyriding section
+    local skLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    skLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
+    skLabel:SetText("Skyriding")
+    y = y - 24
+
+    local skEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    skEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    skEnable.Text:SetText("Enable Skyriding Module")
+    skEnable:SetScript("OnClick", function(button)
+        local checked = button:GetChecked()
+        self.parent:SetModuleEnabled("skyriding", checked)
+        self:UpdateSkyridingChildControls()
+    end)
+    self.widgets.skyridingCheckbox = skEnable
+    self.widgets.skyridingReloadIndicator = self:CreateReloadIndicator(content, skEnable)
+    y = y - 30
+
+    local pitchEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    pitchEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    pitchEnable.Text:SetText("Enable Pitch Control (W/S)")
+    pitchEnable:SetScript("OnClick", function(button)
+        self.parent:SetConfig(button:GetChecked(), "skyriding", "enablePitchControl")
+        self:UpdateSkyridingChildControls()
+    end)
+    self.widgets.pitchControlCheckbox = pitchEnable
+    y = y - 30
+
+    local invertEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    invertEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    invertEnable.Text:SetText("Invert Pitch")
+    invertEnable:SetScript("OnClick", function(button)
+        self.parent:SetConfig(button:GetChecked(), "skyriding", "invertPitch")
+    end)
+    self.widgets.invertPitchCheckbox = invertEnable
+    y = y - 40
 
     -- Reload button and version
     local reloadBtn = CreateFrame("Button", "BOLTOptionsReloadButton", content, "UIPanelButtonTemplate")
@@ -554,6 +763,57 @@ function Config:UpdateChillMusicChildControls()
 
     if enabled then
         self:RefreshChillMusicNowPlaying()
+    end
+end
+
+function Config:UpdateGameMenuChildControls()
+    local enabled = false
+    if self.parent and self.parent.IsModuleEnabled then
+        enabled = self.parent:IsModuleEnabled("gameMenu")
+    end
+    local w = self.widgets
+
+    -- Generic checkboxes
+    if w and w.leaveGroupCheckbox then w.leaveGroupCheckbox:SetEnabled(enabled); w.leaveGroupCheckbox:SetAlpha(enabled and 1 or 0.5) end
+    if w and w.reloadCheckbox then w.reloadCheckbox:SetEnabled(enabled); w.reloadCheckbox:SetAlpha(enabled and 1 or 0.5) end
+    if w and w.groupToolsCheckbox then w.groupToolsCheckbox:SetEnabled(enabled); w.groupToolsCheckbox:SetAlpha(enabled and 1 or 0.5) end
+    if w and w.battleTextCheckbox then w.battleTextCheckbox:SetEnabled(enabled); w.battleTextCheckbox:SetAlpha(enabled and 1 or 0.5) end
+    if w and w.volumeButtonCheckbox then w.volumeButtonCheckbox:SetEnabled(enabled); w.volumeButtonCheckbox:SetAlpha(enabled and 1 or 0.5) end
+
+    -- Raid marker buttons (may be a list of buttons and a clear button)
+    local groupToolsEnabled = false
+    if enabled and self.parent and self.parent.GetConfig then
+        groupToolsEnabled = self.parent:GetConfig("gameMenu","groupToolsEnabled")
+    end
+    if w and w.raidMarkerButtons then
+        for _, b in ipairs(w.raidMarkerButtons) do
+            if b then b:SetEnabled(groupToolsEnabled); b:SetAlpha(groupToolsEnabled and 1 or 0.5) end
+        end
+        if w.raidMarkerClearButton then w.raidMarkerClearButton:SetEnabled(groupToolsEnabled); w.raidMarkerClearButton:SetAlpha(groupToolsEnabled and 1 or 0.5) end
+    end
+
+    -- If the GameMenu module is loaded, ask it to refresh its internal state for consistency
+    if self.parent and self.parent.modules and self.parent.modules.gameMenu and self.parent.modules.gameMenu.UpdateGameMenu then
+        self.parent.modules.gameMenu:UpdateGameMenu()
+    end
+end
+
+function Config:UpdatePlaygroundChildControls()
+    local enabled = self.parent:IsModuleEnabled("playground")
+    local w = self.widgets
+
+    if w.favoriteToyCheckbox then
+        w.favoriteToyCheckbox:SetEnabled(enabled)
+        w.favoriteToyCheckbox:SetAlpha(enabled and 1 or 0.5)
+    end
+
+    local canChooseToy = enabled and (self.parent:GetConfig("playground", "showFavoriteToy") ~= false)
+    if w.chooseToyButton then
+        w.chooseToyButton:SetEnabled(canChooseToy)
+        w.chooseToyButton:SetAlpha(canChooseToy and 1 or 0.5)
+    end
+    if w.currentToyRow then
+        w.currentToyRow:SetAlpha(canChooseToy and 1 or 0.5)
     end
 end
 
