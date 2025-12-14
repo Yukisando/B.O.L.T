@@ -26,9 +26,8 @@ BOLT.defaults = {
             enabled = true,
             showFavoriteToy = true,
             favoriteToyId = nil,
-            showFPS = true,
             showSpeedometer = true,
-            statsPosition = "BOTTOMRIGHT",
+            statsPosition = "TOPRIGHT",
             copyTargetMount = true
         },
         skyriding = {

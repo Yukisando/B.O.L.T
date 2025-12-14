@@ -33,7 +33,8 @@
     "LeaveParty",
     "SetCameraZoom",
     "DEFAULT_CHAT_FRAME",
-    "BuffFrame"
+    "BuffFrame",
+    "UIDropDownMenu_SetSelectedValue"
   ],
   "Lua.type.weakUnionCheck": true,
   "workbench.colorCustomizations": {

@@ -292,21 +292,21 @@ function Config:CreateInterfaceOptionsPanel()
     self.widgets.playgroundReloadIndicator = self:CreateReloadIndicator(content, pgEnable)
     y = y - 30
 
+    -- Favorite Toy row: checkbox + button + current toy display
     local favToyEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
     favToyEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
-    favToyEnable.Text:SetText("Show Favorite Toy Button in Game Menu")
+    favToyEnable.Text:SetText("Favorite Toy Button")
     favToyEnable:SetScript("OnClick", function(button)
         self.parent:SetConfig(button:GetChecked(), "playground", "showFavoriteToy")
         self:UpdatePlaygroundChildControls()
     end)
     self.widgets.favoriteToyCheckbox = favToyEnable
-    y = y - 32
 
     local chooseToyBtn = self.widgets.chooseToyButton
     if not chooseToyBtn then
         chooseToyBtn = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
-        chooseToyBtn:SetSize(160, 24)
-        chooseToyBtn:SetText("Choose Favorite Toy")
+        chooseToyBtn:SetSize(120, 24)
+        chooseToyBtn:SetText("Choose Toy")
         chooseToyBtn:SetScript("OnClick", function() self:ShowToySelectionPopup() end)
         self.widgets.chooseToyButton = chooseToyBtn
 
@@ -327,9 +327,64 @@ function Config:CreateInterfaceOptionsPanel()
     end
 
     chooseToyBtn:ClearAllPoints()
-    chooseToyBtn:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    chooseToyBtn:SetPoint("LEFT", favToyEnable.Text, "RIGHT", 10, 0)
     self.widgets.currentToyRow:ClearAllPoints()
     self.widgets.currentToyRow:SetPoint("LEFT", chooseToyBtn, "RIGHT", 12, 0)
+    y = y - 30
+
+    -- Speedometer row: checkbox + position dropdown
+    local speedometerEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    speedometerEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    speedometerEnable.Text:SetText("Speedometer")
+    speedometerEnable:SetScript("OnClick", function(button)
+        self.parent:SetConfig(button:GetChecked(), "playground", "showSpeedometer")
+        self:UpdatePlaygroundChildControls()
+    end)
+    self.widgets.speedometerCheckbox = speedometerEnable
+
+    local posLabel = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    posLabel:SetPoint("LEFT", speedometerEnable.Text, "RIGHT", 10, 0)
+    posLabel:SetText("Position:")
+
+    local posDropdown = self.widgets.speedometerPositionDropdown
+    if not posDropdown then
+        posDropdown = CreateFrame("Frame", "BOLTSpeedometerPositionDropdown", content, "UIDropDownMenuTemplate")
+        self.widgets.speedometerPositionDropdown = posDropdown
+        
+        UIDropDownMenu_SetWidth(posDropdown, 110)
+        UIDropDownMenu_Initialize(posDropdown, function(dropdown, level)
+            local positions = {
+                {text = "Top Left", value = "TOPLEFT"},
+                {text = "Top Right", value = "TOPRIGHT"},
+                {text = "Bottom Left", value = "BOTTOMLEFT"},
+                {text = "Bottom Right", value = "BOTTOMRIGHT"},
+            }
+            
+            for _, pos in ipairs(positions) do
+                local info = UIDropDownMenu_CreateInfo()
+                info.text = pos.text
+                info.value = pos.value
+                info.func = function(btn)
+                    self.parent:SetConfig(btn.value, "playground", "statsPosition")
+                    UIDropDownMenu_SetSelectedValue(posDropdown, btn.value)
+                    if self.parent.modules.playground and self.parent.modules.playground.UpdateStatsPosition then
+                        self.parent.modules.playground:UpdateStatsPosition()
+                    end
+                end
+                info.checked = (self.parent:GetConfig("playground", "statsPosition") == pos.value)
+                UIDropDownMenu_AddButton(info, level)
+            end
+        end)
+    end
+    
+    posDropdown:ClearAllPoints()
+    posDropdown:SetPoint("LEFT", posLabel, "RIGHT", -15, -2)
+    
+    local currentPos = self.parent:GetConfig("playground", "statsPosition") or "TOPRIGHT"
+    UIDropDownMenu_SetSelectedValue(posDropdown, currentPos)
+    local posNames = {TOPLEFT="Top Left", TOPRIGHT="Top Right", BOTTOMLEFT="Bottom Left", BOTTOMRIGHT="Bottom Right"}
+    UIDropDownMenu_SetText(posDropdown, posNames[currentPos] or "Top Right")
+    
     y = y - 36
 
     -- Skyriding section
@@ -368,6 +423,30 @@ function Config:CreateInterfaceOptionsPanel()
     end)
     self.widgets.invertPitchCheckbox = invertEnable
     y = y - 40
+
+    -- WowheadLink section
+    local wlLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    wlLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
+    wlLabel:SetText("Wowhead Link")
+    y = y - 24
+
+    local wlEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    wlEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    wlEnable.Text:SetText("Enable Wowhead Link Module")
+    wlEnable:SetScript("OnClick", function(button)
+        local checked = button:GetChecked()
+        self.parent:SetModuleEnabled("wowheadLink", checked)
+    end)
+    self.widgets.wowheadLinkCheckbox = wlEnable
+    self.widgets.wowheadLinkReloadIndicator = self:CreateReloadIndicator(content, wlEnable)
+    y = y - 30
+
+    local wlDesc = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    wlDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    wlDesc:SetWidth(520)
+    wlDesc:SetJustifyH("LEFT")
+    wlDesc:SetText("Press Ctrl+C while hovering over an item to copy its Wowhead link. Default keybind is Ctrl+C.")
+    y = y - 36
 
     -- Reload button and version
     local reloadBtn = CreateFrame("Button", "BOLTOptionsReloadButton", content, "UIPanelButtonTemplate")
@@ -807,6 +886,20 @@ function Config:UpdatePlaygroundChildControls()
         w.favoriteToyCheckbox:SetAlpha(enabled and 1 or 0.5)
     end
 
+    if w.speedometerCheckbox then
+        w.speedometerCheckbox:SetEnabled(enabled)
+        w.speedometerCheckbox:SetAlpha(enabled and 1 or 0.5)
+    end
+
+    if w.speedometerPositionDropdown then
+        local speedometerEnabled = enabled and self.parent:GetConfig("playground", "showSpeedometer")
+        if speedometerEnabled then
+            UIDropDownMenu_EnableDropDown(w.speedometerPositionDropdown)
+        else
+            UIDropDownMenu_DisableDropDown(w.speedometerPositionDropdown)
+        end
+    end
+
     local canChooseToy = enabled and (self.parent:GetConfig("playground", "showFavoriteToy") ~= false)
     if w.chooseToyButton then
         w.chooseToyButton:SetEnabled(canChooseToy)
@@ -814,6 +907,11 @@ function Config:UpdatePlaygroundChildControls()
     end
     if w.currentToyRow then
         w.currentToyRow:SetAlpha(canChooseToy and 1 or 0.5)
+    end
+
+    -- Update the actual speedometer visibility if module is loaded
+    if self.parent.modules and self.parent.modules.playground and self.parent.modules.playground.UpdateSpeedometerVisibility then
+        self.parent.modules.playground:UpdateSpeedometerVisibility()
     end
 end
 
@@ -845,8 +943,16 @@ function Config:RefreshOptionsPanel()
         if w.playgroundCheckbox then w.playgroundCheckbox:SetChecked(self.parent:IsModuleEnabled("playground")) end
         if w.chillMusicCheckbox then w.chillMusicCheckbox:SetChecked(self.parent:IsModuleEnabled("chillMusic")) end
         if w.favoriteToyCheckbox then w.favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground","showFavoriteToy")) end
+        if w.speedometerCheckbox then w.speedometerCheckbox:SetChecked(self.parent:GetConfig("playground","showSpeedometer")) end
+        if w.speedometerPositionDropdown then
+            local currentPos = self.parent:GetConfig("playground", "statsPosition") or "TOPRIGHT"
+            UIDropDownMenu_SetSelectedValue(w.speedometerPositionDropdown, currentPos)
+            local posNames = {TOPLEFT="Top Left", TOPRIGHT="Top Right", BOTTOMLEFT="Bottom Left", BOTTOMRIGHT="Bottom Right"}
+            UIDropDownMenu_SetText(w.speedometerPositionDropdown, posNames[currentPos] or "Top Right")
+        end
         if w.skyridingCheckbox then w.skyridingCheckbox:SetChecked(self.parent:IsModuleEnabled("skyriding")) end
         if w.pitchControlCheckbox then w.pitchControlCheckbox:SetChecked(self.parent:GetConfig("skyriding","enablePitchControl")) end
+        if w.wowheadLinkCheckbox then w.wowheadLinkCheckbox:SetChecked(self.parent:IsModuleEnabled("wowheadLink")) end
         end)
     end
 

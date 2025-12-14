@@ -190,12 +190,17 @@ end
 
 function Playground:HideFavoriteToyButton()
     if favoriteToyButton then
-        -- Defer the hide call to avoid taint issues when called from protected contexts
-        C_Timer.After(0, function()
-            if favoriteToyButton then
-                favoriteToyButton:Hide()
-            end
-        end)
+        -- Only hide if we're not in combat to avoid protected function errors
+        if not InCombatLockdown() then
+            favoriteToyButton:Hide()
+        else
+            -- Defer until combat ends
+            C_Timer.After(0.1, function()
+                if favoriteToyButton and not InCombatLockdown() then
+                    favoriteToyButton:Hide()
+                end
+            end)
+        end
     end
 end
 
@@ -504,7 +509,7 @@ function Playground:SetStatsPosition(frame)
     
     frame:ClearAllPoints()
     
-    local position = self.parent:GetConfig("playground", "statsPosition") or "BOTTOMLEFT"
+    local position = self.parent:GetConfig("playground", "statsPosition") or "TOPRIGHT"
     local offset = 8 -- Offset from screen edge
     
     if position == "TOPLEFT" then
