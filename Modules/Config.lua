@@ -268,11 +268,9 @@ function Config:CreateInterfaceOptionsPanel()
     chillDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
     chillDesc:SetWidth(520)
     chillDesc:SetJustifyH("LEFT")
-    chillDesc:SetText("Replaces zone music with a curated chill playlist, automatically switching between indoor tavern tracks and outdoor ambience when you move around Azeroth.")
+    chillDesc:SetText("Automatically mutes music when you're outdoors. Music plays normally when indoors.")
     self.widgets.chillMusicDescription = chillDesc
-    y = y - 30
-
-    y = self:CreateChillMusicSelectors(content, y)
+    y = y - 40
 
     -- Playground section
     local pgLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -474,64 +472,7 @@ function Config:CreateInterfaceOptionsPanel()
 end
 
 function Config:CreateChillMusicSelectors(content, y)
-    local module = self.parent.modules and self.parent.modules.chillMusic
-    if not module then
-        return y
-    end
-
-    local w = self.widgets
-    w.chillMusicCategoryLabels = w.chillMusicCategoryLabels or {}
-    w.chillMusicTrackContainers = w.chillMusicTrackContainers or {}
-    w.chillMusicTrackCheckboxes = w.chillMusicTrackCheckboxes or {}
-    w.chillMusicCustomFrames = w.chillMusicCustomFrames or {}
-    w.chillMusicCustomInputs = w.chillMusicCustomInputs or {}
-
-    local categories = {
-        { key = "indoors", title = "Indoor Tracks" },
-        { key = "outdoors", title = "Outdoor Tracks" },
-    }
-
-    for _, info in ipairs(categories) do
-        local label = w.chillMusicCategoryLabels[info.key]
-        if not label then
-            label = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-            w.chillMusicCategoryLabels[info.key] = label
-        end
-        label:ClearAllPoints()
-        label:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
-        label:SetText(info.title)
-        y = y - 24
-
-        local container = w.chillMusicTrackContainers[info.key]
-        if not container then
-            container = CreateFrame("Frame", nil, content)
-            container:SetWidth(520)
-            w.chillMusicTrackContainers[info.key] = container
-        end
-        container:ClearAllPoints()
-        container:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
-
-        local listHeight = self:RebuildChillMusicTrackList(info.key)
-        y = y - listHeight - 12
-
-        local customFrame, customHeight = self:CreateChillMusicCustomControls(content, info.key, y)
-        y = y - customHeight - 24
-    end
-
-    local nowPlaying = w.chillMusicNowPlayingLabel
-    if not nowPlaying then
-        nowPlaying = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        w.chillMusicNowPlayingLabel = nowPlaying
-    end
-    nowPlaying:ClearAllPoints()
-    nowPlaying:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
-    nowPlaying:SetWidth(520)
-    nowPlaying:SetJustifyH("LEFT")
-    y = y - 18
-
-    self:RefreshChillMusicTrackCheckboxes()
-    self:RefreshChillMusicNowPlaying()
-
+    -- Simplified - no selectors needed
     return y
 end
 
@@ -651,6 +592,10 @@ function Config:RebuildChillMusicTrackList(category)
 end
 
 function Config:CreateChillMusicCustomControls(content, category, y)
+    return nil, 0
+end
+
+function Config:CreateChillMusicCustomControls_OLD(content, category, y)
     local w = self.widgets
     w.chillMusicCustomFrames = w.chillMusicCustomFrames or {}
     w.chillMusicCustomInputs = w.chillMusicCustomInputs or {}
@@ -720,6 +665,9 @@ function Config:CreateChillMusicCustomControls(content, category, y)
 end
 
 function Config:UpdateChillMusicCustomAddState(category)
+end
+
+function Config:UpdateChillMusicCustomAddState_OLD(category)
     local inputs = self.widgets and self.widgets.chillMusicCustomInputs and self.widgets.chillMusicCustomInputs[category]
     if not inputs then
         return
@@ -741,6 +689,9 @@ function Config:UpdateChillMusicCustomAddState(category)
 end
 
 function Config:AddCustomTrackFromInputs(category)
+end
+
+function Config:AddCustomTrackFromInputs_OLD(category)
     local module = self.parent.modules and self.parent.modules.chillMusic
     if not module then
         return
@@ -780,6 +731,9 @@ function Config:AddCustomTrackFromInputs(category)
 end
 
 function Config:RemoveCustomTrack(category, trackKey)
+end
+
+function Config:RemoveCustomTrack_OLD(category, trackKey)
     local module = self.parent.modules and self.parent.modules.chillMusic
     if not module then
         return
@@ -808,40 +762,6 @@ function Config:UpdateChillMusicChildControls()
 
     if w.chillMusicDescription then
         w.chillMusicDescription:SetAlpha(enabled and 1 or 0.5)
-    end
-
-    if w.chillMusicCategoryLabels then
-        for _, label in pairs(w.chillMusicCategoryLabels) do
-            if label then
-                label:SetAlpha(enabled and 1 or 0.5)
-            end
-        end
-    end
-
-    if w.chillMusicTrackCheckboxes then
-        for _, checkboxes in pairs(w.chillMusicTrackCheckboxes) do
-            for _, checkbox in pairs(checkboxes) do
-                if checkbox then
-                    checkbox:SetEnabled(enabled)
-                end
-            end
-        end
-    end
-
-    if w.chillMusicCustomInputs then
-        for category in pairs(w.chillMusicCustomInputs) do
-            self:UpdateChillMusicCustomAddState(category)
-        end
-    end
-
-    if w.chillMusicNowPlayingLabel then
-        w.chillMusicNowPlayingLabel:SetAlpha(enabled and 1 or 0.5)
-    end
-
-    self:RefreshChillMusicTrackCheckboxes()
-
-    if enabled then
-        self:RefreshChillMusicNowPlaying()
     end
 end
 
@@ -956,7 +876,10 @@ function Config:RefreshOptionsPanel()
         end)
     end
 
-    function Config:SetChillMusicTrackEnabled(category, trackKey, enabled)
+function Config:SetChillMusicTrackEnabled(category, trackKey, enabled)
+end
+
+function Config:SetChillMusicTrackEnabled_OLD(category, trackKey, enabled)
     if not category or not trackKey then
         return
     end
@@ -989,6 +912,9 @@ function Config:RefreshOptionsPanel()
 end
 
 function Config:RefreshChillMusicTrackCheckboxes()
+end
+
+function Config:RefreshChillMusicTrackCheckboxes_OLD()
     local module = self.parent.modules and self.parent.modules.chillMusic
     if not module then
         return
@@ -1011,6 +937,9 @@ function Config:RefreshChillMusicTrackCheckboxes()
 end
 
 function Config:RefreshChillMusicNowPlaying()
+end
+
+function Config:RefreshChillMusicNowPlaying_OLD()
     local label = self.widgets and self.widgets.chillMusicNowPlayingLabel
     if not label then
         return
