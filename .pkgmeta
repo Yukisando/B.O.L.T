@@ -15,3 +15,6 @@ enable-toc-creation: no
 
 # Enable creation of nolib packages (without embedded libraries)
 enable-nolib-creation: no
+
+# Set release type (alpha, beta, or release)
+package-as-release: yes
