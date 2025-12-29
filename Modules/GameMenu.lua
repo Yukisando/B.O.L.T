@@ -141,6 +141,7 @@ function GameMenu:HookGameMenu()
             self:HideReloadButton()
             self:HideGroupTools()
             self:HideBattleTextToggles()
+            self:HideVolumeButton()
 
             -- Clean up CVAR watcher
             if self.cvarWatcher then
@@ -294,6 +295,12 @@ function GameMenu:HideBattleTextToggles()
     if damageNumbersButton then damageNumbersButton:Hide() end
     if healingNumbersButton then healingNumbersButton:Hide() end
     -- do NOT hide volumeButton here
+end
+
+function GameMenu:HideVolumeButton()
+    if volumeButton then
+        volumeButton:Hide()
+    end
 end
 
 function GameMenu:CreateLeaveGroupButton()

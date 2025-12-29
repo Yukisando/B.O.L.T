@@ -15,8 +15,13 @@ local BUTTON_CONFIG = {
 function ButtonUtils:CreateIconButton(name, parent, iconPath, options)
     options = options or {}
     
-    -- Create a basic button frame
-    local btn = CreateFrame("Button", name, parent)
+    -- Create a basic button frame. Avoid parenting to protected Blizzard frames.
+    local safeParent = parent
+    if safeParent and safeParent.IsProtected and safeParent:IsProtected() then
+        safeParent = UIParent
+        if BOLT and BOLT.Print then BOLT:Print("BOLT warning: requested parent frame is protected; using UIParent instead to avoid modifying protected frames") end
+    end
+    local btn = CreateFrame("Button", name, safeParent)
     btn:SetSize(BUTTON_CONFIG.size, BUTTON_CONFIG.size)
     
     -- Create icon texture with rounded mask
@@ -108,7 +113,12 @@ end
 function ButtonUtils:CreateSecureActionButton(name, parent, iconPath, options)
     options = options or {}
     
-    local btn = CreateFrame("Button", name, parent, "SecureActionButtonTemplate")
+    local safeParent = parent
+    if safeParent and safeParent.IsProtected and safeParent:IsProtected() then
+        safeParent = UIParent
+        if BOLT and BOLT.Print then BOLT:Print("BOLT warning: requested parent frame is protected; using UIParent instead to avoid modifying protected frames") end
+    end
+    local btn = CreateFrame("Button", name, safeParent, "SecureActionButtonTemplate")
     btn:SetSize(BUTTON_CONFIG.size, BUTTON_CONFIG.size)
     
     -- Create icon texture with rounded mask
