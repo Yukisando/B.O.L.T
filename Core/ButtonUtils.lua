@@ -3,6 +3,9 @@
 
 local ADDON_NAME, BOLT = ...
 
+-- Track which protected parent warnings we've already printed
+local warnedProtectedParents = {}
+
 -- Create the ButtonUtils module
 local ButtonUtils = {}
 
@@ -18,8 +21,18 @@ function ButtonUtils:CreateIconButton(name, parent, iconPath, options)
     -- Create a basic button frame. Avoid parenting to protected Blizzard frames.
     local safeParent = parent
     if safeParent and safeParent.IsProtected and safeParent:IsProtected() then
+        local pname = (safeParent.GetName and safeParent:GetName()) or tostring(safeParent)
+        if not warnedProtectedParents[pname] then
+            warnedProtectedParents[pname] = true
+            if BOLT and BOLT.Print then
+                BOLT:Print("BOLT warning: requested parent frame is protected; using UIParent instead to avoid modifying protected frames (" .. tostring(pname) .. ")")
+                if BOLT.GetConfig and BOLT:GetConfig("debug") and debugstack then
+                    -- Provide a short stacktrace to help debugging when debug mode enabled
+                    BOLT:Print(debugstack(2, 15, 15))
+                end
+            end
+        end
         safeParent = UIParent
-        if BOLT and BOLT.Print then BOLT:Print("BOLT warning: requested parent frame is protected; using UIParent instead to avoid modifying protected frames") end
     end
     local btn = CreateFrame("Button", name, safeParent)
     btn:SetSize(BUTTON_CONFIG.size, BUTTON_CONFIG.size)
@@ -115,8 +128,18 @@ function ButtonUtils:CreateSecureActionButton(name, parent, iconPath, options)
     
     local safeParent = parent
     if safeParent and safeParent.IsProtected and safeParent:IsProtected() then
+        local pname = (safeParent.GetName and safeParent:GetName()) or tostring(safeParent)
+        if not warnedProtectedParents[pname] then
+            warnedProtectedParents[pname] = true
+            if BOLT and BOLT.Print then
+                BOLT:Print("BOLT warning: requested parent frame is protected; using UIParent instead to avoid modifying protected frames (" .. tostring(pname) .. ")")
+                if BOLT.GetConfig and BOLT:GetConfig("debug") and debugstack then
+                    -- Provide a short stacktrace to help debugging when debug mode enabled
+                    BOLT:Print(debugstack(2, 15, 15))
+                end
+            end
+        end
         safeParent = UIParent
-        if BOLT and BOLT.Print then BOLT:Print("BOLT warning: requested parent frame is protected; using UIParent instead to avoid modifying protected frames") end
     end
     local btn = CreateFrame("Button", name, safeParent, "SecureActionButtonTemplate")
     btn:SetSize(BUTTON_CONFIG.size, BUTTON_CONFIG.size)
