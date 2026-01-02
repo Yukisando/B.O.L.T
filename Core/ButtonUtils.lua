@@ -24,12 +24,11 @@ function ButtonUtils:CreateIconButton(name, parent, iconPath, options)
         local pname = (safeParent.GetName and safeParent:GetName()) or tostring(safeParent)
         if not warnedProtectedParents[pname] then
             warnedProtectedParents[pname] = true
-            if BOLT and BOLT.Print then
+            -- Only emit the warning when debug mode is enabled to avoid spamming the chat
+            if BOLT and BOLT.GetConfig and BOLT:GetConfig("debug") and BOLT.Print and debugstack then
                 BOLT:Print("BOLT warning: requested parent frame is protected; using UIParent instead to avoid modifying protected frames (" .. tostring(pname) .. ")")
-                if BOLT.GetConfig and BOLT:GetConfig("debug") and debugstack then
-                    -- Provide a short stacktrace to help debugging when debug mode enabled
-                    BOLT:Print(debugstack(2, 15, 15))
-                end
+                -- Provide a short stacktrace to help debugging when debug mode enabled
+                BOLT:Print(debugstack(2, 15, 15))
             end
         end
         safeParent = UIParent
@@ -131,12 +130,11 @@ function ButtonUtils:CreateSecureActionButton(name, parent, iconPath, options)
         local pname = (safeParent.GetName and safeParent:GetName()) or tostring(safeParent)
         if not warnedProtectedParents[pname] then
             warnedProtectedParents[pname] = true
-            if BOLT and BOLT.Print then
+            -- Only emit the warning when debug mode is enabled to avoid spamming the chat
+            if BOLT and BOLT.GetConfig and BOLT:GetConfig("debug") and BOLT.Print and debugstack then
                 BOLT:Print("BOLT warning: requested parent frame is protected; using UIParent instead to avoid modifying protected frames (" .. tostring(pname) .. ")")
-                if BOLT.GetConfig and BOLT:GetConfig("debug") and debugstack then
-                    -- Provide a short stacktrace to help debugging when debug mode enabled
-                    BOLT:Print(debugstack(2, 15, 15))
-                end
+                -- Provide a short stacktrace to help debugging when debug mode enabled
+                BOLT:Print(debugstack(2, 15, 15))
             end
         end
         safeParent = UIParent
@@ -215,8 +213,11 @@ function ButtonUtils:PositionAboveGameMenuRight(button, offsetX, offsetY)
     offsetY = offsetY or 8
     
     button:ClearAllPoints()
-    button:SetPoint("BOTTOMRIGHT", GameMenuFrame, "TOPRIGHT", offsetX, offsetY)
-    button:SetFrameLevel(GameMenuFrame:GetFrameLevel() + 2)
+    local anchor = _G["BOLTGameMenuContainer"] or GameMenuFrame
+    if anchor then
+        button:SetPoint("BOTTOMRIGHT", anchor, "TOPRIGHT", offsetX, offsetY)
+        button:SetFrameLevel((anchor.GetFrameLevel and anchor:GetFrameLevel() or 0) + 2)
+    end
     button:EnableMouse(true)
     button:Show()
 end
@@ -231,8 +232,11 @@ function ButtonUtils:PositionAboveGameMenuLeft(button, offsetX, offsetY)
     offsetY = offsetY or 8
     
     button:ClearAllPoints()
-    button:SetPoint("BOTTOMLEFT", GameMenuFrame, "TOPLEFT", offsetX, offsetY)
-    button:SetFrameLevel(GameMenuFrame:GetFrameLevel() + 2)
+    local anchor = _G["BOLTGameMenuContainer"] or GameMenuFrame
+    if anchor then
+        button:SetPoint("BOTTOMLEFT", anchor, "TOPLEFT", offsetX, offsetY)
+        button:SetFrameLevel((anchor.GetFrameLevel and anchor:GetFrameLevel() or 0) + 2)
+    end
     button:EnableMouse(true)
     button:Show()
 end

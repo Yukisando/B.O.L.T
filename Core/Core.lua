@@ -55,9 +55,9 @@ function BOLT:OnInitialize()
     -- Initialize database
     self:InitializeDatabase()
 
-    -- Debug: print saved value for autoRepSwitch so we can see whether saved profile enables it
-    if self and self.Print then
-        self:Print("autoRepSwitch.saved = " .. tostring(self:GetConfig("autoRepSwitch", "enabled")))
+    -- Debug: print saved value for autoRepSwitch when debug mode is enabled
+    if self and self.Debug then
+        self:Debug("autoRepSwitch.saved = " .. tostring(self:GetConfig("autoRepSwitch", "enabled")))
     end
 
     -- Initialize modules
