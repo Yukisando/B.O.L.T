@@ -141,7 +141,12 @@ function GameMenu:HookGameMenu()
                 c:Hide()
                 self.menuContainer = c
             end
-            self.menuContainer:Show()
+            -- Defer showing the container to avoid calling protected functions during Blizzard's secure ShowUIPanel execution
+            C_Timer.After(0.01, function()
+                if self.menuContainer then
+                    self.menuContainer:Show()
+                end
+            end)
 
             -- Small delay to ensure the menu is fully loaded
             C_Timer.After(0.05, function()
@@ -177,9 +182,13 @@ function GameMenu:HookGameMenu()
                 self.cvarWatcher = nil
             end
 
-            -- Hide our container so all menu-related widgets hide as a group
+            -- Defer hiding the container to avoid protected-call errors in secure contexts
             if self.menuContainer then
-                self.menuContainer:Hide()
+                C_Timer.After(0.01, function()
+                    if self.menuContainer then
+                        self.menuContainer:Hide()
+                    end
+                end)
             end
         end)
     end
