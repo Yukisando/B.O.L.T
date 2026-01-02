@@ -30,3 +30,4 @@ Modules\Skyriding.lua
 Modules\Playground.lua
 Modules\SpecialGamemode.lua
 Modules\WowheadLink.lua
+Modules\AutoRepSwitch.lua

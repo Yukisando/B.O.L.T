@@ -40,6 +40,9 @@ BOLT.defaults = {
         },
         wowheadLink = {
             enabled = true
+        },
+        autoRepSwitch = {
+            enabled = true
         }
     }
 }
@@ -51,6 +54,11 @@ function BOLT:OnInitialize()
 
     -- Initialize database
     self:InitializeDatabase()
+
+    -- Debug: print saved value for autoRepSwitch so we can see whether saved profile enables it
+    if self and self.Print then
+        self:Print("autoRepSwitch.saved = " .. tostring(self:GetConfig("autoRepSwitch", "enabled")))
+    end
 
     -- Initialize modules
     self:InitializeModules()
@@ -67,12 +75,19 @@ function BOLT:InitializeModules()
     end
 end
 
--- Enable all modules
+-- Enable modules based on saved config
 function BOLT:EnableModules()
+    local enabledModules = {}
     for name, module in pairs(self.modules) do
-        if module.OnEnable then
+        if module.OnEnable and self:IsModuleEnabled(name) then
             module:OnEnable()
+            table.insert(enabledModules, name)
         end
+    end
+
+    -- Print summary of enabled modules on startup
+    if self and self.Print then
+        self:Print("Enabled modules on startup: " .. (next(enabledModules) and table.concat(enabledModules, ", ") or "(none)"))
     end
 
     -- Handle auto collapse buffs

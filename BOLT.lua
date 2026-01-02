@@ -16,6 +16,27 @@ function BOLT:RegisterModule(name, module)
     end
 end
 
+-- Enable or disable a module immediately and store the setting
+function BOLT:SetModuleEnabled(moduleName, enabled)
+    -- Persist the enabled value
+    self:SetConfig(enabled, moduleName, "enabled")
+
+    local mod = self.modules[moduleName]
+    if not mod then
+        -- Module file not loaded yet; saved preference will be applied when modules are initialized
+        self:Print("Module setting for '" .. tostring(moduleName) .. "' saved; it will be applied when the module loads.")
+        return
+    end
+
+    if enabled then
+        if mod.OnEnable then mod:OnEnable() end
+        self:Print("Module '" .. moduleName .. "' enabled.")
+    else
+        if mod.OnDisable then mod:OnDisable() end
+        self:Print("Module '" .. moduleName .. "' disabled.")
+    end
+end
+
 -- The core framework and modules are loaded via the .toc file
 -- This file serves as the main entry point and can contain
 -- any additional initialization or global commands
@@ -71,16 +92,22 @@ SlashCmdList["BOLT"] = function(msg)
             return
         end
         
+        local currentValue = BOLT:GetConfig(moduleName, "enabled")
+        local newValue = not currentValue
+        -- Persist the setting even if the module file hasn't been loaded yet
+        BOLT:SetConfig(newValue, moduleName, "enabled")
         if BOLT.modules[moduleName] then
-            local currentValue = BOLT:GetConfig(moduleName, "enabled")
-            local newValue = not currentValue
-            BOLT:SetConfig(newValue, moduleName, "enabled")
-            
+            if newValue then
+                if BOLT.modules[moduleName].OnEnable then BOLT.modules[moduleName]:OnEnable() end
+            else
+                if BOLT.modules[moduleName].OnDisable then BOLT.modules[moduleName]:OnDisable() end
+            end
             local status = newValue and "enabled" or "disabled"
-            BOLT:Print("Module '" .. moduleName .. "' " .. status .. ". Type /reload to apply changes.")
+            BOLT:Print("Module '" .. moduleName .. "' " .. status .. ".")
         else
-            BOLT:Print("Unknown module: " .. moduleName)
-            BOLT:Print("Available modules: " .. table.concat(BOLT:GetTableKeys(BOLT.modules), ", "))
+            -- Module not yet registered; save the preference and inform the user
+            local status = newValue and "enabled" or "disabled"
+            BOLT:Print("Module setting for '" .. moduleName .. "' saved as " .. status .. "; it will be applied when the module loads.")
         end
     elseif args[1] == "reload" then
         ReloadUI()

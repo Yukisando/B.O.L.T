@@ -1,6 +1,11 @@
 # B.O.L.T Changelog
 **(Brittle and Occasionally Lethal Tweaks)**
 
+## [1.5.0] - 2026-01-01
+### Added
+- **Auto Rep Switch Module**: Automatically switches the watched reputation to the faction you just gained reputation with.
+
+
 ## [1.4.1] - 2025-09-29
 ### Changed
 - **Major Rebranding**: Addon renamed from ColdSnap to B.O.L.T (Brittle and Occasionally Lethal Tweaks)

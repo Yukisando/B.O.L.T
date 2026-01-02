@@ -446,6 +446,30 @@ function Config:CreateInterfaceOptionsPanel()
     wlDesc:SetText("Press Ctrl+C while hovering over an item to copy its Wowhead link. Default keybind is Ctrl+C.")
     y = y - 36
 
+    -- Auto Rep Switch section
+    local arsLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    arsLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
+    arsLabel:SetText("Auto Rep Switch")
+    y = y - 24
+
+    local arsEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    arsEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    arsEnable.Text:SetText("Enable Auto Rep Switch Module")
+    arsEnable:SetScript("OnClick", function(button)
+        local checked = button:GetChecked()
+        self.parent:SetModuleEnabled("autoRepSwitch", checked)
+    end)
+    self.widgets.autoRepSwitchCheckbox = arsEnable
+    self.widgets.autoRepSwitchReloadIndicator = self:CreateReloadIndicator(content, arsEnable)
+    y = y - 30
+
+    local arsDesc = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    arsDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    arsDesc:SetWidth(520)
+    arsDesc:SetJustifyH("LEFT")
+    arsDesc:SetText("Automatically switch the watched reputation to the faction you just gained reputation with.")
+    y = y - 36
+
     -- Reload button and version
     local reloadBtn = CreateFrame("Button", "BOLTOptionsReloadButton", content, "UIPanelButtonTemplate")
     reloadBtn:SetSize(120,25); reloadBtn:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y); reloadBtn:SetText("Reload UI")
@@ -873,6 +897,7 @@ function Config:RefreshOptionsPanel()
         if w.skyridingCheckbox then w.skyridingCheckbox:SetChecked(self.parent:IsModuleEnabled("skyriding")) end
         if w.pitchControlCheckbox then w.pitchControlCheckbox:SetChecked(self.parent:GetConfig("skyriding","enablePitchControl")) end
         if w.wowheadLinkCheckbox then w.wowheadLinkCheckbox:SetChecked(self.parent:IsModuleEnabled("wowheadLink")) end
+        if w.autoRepSwitchCheckbox then w.autoRepSwitchCheckbox:SetChecked(self.parent:IsModuleEnabled("autoRepSwitch")) end
         end)
     end
 
