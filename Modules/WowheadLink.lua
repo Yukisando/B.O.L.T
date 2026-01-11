@@ -120,7 +120,13 @@ function WowheadLink:ShowLinkForItem(itemLink)
     end
 
     -- Get item name for display
-    local itemName = GetItemInfo(itemLink)
+    local itemName
+    if C_Item and C_Item.GetItemInfoByID then
+        local info = C_Item.GetItemInfoByID(tonumber(itemID))
+        if info and info.name then
+            itemName = info.name
+        end
+    end
     if not itemName then
         itemName = "Item " .. itemID
     end
@@ -156,8 +162,9 @@ function BOLT_ShowWowheadLink()
 
         if not itemLink then
             -- Try to get from mouseover unit if it's an item
-            if GetMouseFocus() then
-                local frame = GetMouseFocus()
+            local getMouseFocus = rawget(_G, "GetMouseFocus")
+            if getMouseFocus then
+                local frame = getMouseFocus()
                 -- Check if it's a container item
                 if frame and frame.GetItemLocation then
                     local itemLocation = frame:GetItemLocation()

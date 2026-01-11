@@ -281,8 +281,8 @@ function Playground:UpdateFavoriteToyButton()
         -- Check ownership using PlayerHasToy with itemID
         if itemID and toyName and PlayerHasToy(itemID) then
             -- Icon fallback from item cache if needed
-            if not toyIcon and GetItemInfo then
-                toyIcon = select(10, GetItemInfo(itemID))
+            if not toyIcon and C_Item and C_Item.GetItemIconByID then
+                toyIcon = C_Item.GetItemIconByID(itemID)
             end
             
             -- Prefer using the toy ID when constructing the macro to avoid name-escaping problems
@@ -591,11 +591,16 @@ function Playground:GetTargetMountSpellID()
             end
         else
             -- Fallback to older UnitAura signature where the 10th return is the spellId in many clients
-            local name, _, _, _, _, _, _, _, _, spellId = UnitAura("target", i, "HELPFUL")
-            if not name then break end
-            if spellId and C_MountJournal and C_MountJournal.GetMountFromSpell then
-                local mountID = C_MountJournal.GetMountFromSpell(spellId)
-                if mountID then return spellId, mountID end
+            local UnitAuraFunc = rawget(_G, "UnitAura")
+            if UnitAuraFunc then
+                local name, _, _, _, _, _, _, _, _, spellId = UnitAuraFunc("target", i, "HELPFUL")
+                if not name then break end
+                if spellId and C_MountJournal and C_MountJournal.GetMountFromSpell then
+                    local mountID = C_MountJournal.GetMountFromSpell(spellId)
+                    if mountID then return spellId, mountID end
+                end
+            else
+                break
             end
         end
         

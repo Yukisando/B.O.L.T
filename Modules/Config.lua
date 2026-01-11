@@ -1106,8 +1106,8 @@ function Config:PopulateToyList()
             -- Check ownership using PlayerHasToy with itemID
             if itemID and toyName and PlayerHasToy(itemID) then
                 -- Icon fallback from item cache if needed
-                if not icon and GetItemInfo then
-                    icon = select(10, GetItemInfo(itemID))
+                if not icon and C_Item and C_Item.GetItemIconByID then
+                    icon = C_Item.GetItemIconByID(itemID)
                 end
 
                 table.insert(self.allToys, {
@@ -1138,8 +1138,8 @@ function Config:PopulateToyList()
             if not self or not self.allToys then return end
             local changed = false
             for _,t in ipairs(self.allToys) do
-                if not t.icon and t.itemId and GetItemInfo then
-                    local maybeIcon = select(10, GetItemInfo(t.itemId))
+                if not t.icon and t.itemId and C_Item and C_Item.GetItemIconByID then
+                    local maybeIcon = C_Item.GetItemIconByID(t.itemId)
                     if maybeIcon then
                         t.icon = maybeIcon
                         changed = true
