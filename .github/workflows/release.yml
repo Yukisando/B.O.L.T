@@ -23,6 +23,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Checkout release tag
+        if: github.event_name == 'release'
+        run: |
+          git fetch --tags --prune
+          git checkout ${{ github.event.release.tag_name }}
+
       - name: Package and Upload
         uses: BigWigsMods/packager@v2
         env:
