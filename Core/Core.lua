@@ -35,9 +35,6 @@ BOLT.defaults = {
             enablePitchControl = true,
             invertPitch = true
         },
-        chillMusic = {
-            enabled = false
-        },
         wowheadLink = {
             enabled = true
         },

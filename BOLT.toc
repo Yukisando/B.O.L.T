@@ -24,7 +24,6 @@ Core\ButtonUtils.lua
 
 # Modules
 Modules\Config.lua
-Modules\ChillMusic.lua
 Modules\GameMenu.lua
 Modules\Skyriding.lua
 Modules\Playground.lua

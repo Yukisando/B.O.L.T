@@ -247,31 +247,6 @@ function Config:CreateInterfaceOptionsPanel()
 
     y = y - 40
 
-    local chillLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    chillLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
-    chillLabel:SetText("Chill Music")
-    y = y - 24
-
-    local chillEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    chillEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
-    chillEnable.Text:SetText("Enable Chill Music Module")
-    chillEnable:SetScript("OnClick", function(button)
-        local checked = button:GetChecked()
-        self.parent:SetModuleEnabled("chillMusic", checked)
-        self:UpdateChillMusicChildControls()
-    end)
-    self.widgets.chillMusicCheckbox = chillEnable
-    self.widgets.chillMusicReloadIndicator = self:CreateReloadIndicator(content, chillEnable)
-    y = y - 30
-
-    local chillDesc = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    chillDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
-    chillDesc:SetWidth(520)
-    chillDesc:SetJustifyH("LEFT")
-    chillDesc:SetText("Automatically mutes music when you're outdoors. Music plays normally when indoors.")
-    self.widgets.chillMusicDescription = chillDesc
-    y = y - 40
-
     -- Playground section
     local pgLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     pgLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
@@ -495,300 +470,6 @@ function Config:CreateInterfaceOptionsPanel()
     self.optionsPanel = panel
 end
 
-function Config:CreateChillMusicSelectors(content, y)
-    -- Simplified - no selectors needed
-    return y
-end
-
-function Config:RebuildChillMusicTrackList(category)
-    local module = self.parent.modules and self.parent.modules.chillMusic
-    if not module then
-        return 0
-    end
-
-    local w = self.widgets
-    local container = w.chillMusicTrackContainers and w.chillMusicTrackContainers[category]
-    if not container then
-        return 0
-    end
-
-    local playlist = module:GetBasePlaylist(category) or {}
-    local rowHeight = 24
-    local rows = container.rows or {}
-    container.rows = rows
-
-    w.chillMusicTrackCheckboxes[category] = {}
-
-    local rowIndex = 0
-    local config = self
-    local moduleEnabled = self.parent:IsModuleEnabled("chillMusic")
-
-    for index, track in ipairs(playlist) do
-        rowIndex = rowIndex + 1
-        local row = rows[rowIndex]
-        if not row then
-            row = CreateFrame("Button", nil, container)
-            row:SetSize(520, rowHeight)
-            row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
-            local highlight = row:GetHighlightTexture()
-            if highlight then
-                highlight:SetAlpha(0.35)
-            end
-            rows[rowIndex] = row
-
-            local checkbox = CreateFrame("CheckButton", nil, row, "InterfaceOptionsCheckButtonTemplate")
-            checkbox:SetPoint("LEFT", row, "LEFT", 0, 0)
-            row.checkbox = checkbox
-        end
-
-        row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -((rowIndex - 1) * rowHeight))
-        row:Show()
-
-        local checkbox = row.checkbox
-        checkbox:SetEnabled(moduleEnabled)
-        checkbox:SetScript("OnClick", function(button)
-            config:SetChillMusicTrackEnabled(category, track.key, button:GetChecked())
-        end)
-        checkbox:SetChecked(module:IsTrackEnabled(category, track))
-
-        checkbox.Text:SetText(track.label or track.file or track.key or ("Track " .. index))
-        checkbox.Text:ClearAllPoints()
-        checkbox.Text:SetPoint("LEFT", checkbox, "RIGHT", 0, 0)
-        checkbox.Text:SetPoint("RIGHT", row, "RIGHT", -4, 0)
-        checkbox.Text:SetJustifyH("LEFT")
-        checkbox.Text:SetTextColor(1, 0.82, 0)
-
-        local highlight = row:GetHighlightTexture()
-        if track.isCustom then
-            if highlight then
-                highlight:SetAlpha(0.35)
-            end
-            row:SetScript("OnMouseUp", function(_, button)
-                if button ~= "LeftButton" then
-                    return
-                end
-                if not config.parent:IsModuleEnabled("chillMusic") then
-                    return
-                end
-                if checkbox:IsMouseOver() then
-                    return
-                end
-                config:RemoveCustomTrack(category, track.key)
-            end)
-        else
-            if highlight then
-                highlight:SetAlpha(0)
-            end
-            row:SetScript("OnMouseUp", nil)
-        end
-
-        if track.key then
-            w.chillMusicTrackCheckboxes[category][track.key] = checkbox
-        end
-    end
-
-    for i = rowIndex + 1, #rows do
-        local row = rows[i]
-        if row then
-            row:Hide()
-            row:SetScript("OnMouseUp", nil)
-        end
-    end
-
-    if rowIndex == 0 then
-        if not container.emptyLabel then
-            container.emptyLabel = container:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            container.emptyLabel:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
-            container.emptyLabel:SetJustifyH("LEFT")
-        end
-        container.emptyLabel:SetText("No tracks available")
-        container.emptyLabel:Show()
-        container:SetHeight(18)
-    else
-        if container.emptyLabel then
-            container.emptyLabel:Hide()
-        end
-        container:SetHeight(rowIndex * rowHeight)
-    end
-
-    return container:GetHeight()
-end
-
-function Config:CreateChillMusicCustomControls(content, category, y)
-    return nil, 0
-end
-
-function Config:CreateChillMusicCustomControls_OLD(content, category, y)
-    local w = self.widgets
-    w.chillMusicCustomFrames = w.chillMusicCustomFrames or {}
-    w.chillMusicCustomInputs = w.chillMusicCustomInputs or {}
-
-    local frame = w.chillMusicCustomFrames[category]
-    if not frame then
-        frame = CreateFrame("Frame", nil, content)
-        frame:SetSize(520, 72)
-        w.chillMusicCustomFrames[category] = frame
-
-        local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        title:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
-        title:SetText("Add SoundKit Track")
-
-        local idLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        idLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, -18)
-        idLabel:SetText("SoundKit ID:")
-
-        local idInput = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
-        idInput:SetAutoFocus(false)
-        idInput:SetSize(120, 24)
-        idInput:SetPoint("LEFT", idLabel, "RIGHT", 6, 0)
-        idInput:SetNumeric(true)
-        idInput:SetMaxLetters(6)
-
-        local addButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-        addButton:SetSize(90, 24)
-        addButton:SetPoint("LEFT", idInput, "RIGHT", 12, 0)
-        addButton:SetText("Add ID")
-        addButton:SetScript("OnClick", function()
-            self:AddCustomTrackFromInputs(category)
-        end)
-
-        local clearButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-        clearButton:SetSize(70, 24)
-        clearButton:SetPoint("LEFT", addButton, "RIGHT", 8, 0)
-        clearButton:SetText("Clear")
-        clearButton:SetScript("OnClick", function()
-            idInput:SetText("")
-            self:UpdateChillMusicCustomAddState(category)
-        end)
-
-        local hint = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        hint:SetPoint("TOPLEFT", idLabel, "BOTTOMLEFT", 0, -14)
-        hint:SetWidth(520)
-        hint:SetJustifyH("LEFT")
-        hint:SetText("Enter the SoundKit ID (number). Click a custom track above to remove it from the list.")
-
-        w.chillMusicCustomInputs[category] = {
-            soundKit = idInput,
-            addButton = addButton,
-            clearButton = clearButton,
-        }
-
-        idInput:SetScript("OnTextChanged", function()
-            self:UpdateChillMusicCustomAddState(category)
-        end)
-    end
-
-    frame:ClearAllPoints()
-    frame:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
-    frame:SetWidth(520)
-
-    self:UpdateChillMusicCustomAddState(category)
-
-    return frame, frame:GetHeight() or 72
-end
-
-function Config:UpdateChillMusicCustomAddState(category)
-end
-
-function Config:UpdateChillMusicCustomAddState_OLD(category)
-    local inputs = self.widgets and self.widgets.chillMusicCustomInputs and self.widgets.chillMusicCustomInputs[category]
-    if not inputs then
-        return
-    end
-
-    local enabled = self.parent:IsModuleEnabled("chillMusic")
-    local soundKitText = TrimWhitespace(inputs.soundKit:GetText() or "")
-    local soundKitValue = tonumber(soundKitText)
-
-    if inputs.addButton then
-        inputs.addButton:SetEnabled(enabled and soundKitValue and soundKitValue > 0)
-    end
-    if inputs.clearButton then
-        inputs.clearButton:SetEnabled(enabled and soundKitText ~= "")
-    end
-    if inputs.soundKit then
-        inputs.soundKit:SetEnabled(enabled)
-    end
-end
-
-function Config:AddCustomTrackFromInputs(category)
-end
-
-function Config:AddCustomTrackFromInputs_OLD(category)
-    local module = self.parent.modules and self.parent.modules.chillMusic
-    if not module then
-        return
-    end
-
-    local inputs = self.widgets and self.widgets.chillMusicCustomInputs and self.widgets.chillMusicCustomInputs[category]
-    if not inputs then
-        return
-    end
-
-    local soundKitText = TrimWhitespace(inputs.soundKit:GetText() or "")
-    local soundKitId = tonumber(soundKitText)
-
-    if not soundKitId or soundKitId <= 0 then
-        if self.parent and self.parent.Print then
-            self.parent:Print("Chill Music: Please enter a valid SoundKit ID.")
-        end
-        return
-    end
-
-    local track, err = module:AddCustomTrack(category, soundKitId)
-    if track then
-        if self.parent and self.parent.Print then
-            local label = track.label or track.file or track.key or "custom track"
-            self.parent:Print(string.format("Chill Music: Added custom %s track '%s'.", category, label))
-        end
-        inputs.soundKit:SetText("")
-        self:RebuildChillMusicTrackList(category)
-        self:RefreshChillMusicTrackCheckboxes()
-    else
-        if self.parent and self.parent.Print then
-            self.parent:Print("Chill Music: Unable to add track - " .. (err or "invalid data"))
-        end
-    end
-
-    self:UpdateChillMusicCustomAddState(category)
-end
-
-function Config:RemoveCustomTrack(category, trackKey)
-end
-
-function Config:RemoveCustomTrack_OLD(category, trackKey)
-    local module = self.parent.modules and self.parent.modules.chillMusic
-    if not module then
-        return
-    end
-
-    local track = module:GetTrackByKey(category, trackKey)
-    if module:RemoveCustomTrack(category, trackKey) then
-        if self.parent and self.parent.Print then
-            local label = track and (track.label or track.file or track.key) or trackKey or "track"
-            self.parent:Print(string.format("Chill Music: Removed custom %s track '%s'.", category, label))
-        end
-        self:RebuildChillMusicTrackList(category)
-        self:RefreshChillMusicTrackCheckboxes()
-    else
-        if self.parent and self.parent.Print then
-            self.parent:Print("Chill Music: Unable to remove track.")
-        end
-    end
-
-    self:UpdateChillMusicCustomAddState(category)
-end
-
-function Config:UpdateChillMusicChildControls()
-    local enabled = self.parent:IsModuleEnabled("chillMusic")
-    local w = self.widgets
-
-    if w.chillMusicDescription then
-        w.chillMusicDescription:SetAlpha(enabled and 1 or 0.5)
-    end
-end
-
 function Config:UpdateGameMenuChildControls()
     local enabled = false
     if self.parent and self.parent.IsModuleEnabled then
@@ -864,7 +545,6 @@ function Config:RefreshAll()
     self:RefreshOptionsPanel()
     self:UpdateGameMenuChildControls()
     self:UpdatePlaygroundChildControls()
-    self:UpdateChillMusicChildControls()
     self:UpdateSkyridingChildControls()
     self:UpdateCurrentToyDisplay()
 end
@@ -885,7 +565,6 @@ function Config:RefreshOptionsPanel()
             if w.raidMarkerClearButton then w.raidMarkerClearButton:SetAlpha(idx==0 and 1 or 0.6) end
         end
         if w.playgroundCheckbox then w.playgroundCheckbox:SetChecked(self.parent:IsModuleEnabled("playground")) end
-        if w.chillMusicCheckbox then w.chillMusicCheckbox:SetChecked(self.parent:IsModuleEnabled("chillMusic")) end
         if w.favoriteToyCheckbox then w.favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground","showFavoriteToy")) end
         if w.speedometerCheckbox then w.speedometerCheckbox:SetChecked(self.parent:GetConfig("playground","showSpeedometer")) end
         if w.speedometerPositionDropdown then
@@ -900,116 +579,6 @@ function Config:RefreshOptionsPanel()
         if w.autoRepSwitchCheckbox then w.autoRepSwitchCheckbox:SetChecked(self.parent:IsModuleEnabled("autoRepSwitch")) end
         end)
     end
-
-function Config:SetChillMusicTrackEnabled(category, trackKey, enabled)
-end
-
-function Config:SetChillMusicTrackEnabled_OLD(category, trackKey, enabled)
-    if not category or not trackKey then
-        return
-    end
-
-    local optionKey = (category == "indoors") and "indoorSelection" or "outdoorSelection"
-    local current = self.parent:GetConfig("chillMusic", optionKey)
-    if type(current) == "table" then
-        current = CopyTable(current)
-    else
-        current = {}
-    end
-
-    if enabled then
-        current[trackKey] = nil
-    else
-        current[trackKey] = false
-    end
-
-    if current and next(current) == nil then
-        current = nil
-    end
-
-    self.parent:SetConfig(current, "chillMusic", optionKey)
-
-    if self.parent.modules and self.parent.modules.chillMusic and self.parent.modules.chillMusic.OnTrackSelectionChanged then
-        self.parent.modules.chillMusic:OnTrackSelectionChanged()
-    end
-
-    self:RefreshChillMusicTrackCheckboxes()
-end
-
-function Config:RefreshChillMusicTrackCheckboxes()
-end
-
-function Config:RefreshChillMusicTrackCheckboxes_OLD()
-    local module = self.parent.modules and self.parent.modules.chillMusic
-    if not module then
-        return
-    end
-
-    local w = self.widgets
-    if not w.chillMusicTrackCheckboxes then
-        return
-    end
-
-    for category, checkboxes in pairs(w.chillMusicTrackCheckboxes) do
-        for key, cb in pairs(checkboxes) do
-            local track = module:GetTrackByKey(category, key)
-            if cb and track then
-                local checked = module:IsTrackEnabled(category, track)
-                cb:SetChecked(checked)
-            end
-        end
-    end
-end
-
-function Config:RefreshChillMusicNowPlaying()
-end
-
-function Config:RefreshChillMusicNowPlaying_OLD()
-    local label = self.widgets and self.widgets.chillMusicNowPlayingLabel
-    if not label then
-        return
-    end
-
-    local module = self.parent.modules and self.parent.modules.chillMusic
-    if not module then
-        label:SetText("Now Playing: (module not loaded)")
-        return
-    end
-
-    if not self.parent:IsModuleEnabled("chillMusic") then
-        label:SetText("Now Playing: (module disabled)")
-        return
-    end
-
-    if not GetCVarBool("Sound_EnableMusic") then
-        label:SetText("Now Playing: (music disabled in audio settings)")
-        return
-    end
-
-    local track, environment = module:GetCurrentTrackInfo()
-    if not track then
-        label:SetText("Now Playing: (waiting for next track)")
-        return
-    end
-
-    local envLabel = (environment == "indoors") and "Indoor" or "Outdoor"
-    label:SetText(string.format("Now Playing: %s [%s]", track.label or track.file or track.key or "Unknown", envLabel))
-end
-
-function Config:UpdateChillMusicNowPlaying(track, environment)
-    if not track then
-        self:RefreshChillMusicNowPlaying()
-        return
-    end
-
-    local label = self.widgets and self.widgets.chillMusicNowPlayingLabel
-    if not label then
-        return
-    end
-
-    local envLabel = (environment == "indoors") and "Indoor" or "Outdoor"
-    label:SetText(string.format("Now Playing: %s [%s]", track.label or track.file or track.key or "Unknown", envLabel))
-end
 
 function Config:UpdateSkyridingChildControls()
     local sk = self.parent:IsModuleEnabled("skyriding")
@@ -1066,6 +635,48 @@ function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
     local clear = CreateFrame("Button", nil, toyFrame, "UIPanelButtonTemplate") clear:SetPoint("LEFT", searchBox, "RIGHT", 10, 0); clear:SetSize(50,28); clear:SetText("Clear"); clear:SetScript("OnClick", function() searchBox:SetText(""); self:FilterToyList() end)
     local refresh = CreateFrame("Button", nil, toyFrame, "UIPanelButtonTemplate") refresh:SetPoint("LEFT", clear, "RIGHT", 8, 0); refresh:SetSize(60,28); refresh:SetText("Refresh")
     refresh:SetScript("OnClick", function() self:PopulateToyList(); self:UpdateToySelection() end)
+    local dump = CreateFrame("Button", nil, toyFrame, "UIPanelButtonTemplate") dump:SetPoint("LEFT", refresh, "RIGHT", 8, 0); dump:SetSize(60,28); dump:SetText("Dump")
+    dump:SetScript("OnClick", function()
+        if not C_ToyBox then self.parent:Print("B.O.L.T: C_ToyBox not available") return end
+        local unfilteredN = (type(C_ToyBox.GetNumToys) == "function" and C_ToyBox.GetNumToys() ) or 0
+        local filteredN = (type(C_ToyBox.GetNumFilteredToys) == "function" and C_ToyBox.GetNumFilteredToys() ) or nil
+        self.parent:Print(string.format("B.O.L.T: Dumping toys -> unfiltered=%d filtered=%s", unfilteredN, tostring(filteredN)))
+        local limit = math.min(50, math.max(0, unfilteredN))
+        for i = 1, limit do
+            local ok, toyID = pcall(C_ToyBox.GetToyFromIndex, i)
+            if not ok then
+                self.parent:Print(string.format("B.O.L.T: index=%d GetToyFromIndex failed: %s", i, tostring(toyID)))
+            elseif not toyID or toyID == 0 then
+                self.parent:Print(string.format("B.O.L.T: index=%d toyID is nil/0", i))
+            else
+                -- Safely get toy info
+                local ok2, itemID, toyName, icon, isFavorite, hasFanfare, quality = pcall(function() return C_ToyBox.GetToyInfo(toyID) end)
+                if not ok2 then
+                    self.parent:Print(string.format("B.O.L.T: index=%d toyID=%s GetToyInfo failed: %s", i, tostring(toyID), tostring(itemID)))
+                else
+                    local hasByItem = false
+                    local hasByToy = false
+                    if type(PlayerHasToy) == "function" then
+                        pcall(function() hasByItem = (itemID and PlayerHasToy(itemID)) end)
+                        pcall(function() hasByToy = PlayerHasToy(toyID) end)
+                    end
+                    self.parent:Print(string.format("B.O.L.T: idx=%d toyID=%s itemID=%s name=%s hasByItem=%s hasByToy=%s", i, tostring(toyID), tostring(itemID), tostring(toyName), tostring(hasByItem), tostring(hasByToy)))
+                end
+            end
+        end
+    end)
+
+    local init = CreateFrame("Button", nil, toyFrame, "UIPanelButtonTemplate") init:SetPoint("LEFT", dump, "RIGHT", 8, 0); init:SetSize(60,28); init:SetText("Init")
+    init:SetScript("OnClick", function()
+        -- Open Collections Journal to force initialization of toy filters/data
+        local ok = pcall(function()
+            if ToggleCollectionsJournal then ToggleCollectionsJournal() end
+        end)
+        if self.parent and self.parent.Print then
+            self.parent:Print(string.format("B.O.L.T: ToggleCollectionsJournal called -> ok=%s", tostring(ok)))
+            self.parent:Print("B.O.L.T: If Collections opened, wait a second and click Refresh or Dump again.")
+        end
+    end)
     local currentLabel = toyFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal") currentLabel:SetPoint("TOPLEFT", toyFrame, "TOPLEFT", 15, -50); currentLabel:SetText("Current:")
     local currentToy = CreateFrame("Button", "BOLTCurrentToyButton", toyFrame); currentToy:SetPoint("LEFT", currentLabel, "RIGHT", 15, 0); currentToy:SetSize(220,28)
     local currentIcon = currentToy:CreateTexture(nil, "ARTWORK") currentIcon:SetPoint("LEFT", currentToy, "LEFT", 4, 0); currentIcon:SetSize(20,20)
@@ -1077,51 +688,202 @@ function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
     toyFrame:SetScript("OnShow", function()
         C_Timer.After(0.1, function()
             if not self.toyListPopulated then
+                -- try to populate; may retry internally if data isn't ready
                 self:PopulateToyList()
                 self.toyListPopulated = true
             end
             self:UpdateToySelection()
         end)
     end)
+
+    -- Ensure we refresh when the game's toy data updates
+    if not self.toyEventFrame then
+        local f = CreateFrame("Frame")
+        f:RegisterEvent("TOYS_UPDATED")
+        f:RegisterEvent("PLAYER_LOGIN")
+        f:RegisterEvent("PLAYER_ENTERING_WORLD")
+        f:SetScript("OnEvent", function(_, event)
+            C_Timer.After(0.1, function()
+                if self and self.PopulateToyList then
+                    pcall(function()
+                        self:PopulateToyList()
+                        self.toyListPopulated = true
+                        self:UpdateToySelection()
+                    end)
+                end
+            end)
+        end)
+        self.toyEventFrame = f
+    end
+
     self:UpdateToySelection()
 end
 
 function Config:PopulateToyList()
     if not self.toyScrollChild then return end
+    -- Throttle repeated calls
+    if self._lastToyScan and (GetTime() - self._lastToyScan) < 0.5 then return end
+    self._lastToyScan = GetTime()
+
     for _,b in pairs(self.toyButtons) do b:Hide() end
     self.toyButtons = {}
     self.allToys = {}
 
-    if not C_ToyBox or type(C_ToyBox.GetNumToys) ~= "function" then
+    -- Try to ensure toy APIs are loaded
+    if not C_ToyBox then
+        local ok, loaded = pcall(LoadAddOn, "Blizzard_Collections")
+        if self.parent and self.parent.Print then
+            self.parent:Print(string.format("B.O.L.T: Attempted LoadAddOn Blizzard_Collections -> ok=%s loaded=%s", tostring(ok), tostring(loaded)))
+        end
+        if not C_ToyBox then
+            if self.parent and self.parent.Print then self.parent:Print("B.O.L.T: C_ToyBox API not available after loading Collections.") end
+            return
+        end
+    end
+
+    -- Prefer unfiltered total count first; filtered count can be zero when UI filters hide items
+    local getNum = (type(C_ToyBox.GetNumToys) == "function" and C_ToyBox.GetNumToys) or ((type(C_ToyBox.GetNumFilteredToys) == "function" and C_ToyBox.GetNumFilteredToys) or nil)
+    if type(getNum) ~= "function" then
+        if self.parent and self.parent.Print then self.parent:Print("B.O.L.T: Toy API missing GetNum function.") end
         return
     end
 
-    local numToys = C_ToyBox.GetNumToys() or 0
-    for i = 1, numToys do
-        local toyID = C_ToyBox.GetToyFromIndex(i)
-        if toyID and toyID > 0 then
-            -- C_ToyBox.GetToyInfo returns: itemID, toyName, icon, isFavorite, hasFanfare, itemQuality
-            local itemID, toyName, icon = C_ToyBox.GetToyInfo(toyID)
+    -- Try to ensure filters include everything (if API supports these helpers)
+    if C_ToyBox.SetAllSourceTypeFilters then
+        local ok, res = pcall(C_ToyBox.SetAllSourceTypeFilters, true)
+        if self.parent and self.parent.Print then self.parent:Print(string.format("B.O.L.T: SetAllSourceTypeFilters -> ok=%s", tostring(ok))) end
+    end
+    if C_ToyBox.SetAllExpansionTypeFilters then
+        local ok, res = pcall(C_ToyBox.SetAllExpansionTypeFilters, true)
+        if self.parent and self.parent.Print then self.parent:Print(string.format("B.O.L.T: SetAllExpansionTypeFilters -> ok=%s", tostring(ok))) end
+    end
+    if C_ToyBox.SetUncollectedShown then pcall(C_ToyBox.SetUncollectedShown, false) end
+    if C_ToyBox.SetUnusableShown then pcall(C_ToyBox.SetUnusableShown, true) end
 
-            -- Check ownership using PlayerHasToy with itemID
-            if itemID and toyName and PlayerHasToy(itemID) then
-                -- Icon fallback from item cache if needed
-                if not icon and C_Item and C_Item.GetItemIconByID then
-                    icon = C_Item.GetItemIconByID(itemID)
+    -- Re-query count after attempting to adjust filters
+    local numToys = getNum() or 0
+    if self.parent and self.parent.Print then self.parent:Print(string.format("B.O.L.T: Toy count after filters = %d", numToys)) end
+
+    -- Debug logging for diagnosis
+    if self.parent and self.parent.Print then
+        self.parent:Print(string.format("B.O.L.T: Toy scan - numToys=%d (attempt %d)", numToys, (self._toyPopulateRetries or 0)))
+        -- Log presence of key APIs
+        self.parent:Print(string.format("B.O.L.T: APIs -> GetToyFromIndex=%s GetToyInfo=%s PlayerHasToy=%s",
+            tostring(type(C_ToyBox.GetToyFromIndex) == "function"), tostring(type(C_ToyBox.GetToyInfo) == "function"), tostring(type(PlayerHasToy) == "function")))
+    end
+
+    -- If there are no toys yet, retry a few times (toy data may be loaded async)
+    if numToys == 0 then
+        self._toyPopulateRetries = (self._toyPopulateRetries or 0) + 1
+        if self._toyPopulateRetries <= 3 then
+            if self._toyPopulateRetries == 1 and self.parent and self.parent.Print then
+                self.parent:Print("B.O.L.T: Toy list not ready yet; will retry shortly...")
+            end
+            C_Timer.After(0.75, function()
+                if self and self.PopulateToyList then pcall(function() self:PopulateToyList() end) end
+            end)
+            return
+        else
+            if self.parent and self.parent.Print then self.parent:Print("B.O.L.T: Toy scan gave zero results after multiple retries.") end
+            -- continue and allow empty list
+        end
+    end
+
+    local added = 0
+    local foundIDs = false
+
+    -- Helper to process a toyID
+    local function processToyID(toyID)
+        if not toyID or toyID <= 0 then return false end
+        local itemID, toyName, icon = C_ToyBox.GetToyInfo(toyID)
+        if itemID and toyName and PlayerHasToy(itemID) then
+            if not icon and C_Item and C_Item.GetItemIconByID then
+                icon = C_Item.GetItemIconByID(itemID)
+            end
+            table.insert(self.allToys, {
+                id = toyID,
+                itemId = itemID,
+                name = toyName,
+                icon = icon,
+                lcname = string.lower(toyName)
+            })
+            return true
+        end
+        return false
+    end
+
+    -- First attempt: try 0-based indices (some clients use 0..n-1)
+    for i = 0, math.max(0, numToys - 1) do
+        local ok, toyID = pcall(C_ToyBox.GetToyFromIndex, i)
+        if ok and toyID and toyID > 0 then
+            foundIDs = true
+            if processToyID(toyID) then added = added + 1 end
+        else
+            -- Log a few early failures for visibility
+            if i < 10 and self.parent and self.parent.Print then
+                self.parent:Print(string.format("B.O.L.T: GetToyFromIndex(0-based) index=%d -> %s", i, tostring(toyID)))
+            end
+        end
+    end
+
+    -- If none found with 0-based, try 1-based indexing (legacy)
+    if not foundIDs then
+        for i = 1, numToys do
+            local ok, toyID = pcall(C_ToyBox.GetToyFromIndex, i)
+            if ok and toyID and toyID > 0 then
+                foundIDs = true
+                if processToyID(toyID) then added = added + 1 end
+            else
+                if i < 10 and self.parent and self.parent.Print then
+                    self.parent:Print(string.format("B.O.L.T: GetToyFromIndex(1-based) index=%d -> %s", i, tostring(toyID)))
                 end
+            end
+        end
+    end
 
-                table.insert(self.allToys, {
-                    id = toyID,
-                    itemId = itemID,
-                    name = toyName,
-                    icon = icon,
-                    lcname = string.lower(toyName)
-                })
+    if not foundIDs then
+        if self.parent and self.parent.Print then
+            self.parent:Print("B.O.L.T: GetToyFromIndex returned no valid toyIDs (both 0-based and 1-based attempts). Trying to clear Collections filters and retry...")
+        end
+        if not self._toyFilterFixAttempted then
+            pcall(function() if ToggleCollectionsJournal then ToggleCollectionsJournal() end end)
+            -- Wait a moment for Collections UI to initialize, then attempt to clear filters and retry
+            C_Timer.After(0.5, function()
+                if not self then return end
+                if C_ToyBox then
+                    pcall(function()
+                        if C_ToyBox.SetAllSourceTypeFilters then C_ToyBox.SetAllSourceTypeFilters(true) end
+                        if C_ToyBox.SetAllExpansionTypeFilters then C_ToyBox.SetAllExpansionTypeFilters(true) end
+                        if C_ToyBox.SetUncollectedShown then pcall(C_ToyBox.SetUncollectedShown, true) end
+                        if C_ToyBox.SetUnusableShown then pcall(C_ToyBox.SetUnusableShown, true) end
+                        -- Try a few possible search/clear APIs on C_ToyBox if present
+                        local maybeClearFns = {"SetSearch", "SetFilterString", "ClearSearch", "SetSearchText"}
+                        for _,fname in ipairs(maybeClearFns) do
+                            if C_ToyBox[fname] and type(C_ToyBox[fname]) == "function" then
+                                pcall(C_ToyBox[fname], "")
+                            end
+                        end
+                    end)
+                end
+                -- mark that we attempted a fix so we don't loop infinitely
+                self._toyFilterFixAttempted = true
+                C_Timer.After(0.5, function()
+                    if self and self.PopulateToyList then pcall(function() self:PopulateToyList() end) end
+                end)
+            end)
+        else
+            if self.parent and self.parent.Print then
+                self.parent:Print("B.O.L.T: Already attempted to clear Collections filters; if list still empty please open Collections -> Toys and clear any active filter manually.")
             end
         end
     end
 
     table.sort(self.allToys, function(a,b) return a.name < b.name end)
+    if self.parent and self.parent.Print then
+        self.parent:Print(string.format("B.O.L.T: Toy scan complete - found %d owned toys.", added))
+    end
+    self._toyPopulateRetries = 0
+
     self:FilterToyList()
 
     -- Schedule icon-cache retry for toys missing icons

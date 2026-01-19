@@ -34,7 +34,8 @@
     "SetCameraZoom",
     "DEFAULT_CHAT_FRAME",
     "BuffFrame",
-    "UIDropDownMenu_SetSelectedValue"
+    "UIDropDownMenu_SetSelectedValue",
+    "ToggleCollectionsJournal"
   ],
   "Lua.type.weakUnionCheck": true,
   "workbench.colorCustomizations": {

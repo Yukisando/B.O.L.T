@@ -32,12 +32,6 @@
 - **Favorite Toy Button**: Quick access to your favorite toy from the ESC menu
 - **Speedometer**: Display your movement speed in yards/second
 
-### Chill Music Module (Indoor Music Only)
-
-- **Auto-Mute Outdoors**: Automatically mutes music when you're outdoors or in dungeons
-- **Indoor Music**: Music plays normally when you're indoors
-- **Simple and Lightweight**: No playlists, no configuration - just works!
-
 ## Installation
 
 1. Download the addon files
