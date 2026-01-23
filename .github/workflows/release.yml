@@ -1,4 +1,4 @@
-name: Auto Release to CurseForge
+name: Create Release Tag
 
 on:
   push:
@@ -6,17 +6,14 @@ on:
       - main
 
 jobs:
-  release:
-    if: |
-      startsWith(github.ref, 'refs/heads/') &&
-      !contains(github.event.head_commit.message, '[skip release]')
+  tag:
+    if: "!contains(github.event.head_commit.message, '[skip release]')"
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -24,10 +21,10 @@ jobs:
         id: version
         run: |
           git fetch --tags
-
           latest=$(git tag --list 'v*-*' --sort=-v:refname | head -n 1)
+
           if [ -z "$latest" ]; then
-            echo "No initial version tag found. Create one (e.g. v1-0)."
+            echo "Create initial tag v1-0 first"
             exit 1
           fi
 
@@ -42,17 +39,12 @@ jobs:
             minor=$((minor + 1))
           fi
 
-          next="v$major-$minor"
-          echo "version=$next" >> $GITHUB_OUTPUT
+          echo "version=v$major-$minor" >> $GITHUB_OUTPUT
 
       - name: Create and push tag
         run: |
           git tag ${{ steps.version.outputs.version }}
           git push origin ${{ steps.version.outputs.version }}
-
-      - name: Checkout release tag
-        run: |
-          git checkout ${{ steps.version.outputs.version }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -60,10 +52,3 @@ jobs:
           tag_name: ${{ steps.version.outputs.version }}
           name: ${{ steps.version.outputs.version }}
           generate_release_notes: true
-
-      - name: Package and upload to CurseForge
-        uses: BigWigsMods/packager@v2
-        env:
-          CF_API_KEY: ${{ secrets.CF_API_KEY }}
-          GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
-          CF_RELEASE_TYPE: release
