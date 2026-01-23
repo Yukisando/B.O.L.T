@@ -18,6 +18,8 @@
   - Left-click: Toggle mute/unmute master volume
   - Right-click: Toggle music on/off
   - Mouse wheel: Adjust master volume in 5% increments
+- **Auto Rep Switch**: Automatically switch tracked reputation on rep gain
+- **Copy item IDs**: ctrl+c to copy the hovered item's ID as a wowhead link
 
 ### Skyriding Module
 
