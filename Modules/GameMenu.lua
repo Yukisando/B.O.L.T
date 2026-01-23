@@ -16,7 +16,100 @@ function GameMenu:GetMenuAnchor()
     return self.menuContainer or GameMenuFrame
 end
 
--- Ensure our menu container exists and is anchored to GameMenuFrame when available.
+-- Reusable raid target texture coordinates (4x4 sprite sheet)
+local MARKER_TEXCOORDS = {
+    [1] = { 0, 0.25, 0, 0.25 },     -- Star
+    [2] = { 0.25, 0.5, 0, 0.25 },   -- Circle
+    [3] = { 0.5, 0.75, 0, 0.25 },   -- Diamond
+    [4] = { 0.75, 1, 0, 0.25 },     -- Triangle
+    [5] = { 0, 0.25, 0.25, 0.5 },   -- Moon
+    [6] = { 0.25, 0.5, 0.25, 0.5 }, -- Square
+    [7] = { 0.5, 0.75, 0.25, 0.5 }, -- Cross
+    [8] = { 0.75, 1, 0.25, 0.5 },   -- Skull
+}
+local function GetMarkerTexCoords(i)
+    return unpack(MARKER_TEXCOORDS[i] or MARKER_TEXCOORDS[1])
+end
+
+-- Reference to the Leave Group button
+local leaveGroupButton = nil
+-- Reference to the Reload UI button
+local reloadButton = nil
+-- Group tools buttons
+local readyCheckButton = nil
+local countdownButton = nil
+local raidMarkerButton = nil
+-- Battle text toggle buttons
+local damageNumbersButton = nil
+local healingNumbersButton = nil
+-- Volume control button
+local volumeButton = nil
+
+-- Utility: perform a protected call and surface a friendly message on error
+function GameMenu:SafeCall(fn, ...)
+    local ok, res = pcall(fn, ...)
+    if not ok then
+        if self.parent and self.parent.Print then
+            self.parent:Print("B.O.L.T: prevented restricted UI action: " .. tostring(res))
+        end
+        return nil, res
+    end
+    return res
+end
+
+function GameMenu:SafeHideUIPanel(frame)
+    if not frame then return end
+    self:SafeCall(HideUIPanel, frame)
+end
+
+function GameMenu:SafeShowUIPanel(frame)
+    if not frame then return end
+    self:SafeCall(ShowUIPanel, frame)
+end
+
+function GameMenu:SafeReloadUI()
+    self:SafeCall(ReloadUI)
+end
+
+function GameMenu:SafeDoReadyCheck()
+    self:SafeCall(DoReadyCheck)
+end
+
+function GameMenu:SafeDoCountdown(seconds)
+    if C_PartyInfo and C_PartyInfo.DoCountdown then
+        self:SafeCall(C_PartyInfo.DoCountdown, seconds)
+    end
+end
+
+function GameMenu:SafeSetRaidTarget(unit, idx)
+    if not SetRaidTarget then return end
+    self:SafeCall(SetRaidTarget, unit, idx)
+end
+
+function GameMenu:DebugCheckLeftoverButtons()
+    if not self.menuContainer then return end
+    for _, child in ipairs({ self.menuContainer:GetChildren() }) do
+        if child and child:IsShown() then
+            local name = (child.GetName and child:GetName()) or tostring(child)
+            local parentName = "nil"
+            if child.GetParent and child:GetParent() then
+                local p = child:GetParent()
+                parentName = (p and p.GetName and p:GetName()) or tostring(p)
+            end
+            local anchoringSecret = false
+            local isAnchorFunc = rawget(child, "IsAnchoringSecret")
+            if type(isAnchorFunc) == "function" then
+                local ok, val = pcall(isAnchorFunc, child)
+                if ok then anchoringSecret = val end
+            end
+            if self.parent and self.parent.Print then
+                self.parent:Print("Leftover visible button: " ..
+                tostring(name) .. " parent=" .. tostring(parentName) .. " anchoringSecret=" .. tostring(anchoringSecret))
+            end
+        end
+    end
+end
+
 function GameMenu:EnsureMenuContainer()
     if not self.menuContainer then
         local c = CreateFrame("Frame", "BOLTGameMenuContainer", UIParent)
@@ -44,35 +137,6 @@ function GameMenu:EnsureMenuContainer()
         end
     end
 end
-
--- Reusable raid target texture coordinates (4x4 sprite sheet)
-local MARKER_TEXCOORDS = {
-    [1] = { 0, 0.25, 0, 0.25 },   -- Star
-    [2] = { 0.25, 0.5, 0, 0.25 }, -- Circle
-    [3] = { 0.5, 0.75, 0, 0.25 }, -- Diamond
-    [4] = { 0.75, 1, 0, 0.25 },   -- Triangle
-    [5] = { 0, 0.25, 0.25, 0.5 }, -- Moon
-    [6] = { 0.25, 0.5, 0.25, 0.5 }, -- Square
-    [7] = { 0.5, 0.75, 0.25, 0.5 }, -- Cross
-    [8] = { 0.75, 1, 0.25, 0.5 }, -- Skull
-}
-local function GetMarkerTexCoords(i)
-    return unpack(MARKER_TEXCOORDS[i] or MARKER_TEXCOORDS[1])
-end
-
--- Reference to the Leave Group button
-local leaveGroupButton = nil
--- Reference to the Reload UI button
-local reloadButton = nil
--- Group tools buttons
-local readyCheckButton = nil
-local countdownButton = nil
-local raidMarkerButton = nil
--- Battle text toggle buttons
-local damageNumbersButton = nil
-local healingNumbersButton = nil
--- Volume control button
-local volumeButton = nil
 
 function GameMenu:OnInitialize()
     -- Module initialization
@@ -153,6 +217,13 @@ function GameMenu:OnDisable()
         self.cvarWatcher = nil
     end
 
+    -- Debug: check for leftover visible buttons before tearing down
+    pcall(function()
+        if self.DebugCheckLeftoverButtons then
+            self:DebugCheckLeftoverButtons()
+        end
+    end)
+
     -- Clean up our menu container if present
     if self.menuContainer then
         self.menuContainer:Hide()
@@ -210,6 +281,13 @@ function GameMenu:HookGameMenu()
                 self.cvarWatcher:SetScript("OnEvent", nil)
                 self.cvarWatcher = nil
             end
+
+            -- Debug: check for leftover visible buttons (helps identify orphaned widgets)
+            pcall(function()
+                if self.DebugCheckLeftoverButtons then
+                    self:DebugCheckLeftoverButtons()
+                end
+            end)
 
             -- Defer hiding the container to avoid protected-call errors in secure contexts
             if self.menuContainer then
@@ -613,7 +691,7 @@ function GameMenu:CreateVolumeButton()
         local vol = tonumber(GetCVar("Sound_MasterVolume")) or 1
         local step = 0.05
         local newVol = math.max(0, math.min(1, vol + (delta > 0 and step or -step)))
-        SetCVar("Sound_MasterVolume", tostring(newVol))
+        mod:SafeCall(SetCVar, "Sound_MasterVolume", tostring(newVol))
         mod:UpdateVolumeDisplay()
         if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
             PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
@@ -652,6 +730,8 @@ function GameMenu:PositionGroupTools()
     if readyCheckButton then readyCheckButton:ClearAllPoints() end
 
     local anchor = self:GetMenuAnchor()
+    -- If the anchor's anchoring data is secret, bail out to avoid secret-related errors
+    if anchor and anchor.IsAnchoringSecret and anchor:IsAnchoringSecret() then return end
     local level = (anchor and anchor.GetFrameLevel and anchor:GetFrameLevel() or 0)
 
     -- If only raid marker is visible, anchor it at the bottom
@@ -717,6 +797,8 @@ function GameMenu:PositionBattleTextToggles()
     healingNumbersButton:ClearAllPoints()
     -- Position volume button first if it exists and is enabled
     local anchor = self:GetMenuAnchor()
+    -- Avoid positioning when anchor has secret anchor data
+    if anchor and anchor.IsAnchoringSecret and anchor:IsAnchoringSecret() then return end
     if volumeButton and self.parent:GetConfig("gameMenu", "showVolumeButton") then
         self:PositionVolumeButton()
         -- Healing button above volume button
@@ -851,13 +933,13 @@ function GameMenu:PositionReloadButton()
 end
 
 function GameMenu:OnReloadClick()
-    -- Call ReloadUI directly - no need for timer delay
-    ReloadUI()
+    -- Call ReloadUI in a protected manner
+    self:SafeReloadUI()
 end
 
 function GameMenu:OnOpenSettings()
-    -- Hide the game menu first
-    HideUIPanel(GameMenuFrame)
+    -- Hide the game menu first (guarded)
+    self:SafeHideUIPanel(GameMenuFrame)
 
     -- Small delay to ensure UI is hidden before opening settings; delegate to
     -- the central OpenConfigPanel helper which handles Settings vs legacy UI.
@@ -872,8 +954,8 @@ function GameMenu:OnOpenSettings()
 end
 
 function GameMenu:OnLeaveGroupClick()
-    -- Hide the game menu first
-    HideUIPanel(GameMenuFrame)
+    -- Hide the game menu first (guarded)
+    self:SafeHideUIPanel(GameMenuFrame)
 
     -- Small delay to allow UI to close cleanly
     C_Timer.After(0.1, function()
@@ -959,12 +1041,12 @@ function GameMenu:OnVolumeButtonLeftClick()
     if currentVolume == 0 then
         -- Unmute: restore previous volume or set to 50% if no previous volume stored
         local previousVolume = self.previousVolume or 0.5
-        SetCVar("Sound_MasterVolume", tostring(previousVolume))
+        self:SafeCall(SetCVar, "Sound_MasterVolume", tostring(previousVolume))
         self.parent:Print("Audio unmuted (" .. math.floor(previousVolume * 100) .. "%)")
     else
         -- Mute: store current volume and set to 0
         self.previousVolume = currentVolume
-        SetCVar("Sound_MasterVolume", "0")
+        self:SafeCall(SetCVar, "Sound_MasterVolume", "0")
         self.parent:Print("Audio muted")
     end
 
@@ -976,7 +1058,7 @@ function GameMenu:OnVolumeButtonRightClick()
     -- Toggle music on/off
     local currentMusic = GetCVar("Sound_EnableMusic")
     local newValue = (currentMusic == "1") and "0" or "1"
-    SetCVar("Sound_EnableMusic", newValue)
+    self:SafeCall(SetCVar, "Sound_EnableMusic", newValue)
 
     local state = (newValue == "1") and "ON" or "OFF"
     self.parent:Print("Music: " .. state)
@@ -1012,11 +1094,11 @@ function BOLT_ToggleMasterVolume()
 
         if currentVolume == 0 then
             -- Unmute: restore to 50%
-            SetCVar("Sound_MasterVolume", "0.5")
+            pcall(SetCVar, "Sound_MasterVolume", "0.5")
             print("|cff00aaff[B.O.L.T]|r Audio unmuted (50%)")
         else
             -- Mute
-            SetCVar("Sound_MasterVolume", "0")
+            pcall(SetCVar, "Sound_MasterVolume", "0")
             print("|cff00aaff[B.O.L.T]|r Audio muted")
         end
     end

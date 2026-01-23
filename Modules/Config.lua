@@ -32,7 +32,7 @@ local function StartKeybindingCapture(button, bindingAction, updateFunc)
         if IsAltKeyDown() then combo = combo .. "ALT-" end
         if IsShiftKeyDown() then combo = combo .. "SHIFT-" end
         combo = combo .. key:upper()
-        local k1,k2 = GetBindingKey(bindingAction)
+        local k1, k2 = GetBindingKey(bindingAction)
         if k1 then SetBinding(k1, nil) end
         if k2 then SetBinding(k2, nil) end
         if SetBinding(combo, bindingAction) then
@@ -68,7 +68,8 @@ function Config:OnInitialize()
     self.eventFrame:RegisterEvent("PLAYER_LOGIN")
     self.toyListPopulated = false
     self.eventFrame:SetScript("OnEvent", function(_, event, ...)
-        if self._toyDebug and self.parent and self.parent.Print then self.parent:Print(("Config Event: %s"):format(tostring(event))) end
+        if self._toyDebug and self.parent and self.parent.Print then self.parent:Print(("Config Event: %s"):format(
+            tostring(event))) end
         if (event == "TOYS_UPDATED" or event == "PLAYER_LOGIN") and self.toyFrame then
             -- On login or when the toy API signals an update, try to populate.
             -- Delay slightly on login to allow Blizzard Collections to finish initializing.
@@ -192,14 +193,14 @@ function Config:CreateInterfaceOptionsPanel()
     y = y - 22
 
     local MARKER_TEXCOORDS = {
-        [1] = {0, 0.25, 0, 0.25},
-        [2] = {0.25, 0.5, 0, 0.25},
-        [3] = {0.5, 0.75, 0, 0.25},
-        [4] = {0.75, 1, 0, 0.25},
-        [5] = {0, 0.25, 0.25, 0.5},
-        [6] = {0.25, 0.5, 0.25, 0.5},
-        [7] = {0.5, 0.75, 0.25, 0.5},
-        [8] = {0.75, 1, 0.25, 0.5},
+        [1] = { 0, 0.25, 0, 0.25 },
+        [2] = { 0.25, 0.5, 0, 0.25 },
+        [3] = { 0.5, 0.75, 0, 0.25 },
+        [4] = { 0.75, 1, 0, 0.25 },
+        [5] = { 0, 0.25, 0.25, 0.5 },
+        [6] = { 0.25, 0.5, 0.25, 0.5 },
+        [7] = { 0.5, 0.75, 0.25, 0.5 },
+        [8] = { 0.75, 1, 0.25, 0.5 },
     }
 
     self.widgets.raidMarkerButtons = self.widgets.raidMarkerButtons or {}
@@ -323,16 +324,16 @@ function Config:CreateInterfaceOptionsPanel()
     if not posDropdown then
         posDropdown = CreateFrame("Frame", "BOLTSpeedometerPositionDropdown", content, "UIDropDownMenuTemplate")
         self.widgets.speedometerPositionDropdown = posDropdown
-        
+
         UIDropDownMenu_SetWidth(posDropdown, 110)
         UIDropDownMenu_Initialize(posDropdown, function(dropdown, level)
             local positions = {
-                {text = "Top Left", value = "TOPLEFT"},
-                {text = "Top Right", value = "TOPRIGHT"},
-                {text = "Bottom Left", value = "BOTTOMLEFT"},
-                {text = "Bottom Right", value = "BOTTOMRIGHT"},
+                { text = "Top Left",     value = "TOPLEFT" },
+                { text = "Top Right",    value = "TOPRIGHT" },
+                { text = "Bottom Left",  value = "BOTTOMLEFT" },
+                { text = "Bottom Right", value = "BOTTOMRIGHT" },
             }
-            
+
             for _, pos in ipairs(positions) do
                 local info = UIDropDownMenu_CreateInfo()
                 info.text = pos.text
@@ -349,15 +350,16 @@ function Config:CreateInterfaceOptionsPanel()
             end
         end)
     end
-    
+
     posDropdown:ClearAllPoints()
     posDropdown:SetPoint("LEFT", posLabel, "RIGHT", -15, -2)
-    
+
     local currentPos = self.parent:GetConfig("playground", "statsPosition") or "TOPRIGHT"
     UIDropDownMenu_SetSelectedValue(posDropdown, currentPos)
-    local posNames = {TOPLEFT="Top Left", TOPRIGHT="Top Right", BOTTOMLEFT="Bottom Left", BOTTOMRIGHT="Bottom Right"}
+    local posNames = { TOPLEFT = "Top Left", TOPRIGHT = "Top Right", BOTTOMLEFT = "Bottom Left", BOTTOMRIGHT =
+    "Bottom Right" }
     UIDropDownMenu_SetText(posDropdown, posNames[currentPos] or "Top Right")
-    
+
     y = y - 36
 
     -- Skyriding section
@@ -447,7 +449,7 @@ function Config:CreateInterfaceOptionsPanel()
 
     -- Reload button and version
     local reloadBtn = CreateFrame("Button", "BOLTOptionsReloadButton", content, "UIPanelButtonTemplate")
-    reloadBtn:SetSize(120,25); reloadBtn:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y); reloadBtn:SetText("Reload UI")
+    reloadBtn:SetSize(120, 25); reloadBtn:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y); reloadBtn:SetText("Reload UI")
     reloadBtn:SetScript("OnClick", ReloadUI)
     y = y - 40
     local versionText = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -456,7 +458,7 @@ function Config:CreateInterfaceOptionsPanel()
     y = y - 30
 
     content:SetHeight(math.abs(y) + 100)
-    scrollFrame:SetScript("OnSizeChanged", function(frame,w,h) content:SetWidth(w - 20) end)
+    scrollFrame:SetScript("OnSizeChanged", function(frame, w, h) content:SetWidth(w - 20) end)
 
     -- Register Settings category
     if Settings and Settings.RegisterCanvasLayoutCategory then
@@ -464,7 +466,8 @@ function Config:CreateInterfaceOptionsPanel()
         self.settingsCategory = category
         Settings.RegisterAddOnCategory(category)
     else
-        if self.parent and self.parent.Print then self.parent:Print("B.O.L.T: Settings API not found; options not registered.") end
+        if self.parent and self.parent.Print then self.parent:Print(
+            "B.O.L.T: Settings API not found; options not registered.") end
     end
 
     self.optionsPanel = panel
@@ -478,22 +481,37 @@ function Config:UpdateGameMenuChildControls()
     local w = self.widgets
 
     -- Generic checkboxes
-    if w and w.leaveGroupCheckbox then w.leaveGroupCheckbox:SetEnabled(enabled); w.leaveGroupCheckbox:SetAlpha(enabled and 1 or 0.5) end
-    if w and w.reloadCheckbox then w.reloadCheckbox:SetEnabled(enabled); w.reloadCheckbox:SetAlpha(enabled and 1 or 0.5) end
-    if w and w.groupToolsCheckbox then w.groupToolsCheckbox:SetEnabled(enabled); w.groupToolsCheckbox:SetAlpha(enabled and 1 or 0.5) end
-    if w and w.battleTextCheckbox then w.battleTextCheckbox:SetEnabled(enabled); w.battleTextCheckbox:SetAlpha(enabled and 1 or 0.5) end
-    if w and w.volumeButtonCheckbox then w.volumeButtonCheckbox:SetEnabled(enabled); w.volumeButtonCheckbox:SetAlpha(enabled and 1 or 0.5) end
+    if w and w.leaveGroupCheckbox then
+        w.leaveGroupCheckbox:SetEnabled(enabled); w.leaveGroupCheckbox:SetAlpha(enabled and 1 or 0.5)
+    end
+    if w and w.reloadCheckbox then
+        w.reloadCheckbox:SetEnabled(enabled); w.reloadCheckbox:SetAlpha(enabled and 1 or 0.5)
+    end
+    if w and w.groupToolsCheckbox then
+        w.groupToolsCheckbox:SetEnabled(enabled); w.groupToolsCheckbox:SetAlpha(enabled and 1 or 0.5)
+    end
+    if w and w.battleTextCheckbox then
+        w.battleTextCheckbox:SetEnabled(enabled); w.battleTextCheckbox:SetAlpha(enabled and 1 or 0.5)
+    end
+    if w and w.volumeButtonCheckbox then
+        w.volumeButtonCheckbox:SetEnabled(enabled); w.volumeButtonCheckbox:SetAlpha(enabled and 1 or 0.5)
+    end
 
     -- Raid marker buttons (may be a list of buttons and a clear button)
     local groupToolsEnabled = false
     if enabled and self.parent and self.parent.GetConfig then
-        groupToolsEnabled = self.parent:GetConfig("gameMenu","groupToolsEnabled")
+        groupToolsEnabled = self.parent:GetConfig("gameMenu", "groupToolsEnabled")
     end
     if w and w.raidMarkerButtons then
         for _, b in ipairs(w.raidMarkerButtons) do
-            if b then b:SetEnabled(groupToolsEnabled); b:SetAlpha(groupToolsEnabled and 1 or 0.5) end
+            if b then
+                b:SetEnabled(groupToolsEnabled); b:SetAlpha(groupToolsEnabled and 1 or 0.5)
+            end
         end
-        if w.raidMarkerClearButton then w.raidMarkerClearButton:SetEnabled(groupToolsEnabled); w.raidMarkerClearButton:SetAlpha(groupToolsEnabled and 1 or 0.5) end
+        if w.raidMarkerClearButton then
+            w.raidMarkerClearButton:SetEnabled(groupToolsEnabled); w.raidMarkerClearButton:SetAlpha(groupToolsEnabled and
+            1 or 0.5)
+        end
     end
 
     -- If the GameMenu module is loaded, ask it to refresh its internal state for consistency
@@ -553,45 +571,57 @@ function Config:RefreshOptionsPanel()
     C_Timer.After(0.05, function()
         local w = self.widgets
         if w.gameMenuCheckbox then w.gameMenuCheckbox:SetChecked(self.parent:IsModuleEnabled("gameMenu")) end
-        if w.leaveGroupCheckbox then w.leaveGroupCheckbox:SetChecked(self.parent:GetConfig("gameMenu","showLeaveGroup")) end
-        if w.reloadCheckbox then w.reloadCheckbox:SetChecked(self.parent:GetConfig("gameMenu","showReloadButton")) end
-        if w.groupToolsCheckbox then w.groupToolsCheckbox:SetChecked(self.parent:GetConfig("gameMenu","groupToolsEnabled")) end
-        if w.battleTextCheckbox then w.battleTextCheckbox:SetChecked(self.parent:GetConfig("gameMenu","showBattleTextToggles")) end
-        if w.volumeButtonCheckbox then w.volumeButtonCheckbox:SetChecked(self.parent:GetConfig("gameMenu","showVolumeButton")) end
+        if w.leaveGroupCheckbox then w.leaveGroupCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showLeaveGroup")) end
+        if w.reloadCheckbox then w.reloadCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showReloadButton")) end
+        if w.groupToolsCheckbox then w.groupToolsCheckbox:SetChecked(self.parent:GetConfig("gameMenu",
+                "groupToolsEnabled")) end
+        if w.battleTextCheckbox then w.battleTextCheckbox:SetChecked(self.parent:GetConfig("gameMenu",
+                "showBattleTextToggles")) end
+        if w.volumeButtonCheckbox then w.volumeButtonCheckbox:SetChecked(self.parent:GetConfig("gameMenu",
+                "showVolumeButton")) end
         -- Update raid marker visuals
         if w.raidMarkerButtons then
-            local idx = self.parent:GetConfig("gameMenu","raidMarkerIndex") or 1
-            for i,b in ipairs(w.raidMarkerButtons) do b:SetAlpha((i==idx) and 1 or 0.6) end
-            if w.raidMarkerClearButton then w.raidMarkerClearButton:SetAlpha(idx==0 and 1 or 0.6) end
+            local idx = self.parent:GetConfig("gameMenu", "raidMarkerIndex") or 1
+            for i, b in ipairs(w.raidMarkerButtons) do b:SetAlpha((i == idx) and 1 or 0.6) end
+            if w.raidMarkerClearButton then w.raidMarkerClearButton:SetAlpha(idx == 0 and 1 or 0.6) end
         end
         if w.playgroundCheckbox then w.playgroundCheckbox:SetChecked(self.parent:IsModuleEnabled("playground")) end
-        if w.favoriteToyCheckbox then w.favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground","showFavoriteToy")) end
-        if w.speedometerCheckbox then w.speedometerCheckbox:SetChecked(self.parent:GetConfig("playground","showSpeedometer")) end
+        if w.favoriteToyCheckbox then w.favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground",
+                "showFavoriteToy")) end
+        if w.speedometerCheckbox then w.speedometerCheckbox:SetChecked(self.parent:GetConfig("playground",
+                "showSpeedometer")) end
         if w.speedometerPositionDropdown then
             local currentPos = self.parent:GetConfig("playground", "statsPosition") or "TOPRIGHT"
             UIDropDownMenu_SetSelectedValue(w.speedometerPositionDropdown, currentPos)
-            local posNames = {TOPLEFT="Top Left", TOPRIGHT="Top Right", BOTTOMLEFT="Bottom Left", BOTTOMRIGHT="Bottom Right"}
+            local posNames = { TOPLEFT = "Top Left", TOPRIGHT = "Top Right", BOTTOMLEFT = "Bottom Left", BOTTOMRIGHT =
+            "Bottom Right" }
             UIDropDownMenu_SetText(w.speedometerPositionDropdown, posNames[currentPos] or "Top Right")
         end
         if w.skyridingCheckbox then w.skyridingCheckbox:SetChecked(self.parent:IsModuleEnabled("skyriding")) end
-        if w.pitchControlCheckbox then w.pitchControlCheckbox:SetChecked(self.parent:GetConfig("skyriding","enablePitchControl")) end
+        if w.pitchControlCheckbox then w.pitchControlCheckbox:SetChecked(self.parent:GetConfig("skyriding",
+                "enablePitchControl")) end
         if w.wowheadLinkCheckbox then w.wowheadLinkCheckbox:SetChecked(self.parent:IsModuleEnabled("wowheadLink")) end
         if w.autoRepSwitchCheckbox then w.autoRepSwitchCheckbox:SetChecked(self.parent:IsModuleEnabled("autoRepSwitch")) end
-        end)
-    end
+    end)
+end
 
 function Config:UpdateSkyridingChildControls()
     local sk = self.parent:IsModuleEnabled("skyriding")
-    local pitch = self.parent:GetConfig("skyriding","enablePitchControl")
+    local pitch = self.parent:GetConfig("skyriding", "enablePitchControl")
     local w = self.widgets
-    if w.pitchControlCheckbox then w.pitchControlCheckbox:SetEnabled(sk); w.pitchControlCheckbox:SetAlpha(sk and 1 or 0.5) end
-    if w.invertPitchCheckbox then local should = sk and pitch; w.invertPitchCheckbox:SetEnabled(should); w.invertPitchCheckbox:SetAlpha(should and 1 or 0.5) end
+    if w.pitchControlCheckbox then
+        w.pitchControlCheckbox:SetEnabled(sk); w.pitchControlCheckbox:SetAlpha(sk and 1 or 0.5)
+    end
+    if w.invertPitchCheckbox then
+        local should = sk and pitch; w.invertPitchCheckbox:SetEnabled(should); w.invertPitchCheckbox:SetAlpha(should and
+        1 or 0.5)
+    end
 end
 
 function Config:UpdateCurrentToyDisplay()
     local w = self.widgets
     if not w.currentToyIcon or not w.currentToyText then return end
-    local toyID = self.parent:GetConfig("playground","favoriteToyId")
+    local toyID = self.parent:GetConfig("playground", "favoriteToyId")
     if toyID then
         -- C_ToyBox.GetToyInfo returns: itemID, toyName, icon, isFavorite, hasFanfare, itemQuality
         local itemID, toyName, icon = C_ToyBox.GetToyInfo(toyID)
@@ -618,9 +648,12 @@ end
 
 function Config:CreateToySelectionPopup()
     local popup = CreateFrame("Frame", "BOLTToySelectionPopup", UIParent, "DialogBoxFrame")
-    popup:SetSize(450,400); popup:SetPoint("CENTER"); popup:SetFrameStrata("DIALOG")
-    local title = popup:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge") title:SetPoint("TOP", popup, "TOP", 0, -20) title:SetText("Choose Favorite Toy")
-    local close = CreateFrame("Button", nil, popup, "UIPanelCloseButton") close:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -5, -5)
+    popup:SetSize(450, 400); popup:SetPoint("CENTER"); popup:SetFrameStrata("DIALOG")
+    local title = popup:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("TOP", popup, "TOP", 0, -20)
+    title:SetText("Choose Favorite Toy")
+    local close = CreateFrame("Button", nil, popup, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -5, -5)
     self:CreateToySelectionFrame(popup, 15, -50)
     self.toyPopup = popup
     popup:Hide()
@@ -628,19 +661,34 @@ end
 
 function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
     local toyFrame = CreateFrame("Frame", "BOLTToySelectionFrame", parent)
-    toyFrame:SetPoint("TOPLEFT", parent, "TOPLEFT", xOffset, yOffset); toyFrame:SetSize(420,320)
-    local searchLabel = toyFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal") searchLabel:SetPoint("TOPLEFT", toyFrame, "TOPLEFT", 15, -15) searchLabel:SetText("Search:")
-    local searchBox = CreateFrame("EditBox", "BOLTToySearchBox", toyFrame, "InputBoxTemplate") searchBox:SetPoint("TOPLEFT", searchLabel, "TOPRIGHT", 15, 0); searchBox:SetSize(220,28); searchBox:SetAutoFocus(false)
+    toyFrame:SetPoint("TOPLEFT", parent, "TOPLEFT", xOffset, yOffset); toyFrame:SetSize(420, 320)
+    local searchLabel = toyFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    searchLabel:SetPoint("TOPLEFT", toyFrame, "TOPLEFT", 15, -15)
+    searchLabel:SetText("Search:")
+    local searchBox = CreateFrame("EditBox", "BOLTToySearchBox", toyFrame, "InputBoxTemplate")
+    searchBox:SetPoint("TOPLEFT", searchLabel, "TOPRIGHT", 15, 0); searchBox:SetSize(220, 28); searchBox:SetAutoFocus(false)
     searchBox:SetScript("OnTextChanged", function() self:FilterToyList() end)
-    local clear = CreateFrame("Button", nil, toyFrame, "UIPanelButtonTemplate") clear:SetPoint("LEFT", searchBox, "RIGHT", 10, 0); clear:SetSize(50,28); clear:SetText("Clear"); clear:SetScript("OnClick", function() searchBox:SetText(""); self:FilterToyList() end)
-    local refresh = CreateFrame("Button", nil, toyFrame, "UIPanelButtonTemplate") refresh:SetPoint("LEFT", clear, "RIGHT", 8, 0); refresh:SetSize(60,28); refresh:SetText("Refresh")
-    refresh:SetScript("OnClick", function() self:PopulateToyList(); self:UpdateToySelection() end)
-    local dump = CreateFrame("Button", nil, toyFrame, "UIPanelButtonTemplate") dump:SetPoint("LEFT", refresh, "RIGHT", 8, 0); dump:SetSize(60,28); dump:SetText("Dump")
+    local clear = CreateFrame("Button", nil, toyFrame, "UIPanelButtonTemplate")
+    clear:SetPoint("LEFT", searchBox, "RIGHT", 10, 0); clear:SetSize(50, 28); clear:SetText("Clear"); clear:SetScript(
+    "OnClick", function()
+        searchBox:SetText(""); self:FilterToyList()
+    end)
+    local refresh = CreateFrame("Button", nil, toyFrame, "UIPanelButtonTemplate")
+    refresh:SetPoint("LEFT", clear, "RIGHT", 8, 0); refresh:SetSize(60, 28); refresh:SetText("Refresh")
+    refresh:SetScript("OnClick", function()
+        self:PopulateToyList(); self:UpdateToySelection()
+    end)
+    local dump = CreateFrame("Button", nil, toyFrame, "UIPanelButtonTemplate")
+    dump:SetPoint("LEFT", refresh, "RIGHT", 8, 0); dump:SetSize(60, 28); dump:SetText("Dump")
     dump:SetScript("OnClick", function()
-        if not C_ToyBox then self.parent:Print("B.O.L.T: C_ToyBox not available") return end
-        local unfilteredN = (type(C_ToyBox.GetNumToys) == "function" and C_ToyBox.GetNumToys() ) or 0
-        local filteredN = (type(C_ToyBox.GetNumFilteredToys) == "function" and C_ToyBox.GetNumFilteredToys() ) or nil
-        self.parent:Print(string.format("B.O.L.T: Dumping toys -> unfiltered=%d filtered=%s", unfilteredN, tostring(filteredN)))
+        if not C_ToyBox then
+            self.parent:Print("B.O.L.T: C_ToyBox not available")
+            return
+        end
+        local unfilteredN = (type(C_ToyBox.GetNumToys) == "function" and C_ToyBox.GetNumToys()) or 0
+        local filteredN = (type(C_ToyBox.GetNumFilteredToys) == "function" and C_ToyBox.GetNumFilteredToys()) or nil
+        self.parent:Print(string.format("B.O.L.T: Dumping toys -> unfiltered=%d filtered=%s", unfilteredN,
+            tostring(filteredN)))
         local limit = math.min(50, math.max(0, unfilteredN))
         for i = 1, limit do
             local ok, toyID = pcall(C_ToyBox.GetToyFromIndex, i)
@@ -650,9 +698,11 @@ function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
                 self.parent:Print(string.format("B.O.L.T: index=%d toyID is nil/0", i))
             else
                 -- Safely get toy info
-                local ok2, itemID, toyName, icon, isFavorite, hasFanfare, quality = pcall(function() return C_ToyBox.GetToyInfo(toyID) end)
+                local ok2, itemID, toyName, icon, isFavorite, hasFanfare, quality = pcall(function() return C_ToyBox
+                    .GetToyInfo(toyID) end)
                 if not ok2 then
-                    self.parent:Print(string.format("B.O.L.T: index=%d toyID=%s GetToyInfo failed: %s", i, tostring(toyID), tostring(itemID)))
+                    self.parent:Print(string.format("B.O.L.T: index=%d toyID=%s GetToyInfo failed: %s", i,
+                        tostring(toyID), tostring(itemID)))
                 else
                     local hasByItem = false
                     local hasByToy = false
@@ -660,13 +710,16 @@ function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
                         pcall(function() hasByItem = (itemID and PlayerHasToy(itemID)) end)
                         pcall(function() hasByToy = PlayerHasToy(toyID) end)
                     end
-                    self.parent:Print(string.format("B.O.L.T: idx=%d toyID=%s itemID=%s name=%s hasByItem=%s hasByToy=%s", i, tostring(toyID), tostring(itemID), tostring(toyName), tostring(hasByItem), tostring(hasByToy)))
+                    self.parent:Print(string.format(
+                    "B.O.L.T: idx=%d toyID=%s itemID=%s name=%s hasByItem=%s hasByToy=%s", i, tostring(toyID),
+                        tostring(itemID), tostring(toyName), tostring(hasByItem), tostring(hasByToy)))
                 end
             end
         end
     end)
 
-    local init = CreateFrame("Button", nil, toyFrame, "UIPanelButtonTemplate") init:SetPoint("LEFT", dump, "RIGHT", 8, 0); init:SetSize(60,28); init:SetText("Init")
+    local init = CreateFrame("Button", nil, toyFrame, "UIPanelButtonTemplate")
+    init:SetPoint("LEFT", dump, "RIGHT", 8, 0); init:SetSize(60, 28); init:SetText("Init")
     init:SetScript("OnClick", function()
         -- Open Collections Journal to force initialization of toy filters/data
         local ok = pcall(function()
@@ -677,14 +730,29 @@ function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
             self.parent:Print("B.O.L.T: If Collections opened, wait a second and click Refresh or Dump again.")
         end
     end)
-    local currentLabel = toyFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal") currentLabel:SetPoint("TOPLEFT", toyFrame, "TOPLEFT", 15, -50); currentLabel:SetText("Current:")
-    local currentToy = CreateFrame("Button", "BOLTCurrentToyButton", toyFrame); currentToy:SetPoint("LEFT", currentLabel, "RIGHT", 15, 0); currentToy:SetSize(220,28)
-    local currentIcon = currentToy:CreateTexture(nil, "ARTWORK") currentIcon:SetPoint("LEFT", currentToy, "LEFT", 4, 0); currentIcon:SetSize(20,20)
-    local currentText = currentToy:CreateFontString(nil, "OVERLAY", "GameFontHighlight") currentText:SetPoint("LEFT", currentIcon, "RIGHT", 8, 0) currentText:SetPoint("RIGHT", currentToy, "RIGHT", -8, 0) currentText:SetJustifyH("LEFT") currentText:SetText("None selected")
-    currentToy:SetScript("OnClick", function() self.parent:SetConfig(nil, "playground", "favoriteToyId"); self:UpdateToySelection(); if self.parent.modules.playground and self.parent.modules.playground.UpdateFavoriteToyButton then self.parent.modules.playground:UpdateFavoriteToyButton() end end)
-    local scrollFrame = CreateFrame("ScrollFrame", "BOLTToyScrollFrame", toyFrame, "UIPanelScrollFrameTemplate"); scrollFrame:SetPoint("TOPLEFT", toyFrame, "TOPLEFT", 15, -85); scrollFrame:SetPoint("BOTTOMRIGHT", toyFrame, "BOTTOMRIGHT", -35, 15)
-    local scrollChild = CreateFrame("Frame", nil, scrollFrame); scrollFrame:SetScrollChild(scrollChild); scrollChild:SetSize(370,1)
-    self.toyFrame = toyFrame; self.searchBox = searchBox; self.currentToyButton = currentToy; self.currentToyIcon = currentIcon; self.currentToyText = currentText; self.toyScrollFrame = scrollFrame; self.toyScrollChild = scrollChild; self.toyButtons = {}
+    local currentLabel = toyFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    currentLabel:SetPoint("TOPLEFT", toyFrame, "TOPLEFT", 15, -50); currentLabel:SetText("Current:")
+    local currentToy = CreateFrame("Button", "BOLTCurrentToyButton", toyFrame); currentToy:SetPoint("LEFT", currentLabel,
+        "RIGHT", 15, 0); currentToy:SetSize(220, 28)
+    local currentIcon = currentToy:CreateTexture(nil, "ARTWORK")
+    currentIcon:SetPoint("LEFT", currentToy, "LEFT", 4, 0); currentIcon:SetSize(20, 20)
+    local currentText = currentToy:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    currentText:SetPoint("LEFT", currentIcon, "RIGHT", 8, 0)
+    currentText:SetPoint("RIGHT", currentToy, "RIGHT", -8, 0)
+    currentText:SetJustifyH("LEFT")
+    currentText:SetText("None selected")
+    currentToy:SetScript("OnClick",
+        function()
+            self.parent:SetConfig(nil, "playground", "favoriteToyId"); self:UpdateToySelection(); if self.parent.modules.playground and self.parent.modules.playground.UpdateFavoriteToyButton then
+                self.parent.modules.playground:UpdateFavoriteToyButton() end
+        end)
+    local scrollFrame = CreateFrame("ScrollFrame", "BOLTToyScrollFrame", toyFrame, "UIPanelScrollFrameTemplate"); scrollFrame
+        :SetPoint("TOPLEFT", toyFrame, "TOPLEFT", 15, -85); scrollFrame:SetPoint("BOTTOMRIGHT", toyFrame, "BOTTOMRIGHT",
+        -35, 15)
+    local scrollChild = CreateFrame("Frame", nil, scrollFrame); scrollFrame:SetScrollChild(scrollChild); scrollChild
+        :SetSize(370, 1)
+    self.toyFrame = toyFrame; self.searchBox = searchBox; self.currentToyButton = currentToy; self.currentToyIcon =
+    currentIcon; self.currentToyText = currentText; self.toyScrollFrame = scrollFrame; self.toyScrollChild = scrollChild; self.toyButtons = {}
     toyFrame:SetScript("OnShow", function()
         C_Timer.After(0.1, function()
             if not self.toyListPopulated then
@@ -725,7 +793,7 @@ function Config:PopulateToyList()
     if self._lastToyScan and (GetTime() - self._lastToyScan) < 0.5 then return end
     self._lastToyScan = GetTime()
 
-    for _,b in pairs(self.toyButtons) do b:Hide() end
+    for _, b in pairs(self.toyButtons) do b:Hide() end
     self.toyButtons = {}
     self.allToys = {}
 
@@ -733,16 +801,19 @@ function Config:PopulateToyList()
     if not C_ToyBox then
         local ok, loaded = pcall(LoadAddOn, "Blizzard_Collections")
         if self.parent and self.parent.Print then
-            self.parent:Print(string.format("B.O.L.T: Attempted LoadAddOn Blizzard_Collections -> ok=%s loaded=%s", tostring(ok), tostring(loaded)))
+            self.parent:Print(string.format("B.O.L.T: Attempted LoadAddOn Blizzard_Collections -> ok=%s loaded=%s",
+                tostring(ok), tostring(loaded)))
         end
         if not C_ToyBox then
-            if self.parent and self.parent.Print then self.parent:Print("B.O.L.T: C_ToyBox API not available after loading Collections.") end
+            if self.parent and self.parent.Print then self.parent:Print(
+                "B.O.L.T: C_ToyBox API not available after loading Collections.") end
             return
         end
     end
 
     -- Prefer unfiltered total count first; filtered count can be zero when UI filters hide items
-    local getNum = (type(C_ToyBox.GetNumToys) == "function" and C_ToyBox.GetNumToys) or ((type(C_ToyBox.GetNumFilteredToys) == "function" and C_ToyBox.GetNumFilteredToys) or nil)
+    local getNum = (type(C_ToyBox.GetNumToys) == "function" and C_ToyBox.GetNumToys) or
+    ((type(C_ToyBox.GetNumFilteredToys) == "function" and C_ToyBox.GetNumFilteredToys) or nil)
     if type(getNum) ~= "function" then
         if self.parent and self.parent.Print then self.parent:Print("B.O.L.T: Toy API missing GetNum function.") end
         return
@@ -751,25 +822,30 @@ function Config:PopulateToyList()
     -- Try to ensure filters include everything (if API supports these helpers)
     if C_ToyBox.SetAllSourceTypeFilters then
         local ok, res = pcall(C_ToyBox.SetAllSourceTypeFilters, true)
-        if self.parent and self.parent.Print then self.parent:Print(string.format("B.O.L.T: SetAllSourceTypeFilters -> ok=%s", tostring(ok))) end
+        if self.parent and self.parent.Print then self.parent:Print(string.format(
+            "B.O.L.T: SetAllSourceTypeFilters -> ok=%s", tostring(ok))) end
     end
     if C_ToyBox.SetAllExpansionTypeFilters then
         local ok, res = pcall(C_ToyBox.SetAllExpansionTypeFilters, true)
-        if self.parent and self.parent.Print then self.parent:Print(string.format("B.O.L.T: SetAllExpansionTypeFilters -> ok=%s", tostring(ok))) end
+        if self.parent and self.parent.Print then self.parent:Print(string.format(
+            "B.O.L.T: SetAllExpansionTypeFilters -> ok=%s", tostring(ok))) end
     end
     if C_ToyBox.SetUncollectedShown then pcall(C_ToyBox.SetUncollectedShown, false) end
     if C_ToyBox.SetUnusableShown then pcall(C_ToyBox.SetUnusableShown, true) end
 
     -- Re-query count after attempting to adjust filters
     local numToys = getNum() or 0
-    if self.parent and self.parent.Print then self.parent:Print(string.format("B.O.L.T: Toy count after filters = %d", numToys)) end
+    if self.parent and self.parent.Print then self.parent:Print(string.format("B.O.L.T: Toy count after filters = %d",
+            numToys)) end
 
     -- Debug logging for diagnosis
     if self.parent and self.parent.Print then
-        self.parent:Print(string.format("B.O.L.T: Toy scan - numToys=%d (attempt %d)", numToys, (self._toyPopulateRetries or 0)))
+        self.parent:Print(string.format("B.O.L.T: Toy scan - numToys=%d (attempt %d)", numToys,
+            (self._toyPopulateRetries or 0)))
         -- Log presence of key APIs
         self.parent:Print(string.format("B.O.L.T: APIs -> GetToyFromIndex=%s GetToyInfo=%s PlayerHasToy=%s",
-            tostring(type(C_ToyBox.GetToyFromIndex) == "function"), tostring(type(C_ToyBox.GetToyInfo) == "function"), tostring(type(PlayerHasToy) == "function")))
+            tostring(type(C_ToyBox.GetToyFromIndex) == "function"), tostring(type(C_ToyBox.GetToyInfo) == "function"),
+            tostring(type(PlayerHasToy) == "function")))
     end
 
     -- If there are no toys yet, retry a few times (toy data may be loaded async)
@@ -784,7 +860,8 @@ function Config:PopulateToyList()
             end)
             return
         else
-            if self.parent and self.parent.Print then self.parent:Print("B.O.L.T: Toy scan gave zero results after multiple retries.") end
+            if self.parent and self.parent.Print then self.parent:Print(
+                "B.O.L.T: Toy scan gave zero results after multiple retries.") end
             -- continue and allow empty list
         end
     end
@@ -835,7 +912,8 @@ function Config:PopulateToyList()
                 if processToyID(toyID) then added = added + 1 end
             else
                 if i < 10 and self.parent and self.parent.Print then
-                    self.parent:Print(string.format("B.O.L.T: GetToyFromIndex(1-based) index=%d -> %s", i, tostring(toyID)))
+                    self.parent:Print(string.format("B.O.L.T: GetToyFromIndex(1-based) index=%d -> %s", i,
+                        tostring(toyID)))
                 end
             end
         end
@@ -843,7 +921,8 @@ function Config:PopulateToyList()
 
     if not foundIDs then
         if self.parent and self.parent.Print then
-            self.parent:Print("B.O.L.T: GetToyFromIndex returned no valid toyIDs (both 0-based and 1-based attempts). Trying to clear Collections filters and retry...")
+            self.parent:Print(
+            "B.O.L.T: GetToyFromIndex returned no valid toyIDs (both 0-based and 1-based attempts). Trying to clear Collections filters and retry...")
         end
         if not self._toyFilterFixAttempted then
             pcall(function() if ToggleCollectionsJournal then ToggleCollectionsJournal() end end)
@@ -857,8 +936,8 @@ function Config:PopulateToyList()
                         if C_ToyBox.SetUncollectedShown then pcall(C_ToyBox.SetUncollectedShown, true) end
                         if C_ToyBox.SetUnusableShown then pcall(C_ToyBox.SetUnusableShown, true) end
                         -- Try a few possible search/clear APIs on C_ToyBox if present
-                        local maybeClearFns = {"SetSearch", "SetFilterString", "ClearSearch", "SetSearchText"}
-                        for _,fname in ipairs(maybeClearFns) do
+                        local maybeClearFns = { "SetSearch", "SetFilterString", "ClearSearch", "SetSearchText" }
+                        for _, fname in ipairs(maybeClearFns) do
                             if C_ToyBox[fname] and type(C_ToyBox[fname]) == "function" then
                                 pcall(C_ToyBox[fname], "")
                             end
@@ -873,12 +952,13 @@ function Config:PopulateToyList()
             end)
         else
             if self.parent and self.parent.Print then
-                self.parent:Print("B.O.L.T: Already attempted to clear Collections filters; if list still empty please open Collections -> Toys and clear any active filter manually.")
+                self.parent:Print(
+                "B.O.L.T: Already attempted to clear Collections filters; if list still empty please open Collections -> Toys and clear any active filter manually.")
             end
         end
     end
 
-    table.sort(self.allToys, function(a,b) return a.name < b.name end)
+    table.sort(self.allToys, function(a, b) return a.name < b.name end)
     if self.parent and self.parent.Print then
         self.parent:Print(string.format("B.O.L.T: Toy scan complete - found %d owned toys.", added))
     end
@@ -888,7 +968,7 @@ function Config:PopulateToyList()
 
     -- Schedule icon-cache retry for toys missing icons
     local needsIcon = false
-    for _,t in ipairs(self.allToys) do
+    for _, t in ipairs(self.allToys) do
         if not t.icon and t.itemId then
             needsIcon = true
             break
@@ -899,7 +979,7 @@ function Config:PopulateToyList()
         C_Timer.After(0.5, function()
             if not self or not self.allToys then return end
             local changed = false
-            for _,t in ipairs(self.allToys) do
+            for _, t in ipairs(self.allToys) do
                 if not t.icon and t.itemId and C_Item and C_Item.GetItemIconByID then
                     local maybeIcon = C_Item.GetItemIconByID(t.itemId)
                     if maybeIcon then
@@ -954,13 +1034,14 @@ function Config:FilterToyList()
             button.icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
         end
         -- Ensure full UVs so icon draws correctly
-        button.icon:SetTexCoord(0,1,0,1)
+        button.icon:SetTexCoord(0, 1, 0, 1)
         button.text:SetText(toy.name)
         button:SetScript("OnClick", function()
             self.parent:SetConfig(toy.id, "playground", "favoriteToyId")
             if self.parent and self.parent.Print then self.parent:Print("Favorite toy set to: " .. toy.name) end
             self:UpdateToySelection()
-            if self.parent.modules.playground and self.parent.modules.playground.UpdateFavoriteToyButton then self.parent.modules.playground:UpdateFavoriteToyButton() end
+            if self.parent.modules.playground and self.parent.modules.playground.UpdateFavoriteToyButton then self
+                    .parent.modules.playground:UpdateFavoriteToyButton() end
         end)
         button:Show()
         yOffset = yOffset + buttonHeight

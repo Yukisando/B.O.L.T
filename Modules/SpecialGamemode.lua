@@ -170,13 +170,16 @@ function SpecialGamemode:ExitHardcoreMode()
     self:StopEffectTimer()
 
     -- Restore interface and camera
-    UIParent:Show()
+    local ok = pcall(function() UIParent:Show() end)
+    if not ok and self.parent and self.parent.Print then
+        self.parent:Print("B.O.L.T: UI show blocked by restrictions.")
+    end
 
     -- Restore original camera zoom
     if self.originalCameraDistance then
         -- Directly restore the original camera distance without resetting first
         if SetCameraZoom then
-            SetCameraZoom(self.originalCameraDistance)
+            pcall(SetCameraZoom, self.originalCameraDistance)
         else
             -- Fallback: Use CameraZoomOut/CameraZoomIn to reach the original distance
             local currentZoom = GetCameraZoom()
@@ -186,11 +189,11 @@ function SpecialGamemode:ExitHardcoreMode()
             if currentZoom < targetZoom then
                 -- Need to zoom out to increase distance
                 local difference = targetZoom - currentZoom
-                CameraZoomOut(difference)
+                pcall(CameraZoomOut, difference)
             elseif currentZoom > targetZoom then
                 -- Need to zoom in to decrease distance
                 local difference = currentZoom - targetZoom
-                CameraZoomIn(difference)
+                pcall(CameraZoomIn, difference)
             end
         end
         self.originalCameraDistance = nil
@@ -239,19 +242,21 @@ function SpecialGamemode:StopEffectTimer()
 end
 
 function SpecialGamemode:ApplyHardcoreEffects()
-    -- Hide UI if it's showing
-    if UIParent:IsShown() then
-        UIParent:Hide()
-    end
+    -- Hide UI if it's showing (guarded)
+    pcall(function()
+        if UIParent:IsShown() then
+            UIParent:Hide()
+        end
+    end)
 
-    -- Force camera to first person
-    CameraZoomIn(50) -- Zoom in as much as possible
+    -- Force camera to first person (guarded)
+    pcall(CameraZoomIn, 50) -- Zoom in as much as possible
 end
 
 function SpecialGamemode:PauseEffects()
     self.effectsPaused = true
-    -- Show UI when effects are paused
-    UIParent:Show()
+    -- Show UI when effects are paused (guarded)
+    pcall(function() UIParent:Show() end)
 end
 
 function SpecialGamemode:ResumeEffects()
