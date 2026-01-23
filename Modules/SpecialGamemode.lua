@@ -260,41 +260,25 @@ function SpecialGamemode:ResumeEffects()
 end
 
 function SpecialGamemode:HookGameMenuFrame()
-    -- Hook GameMenuFrame to pause/resume effects when menu shows/hides
-    if GameMenuFrame and not self.originalGameMenuShow then
-        self.originalGameMenuShow = GameMenuFrame.Show
-        self.originalGameMenuHide = GameMenuFrame.Hide
-        
-        GameMenuFrame.Show = function(frame)
-            self.originalGameMenuShow(frame)
-            -- Pause effects when game menu shows
+    -- Use HookScript instead of replacing Show/Hide to avoid interfering with other addons
+    if GameMenuFrame and not self.hookedGameMenu then
+        GameMenuFrame:HookScript("OnShow", function()
             if self.hardcoreModeActive then
                 self:PauseEffects()
             end
-        end
-        
-        GameMenuFrame.Hide = function(frame)
-            self.originalGameMenuHide(frame)
-            -- Resume effects when game menu hides
+        end)
+        GameMenuFrame:HookScript("OnHide", function()
             if self.hardcoreModeActive then
                 self:ResumeEffects()
             end
-        end
+        end)
+        self.hookedGameMenu = true
     end
 end
 
 function SpecialGamemode:UnhookGameMenuFrame()
-    -- Restore original GameMenuFrame functions
-    if GameMenuFrame then
-        if self.originalGameMenuShow then
-            GameMenuFrame.Show = self.originalGameMenuShow
-            self.originalGameMenuShow = nil
-        end
-        if self.originalGameMenuHide then
-            GameMenuFrame.Hide = self.originalGameMenuHide
-            self.originalGameMenuHide = nil
-        end
-    end
+    -- We leave the hooks in place (they are harmless when not in hardcore mode)
+    self.hookedGameMenu = nil
 end
 
 function SpecialGamemode:ShowModeMessage(text, duration)

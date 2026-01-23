@@ -16,6 +16,34 @@ function GameMenu:GetMenuAnchor()
     return self.menuContainer or GameMenuFrame
 end
 
+-- Ensure our menu container exists and is anchored to GameMenuFrame when available.
+function GameMenu:EnsureMenuContainer()
+    if not self.menuContainer then
+        local c = CreateFrame("Frame", "BOLTGameMenuContainer", UIParent)
+        c:SetFrameStrata("LOW")
+        if GameMenuFrame and GameMenuFrame.GetNumPoints then
+            c:SetAllPoints(GameMenuFrame)
+        else
+            c:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+            c:SetSize(100, 100)
+        end
+        c:Hide()
+        self.menuContainer = c
+    else
+        if GameMenuFrame and self.menuContainer.SetAllPoints then
+            self.menuContainer:SetAllPoints(GameMenuFrame)
+        end
+    end
+
+    -- Reparent existing buttons so they follow the container visibility and anchoring
+    local _buttons = {leaveGroupButton, reloadButton, readyCheckButton, countdownButton, raidMarkerButton, damageNumbersButton, healingNumbersButton, volumeButton}
+    for _, btn in ipairs(_buttons) do
+        if btn and btn:GetParent() ~= self.menuContainer then
+            btn:SetParent(self.menuContainer)
+        end
+    end
+end
+
 -- Reusable raid target texture coordinates (4x4 sprite sheet)
 local MARKER_TEXCOORDS = {
     [1] = {0, 0.25, 0, 0.25},      -- Star
@@ -56,6 +84,9 @@ function GameMenu:OnEnable()
 
     -- Hook into the game menu show event
     self:HookGameMenu()
+
+    -- Ensure our container exists so buttons created while the menu is closed are parented correctly
+    self:EnsureMenuContainer()
 
     -- group-state watcher
     if not self.groupUpdateFrame then
@@ -132,25 +163,22 @@ function GameMenu:HookGameMenu()
     -- Hook the GameMenuFrame show event
     if GameMenuFrame then
         GameMenuFrame:HookScript("OnShow", function()
-            -- Ensure our container exists and is anchored to the game menu
-            if not self.menuContainer then
-                local c = CreateFrame("Frame", "BOLTGameMenuContainer", UIParent)
-                c:SetFrameStrata("LOW")
-                -- Anchor to GameMenuFrame so positions relative to it still work
-                c:SetAllPoints(GameMenuFrame)
-                c:Hide()
-                self.menuContainer = c
-            end
+            -- Ensure container exists and is anchored to GameMenuFrame if available
+            self:EnsureMenuContainer()
+
             -- Defer showing the container to avoid calling protected functions during Blizzard's secure ShowUIPanel execution
             C_Timer.After(0.01, function()
-                if self.menuContainer then
+                -- Only show the container if the game menu is still shown (avoid race conditions)
+                if self.menuContainer and GameMenuFrame and GameMenuFrame:IsShown() then
                     self.menuContainer:Show()
                 end
             end)
 
             -- Small delay to ensure the menu is fully loaded
             C_Timer.After(0.05, function()
-                self:UpdateGameMenu()
+                if GameMenuFrame and GameMenuFrame:IsShown() then
+                    self:UpdateGameMenu()
+                end
             end)
 
             -- Watch CVARs while menu is open
@@ -185,7 +213,8 @@ function GameMenu:HookGameMenu()
             -- Defer hiding the container to avoid protected-call errors in secure contexts
             if self.menuContainer then
                 C_Timer.After(0.01, function()
-                    if self.menuContainer then
+                    -- Only hide the container if the game menu is no longer shown (avoid race with OnShow)
+                    if self.menuContainer and (not GameMenuFrame or not GameMenuFrame:IsShown()) then
                         self.menuContainer:Hide()
                     end
                 end)
@@ -347,7 +376,7 @@ end
 function GameMenu:CreateLeaveGroupButton()
     local mod = self
     -- Parent to our container if available to allow grouped visibility control
-    leaveGroupButton = CreateFrame("Button", nil, self.menuContainer or UIParent, "GameMenuButtonTemplate")
+    leaveGroupButton = CreateFrame("Button", nil, self:GetMenuParent(), "GameMenuButtonTemplate")
     leaveGroupButton:SetSize(144, 28)
     leaveGroupButton:SetText("Leave Group")
     leaveGroupButton:SetScript("OnClick", function() mod:OnLeaveGroupClick() end)
@@ -394,7 +423,7 @@ end
 
 function GameMenu:CreateReadyCheckButton()
     local mod = self
-    readyCheckButton = BOLT.ButtonUtils:CreateIconButton(nil, self.menuContainer or UIParent, "Interface\\RaidFrame\\ReadyCheck-Ready")
+    readyCheckButton = BOLT.ButtonUtils:CreateIconButton(nil, self:GetMenuParent(), "Interface\\RaidFrame\\ReadyCheck-Ready")
     readyCheckButton:SetScript("OnClick", function()
         if InCombatLockdown() then mod.parent:Print("Ready check not available in combat.") return end
         mod:OnReadyCheckClick()
@@ -419,7 +448,7 @@ end
 
 function GameMenu:CreateCountdownButton()
     local mod = self
-    countdownButton = BOLT.ButtonUtils:CreateIconButton(nil, self.menuContainer or UIParent, "Interface\\Icons\\Spell_Holy_BorrowedTime")
+    countdownButton = BOLT.ButtonUtils:CreateIconButton(nil, self:GetMenuParent(), "Interface\\Icons\\Spell_Holy_BorrowedTime")
     countdownButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
     countdownButton:SetScript("OnClick", function()
         if InCombatLockdown() then mod.parent:Print("Countdown not available in combat.") return end
@@ -445,7 +474,7 @@ end
 
 function GameMenu:CreateRaidMarkerButton()
     local mod = self
-    raidMarkerButton = BOLT.ButtonUtils:CreateIconButton(nil, self.menuContainer or UIParent, "Interface\\TARGETINGFRAME\\UI-RaidTargetingIcons")
+    raidMarkerButton = BOLT.ButtonUtils:CreateIconButton(nil, self:GetMenuParent(), "Interface\\TARGETINGFRAME\\UI-RaidTargetingIcons")
     -- We'll adjust tex coords based on selected marker in RefreshGroupToolsState
     raidMarkerButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     raidMarkerButton:SetScript("OnClick", function(_, button)
@@ -476,7 +505,7 @@ end
 
 function GameMenu:CreateDamageNumbersButton()
     local mod = self
-    damageNumbersButton = BOLT.ButtonUtils:CreateIconButton(nil, self.menuContainer or UIParent, "Interface\\Icons\\Spell_Fire_FireBolt02")
+    damageNumbersButton = BOLT.ButtonUtils:CreateIconButton(nil, self:GetMenuParent(), "Interface\\Icons\\Spell_Fire_FireBolt02")
     damageNumbersButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
     damageNumbersButton:SetScript("OnClick", function()
         mod:OnDamageNumbersClick()
@@ -497,7 +526,7 @@ end
 
 function GameMenu:CreateHealingNumbersButton()
     local mod = self
-    healingNumbersButton = BOLT.ButtonUtils:CreateIconButton(nil, self.menuContainer or UIParent, "Interface\\Icons\\Spell_Holy_GreaterHeal")
+    healingNumbersButton = BOLT.ButtonUtils:CreateIconButton(nil, self:GetMenuParent(), "Interface\\Icons\\Spell_Holy_GreaterHeal")
     healingNumbersButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
     healingNumbersButton:SetScript("OnClick", function()
         mod:OnHealingNumbersClick()
@@ -519,7 +548,7 @@ end
 function GameMenu:CreateVolumeButton()
     local mod = self
     -- Create volume button with background using ButtonUtils
-    volumeButton = BOLT.ButtonUtils:CreateVolumeButton(nil, self.menuContainer or UIParent, {
+    volumeButton = BOLT.ButtonUtils:CreateVolumeButton(nil, self:GetMenuParent(), {
         showBackground = true
     })
 
@@ -605,7 +634,8 @@ function GameMenu:PositionGroupTools()
     if countdownButton then countdownButton:ClearAllPoints() end
     if readyCheckButton then readyCheckButton:ClearAllPoints() end
 
-    local level = GameMenuFrame:GetFrameLevel()
+    local anchor = self:GetMenuAnchor()
+    local level = (anchor and anchor.GetFrameLevel and anchor:GetFrameLevel() or 0)
 
     -- If only raid marker is visible, anchor it at the bottom
     if raidMarkerButton:IsShown() and
@@ -669,6 +699,7 @@ function GameMenu:PositionBattleTextToggles()
     damageNumbersButton:ClearAllPoints()
     healingNumbersButton:ClearAllPoints()
     -- Position volume button first if it exists and is enabled
+    local anchor = self:GetMenuAnchor()
     if volumeButton and self.parent:GetConfig("gameMenu", "showVolumeButton") then
         self:PositionVolumeButton()
         -- Healing button above volume button
@@ -676,13 +707,15 @@ function GameMenu:PositionBattleTextToggles()
         -- Damage button above healing button
         damageNumbersButton:SetPoint("BOTTOMLEFT", healingNumbersButton, "TOPLEFT", 0, 6)
     else
-    -- Default: stack outside on the left edge of the GameMenuFrame
-    healingNumbersButton:SetPoint("BOTTOMRIGHT", GameMenuFrame, "BOTTOMLEFT", -8, 12)
-    damageNumbersButton:SetPoint("BOTTOMLEFT", healingNumbersButton, "TOPLEFT", 0, 6)
+        -- Default: stack outside on the left edge of the game menu anchor
+        if anchor then
+            healingNumbersButton:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMLEFT", -8, 12)
+            damageNumbersButton:SetPoint("BOTTOMLEFT", healingNumbersButton, "TOPLEFT", 0, 6)
+        end
     end
 
     -- Set frame levels once at the end
-    local level = GameMenuFrame:GetFrameLevel()
+    local level = (anchor and anchor.GetFrameLevel and anchor:GetFrameLevel() or 0)
     damageNumbersButton:SetFrameLevel(level + 2)
     healingNumbersButton:SetFrameLevel(level + 2)
 end
@@ -750,7 +783,7 @@ end
 function GameMenu:CreateReloadButton()
     local mod = self
     -- Parent it to our menu container (or UIParent) but anchor to GameMenuFrame so it doesn't try to modify protected frames
-    reloadButton = BOLT.ButtonUtils:CreateIconButton(nil, self.menuContainer or UIParent, "Interface\\Icons\\inv_misc_gear_01", {
+    reloadButton = BOLT.ButtonUtils:CreateIconButton(nil, self:GetMenuParent(), "Interface\\Icons\\inv_misc_gear_01", {
         iconScale = 1,
         contentScale = 1.3
     })
