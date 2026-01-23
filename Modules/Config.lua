@@ -354,8 +354,13 @@ function Config:CreateInterfaceOptionsPanel()
 
     local currentPos = self.parent:GetConfig("playground", "statsPosition") or "TOPRIGHT"
     UIDropDownMenu_SetSelectedValue(posDropdown, currentPos)
-    local posNames = { TOPLEFT = "Top Left", TOPRIGHT = "Top Right", BOTTOMLEFT = "Bottom Left", BOTTOMRIGHT =
-    "Bottom Right" }
+    local posNames = {
+        TOPLEFT = "Top Left",
+        TOPRIGHT = "Top Right",
+        BOTTOMLEFT = "Bottom Left",
+        BOTTOMRIGHT =
+        "Bottom Right"
+    }
     UIDropDownMenu_SetText(posDropdown, posNames[currentPos] or "Top Right")
 
     y = y - 36
@@ -464,8 +469,10 @@ function Config:CreateInterfaceOptionsPanel()
         self.settingsCategory = category
         Settings.RegisterAddOnCategory(category)
     else
-        if self.parent and self.parent.Print then self.parent:Print(
-            "B.O.L.T: Settings API not found; options not registered.") end
+        if self.parent and self.parent.Print then
+            self.parent:Print(
+                "B.O.L.T: Settings API not found; options not registered.")
+        end
     end
 
     self.optionsPanel = panel
@@ -508,7 +515,7 @@ function Config:UpdateGameMenuChildControls()
         end
         if w.raidMarkerClearButton then
             w.raidMarkerClearButton:SetEnabled(groupToolsEnabled); w.raidMarkerClearButton:SetAlpha(groupToolsEnabled and
-            1 or 0.5)
+                1 or 0.5)
         end
     end
 
@@ -571,12 +578,18 @@ function Config:RefreshOptionsPanel()
         if w.gameMenuCheckbox then w.gameMenuCheckbox:SetChecked(self.parent:IsModuleEnabled("gameMenu")) end
         if w.leaveGroupCheckbox then w.leaveGroupCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showLeaveGroup")) end
         if w.reloadCheckbox then w.reloadCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showReloadButton")) end
-        if w.groupToolsCheckbox then w.groupToolsCheckbox:SetChecked(self.parent:GetConfig("gameMenu",
-                "groupToolsEnabled")) end
-        if w.battleTextCheckbox then w.battleTextCheckbox:SetChecked(self.parent:GetConfig("gameMenu",
-                "showBattleTextToggles")) end
-        if w.volumeButtonCheckbox then w.volumeButtonCheckbox:SetChecked(self.parent:GetConfig("gameMenu",
-                "showVolumeButton")) end
+        if w.groupToolsCheckbox then
+            w.groupToolsCheckbox:SetChecked(self.parent:GetConfig("gameMenu",
+                "groupToolsEnabled"))
+        end
+        if w.battleTextCheckbox then
+            w.battleTextCheckbox:SetChecked(self.parent:GetConfig("gameMenu",
+                "showBattleTextToggles"))
+        end
+        if w.volumeButtonCheckbox then
+            w.volumeButtonCheckbox:SetChecked(self.parent:GetConfig("gameMenu",
+                "showVolumeButton"))
+        end
         -- Update raid marker visuals
         if w.raidMarkerButtons then
             local idx = self.parent:GetConfig("gameMenu", "raidMarkerIndex") or 1
@@ -584,20 +597,31 @@ function Config:RefreshOptionsPanel()
             if w.raidMarkerClearButton then w.raidMarkerClearButton:SetAlpha(idx == 0 and 1 or 0.6) end
         end
         if w.playgroundCheckbox then w.playgroundCheckbox:SetChecked(self.parent:IsModuleEnabled("playground")) end
-        if w.favoriteToyCheckbox then w.favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground",
-                "showFavoriteToy")) end
-        if w.speedometerCheckbox then w.speedometerCheckbox:SetChecked(self.parent:GetConfig("playground",
-                "showSpeedometer")) end
+        if w.favoriteToyCheckbox then
+            w.favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground",
+                "showFavoriteToy"))
+        end
+        if w.speedometerCheckbox then
+            w.speedometerCheckbox:SetChecked(self.parent:GetConfig("playground",
+                "showSpeedometer"))
+        end
         if w.speedometerPositionDropdown then
             local currentPos = self.parent:GetConfig("playground", "statsPosition") or "TOPRIGHT"
             UIDropDownMenu_SetSelectedValue(w.speedometerPositionDropdown, currentPos)
-            local posNames = { TOPLEFT = "Top Left", TOPRIGHT = "Top Right", BOTTOMLEFT = "Bottom Left", BOTTOMRIGHT =
-            "Bottom Right" }
+            local posNames = {
+                TOPLEFT = "Top Left",
+                TOPRIGHT = "Top Right",
+                BOTTOMLEFT = "Bottom Left",
+                BOTTOMRIGHT =
+                "Bottom Right"
+            }
             UIDropDownMenu_SetText(w.speedometerPositionDropdown, posNames[currentPos] or "Top Right")
         end
         if w.skyridingCheckbox then w.skyridingCheckbox:SetChecked(self.parent:IsModuleEnabled("skyriding")) end
-        if w.pitchControlCheckbox then w.pitchControlCheckbox:SetChecked(self.parent:GetConfig("skyriding",
-                "enablePitchControl")) end
+        if w.pitchControlCheckbox then
+            w.pitchControlCheckbox:SetChecked(self.parent:GetConfig("skyriding",
+                "enablePitchControl"))
+        end
         if w.wowheadLinkCheckbox then w.wowheadLinkCheckbox:SetChecked(self.parent:IsModuleEnabled("wowheadLink")) end
         if w.autoRepSwitchCheckbox then w.autoRepSwitchCheckbox:SetChecked(self.parent:IsModuleEnabled("autoRepSwitch")) end
     end)
@@ -612,7 +636,7 @@ function Config:UpdateSkyridingChildControls()
     end
     if w.invertPitchCheckbox then
         local should = sk and pitch; w.invertPitchCheckbox:SetEnabled(should); w.invertPitchCheckbox:SetAlpha(should and
-        1 or 0.5)
+            1 or 0.5)
     end
 end
 
@@ -668,9 +692,9 @@ function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
     searchBox:SetScript("OnTextChanged", function() self:FilterToyList() end)
     local clear = CreateFrame("Button", nil, toyFrame, "UIPanelButtonTemplate")
     clear:SetPoint("LEFT", searchBox, "RIGHT", 10, 0); clear:SetSize(50, 28); clear:SetText("Clear"); clear:SetScript(
-    "OnClick", function()
-        searchBox:SetText(""); self:FilterToyList()
-    end)
+        "OnClick", function()
+            searchBox:SetText(""); self:FilterToyList()
+        end)
     local refresh = CreateFrame("Button", nil, toyFrame, "UIPanelButtonTemplate")
     refresh:SetPoint("LEFT", clear, "RIGHT", 8, 0); refresh:SetSize(60, 28); refresh:SetText("Refresh")
     refresh:SetScript("OnClick", function()
@@ -692,7 +716,8 @@ function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
     currentToy:SetScript("OnClick",
         function()
             self.parent:SetConfig(nil, "playground", "favoriteToyId"); self:UpdateToySelection(); if self.parent.modules.playground and self.parent.modules.playground.UpdateFavoriteToyButton then
-                self.parent.modules.playground:UpdateFavoriteToyButton() end
+                self.parent.modules.playground:UpdateFavoriteToyButton()
+            end
         end)
     local scrollFrame = CreateFrame("ScrollFrame", "BOLTToyScrollFrame", toyFrame, "UIPanelScrollFrameTemplate"); scrollFrame
         :SetPoint("TOPLEFT", toyFrame, "TOPLEFT", 15, -85); scrollFrame:SetPoint("BOTTOMRIGHT", toyFrame, "BOTTOMRIGHT",
@@ -700,7 +725,8 @@ function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
     local scrollChild = CreateFrame("Frame", nil, scrollFrame); scrollFrame:SetScrollChild(scrollChild); scrollChild
         :SetSize(370, 1)
     self.toyFrame = toyFrame; self.searchBox = searchBox; self.currentToyButton = currentToy; self.currentToyIcon =
-    currentIcon; self.currentToyText = currentText; self.toyScrollFrame = scrollFrame; self.toyScrollChild = scrollChild; self.toyButtons = {}
+        currentIcon; self.currentToyText = currentText; self.toyScrollFrame = scrollFrame; self.toyScrollChild =
+    scrollChild; self.toyButtons = {}
     toyFrame:SetScript("OnShow", function()
         C_Timer.After(0.1, function()
             if not self.toyListPopulated then
@@ -755,7 +781,7 @@ function Config:PopulateToyList()
 
     -- Prefer unfiltered total count first; filtered count can be zero when UI filters hide items
     local getNum = (type(C_ToyBox.GetNumToys) == "function" and C_ToyBox.GetNumToys) or
-    ((type(C_ToyBox.GetNumFilteredToys) == "function" and C_ToyBox.GetNumFilteredToys) or nil)
+        ((type(C_ToyBox.GetNumFilteredToys) == "function" and C_ToyBox.GetNumFilteredToys) or nil)
     if type(getNum) ~= "function" then
         return
     end
@@ -946,8 +972,10 @@ function Config:FilterToyList()
         button:SetScript("OnClick", function()
             self.parent:SetConfig(toy.id, "playground", "favoriteToyId")
             self:UpdateToySelection()
-            if self.parent.modules.playground and self.parent.modules.playground.UpdateFavoriteToyButton then self
-                    .parent.modules.playground:UpdateFavoriteToyButton() end
+            if self.parent.modules.playground and self.parent.modules.playground.UpdateFavoriteToyButton then
+                self
+                    .parent.modules.playground:UpdateFavoriteToyButton()
+            end
         end)
         button:Show()
         yOffset = yOffset + buttonHeight
