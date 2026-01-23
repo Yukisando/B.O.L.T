@@ -68,8 +68,6 @@ function Config:OnInitialize()
     self.eventFrame:RegisterEvent("PLAYER_LOGIN")
     self.toyListPopulated = false
     self.eventFrame:SetScript("OnEvent", function(_, event, ...)
-        if self._toyDebug and self.parent and self.parent.Print then self.parent:Print(("Config Event: %s"):format(
-            tostring(event))) end
         if (event == "TOYS_UPDATED" or event == "PLAYER_LOGIN") and self.toyFrame then
             -- On login or when the toy API signals an update, try to populate.
             -- Delay slightly on login to allow Blizzard Collections to finish initializing.
@@ -678,58 +676,8 @@ function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
     refresh:SetScript("OnClick", function()
         self:PopulateToyList(); self:UpdateToySelection()
     end)
-    local dump = CreateFrame("Button", nil, toyFrame, "UIPanelButtonTemplate")
-    dump:SetPoint("LEFT", refresh, "RIGHT", 8, 0); dump:SetSize(60, 28); dump:SetText("Dump")
-    dump:SetScript("OnClick", function()
-        if not C_ToyBox then
-            self.parent:Print("B.O.L.T: C_ToyBox not available")
-            return
-        end
-        local unfilteredN = (type(C_ToyBox.GetNumToys) == "function" and C_ToyBox.GetNumToys()) or 0
-        local filteredN = (type(C_ToyBox.GetNumFilteredToys) == "function" and C_ToyBox.GetNumFilteredToys()) or nil
-        self.parent:Print(string.format("B.O.L.T: Dumping toys -> unfiltered=%d filtered=%s", unfilteredN,
-            tostring(filteredN)))
-        local limit = math.min(50, math.max(0, unfilteredN))
-        for i = 1, limit do
-            local ok, toyID = pcall(C_ToyBox.GetToyFromIndex, i)
-            if not ok then
-                self.parent:Print(string.format("B.O.L.T: index=%d GetToyFromIndex failed: %s", i, tostring(toyID)))
-            elseif not toyID or toyID == 0 then
-                self.parent:Print(string.format("B.O.L.T: index=%d toyID is nil/0", i))
-            else
-                -- Safely get toy info
-                local ok2, itemID, toyName, icon, isFavorite, hasFanfare, quality = pcall(function() return C_ToyBox
-                    .GetToyInfo(toyID) end)
-                if not ok2 then
-                    self.parent:Print(string.format("B.O.L.T: index=%d toyID=%s GetToyInfo failed: %s", i,
-                        tostring(toyID), tostring(itemID)))
-                else
-                    local hasByItem = false
-                    local hasByToy = false
-                    if type(PlayerHasToy) == "function" then
-                        pcall(function() hasByItem = (itemID and PlayerHasToy(itemID)) end)
-                        pcall(function() hasByToy = PlayerHasToy(toyID) end)
-                    end
-                    self.parent:Print(string.format(
-                    "B.O.L.T: idx=%d toyID=%s itemID=%s name=%s hasByItem=%s hasByToy=%s", i, tostring(toyID),
-                        tostring(itemID), tostring(toyName), tostring(hasByItem), tostring(hasByToy)))
-                end
-            end
-        end
-    end)
 
-    local init = CreateFrame("Button", nil, toyFrame, "UIPanelButtonTemplate")
-    init:SetPoint("LEFT", dump, "RIGHT", 8, 0); init:SetSize(60, 28); init:SetText("Init")
-    init:SetScript("OnClick", function()
-        -- Open Collections Journal to force initialization of toy filters/data
-        local ok = pcall(function()
-            if ToggleCollectionsJournal then ToggleCollectionsJournal() end
-        end)
-        if self.parent and self.parent.Print then
-            self.parent:Print(string.format("B.O.L.T: ToggleCollectionsJournal called -> ok=%s", tostring(ok)))
-            self.parent:Print("B.O.L.T: If Collections opened, wait a second and click Refresh or Dump again.")
-        end
-    end)
+
     local currentLabel = toyFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     currentLabel:SetPoint("TOPLEFT", toyFrame, "TOPLEFT", 15, -50); currentLabel:SetText("Current:")
     local currentToy = CreateFrame("Button", "BOLTCurrentToyButton", toyFrame); currentToy:SetPoint("LEFT", currentLabel,
@@ -799,14 +747,8 @@ function Config:PopulateToyList()
 
     -- Try to ensure toy APIs are loaded
     if not C_ToyBox then
-        local ok, loaded = pcall(LoadAddOn, "Blizzard_Collections")
-        if self.parent and self.parent.Print then
-            self.parent:Print(string.format("B.O.L.T: Attempted LoadAddOn Blizzard_Collections -> ok=%s loaded=%s",
-                tostring(ok), tostring(loaded)))
-        end
+        pcall(LoadAddOn, "Blizzard_Collections")
         if not C_ToyBox then
-            if self.parent and self.parent.Print then self.parent:Print(
-                "B.O.L.T: C_ToyBox API not available after loading Collections.") end
             return
         end
     end
@@ -815,53 +757,33 @@ function Config:PopulateToyList()
     local getNum = (type(C_ToyBox.GetNumToys) == "function" and C_ToyBox.GetNumToys) or
     ((type(C_ToyBox.GetNumFilteredToys) == "function" and C_ToyBox.GetNumFilteredToys) or nil)
     if type(getNum) ~= "function" then
-        if self.parent and self.parent.Print then self.parent:Print("B.O.L.T: Toy API missing GetNum function.") end
         return
     end
 
     -- Try to ensure filters include everything (if API supports these helpers)
     if C_ToyBox.SetAllSourceTypeFilters then
-        local ok, res = pcall(C_ToyBox.SetAllSourceTypeFilters, true)
-        if self.parent and self.parent.Print then self.parent:Print(string.format(
-            "B.O.L.T: SetAllSourceTypeFilters -> ok=%s", tostring(ok))) end
+        pcall(C_ToyBox.SetAllSourceTypeFilters, true)
     end
     if C_ToyBox.SetAllExpansionTypeFilters then
-        local ok, res = pcall(C_ToyBox.SetAllExpansionTypeFilters, true)
-        if self.parent and self.parent.Print then self.parent:Print(string.format(
-            "B.O.L.T: SetAllExpansionTypeFilters -> ok=%s", tostring(ok))) end
+        pcall(C_ToyBox.SetAllExpansionTypeFilters, true)
     end
     if C_ToyBox.SetUncollectedShown then pcall(C_ToyBox.SetUncollectedShown, false) end
     if C_ToyBox.SetUnusableShown then pcall(C_ToyBox.SetUnusableShown, true) end
 
     -- Re-query count after attempting to adjust filters
     local numToys = getNum() or 0
-    if self.parent and self.parent.Print then self.parent:Print(string.format("B.O.L.T: Toy count after filters = %d",
-            numToys)) end
 
-    -- Debug logging for diagnosis
-    if self.parent and self.parent.Print then
-        self.parent:Print(string.format("B.O.L.T: Toy scan - numToys=%d (attempt %d)", numToys,
-            (self._toyPopulateRetries or 0)))
-        -- Log presence of key APIs
-        self.parent:Print(string.format("B.O.L.T: APIs -> GetToyFromIndex=%s GetToyInfo=%s PlayerHasToy=%s",
-            tostring(type(C_ToyBox.GetToyFromIndex) == "function"), tostring(type(C_ToyBox.GetToyInfo) == "function"),
-            tostring(type(PlayerHasToy) == "function")))
-    end
+
 
     -- If there are no toys yet, retry a few times (toy data may be loaded async)
     if numToys == 0 then
         self._toyPopulateRetries = (self._toyPopulateRetries or 0) + 1
         if self._toyPopulateRetries <= 3 then
-            if self._toyPopulateRetries == 1 and self.parent and self.parent.Print then
-                self.parent:Print("B.O.L.T: Toy list not ready yet; will retry shortly...")
-            end
             C_Timer.After(0.75, function()
                 if self and self.PopulateToyList then pcall(function() self:PopulateToyList() end) end
             end)
             return
         else
-            if self.parent and self.parent.Print then self.parent:Print(
-                "B.O.L.T: Toy scan gave zero results after multiple retries.") end
             -- continue and allow empty list
         end
     end
@@ -896,10 +818,7 @@ function Config:PopulateToyList()
             foundIDs = true
             if processToyID(toyID) then added = added + 1 end
         else
-            -- Log a few early failures for visibility
-            if i < 10 and self.parent and self.parent.Print then
-                self.parent:Print(string.format("B.O.L.T: GetToyFromIndex(0-based) index=%d -> %s", i, tostring(toyID)))
-            end
+            -- ignore failures silently
         end
     end
 
@@ -911,19 +830,12 @@ function Config:PopulateToyList()
                 foundIDs = true
                 if processToyID(toyID) then added = added + 1 end
             else
-                if i < 10 and self.parent and self.parent.Print then
-                    self.parent:Print(string.format("B.O.L.T: GetToyFromIndex(1-based) index=%d -> %s", i,
-                        tostring(toyID)))
-                end
+                -- ignore failure
             end
         end
     end
 
     if not foundIDs then
-        if self.parent and self.parent.Print then
-            self.parent:Print(
-            "B.O.L.T: GetToyFromIndex returned no valid toyIDs (both 0-based and 1-based attempts). Trying to clear Collections filters and retry...")
-        end
         if not self._toyFilterFixAttempted then
             pcall(function() if ToggleCollectionsJournal then ToggleCollectionsJournal() end end)
             -- Wait a moment for Collections UI to initialize, then attempt to clear filters and retry
@@ -951,17 +863,12 @@ function Config:PopulateToyList()
                 end)
             end)
         else
-            if self.parent and self.parent.Print then
-                self.parent:Print(
-                "B.O.L.T: Already attempted to clear Collections filters; if list still empty please open Collections -> Toys and clear any active filter manually.")
-            end
+            -- already attempted fix
         end
     end
 
     table.sort(self.allToys, function(a, b) return a.name < b.name end)
-    if self.parent and self.parent.Print then
-        self.parent:Print(string.format("B.O.L.T: Toy scan complete - found %d owned toys.", added))
-    end
+
     self._toyPopulateRetries = 0
 
     self:FilterToyList()
@@ -1038,7 +945,6 @@ function Config:FilterToyList()
         button.text:SetText(toy.name)
         button:SetScript("OnClick", function()
             self.parent:SetConfig(toy.id, "playground", "favoriteToyId")
-            if self.parent and self.parent.Print then self.parent:Print("Favorite toy set to: " .. toy.name) end
             self:UpdateToySelection()
             if self.parent.modules.playground and self.parent.modules.playground.UpdateFavoriteToyButton then self
                     .parent.modules.playground:UpdateFavoriteToyButton() end
