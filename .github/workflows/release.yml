@@ -7,7 +7,9 @@ on:
 
 jobs:
   release:
-    if: "!contains(github.event.head_commit.message, '[skip release]')"
+    if: |
+      startsWith(github.ref, 'refs/heads/') &&
+      !contains(github.event.head_commit.message, '[skip release]')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -22,16 +24,25 @@ jobs:
         id: version
         run: |
           git fetch --tags
-          latest=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
+          latest=$(git tag --list 'v*-*' --sort=-v:refname | head -n 1)
 
           if [ -z "$latest" ]; then
-            echo "No existing tag found. Aborting."
+            echo "No initial tag found"
             exit 1
           fi
 
-          number=${latest#v}
-          next="v$((number + 1))"
+          major=${latest#v}
+          major=${major%-*}
+          minor=${latest#*-}
 
+          if echo "${{ github.event.head_commit.message }}" | grep -q "\[major\]"; then
+            major=$((major + 1))
+            minor=0
+          else
+            minor=$((minor + 1))
+          fi
+
+          next="v$major-$minor"
           echo "version=$next" >> $GITHUB_OUTPUT
 
       - name: Create and push tag
