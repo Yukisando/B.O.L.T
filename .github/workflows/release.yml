@@ -24,10 +24,10 @@ jobs:
         id: version
         run: |
           git fetch --tags
-          latest=$(git tag --list 'v*-*' --sort=-v:refname | head -n 1)
 
+          latest=$(git tag --list 'v*-*' --sort=-v:refname | head -n 1)
           if [ -z "$latest" ]; then
-            echo "No initial tag found"
+            echo "No initial version tag found. Create one (e.g. v1-0)."
             exit 1
           fi
 
@@ -49,6 +49,10 @@ jobs:
         run: |
           git tag ${{ steps.version.outputs.version }}
           git push origin ${{ steps.version.outputs.version }}
+
+      - name: Checkout release tag
+        run: |
+          git checkout ${{ steps.version.outputs.version }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
