@@ -36,7 +36,8 @@ function GameMenu:EnsureMenuContainer()
     end
 
     -- Reparent existing buttons so they follow the container visibility and anchoring
-    local _buttons = {leaveGroupButton, reloadButton, readyCheckButton, countdownButton, raidMarkerButton, damageNumbersButton, healingNumbersButton, volumeButton}
+    local _buttons = { leaveGroupButton, reloadButton, readyCheckButton, countdownButton, raidMarkerButton,
+        damageNumbersButton, healingNumbersButton, volumeButton }
     for _, btn in ipairs(_buttons) do
         if btn and btn:GetParent() ~= self.menuContainer then
             btn:SetParent(self.menuContainer)
@@ -46,14 +47,14 @@ end
 
 -- Reusable raid target texture coordinates (4x4 sprite sheet)
 local MARKER_TEXCOORDS = {
-    [1] = {0, 0.25, 0, 0.25},      -- Star
-    [2] = {0.25, 0.5, 0, 0.25},    -- Circle
-    [3] = {0.5, 0.75, 0, 0.25},    -- Diamond
-    [4] = {0.75, 1, 0, 0.25},      -- Triangle
-    [5] = {0, 0.25, 0.25, 0.5},    -- Moon
-    [6] = {0.25, 0.5, 0.25, 0.5},  -- Square
-    [7] = {0.5, 0.75, 0.25, 0.5},  -- Cross
-    [8] = {0.75, 1, 0.25, 0.5},    -- Skull
+    [1] = { 0, 0.25, 0, 0.25 },   -- Star
+    [2] = { 0.25, 0.5, 0, 0.25 }, -- Circle
+    [3] = { 0.5, 0.75, 0, 0.25 }, -- Diamond
+    [4] = { 0.75, 1, 0, 0.25 },   -- Triangle
+    [5] = { 0, 0.25, 0.25, 0.5 }, -- Moon
+    [6] = { 0.25, 0.5, 0.25, 0.5 }, -- Square
+    [7] = { 0.5, 0.75, 0.25, 0.5 }, -- Cross
+    [8] = { 0.75, 1, 0.25, 0.5 }, -- Skull
 }
 local function GetMarkerTexCoords(i)
     return unpack(MARKER_TEXCOORDS[i] or MARKER_TEXCOORDS[1])
@@ -384,7 +385,7 @@ function GameMenu:CreateLeaveGroupButton()
     leaveGroupButton:SetScript("OnEnter", function()
         GameTooltip:SetOwner(leaveGroupButton, "ANCHOR_RIGHT")
         local groupType = mod.parent:GetGroupTypeString()
-        GameTooltip:SetText(groupType and ("Leave "..groupType) or "Leave Group", 1, 1, 1)
+        GameTooltip:SetText(groupType and ("Leave " .. groupType) or "Leave Group", 1, 1, 1)
         if UnitIsGroupLeader("player") then
             GameTooltip:AddLine("Leadership will be transferred automatically", 0.8, 0.8, 0.8, true)
         end
@@ -423,9 +424,13 @@ end
 
 function GameMenu:CreateReadyCheckButton()
     local mod = self
-    readyCheckButton = BOLT.ButtonUtils:CreateIconButton(nil, self:GetMenuParent(), "Interface\\RaidFrame\\ReadyCheck-Ready")
+    readyCheckButton = BOLT.ButtonUtils:CreateIconButton(nil, self:GetMenuParent(),
+        "Interface\\RaidFrame\\ReadyCheck-Ready")
     readyCheckButton:SetScript("OnClick", function()
-        if InCombatLockdown() then mod.parent:Print("Ready check not available in combat.") return end
+        if InCombatLockdown() then
+            mod.parent:Print("Ready check not available in combat.")
+            return
+        end
         mod:OnReadyCheckClick()
     end)
     readyCheckButton:SetScript("OnEnter", function()
@@ -448,10 +453,14 @@ end
 
 function GameMenu:CreateCountdownButton()
     local mod = self
-    countdownButton = BOLT.ButtonUtils:CreateIconButton(nil, self:GetMenuParent(), "Interface\\Icons\\Spell_Holy_BorrowedTime")
+    countdownButton = BOLT.ButtonUtils:CreateIconButton(nil, self:GetMenuParent(),
+        "Interface\\Icons\\Spell_Holy_BorrowedTime")
     countdownButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
     countdownButton:SetScript("OnClick", function()
-        if InCombatLockdown() then mod.parent:Print("Countdown not available in combat.") return end
+        if InCombatLockdown() then
+            mod.parent:Print("Countdown not available in combat.")
+            return
+        end
         mod:OnCountdownClick()
     end)
     countdownButton:SetScript("OnEnter", function()
@@ -474,20 +483,24 @@ end
 
 function GameMenu:CreateRaidMarkerButton()
     local mod = self
-    raidMarkerButton = BOLT.ButtonUtils:CreateIconButton(nil, self:GetMenuParent(), "Interface\\TARGETINGFRAME\\UI-RaidTargetingIcons")
+    raidMarkerButton = BOLT.ButtonUtils:CreateIconButton(nil, self:GetMenuParent(),
+        "Interface\\TARGETINGFRAME\\UI-RaidTargetingIcons")
     -- We'll adjust tex coords based on selected marker in RefreshGroupToolsState
     raidMarkerButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     raidMarkerButton:SetScript("OnClick", function(_, button)
-        if InCombatLockdown() then mod.parent:Print("Cannot change raid marker during combat.") return end
+        if InCombatLockdown() then
+            mod.parent:Print("Cannot change raid marker during combat.")
+            return
+        end
         mod:OnRaidMarkerClick(button)
     end)
     raidMarkerButton:SetScript("OnEnter", function()
         GameTooltip:SetOwner(raidMarkerButton, "ANCHOR_LEFT")
         local idx = mod.parent:GetConfig("gameMenu", "raidMarkerIndex") or 1
-        local names = {"Star","Circle","Diamond","Triangle","Moon","Square","Cross","Skull"}
+        local names = { "Star", "Circle", "Diamond", "Triangle", "Moon", "Square", "Cross", "Skull" }
         GameTooltip:SetText("Raid Marker", 1, 1, 1)
-        GameTooltip:AddLine("Left-click: Set your own marker (" .. (names[idx] or "Unknown") .. ")", 0.8,0.8,0.8,true)
-        GameTooltip:AddLine("Right-click: Clear your marker", 0.8,0.8,0.8,true)
+        GameTooltip:AddLine("Left-click: Set your own marker (" .. (names[idx] or "Unknown") .. ")", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("Right-click: Clear your marker", 0.8, 0.8, 0.8, true)
         -- Inform the user when they are in a group but are not leader/assist; solo players can set their own marker
         if IsInGroup() and not (UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")) then
             GameTooltip:AddLine("Requires group leader or assistant", 1, 0.2, 0.2, true)
@@ -505,7 +518,8 @@ end
 
 function GameMenu:CreateDamageNumbersButton()
     local mod = self
-    damageNumbersButton = BOLT.ButtonUtils:CreateIconButton(nil, self:GetMenuParent(), "Interface\\Icons\\Spell_Fire_FireBolt02")
+    damageNumbersButton = BOLT.ButtonUtils:CreateIconButton(nil, self:GetMenuParent(),
+        "Interface\\Icons\\Spell_Fire_FireBolt02")
     damageNumbersButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
     damageNumbersButton:SetScript("OnClick", function()
         mod:OnDamageNumbersClick()
@@ -514,7 +528,8 @@ function GameMenu:CreateDamageNumbersButton()
         GameTooltip:SetOwner(damageNumbersButton, "ANCHOR_RIGHT")
         local enabled = GetCVar("floatingCombatTextCombatDamage") == "1"
         GameTooltip:SetText("Toggle Damage Numbers", 1, 1, 1)
-        GameTooltip:AddLine("Current: " .. (enabled and "ON" or "OFF"), enabled and 0.0 or 1.0, enabled and 1.0 or 0.0, 0.0, true)
+        GameTooltip:AddLine("Current: " .. (enabled and "ON" or "OFF"), enabled and 0.0 or 1.0, enabled and 1.0 or 0.0,
+            0.0, true)
         GameTooltip:AddLine("Show/hide damage numbers in scrolling combat text", 0.8, 0.8, 0.8, true)
         GameTooltip:Show()
         if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
@@ -526,7 +541,8 @@ end
 
 function GameMenu:CreateHealingNumbersButton()
     local mod = self
-    healingNumbersButton = BOLT.ButtonUtils:CreateIconButton(nil, self:GetMenuParent(), "Interface\\Icons\\Spell_Holy_GreaterHeal")
+    healingNumbersButton = BOLT.ButtonUtils:CreateIconButton(nil, self:GetMenuParent(),
+        "Interface\\Icons\\Spell_Holy_GreaterHeal")
     healingNumbersButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
     healingNumbersButton:SetScript("OnClick", function()
         mod:OnHealingNumbersClick()
@@ -535,7 +551,8 @@ function GameMenu:CreateHealingNumbersButton()
         GameTooltip:SetOwner(healingNumbersButton, "ANCHOR_RIGHT")
         local enabled = GetCVar("floatingCombatTextCombatHealing") == "1"
         GameTooltip:SetText("Toggle Healing Numbers", 1, 1, 1)
-        GameTooltip:AddLine("Current: " .. (enabled and "ON" or "OFF"), enabled and 0.0 or 1.0, enabled and 1.0 or 0.0, 0.0, true)
+        GameTooltip:AddLine("Current: " .. (enabled and "ON" or "OFF"), enabled and 0.0 or 1.0, enabled and 1.0 or 0.0,
+            0.0, true)
         GameTooltip:AddLine("Show/hide healing numbers in scrolling combat text", 0.8, 0.8, 0.8, true)
         GameTooltip:Show()
         if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
@@ -558,7 +575,7 @@ function GameMenu:CreateVolumeButton()
     volumeButton.volumeText:SetTextColor(1, 1, 1)
     volumeButton.volumeText:SetJustifyH("CENTER")
     volumeButton.volumeText:SetWidth(28) -- Match button width
-    volumeButton.volumeText:SetScale(1) -- Smaller scale to fit nicely
+    volumeButton.volumeText:SetScale(1)  -- Smaller scale to fit nicely
 
     -- Left click for mute/unmute, right click for music toggle
     volumeButton:SetScript("OnClick", function(_, button)
@@ -639,8 +656,8 @@ function GameMenu:PositionGroupTools()
 
     -- If only raid marker is visible, anchor it at the bottom
     if raidMarkerButton:IsShown() and
-       (not countdownButton or not countdownButton:IsShown()) and
-       (not readyCheckButton or not readyCheckButton:IsShown()) then
+        (not countdownButton or not countdownButton:IsShown()) and
+        (not readyCheckButton or not readyCheckButton:IsShown()) then
         local anchor = self:GetMenuAnchor()
         if anchor then
             raidMarkerButton:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 8, 12)
@@ -651,7 +668,7 @@ function GameMenu:PositionGroupTools()
 
     -- If countdown exists and is visible but readyCheck may be missing
     if countdownButton and countdownButton:IsShown() and
-       (not readyCheckButton or not readyCheckButton:IsShown()) then
+        (not readyCheckButton or not readyCheckButton:IsShown()) then
         -- countdown is bottom, raid marker above it
         local anchor = self:GetMenuAnchor()
         if anchor then
@@ -907,7 +924,7 @@ function GameMenu:OnRaidMarkerClick(button)
     end
     local idx = self.parent:GetConfig("gameMenu", "raidMarkerIndex") or 1
     SetRaidTarget("player", idx)
-    local names = {"Star","Circle","Diamond","Triangle","Moon","Square","Cross","Skull"}
+    local names = { "Star", "Circle", "Diamond", "Triangle", "Moon", "Square", "Cross", "Skull" }
     self.parent:Print("Set your raid marker: " .. (names[idx] or idx))
 end
 
