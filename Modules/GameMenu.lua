@@ -104,7 +104,8 @@ function GameMenu:DebugCheckLeftoverButtons()
             end
             if self.parent and self.parent.Print then
                 self.parent:Print("Leftover visible button: " ..
-                tostring(name) .. " parent=" .. tostring(parentName) .. " anchoringSecret=" .. tostring(anchoringSecret))
+                    tostring(name) ..
+                    " parent=" .. tostring(parentName) .. " anchoringSecret=" .. tostring(anchoringSecret))
             end
         end
     end
@@ -167,6 +168,22 @@ function GameMenu:OnEnable()
         end)
         self.groupUpdateFrame = f
     end
+
+    -- Watch for loading completion (and world entry) so we can verify the Game Menu state
+    if not self.loadCheckFrame then
+        local lf = CreateFrame("Frame")
+        lf:RegisterEvent("LOADING_SCREEN_DISABLED")
+        lf:RegisterEvent("PLAYER_ENTERING_WORLD")
+        lf:SetScript("OnEvent", function()
+            -- Defer slightly to avoid race conditions with Blizzard's loading handlers
+            C_Timer.After(0.01, function()
+                if self and self.EnsureHiddenIfMenuNotShown then
+                    self:EnsureHiddenIfMenuNotShown()
+                end
+            end)
+        end)
+        self.loadCheckFrame = lf
+    end
 end
 
 function GameMenu:OnDisable()
@@ -228,6 +245,39 @@ function GameMenu:OnDisable()
     if self.menuContainer then
         self.menuContainer:Hide()
         self.menuContainer = nil
+    end
+
+    -- Clean up loading check frame if present
+    if self.loadCheckFrame then
+        self.loadCheckFrame:UnregisterAllEvents()
+        self.loadCheckFrame:SetScript("OnEvent", nil)
+        self.loadCheckFrame = nil
+    end
+end
+
+-- Ensure all menu widgets are hidden when the Game Menu is not shown (used after loading screens / reloads)
+function GameMenu:EnsureHiddenIfMenuNotShown()
+    if GameMenuFrame and GameMenuFrame:IsShown() then
+        return
+    end
+
+    -- Hide the individual widgets (mirrors OnHide behavior)
+    self:HideLeaveGroupButton()
+    self:HideReloadButton()
+    self:HideGroupTools()
+    self:HideBattleTextToggles()
+    self:HideVolumeButton()
+
+    -- Clean up CVAR watcher if present
+    if self.cvarWatcher then
+        self.cvarWatcher:UnregisterAllEvents()
+        self.cvarWatcher:SetScript("OnEvent", nil)
+        self.cvarWatcher = nil
+    end
+
+    -- Hide our container if present
+    if self.menuContainer then
+        self.menuContainer:Hide()
     end
 end
 
