@@ -991,6 +991,37 @@ function GameMenu:OnOpenSettings()
     -- Hide the game menu first (guarded)
     self:SafeHideUIPanel(GameMenuFrame)
 
+    -- Immediately hide our own widgets in case GameMenuFrame's OnHide doesn't fire
+    -- (observed when opening the Settings panel via right-click on the Reload button)
+    self:HideLeaveGroupButton()
+    self:HideReloadButton()
+    self:HideGroupTools()
+    self:HideBattleTextToggles()
+    self:HideVolumeButton()
+
+    -- Clean up CVAR watcher if present (mirror OnHide cleanup)
+    if self.cvarWatcher then
+        self.cvarWatcher:UnregisterEvent("CVAR_UPDATE")
+        self.cvarWatcher:SetScript("OnEvent", nil)
+        self.cvarWatcher = nil
+    end
+
+    -- Debug: check for leftover visible buttons
+    pcall(function()
+        if self.DebugCheckLeftoverButtons then
+            self:DebugCheckLeftoverButtons()
+        end
+    end)
+
+    -- Defer hiding the container (mirror OnHide behavior) to avoid protected-call issues
+    if self.menuContainer then
+        C_Timer.After(0.01, function()
+            if self.menuContainer and (not GameMenuFrame or not GameMenuFrame:IsShown()) then
+                self.menuContainer:Hide()
+            end
+        end)
+    end
+
     -- Small delay to ensure UI is hidden before opening settings; delegate to
     -- the central OpenConfigPanel helper which handles Settings vs legacy UI.
     local mod = self
