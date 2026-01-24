@@ -285,6 +285,20 @@ function GameMenu:HookGameMenu()
     -- Hook the GameMenuFrame show event
     if GameMenuFrame then
         GameMenuFrame:HookScript("OnShow", function()
+            -- If we're suppressing immediate OnShow behavior (e.g., settings are opening), bail out
+            if self.suppressOnShow then
+                -- Clear the suppression shortly after to avoid blocking legitimate menu opens
+                C_Timer.After(0.25, function()
+                    if self then self.suppressOnShow = nil end
+                end)
+                return
+            end
+
+            -- If the B.O.L.T settings/options panel is currently shown, don't show the Game Menu widgets
+            if self.settingsPanelOpen then
+                return
+            end
+
             -- Ensure container exists and is anchored to GameMenuFrame if available
             self:EnsureMenuContainer()
 
@@ -319,11 +333,17 @@ function GameMenu:HookGameMenu()
         end)
 
         GameMenuFrame:HookScript("OnHide", function()
+            -- Hide all widgets immediately to ensure they disappear atomically with the GameMenu
             self:HideLeaveGroupButton()
             self:HideReloadButton()
             self:HideGroupTools()
             self:HideBattleTextToggles()
             self:HideVolumeButton()
+
+            -- Immediately hide our container so any child widgets are hidden at once
+            if self.menuContainer then
+                self.menuContainer:Hide()
+            end
 
             -- Clean up CVAR watcher
             if self.cvarWatcher then
@@ -338,16 +358,6 @@ function GameMenu:HookGameMenu()
                     self:DebugCheckLeftoverButtons()
                 end
             end)
-
-            -- Defer hiding the container to avoid protected-call errors in secure contexts
-            if self.menuContainer then
-                C_Timer.After(0.01, function()
-                    -- Only hide the container if the game menu is no longer shown (avoid race with OnShow)
-                    if self.menuContainer and (not GameMenuFrame or not GameMenuFrame:IsShown()) then
-                        self.menuContainer:Hide()
-                    end
-                end)
-            end
         end)
     end
 end
@@ -1013,14 +1023,18 @@ function GameMenu:OnOpenSettings()
         end
     end)
 
-    -- Defer hiding the container (mirror OnHide behavior) to avoid protected-call issues
+    -- Immediately hide our container to ensure all widgets are hidden at once
     if self.menuContainer then
-        C_Timer.After(0.01, function()
-            if self.menuContainer and (not GameMenuFrame or not GameMenuFrame:IsShown()) then
-                self.menuContainer:Hide()
-            end
-        end)
+        self.menuContainer:Hide()
     end
+
+    -- While we open the settings, suppress our OnShow handler to prevent the menu
+    -- from briefly reappearing when the Settings frame is shown.
+    self.suppressOnShow = true
+    -- Safety: clear the suppression after a short delay in case something goes wrong
+    C_Timer.After(0.6, function()
+        if self then self.suppressOnShow = nil end
+    end)
 
     -- Small delay to ensure UI is hidden before opening settings; delegate to
     -- the central OpenConfigPanel helper which handles Settings vs legacy UI.

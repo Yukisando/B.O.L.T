@@ -95,7 +95,20 @@ end
 function Config:CreateInterfaceOptionsPanel()
     local panel = CreateFrame("Frame", "BOLTOptionsPanel")
     panel.name = "B.O.L.T"
-    panel:SetScript("OnShow", function() self:RefreshAll() end)
+    -- When the options panel shows, mark the GameMenu module so it won't re-show widgets.
+    panel:SetScript("OnShow", function()
+        self:RefreshAll()
+        if self.parent and self.parent.modules and self.parent.modules.gameMenu then
+            self.parent.modules.gameMenu.settingsPanelOpen = true
+            -- Ensure all widgets are hidden immediately when the panel opens
+            self.parent.modules.gameMenu:EnsureHiddenIfMenuNotShown()
+        end
+    end)
+    panel:SetScript("OnHide", function()
+        if self.parent and self.parent.modules and self.parent.modules.gameMenu then
+            self.parent.modules.gameMenu.settingsPanelOpen = nil
+        end
+    end)
 
     local scrollFrame = CreateFrame("ScrollFrame", "BOLTScrollFrame", panel, "UIPanelScrollFrameTemplate")
     scrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 4, -4)
@@ -726,7 +739,7 @@ function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
         :SetSize(370, 1)
     self.toyFrame = toyFrame; self.searchBox = searchBox; self.currentToyButton = currentToy; self.currentToyIcon =
         currentIcon; self.currentToyText = currentText; self.toyScrollFrame = scrollFrame; self.toyScrollChild =
-    scrollChild; self.toyButtons = {}
+        scrollChild; self.toyButtons = {}
     toyFrame:SetScript("OnShow", function()
         C_Timer.After(0.1, function()
             if not self.toyListPopulated then
