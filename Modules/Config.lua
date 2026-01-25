@@ -415,6 +415,51 @@ function Config:CreateInterfaceOptionsPanel()
     self.widgets.invertPitchCheckbox = invertEnable
     y = y - 40
 
+    -- Teleports section
+    local tpLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    tpLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
+    tpLabel:SetText("Teleports")
+    y = y - 24
+
+    local tpEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    tpEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    tpEnable.Text:SetText("Enable Teleports Module")
+    tpEnable:SetScript("OnClick", function(button)
+        local checked = button:GetChecked()
+        self.parent:SetModuleEnabled("teleports", checked)
+        self:UpdateTeleportsChildControls()
+    end)
+    self.widgets.teleportsCheckbox = tpEnable
+    self.widgets.teleportsReloadIndicator = self:CreateReloadIndicator(content, tpEnable)
+    y = y - 30
+
+    local showMapEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    showMapEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    showMapEnable.Text:SetText("Show Teleports on Main Map")
+    showMapEnable:SetScript("OnClick", function(button)
+        self.parent:SetConfig(button:GetChecked(), "teleports", "showOnMap")
+    end)
+    self.widgets.showTeleportsOnMapCheckbox = showMapEnable
+    y = y - 30
+
+    local showAnyMapEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    showAnyMapEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    showAnyMapEnable.Text:SetText("Show teleports even on other map modes (may be approximate)")
+    showAnyMapEnable:SetScript("OnClick", function(button)
+        self.parent:SetConfig(button:GetChecked(), "teleports", "showOnAnyMap")
+    end)
+    self.widgets.showTeleportsAnyMapCheckbox = showAnyMapEnable
+    y = y - 30
+
+    local showOwnedEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    showOwnedEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    showOwnedEnable.Text:SetText("Only show owned/learned teleports")
+    showOwnedEnable:SetScript("OnClick", function(button)
+        self.parent:SetConfig(button:GetChecked(), "teleports", "showOnlyOwned")
+    end)
+    self.widgets.showTeleportsOwnedCheckbox = showOwnedEnable
+    y = y - 36
+
     -- WowheadLink section
     local wlLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     wlLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
@@ -582,6 +627,7 @@ function Config:RefreshAll()
     self:UpdateGameMenuChildControls()
     self:UpdatePlaygroundChildControls()
     self:UpdateSkyridingChildControls()
+    self:UpdateTeleportsChildControls()
     self:UpdateCurrentToyDisplay()
 end
 
@@ -637,6 +683,19 @@ function Config:RefreshOptionsPanel()
         end
         if w.wowheadLinkCheckbox then w.wowheadLinkCheckbox:SetChecked(self.parent:IsModuleEnabled("wowheadLink")) end
         if w.autoRepSwitchCheckbox then w.autoRepSwitchCheckbox:SetChecked(self.parent:IsModuleEnabled("autoRepSwitch")) end
+        if w.teleportsCheckbox then w.teleportsCheckbox:SetChecked(self.parent:IsModuleEnabled("teleports")) end
+        if w.showTeleportsOnMapCheckbox then
+            w.showTeleportsOnMapCheckbox:SetChecked(self.parent:GetConfig("teleports",
+                "showOnMap"))
+        end
+        if w.showTeleportsAnyMapCheckbox then
+            w.showTeleportsAnyMapCheckbox:SetChecked(self.parent:GetConfig("teleports",
+                "showOnAnyMap"))
+        end
+        if w.showTeleportsOwnedCheckbox then
+            w.showTeleportsOwnedCheckbox:SetChecked(self.parent:GetConfig("teleports",
+                "showOnlyOwned"))
+        end
     end)
 end
 
@@ -650,6 +709,24 @@ function Config:UpdateSkyridingChildControls()
     if w.invertPitchCheckbox then
         local should = sk and pitch; w.invertPitchCheckbox:SetEnabled(should); w.invertPitchCheckbox:SetAlpha(should and
             1 or 0.5)
+    end
+end
+
+function Config:UpdateTeleportsChildControls()
+    local enabled = self.parent:IsModuleEnabled("teleports")
+    local w = self.widgets
+    if w.showTeleportsOnMapCheckbox then
+        w.showTeleportsOnMapCheckbox:SetEnabled(enabled); w.showTeleportsOnMapCheckbox:SetAlpha(enabled and 1 or 0.5)
+    end
+    if w.showTeleportsAnyMapCheckbox then
+        w.showTeleportsAnyMapCheckbox:SetEnabled(enabled); w.showTeleportsAnyMapCheckbox:SetAlpha(enabled and 1 or 0.5)
+    end
+    if w.showTeleportsOwnedCheckbox then
+        w.showTeleportsOwnedCheckbox:SetEnabled(enabled); w.showTeleportsOwnedCheckbox:SetAlpha(enabled and 1 or 0.5)
+    end
+    -- If module exists, ask it to refresh its display state
+    if self.parent and self.parent.modules and self.parent.modules.teleports and self.parent.modules.teleports.UpdateMapDisplay then
+        self.parent.modules.teleports:UpdateMapDisplay()
     end
 end
 

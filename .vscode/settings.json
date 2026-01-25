@@ -35,7 +35,9 @@
     "DEFAULT_CHAT_FRAME",
     "BuffFrame",
     "UIDropDownMenu_SetSelectedValue",
-    "ToggleCollectionsJournal"
+    "ToggleCollectionsJournal",
+    "WorldMapFrame",
+    "ItemRefTooltip"
   ],
   "Lua.type.weakUnionCheck": true,
   "workbench.colorCustomizations": {
