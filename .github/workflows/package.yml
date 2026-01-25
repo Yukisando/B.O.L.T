@@ -1,9 +1,7 @@
 name: Package and Upload to CurseForge
 
 on:
-  push:
-    tags:
-      - "v*-*"
+  workflow_dispatch:
 
 jobs:
   package:
