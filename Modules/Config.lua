@@ -442,24 +442,6 @@ function Config:CreateInterfaceOptionsPanel()
     self.widgets.showTeleportsOnMapCheckbox = showMapEnable
     y = y - 30
 
-    local showAnyMapEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    showAnyMapEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
-    showAnyMapEnable.Text:SetText("Show teleports even on other map modes (may be approximate)")
-    showAnyMapEnable:SetScript("OnClick", function(button)
-        self.parent:SetConfig(button:GetChecked(), "teleports", "showOnAnyMap")
-    end)
-    self.widgets.showTeleportsAnyMapCheckbox = showAnyMapEnable
-    y = y - 30
-
-    local showOwnedEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    showOwnedEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
-    showOwnedEnable.Text:SetText("Only show owned/learned teleports")
-    showOwnedEnable:SetScript("OnClick", function(button)
-        self.parent:SetConfig(button:GetChecked(), "teleports", "showOnlyOwned")
-    end)
-    self.widgets.showTeleportsOwnedCheckbox = showOwnedEnable
-    y = y - 30
-
     -- Teleport list label
     local tpListLabel = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     tpListLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
@@ -467,13 +449,33 @@ function Config:CreateInterfaceOptionsPanel()
     self.widgets.teleportListLabel = tpListLabel
     y = y - 20
 
-    -- Teleport list container (will be populated dynamically)
-    local tpListContainer = CreateFrame("Frame", nil, content)
-    tpListContainer:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    -- Teleport list scroll frame background (for visual containment)
+    local tpScrollBg = CreateFrame("Frame", nil, content, "BackdropTemplate")
+    tpScrollBg:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    tpScrollBg:SetSize(520, 200)
+    tpScrollBg:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 }
+    })
+    tpScrollBg:SetBackdropColor(0, 0, 0, 0.5)
+    tpScrollBg:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+    
+    -- Teleport list scroll frame (contained scrollable window)
+    local tpScrollFrame = CreateFrame("ScrollFrame", "BOLTTeleportListScrollFrame", tpScrollBg, "UIPanelScrollFrameTemplate")
+    tpScrollFrame:SetPoint("TOPLEFT", tpScrollBg, "TOPLEFT", 4, -4)
+    tpScrollFrame:SetPoint("BOTTOMRIGHT", tpScrollBg, "BOTTOMRIGHT", -4, 4)
+    
+    -- Create scroll child container
+    local tpListContainer = CreateFrame("Frame", nil, tpScrollFrame)
     tpListContainer:SetSize(500, 200) -- Height will be adjusted dynamically
+    tpScrollFrame:SetScrollChild(tpListContainer)
+    
+    self.widgets.teleportListScrollFrame = tpScrollFrame
     self.widgets.teleportListContainer = tpListContainer
     self.widgets.teleportListRows = {}
-    y = y - 36 -- Initial spacing; will be adjusted when list is populated
+    y = y - 210 -- Account for fixed scroll frame height
 
     -- Store the Y position reference so we can update content height
     self.widgets.teleportListYOffset = y
@@ -539,15 +541,18 @@ function Config:CreateInterfaceOptionsPanel()
     content:SetHeight(math.abs(y) + 100)
     scrollFrame:SetScript("OnSizeChanged", function(frame, w, h) content:SetWidth(w - 20) end)
 
-    -- Register Settings category
+    -- Register Settings category (modern API for 10.0+)
     if Settings and Settings.RegisterCanvasLayoutCategory then
         local category = Settings.RegisterCanvasLayoutCategory(panel, "B.O.L.T")
         self.settingsCategory = category
         Settings.RegisterAddOnCategory(category)
+    elseif InterfaceOptions_AddCategory then
+        -- Fallback for older clients (pre-10.0)
+        InterfaceOptions_AddCategory(panel)
+        self.settingsCategory = panel
     else
         if self.parent and self.parent.Print then
-            self.parent:Print(
-                "B.O.L.T: Settings API not found; options not registered.")
+            self.parent:Print("B.O.L.T: Settings API not available on this client version.")
         end
     end
 
@@ -706,14 +711,6 @@ function Config:RefreshOptionsPanel()
             w.showTeleportsOnMapCheckbox:SetChecked(self.parent:GetConfig("teleports",
                 "showOnMap"))
         end
-        if w.showTeleportsAnyMapCheckbox then
-            w.showTeleportsAnyMapCheckbox:SetChecked(self.parent:GetConfig("teleports",
-                "showOnAnyMap"))
-        end
-        if w.showTeleportsOwnedCheckbox then
-            w.showTeleportsOwnedCheckbox:SetChecked(self.parent:GetConfig("teleports",
-                "showOnlyOwned"))
-        end
     end)
 end
 
@@ -840,9 +837,15 @@ function Config:RefreshTeleportList()
         rowY = rowY - rowHeight
     end
 
-    -- Update container height
-    local totalHeight = math.max(20, #teleportList * rowHeight)
+    -- Update container height to fit all rows (enables scrolling)
+    local totalHeight = math.max(200, #teleportList * rowHeight)
     container:SetHeight(totalHeight)
+    
+    -- Set width to match scroll frame content area
+    if w.teleportListScrollFrame then
+        local scrollFrameWidth = w.teleportListScrollFrame:GetWidth() or 500
+        container:SetWidth(scrollFrameWidth - 20) -- Account for scrollbar
+    end
 
     -- Show "No teleports saved" if empty
     if #teleportList == 0 then

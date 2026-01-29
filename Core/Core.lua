@@ -44,8 +44,6 @@ BOLT.defaults = {
         teleports = {
             enabled = true,
             showOnMap = true,
-            showOnAnyMap = false, -- show pins ONLY on matching map IDs by default (prevents spurious pins on other maps)
-            showOnlyOwned = false,
             teleportList = {} -- User-created teleport locations (use keybind to add)
         }
     }

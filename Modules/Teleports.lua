@@ -8,6 +8,94 @@ BOLT:RegisterModule("teleports", Teleports)
 
 local DEFAULT_ICON = "Interface\\Icons\\INV_Misc_Rune_01"
 
+-- Pin Template Mixin for WorldMap pins (modern approach)
+BOLTTeleportPinMixin = CreateFromMixins(MapCanvasPinMixin)
+
+function BOLTTeleportPinMixin:OnLoad()
+    self:SetScalingLimits(1, 1.0, 1.2)
+    self:UseFrameLevelType("PIN_FRAME_LEVEL_AREA_POI")
+end
+
+function BOLTTeleportPinMixin:OnAcquired()
+    -- Set up the pin icon
+    if not self.Icon then
+        self.Icon = self:CreateTexture(nil, "ARTWORK")
+        self.Icon:SetSize(20, 20)
+        self.Icon:SetPoint("CENTER")
+        
+        -- Add background for visibility
+        self.Bg = self:CreateTexture(nil, "BACKGROUND")
+        self.Bg:SetSize(22, 22)
+        self.Bg:SetPoint("CENTER")
+        self.Bg:SetColorTexture(0, 0, 0, 0.6)
+    end
+    
+    if self.entry then
+        local icon = self.entry.icon or DEFAULT_ICON
+        if tonumber(icon) then
+            self.Icon:SetTexture(tonumber(icon))
+        else
+            self.Icon:SetTexture(icon)
+        end
+        
+        -- Make sure textures are visible
+        self.Icon:Show()
+        self.Bg:Show()
+        
+        if self.teleportsModule then
+            self.teleportsModule:Debug("Pin OnAcquired: " .. (self.entry.name or "?") .. " with icon " .. tostring(icon))
+        end
+    end
+end
+
+function BOLTTeleportPinMixin:OnMouseEnter()
+    if not self.entry then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    
+    if self.entry.type == "item" and self.entry.id then
+        if GameTooltip.SetItemByID then
+            GameTooltip:SetItemByID(self.entry.id)
+        else
+            GameTooltip:SetText(self.entry.name or "Teleport")
+        end
+    elseif self.entry.type == "spell" and self.entry.id then
+        if GameTooltip.SetSpellByID then
+            GameTooltip:SetSpellByID(self.entry.id)
+        else
+            GameTooltip:SetText(self.entry.name or "Teleport")
+        end
+    else
+        GameTooltip:SetText(self.entry.name or "Teleport")
+        if self.entry.desc then
+            GameTooltip:AddLine(self.entry.desc, 1, 1, 1)
+        end
+    end
+    GameTooltip:Show()
+end
+
+function BOLTTeleportPinMixin:OnMouseLeave()
+    GameTooltip:Hide()
+end
+
+function BOLTTeleportPinMixin:OnMouseClickAction(button)
+    if button ~= "LeftButton" or not self.entry then return end
+    
+    -- Use the spell/item/toy name to cast
+    local castName = self.entry.spellName or self.entry.name
+    if not castName then return end
+    
+    if self.entry.type == "spell" then
+        C_Spell.CastSpell(castName)
+    elseif self.entry.type == "toy" then
+        C_ToyBox.PickupToyBoxItem(self.entry.id or castName)
+    elseif self.entry.type == "item" then
+        UseItemByName(castName)
+    else
+        -- Fallback to slash command
+        ChatFrame1:AddMessage("/cast " .. castName, 1, 1, 0)
+    end
+end
+
 local function SafeCall(fn, ...)
     local ok, res = pcall(fn, ...)
     if not ok then return nil end
@@ -16,8 +104,25 @@ end
 
 function Teleports:OnInitialize()
     -- Nothing heavy on init; data comes from saved profile defaults
-    self.pinPool = {}
-    self.pinsShown = {}
+    self:CreateDataProvider()
+end
+
+-- Get the combined list of default + user teleports
+function Teleports:GetTeleportList()
+    local defaultTeleports = BOLT.DefaultTeleports or {}
+    local cfg = self.parent:GetConfig("teleports") or {}
+    local userTeleports = cfg.userTeleportList or {}
+    
+    -- Merge both lists (defaults first, then user additions)
+    local combined = {}
+    for _, entry in ipairs(defaultTeleports) do
+        table.insert(combined, entry)
+    end
+    for _, entry in ipairs(userTeleports) do
+        table.insert(combined, entry)
+    end
+    
+    return combined
 end
 
 -- Debug logging helper: only outputs when BOLT debug mode is enabled
@@ -30,159 +135,115 @@ function Teleports:Debug(msg)
     end
 end
 
-function Teleports:CreateContainer()
-    if self.container then return end
-    local parent = nil
-    -- Prefer the Map ScrollContainer (modern UI), fall back to WorldMapFrame canvas or the frame itself
-    if WorldMapFrame and WorldMapFrame.ScrollContainer and WorldMapFrame.ScrollContainer.GetCanvas then
-        parent = WorldMapFrame.ScrollContainer:GetCanvas() -- anchor directly to the canvas for correct scaling and zoom behavior
-    elseif WorldMapFrame and WorldMapFrame.GetCanvas then
-        parent = WorldMapFrame:GetCanvas()
-    elseif WorldMapFrame then
-        parent = WorldMapFrame
-    else
-        parent = UIParent
-    end
-
-    local c = CreateFrame("Frame", "BOLTTeleportMapOverlay", parent)
-    c:SetAllPoints(parent)
-    c:SetFrameStrata("MEDIUM")
-    c:SetFrameLevel((parent:GetFrameLevel() or 0) + 50)
-    c:SetScale(1)
-    c:EnableMouse(false) -- Don't block mouse events for native map pins
-    c:Hide()
-    self.container = c
-
-    -- Hook parent size changes in case canvas is not initialized immediately
-    if parent and type(parent.HookScript) == "function" then
-        parent:HookScript("OnSizeChanged", function()
-            C_Timer.After(0.01, function()
-                if self and self.RefreshPins then
-                    self:RefreshPins()
+-- Create Data Provider for WorldMap pins (modern approach)
+function Teleports:CreateDataProvider()
+    if self.dataProvider then return end
+    
+    -- Create the data provider
+    local provider = CreateFromMixins(MapCanvasDataProviderMixin)
+    provider.teleportsModule = self
+    
+    function provider:RefreshAllData()
+        if not self:GetMap() then 
+            print("BOLT Teleports: No map found")
+            return 
+        end
+        self:GetMap():RemoveAllPinsByTemplate("BOLTTeleportPinTemplate")
+        
+        local teleportsModule = self.teleportsModule
+        if not teleportsModule then 
+            print("BOLT Teleports: No module reference")
+            return 
+        end
+        
+        local cfg = teleportsModule.parent:GetConfig("teleports") or {}
+        if not cfg or not cfg.showOnMap then 
+            print("BOLT Teleports: Module disabled or showOnMap=false")
+            return 
+        end
+        
+        local currentMapID = self:GetMap():GetMapID()
+        if not currentMapID then 
+            print("BOLT Teleports: No current map ID")
+            return 
+        end
+        
+        -- Use the combined list (defaults + user additions)
+        local list = teleportsModule:GetTeleportList()
+        print("BOLT Teleports: RefreshAllData - currentMapID=" .. tostring(currentMapID) .. ", " .. #list .. " teleports in list")
+        
+        local pinCount = 0
+        for i, entry in ipairs(list) do
+            -- Inline the projection logic to avoid function call issues
+            local projX, projY, canProject = nil, nil, false
+            
+            if entry and entry.mapID and entry.x and entry.y then
+                -- Entry coordinates are already normalized (0-1)
+                if entry.mapID == currentMapID then
+                    -- Exact match
+                    projX, projY, canProject = entry.x, entry.y, true
+                elseif C_Map and C_Map.GetWorldPosFromMapPos and C_Map.GetMapPosFromWorldPos then
+                    -- Try to project to parent map
+                    local continentID, worldPos = C_Map.GetWorldPosFromMapPos(entry.mapID, CreateVector2D(entry.x, entry.y))
+                    if continentID and worldPos then
+                        local mapPos = C_Map.GetMapPosFromWorldPos(continentID, worldPos, currentMapID)
+                        if mapPos then
+                            local px, py = mapPos:GetXY()
+                            if px and py and px >= 0 and px <= 1 and py >= 0 and py <= 1 then
+                                projX, projY, canProject = px, py, true
+                            end
+                        end
+                    end
                 end
-            end)
-        end)
-    end
-
-    -- Create "Add Teleport" button anchored to World Map (bottom right)
-    self:CreateAddTeleportButton()
-end
-
-function Teleports:CreateAddTeleportButton()
-    if self.addButton then return end
-
-    local btn = CreateFrame("Button", "BOLTAddTeleportMapButton", WorldMapFrame, "UIPanelButtonTemplate")
-    btn:SetSize(140, 22)
-    btn:SetPoint("BOTTOMRIGHT", WorldMapFrame, "BOTTOMRIGHT", -60, 30)
-    btn:SetText("Add Teleport Here")
-    btn:SetFrameStrata("HIGH")
-    btn:SetFrameLevel(1000)
-    btn:SetScript("OnClick", function()
-        self:ShowAddTeleportPopup()
-    end)
-    btn:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:SetText("Add Teleport Location")
-        GameTooltip:AddLine("Click to save a teleport at your cursor position.", 1, 1, 1, true)
-        GameTooltip:AddLine("You can also use a keybind (set in Key Bindings).", 0.7, 0.7, 0.7, true)
-        GameTooltip:Show()
-    end)
-    btn:SetScript("OnLeave", function()
-        GameTooltip:Hide()
-    end)
-
-    self.addButton = btn
-end
-
-local function AcquirePin(self)
-    for _, p in ipairs(self.pinPool) do
-        if not p._inUse then
-            p._inUse = true
-            p:Show()
-            return p
-        end
-    end
-    local btn = CreateFrame("Button", nil, self.container, "SecureActionButtonTemplate")
-    btn:SetSize(22, 22)
-    btn.icon = btn:CreateTexture(nil, "ARTWORK")
-    btn.icon:SetAllPoints(btn)
-    btn.icon:SetTexCoord(0, 1, 0, 1)
-
-    -- subtle border/background to improve visibility against map textures
-    btn.bg = btn:CreateTexture(nil, "BACKGROUND")
-    btn.bg:SetPoint("CENTER", btn, "CENTER", 0, 0)
-    btn.bg:SetSize(22, 22)
-    btn.bg:SetColorTexture(0, 0, 0, 0.6)
-
-    btn:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
-    btn._inUse = true
-    table.insert(self.pinPool, btn)
-
-    -- Ensure pin is visible above underlying map layers
-    if self.container then
-        btn:SetFrameLevel(self.container:GetFrameLevel() + 10)
-    end
-
-    btn:SetScript("OnEnter", function(b)
-        local entry = b._entry
-        if not entry then return end
-        GameTooltip:SetOwner(b, "ANCHOR_RIGHT")
-        if entry.type == "item" and entry.id then
-            if GameTooltip.SetItemByID then
-                GameTooltip:SetItemByID(entry.id)
-            else
-                local name = entry.name or (entry.id and GetItemInfo(entry.id)) or "Unknown"
-                GameTooltip:SetText(name)
             end
-        elseif entry.type == "spell" and entry.id then
-            if GameTooltip.SetSpellByID then
-                GameTooltip:SetSpellByID(entry.id)
-            else
-                GameTooltip:SetText(entry.name or "Spell")
+            
+            print(string.format("BOLT: Entry %d '%s': canProject=%s, x=%s, y=%s", 
+                i, entry.name or "?", tostring(canProject), tostring(projX), tostring(projY)))
+            
+            if canProject and projX and projY then
+                local pin = self:GetMap():AcquirePin("BOLTTeleportPinTemplate")
+                if pin then
+                    pin:SetPosition(projX, projY)
+                    pin.entry = entry
+                    pin.teleportsModule = teleportsModule
+                    pinCount = pinCount + 1
+                    print(string.format("BOLT: ✓ Pin #%d for '%s' at %.3f, %.3f", 
+                        pinCount, entry.name, projX, projY))
+                else
+                    print("BOLT: ✗ Failed to acquire pin template!")
+                end
             end
-        else
-            GameTooltip:SetText(entry.name or "Teleport")
-            if entry.desc then GameTooltip:AddLine(entry.desc, 1, 1, 1) end
         end
-        GameTooltip:Show()
+        
+        print("BOLT: Refresh complete. " .. pinCount .. " pins created.")
+    end
+    
+    function provider:RemoveAllData()
+        if self:GetMap() then
+            self:GetMap():RemoveAllPinsByTemplate("BOLTTeleportPinTemplate")
+        end
+    end
+    
+    self.dataProvider = provider
+end
+
+function Teleports:SetupMouseClickHandler()
+    if self.mouseHandler then return end
+    
+    -- Create a frame to capture mouse clicks on the world map
+    local handler = CreateFrame("Frame", nil, WorldMapFrame)
+    handler:SetAllPoints(WorldMapFrame.ScrollContainer)
+    handler:SetFrameStrata("DIALOG")
+    handler:EnableMouse(true)
+    handler:RegisterForClicks("MiddleButtonUp")
+    
+    handler:SetScript("OnMouseUp", function(frame, button)
+        if button == "MiddleButton" then
+            self:ShowAddTeleportPopup()
+        end
     end)
-
-    btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
-
-    -- Register for clicks to use secure attributes
-    btn:RegisterForClicks("AnyUp", "AnyDown")
-
-    return btn
-end
-
-local function ReleaseAllPins(self)
-    local count = 0
-    for _, p in ipairs(self.pinPool) do
-        if p._inUse then count = count + 1 end
-        p._inUse = false
-        p:Hide()
-    end
-    self.pinsShown = {}
-    if self.parent and self.parent.Debug then
-        self.parent:Debug("Teleports: released " .. tostring(count) .. " pins")
-    end
-end
-
-local function CheckOwned(entry)
-    if not entry then return false end
-    if entry.type == "item" and entry.id then
-        local count = GetItemCount(entry.id) or 0
-        return count > 0
-    elseif entry.type == "spell" and entry.id then
-        if IsSpellKnown then
-            return IsSpellKnown(entry.id)
-        else
-            -- Best effort: try GetSpellInfo
-            local name = entry.spellName or entry.name
-            return name and IsSpellKnown(name)
-        end
-    end
-    return true
+    
+    self.mouseHandler = handler
 end
 
 -- Project coordinates from entry's mapID to the currently displayed map.
@@ -224,141 +285,9 @@ local function ProjectToCurrentMap(entry, currentMapID)
 end
 
 function Teleports:RefreshPins()
-    if not self.container then self:CreateContainer() end
-    if not self.container then return end
-
-    ReleaseAllPins(self)
-
-    local cfg = self.parent:GetConfig("teleports") or {}
-    if not cfg or not cfg.showOnMap then
-        return
-    end
-
-    -- Determine current map ID of the displayed world map
-    local currentMapID = nil
-    if WorldMapFrame and WorldMapFrame.GetMapID then
-        currentMapID = SafeCall(WorldMapFrame.GetMapID, WorldMapFrame)
-    end
-    if not currentMapID and C_Map and C_Map.GetBestMapForUnit then
-        currentMapID = C_Map.GetBestMapForUnit("player")
-    end
-
-    local list = cfg.teleportList or {}
-    -- If saved list is empty, nothing to show
-    if not list or not next(list) then
-        self:Debug("RefreshPins: No teleports in list")
-        return
-    end
-    
-    self:Debug("RefreshPins: Found " .. #list .. " teleport(s), currentMapID=" .. tostring(currentMapID))
-
-    -- Determine canvas dimensions with robust fallbacks
-    local canvas = self.container
-    local w, h = canvas:GetWidth(), canvas:GetHeight()
-    if (not w or w == 0) and canvas:GetParent() then w = canvas:GetParent():GetWidth() end
-    if (not h or h == 0) and canvas:GetParent() then h = canvas:GetParent():GetHeight() end
-    if not w or w == 0 then w = UIParent:GetWidth() or 1024 end
-    if not h or h == 0 then h = UIParent:GetHeight() or 768 end
-
-    -- If the container is hidden for any reason, show it while placing pins
-    if WorldMapFrame and WorldMapFrame:IsShown() then
-        canvas:Show()
-    end
-
-    -- If the canvas has zero size, schedule a few retries (sometimes the map canvas isn't ready instantly)
-    self._refreshAttempts = (self._refreshAttempts or 0) + 1
-    if (not w or w == 0 or not h or h == 0) and (self._refreshAttempts or 0) < 6 then
-        C_Timer.After(0.05, function()
-            if self and self.RefreshPins then self:RefreshPins() end
-        end)
-        return
-    end
-
-    local placed = 0
-    for _, entry in ipairs(list) do
-        local debugBypass = false
-        if self.parent and self.parent.GetConfig then
-            debugBypass = self.parent:GetConfig("debug") or false
-        end
-
-        local showAny = cfg.showOnAnyMap or false
-
-        -- Try to project entry coordinates onto the current map
-        local projX, projY, canProject = ProjectToCurrentMap(entry, currentMapID)
-
-        -- Determine if we should show this pin
-        local mapMatch = debugBypass or canProject
-        -- If showAnyMap is enabled and we couldn't project, use raw coords
-        if showAny and not canProject then
-            projX = entry.x or 0.5
-            projY = entry.y or 0.5
-            mapMatch = true
-        end
-        local owned = (not cfg.showOnlyOwned) or CheckOwned(entry)
-
-        self:Debug(string.format("Entry '%s': mapMatch=%s, owned=%s, canProject=%s", 
-            entry.name or "?", tostring(mapMatch), tostring(owned), tostring(canProject)))
-
-        if entry and mapMatch then
-            if owned then
-                local p = AcquirePin(self)
-                if not p then
-                    break
-                end
-                p._entry = entry
-                local icon = entry.icon or DEFAULT_ICON
-                p.icon:SetTexture(icon)
-                p:SetSize(20, 20)
-                p.bg:SetSize(20, 20)
-
-                -- Set up secure action button attributes based on entry type
-                -- This allows clicking to cast spells / use items / toys like macros
-                local castName = entry.spellName or entry.name
-                if entry.type == "spell" then
-                    p:SetAttribute("type", "spell")
-                    p:SetAttribute("spell", castName)
-                elseif entry.type == "toy" then
-                    p:SetAttribute("type", "toy")
-                    p:SetAttribute("toy", castName)
-                elseif entry.type == "item" then
-                    p:SetAttribute("type", "item")
-                    p:SetAttribute("item", castName)
-                else
-                    -- Fallback to macro for flexibility
-                    p:SetAttribute("type", "macro")
-                    p:SetAttribute("macrotext", "/cast " .. castName)
-                end
-
-                local px, py = nil, nil
-                -- Use projected coordinates for placement
-                if w and h and w > 0 and h > 0 then
-                    px = (projX or 0.5) * w
-                    -- Y coordinate: WoW map coords have origin at top-left, so no inversion needed
-                    py = (projY or 0.5) * h
-                else
-                    -- fallback: place in center (visible) and mark for retry
-                    px = (projX or 0.5) * (UIParent:GetWidth() or 1024)
-                    py = (projY or 0.5) * (UIParent:GetHeight() or 768)
-                end
-
-                p:ClearAllPoints()
-                p:SetPoint("TOPLEFT", canvas, "TOPLEFT", px - (p:GetWidth() / 2), -py + (p:GetHeight() / 2))
-                p:Show()
-                placed = placed + 1
-            end
-        end
-    end
-
-    -- Ensure container visible while World Map is open
-    if WorldMapFrame and WorldMapFrame:IsShown() then
-        canvas:Show()
-    end
-
-    -- Keep container visible while the World Map is open; otherwise hide it
-    if WorldMapFrame and WorldMapFrame:IsShown() then
-        canvas:Show()
-    else
-        canvas:Hide()
+    -- Modern approach: just refresh the data provider
+    if self.dataProvider and WorldMapFrame then
+        self.dataProvider:RefreshAllData()
     end
 end
 
@@ -373,30 +302,23 @@ function Teleports:OnEnable()
     if not self.parent:GetConfig("teleports", "enabled") then
         return
     end
-    self:CreateContainer()
+    
+    -- Setup middle mouse click handler for adding teleports
+    self:SetupMouseClickHandler()
 
-    -- Show the add button if it exists
-    if self.addButton then
-        self.addButton:Show()
+    -- Add the data provider to the WorldMap
+    if WorldMapFrame and self.dataProvider then
+        WorldMapFrame:AddDataProvider(self.dataProvider)
     end
 
-    -- Event-driven refresh (robust across UI versions)
+    -- Event-driven refresh
     if not self.eventFrame then
         local ef = CreateFrame("Frame")
         ef:RegisterEvent("PLAYER_LOGIN")
         ef:RegisterEvent("PLAYER_ENTERING_WORLD")
-        -- WORLD_MAP_UPDATE is not a valid event in some clients; remove to avoid spam
         ef:RegisterEvent("ZONE_CHANGED_NEW_AREA")
-        ef:RegisterEvent("BAG_UPDATE")
-        ef:RegisterEvent("SPELLS_CHANGED")
-        ef:RegisterEvent("TOYS_UPDATED")
         ef:SetScript("OnEvent", function(_, event, ...)
-            -- Only refresh map pins when the main map is visible or on login
             if WorldMapFrame and WorldMapFrame:IsShown() then
-                if self.container then self.container:Show() end
-                self:RefreshPins()
-            end
-            if event == "PLAYER_LOGIN" then
                 self:RefreshPins()
             end
         end)
@@ -405,27 +327,27 @@ function Teleports:OnEnable()
 
     if WorldMapFrame then
         WorldMapFrame:HookScript("OnShow", function()
-            if self.container then self.container:Show() end
-            if self.addButton then self.addButton:Show() end
             self:RefreshPins()
-        end)
-        WorldMapFrame:HookScript("OnHide", function()
-            if self.container then self.container:Hide() end
-            ReleaseAllPins(self)
         end)
     end
 
     -- Refresh now in case map is already open
     if WorldMapFrame and WorldMapFrame:IsShown() then
-        if self.container then self.container:Show() end
         self:RefreshPins()
     end
 end
 
 function Teleports:OnDisable()
-    if self.container then self.container:Hide() end
-    if self.addButton then self.addButton:Hide() end
-    ReleaseAllPins(self)
+    if self.mouseHandler then 
+        self.mouseHandler:Hide()
+        self.mouseHandler = nil
+    end
+    
+    -- Remove data provider from WorldMap
+    if WorldMapFrame and self.dataProvider and WorldMapFrame.dataProviders then
+        WorldMapFrame:RemoveDataProvider(self.dataProvider)
+    end
+    
     if self.eventFrame then
         self.eventFrame:UnregisterAllEvents()
         self.eventFrame:SetScript("OnEvent", nil)
@@ -437,18 +359,12 @@ end
 function Teleports:Dump()
     local t = self
     if not t then return end
-    local poolsize = t.pinPool and #t.pinPool or 0
     local cfg = (self.parent and self.parent.GetConfig) and self.parent:GetConfig("teleports") or {}
     self:Debug(
         "Dump: enabled=" ..
         tostring((self.parent and self.parent:IsModuleEnabled("teleports"))) ..
-        " showOnMap=" .. tostring(cfg.showOnMap) .. " pool=" .. tostring(poolsize))
-    if self.container then
-        self:Debug(
-            "Container shown=" ..
-            tostring(self.container:IsShown()) ..
-            " size=" .. tostring(self.container:GetWidth()) .. "x" .. tostring(self.container:GetHeight()))
-    end
+        " showOnMap=" .. tostring(cfg.showOnMap) ..
+        " dataProvider=" .. tostring(self.dataProvider ~= nil))
 end
 
 -------------------------------------------------
@@ -458,7 +374,7 @@ end
 function Teleports:ShowAddTeleportPopup()
     if not WorldMapFrame or not WorldMapFrame:IsShown() then
         if self.parent and self.parent.Print then
-            self.parent:Print("Teleports: Open the World Map first to add a teleport at your cursor location.")
+            self.parent:Print("Teleports: Open the World Map first.")
         end
         return
     end
@@ -470,16 +386,11 @@ function Teleports:ShowAddTeleportPopup()
     -- Get current map info
     local mapID = WorldMapFrame:GetMapID()
     
-    -- Try to get cursor position on the map canvas
+    -- Get cursor position on the map (normalized 0-1)
     local cursorX, cursorY = 0.5, 0.5
     if WorldMapFrame.ScrollContainer and WorldMapFrame.ScrollContainer.GetNormalizedCursorPosition then
         local cx, cy = WorldMapFrame.ScrollContainer:GetNormalizedCursorPosition()
-        if cx and cy and cx >= 0 and cx <= 1 and cy >= 0 and cy <= 1 then
-            cursorX, cursorY = cx, cy
-        end
-    elseif WorldMapFrame.GetNormalizedCursorPosition then
-        local cx, cy = WorldMapFrame:GetNormalizedCursorPosition()
-        if cx and cy and cx >= 0 and cx <= 1 and cy >= 0 and cy <= 1 then
+        if cx and cy then
             cursorX, cursorY = cx, cy
         end
     end
@@ -526,7 +437,7 @@ function Teleports:CreateAddTeleportPopup()
     -- Title
     local title = popup:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOP", popup, "TOP", 0, -20)
-    title:SetText("Add Teleport Location")
+    title:SetText("Add Teleport at Cursor")
 
     -- Map info label
     local mapLabel = popup:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -537,7 +448,7 @@ function Teleports:CreateAddTeleportPopup()
     -- Display name input (for the pin label)
     local nameLabel = popup:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     nameLabel:SetPoint("TOPLEFT", popup, "TOPLEFT", 25, -70)
-    nameLabel:SetText("Display Name:")
+    nameLabel:SetText("Name (required):")
 
     local nameInput = CreateFrame("EditBox", nil, popup, "InputBoxTemplate")
     nameInput:SetPoint("LEFT", nameLabel, "RIGHT", 10, 0)
@@ -549,7 +460,7 @@ function Teleports:CreateAddTeleportPopup()
     -- Spell/Item/Toy Name input (macro-style, e.g. "Teleport: Stormwind")
     local spellNameLabel = popup:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     spellNameLabel:SetPoint("TOPLEFT", nameLabel, "BOTTOMLEFT", 0, -20)
-    spellNameLabel:SetText("Spell/Item/Toy Name:")
+    spellNameLabel:SetText("Spell/Item Name (optional):")
 
     local spellNameInput = CreateFrame("EditBox", nil, popup, "InputBoxTemplate")
     spellNameInput:SetPoint("LEFT", spellNameLabel, "RIGHT", 10, 0)
@@ -602,7 +513,7 @@ function Teleports:CreateAddTeleportPopup()
     helpText:SetPoint("TOPLEFT", idLabel, "BOTTOMLEFT", 0, -10)
     helpText:SetWidth(350)
     helpText:SetJustifyH("LEFT")
-    helpText:SetText("|cFFAAAAAATip: Use exact spell/item/toy names like macros.\nExamples: 'Teleport: Stormwind', 'Hearthstone', 'Dalaran Hearthstone'|r")
+    helpText:SetText("|cFFAAAAAATip: Use middle mouse button on the map to add teleports.\nOnly name is required. Add spell/item name if you want it clickable.|r")
 
     -- Save button
     local saveBtn = CreateFrame("Button", nil, popup, "UIPanelButtonTemplate")
@@ -643,18 +554,17 @@ function Teleports:SaveTeleportFromPopup()
     local idText = popup.idInput:GetText()
     local id = tonumber(idText)
 
-    -- Require at least display name and spell/item name
+    -- Only require display name
     if not displayName or displayName == "" then
         if self.parent and self.parent.Print then
-            self.parent:Print("Teleports: Please enter a display name.")
+            self.parent:Print("Teleports: Please enter a name.")
         end
         return
     end
+    
+    -- Use display name as spell name if not provided
     if not spellName or spellName == "" then
-        if self.parent and self.parent.Print then
-            self.parent:Print("Teleports: Please enter a spell/item/toy name (e.g. 'Teleport: Stormwind').")
-        end
-        return
+        spellName = displayName
     end
 
     -- Try to get icon from ID if provided, otherwise use a default based on type
@@ -699,49 +609,81 @@ function Teleports:SaveTeleportFromPopup()
         y = popup.y,
         icon = icon,
         type = entryType,
-        id = id  -- Optional, for tooltip/icon lookup
+        id = id,  -- Optional, for tooltip/icon lookup
+        isUserAdded = true  -- Mark as user-added
     }
 
-    -- Get current list and add the entry
+    -- Get current user list and add the entry
     local cfg = self.parent:GetConfig("teleports") or {}
-    local list = cfg.teleportList or {}
+    local list = cfg.userTeleportList or {}
     table.insert(list, entry)
 
-    -- Save back to config
-    self.parent:SetConfig(list, "teleports", "teleportList")
+    -- Save back to config (only user additions, not defaults)
+    self.parent:SetConfig(list, "teleports", "userTeleportList")
 
     if self.parent and self.parent.Print then
         self.parent:Print(string.format("Teleports: Added '%s' (%s) at map %d (%.1f%%, %.1f%%)", displayName, spellName, popup.mapID, popup.x * 100, popup.y * 100))
     end
 
     popup:Hide()
+    
+    -- Force immediate refresh
     self:RefreshPins()
+    print("BOLT: Teleport added. Total teleports: " .. #list .. ". Refreshing map...")
 end
 
 -- Delete a teleport entry by index
 function Teleports:DeleteTeleport(index)
-    local cfg = self.parent:GetConfig("teleports") or {}
-    local list = cfg.teleportList or {}
-    if index > 0 and index <= #list then
-        local removed = table.remove(list, index)
-        self.parent:SetConfig(list, "teleports", "teleportList")
-        if self.parent and self.parent.Print and removed then
-            self.parent:Print("Teleports: Removed '" .. tostring(removed.name) .. "'")
+    local combined = self:GetTeleportList()
+    if index <= 0 or index > #combined then return end
+    
+    local entry = combined[index]
+    if entry.isUserAdded then
+        -- Find and remove from user list
+        local cfg = self.parent:GetConfig("teleports") or {}
+        local userList = cfg.userTeleportList or {}
+        for i, userEntry in ipairs(userList) do
+            if userEntry == entry then
+                table.remove(userList, i)
+                self.parent:SetConfig(userList, "teleports", "userTeleportList")
+                if self.parent and self.parent.Print then
+                    self.parent:Print("Teleports: Removed '" .. tostring(entry.name) .. "'")
+                end
+                self:RefreshPins()
+                return
+            end
         end
-        self:RefreshPins()
+    else
+        if self.parent and self.parent.Print then
+            self.parent:Print("Teleports: Cannot delete default teleport. Only user-added pins can be deleted.")
+        end
     end
 end
 
 -- Update an existing teleport entry
 function Teleports:UpdateTeleport(index, newData)
-    local cfg = self.parent:GetConfig("teleports") or {}
-    local list = cfg.teleportList or {}
-    if index > 0 and index <= #list then
-        for k, v in pairs(newData) do
-            list[index][k] = v
+    local combined = self:GetTeleportList()
+    if index <= 0 or index > #combined then return end
+    
+    local entry = combined[index]
+    if entry.isUserAdded then
+        -- Find and update in user list
+        local cfg = self.parent:GetConfig("teleports") or {}
+        local userList = cfg.userTeleportList or {}
+        for i, userEntry in ipairs(userList) do
+            if userEntry == entry then
+                for k, v in pairs(newData) do
+                    userList[i][k] = v
+                end
+                self.parent:SetConfig(userList, "teleports", "userTeleportList")
+                self:RefreshPins()
+                return
+            end
         end
-        self.parent:SetConfig(list, "teleports", "teleportList")
-        self:RefreshPins()
+    else
+        if self.parent and self.parent.Print then
+            self.parent:Print("Teleports: Cannot edit default teleport. Only user-added pins can be edited.")
+        end
     end
 end
 

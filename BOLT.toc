@@ -22,6 +22,9 @@ Core\Database.lua
 Core\Utils.lua
 Core\ButtonUtils.lua
 
+# Data files
+Data\TeleportData.lua
+
 # Modules
 Modules\Config.lua
 Modules\GameMenu.lua
@@ -30,4 +33,5 @@ Modules\Playground.lua
 Modules\SpecialGamemode.lua
 Modules\WowheadLink.lua
 Modules\AutoRepSwitch.lua
+TeleportPins.xml
 Modules\Teleports.lua

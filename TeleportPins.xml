@@ -1,0 +1,22 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/">
+    <Button name="BOLTTeleportPinTemplate" mixin="BOLTTeleportPinMixin" virtual="true">
+        <Size x="20" y="20"/>
+        <Scripts>
+            <OnLoad>
+                self:OnLoad()
+            </OnLoad>
+            <OnAcquired>
+                self:OnAcquired()
+            </OnAcquired>
+            <OnEnter>
+                self:OnMouseEnter()
+            </OnEnter>
+            <OnLeave>
+                self:OnMouseLeave()
+            </OnLeave>
+            <OnClick>
+                self:OnMouseClickAction(button)
+            </OnClick>
+        </Scripts>
+    </Button>
+</Ui>

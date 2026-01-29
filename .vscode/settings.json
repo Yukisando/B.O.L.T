@@ -41,7 +41,10 @@
     "UISpecialFrames",
     "StaticPopupDialogs",
     "StaticPopup_Show",
-    "CloseDropDownMenus"
+    "CloseDropDownMenus",
+    "MapCanvasDataProviderMixin",
+    "MapCanvasPinMixin",
+    "ChatFrame1"
   ],
   "Lua.type.weakUnionCheck": true,
   "workbench.colorCustomizations": {
