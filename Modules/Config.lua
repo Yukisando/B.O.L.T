@@ -442,6 +442,15 @@ function Config:CreateInterfaceOptionsPanel()
     self.widgets.showTeleportsOnMapCheckbox = showMapEnable
     y = y - 30
 
+    local editModeEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    editModeEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    editModeEnable.Text:SetText("Edit Mode (Allow adding/removing teleport pins)")
+    editModeEnable:SetScript("OnClick", function(button)
+        self.parent:SetConfig(button:GetChecked(), "teleports", "editMode")
+    end)
+    self.widgets.teleportsEditModeCheckbox = editModeEnable
+    y = y - 30
+
     -- Teleport list label
     local tpListLabel = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     tpListLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
@@ -711,6 +720,11 @@ function Config:RefreshOptionsPanel()
             w.showTeleportsOnMapCheckbox:SetChecked(self.parent:GetConfig("teleports",
                 "showOnMap"))
         end
+        if w.teleportsEditModeCheckbox then
+            local cfg = self.parent:GetConfig("teleports") or {}
+            local editMode = cfg.editMode or false  -- Default to false
+            w.teleportsEditModeCheckbox:SetChecked(editMode)
+        end
     end)
 end
 
@@ -730,20 +744,67 @@ end
 function Config:UpdateTeleportsChildControls()
     local enabled = self.parent:IsModuleEnabled("teleports")
     local w = self.widgets
+    
+    -- Hide/show all teleport child controls
     if w.showTeleportsOnMapCheckbox then
-        w.showTeleportsOnMapCheckbox:SetEnabled(enabled); w.showTeleportsOnMapCheckbox:SetAlpha(enabled and 1 or 0.5)
+        if enabled then
+            w.showTeleportsOnMapCheckbox:Show()
+            w.showTeleportsOnMapCheckbox:SetEnabled(true)
+            w.showTeleportsOnMapCheckbox:SetAlpha(1)
+        else
+            w.showTeleportsOnMapCheckbox:Hide()
+        end
+    end
+    if w.teleportsEditModeCheckbox then
+        if enabled then
+            w.teleportsEditModeCheckbox:Show()
+            w.teleportsEditModeCheckbox:SetEnabled(true)
+            w.teleportsEditModeCheckbox:SetAlpha(1)
+        else
+            w.teleportsEditModeCheckbox:Hide()
+        end
     end
     if w.showTeleportsAnyMapCheckbox then
-        w.showTeleportsAnyMapCheckbox:SetEnabled(enabled); w.showTeleportsAnyMapCheckbox:SetAlpha(enabled and 1 or 0.5)
+        if enabled then
+            w.showTeleportsAnyMapCheckbox:Show()
+            w.showTeleportsAnyMapCheckbox:SetEnabled(true)
+            w.showTeleportsAnyMapCheckbox:SetAlpha(1)
+        else
+            w.showTeleportsAnyMapCheckbox:Hide()
+        end
     end
     if w.showTeleportsOwnedCheckbox then
-        w.showTeleportsOwnedCheckbox:SetEnabled(enabled); w.showTeleportsOwnedCheckbox:SetAlpha(enabled and 1 or 0.5)
+        if enabled then
+            w.showTeleportsOwnedCheckbox:Show()
+            w.showTeleportsOwnedCheckbox:SetEnabled(true)
+            w.showTeleportsOwnedCheckbox:SetAlpha(1)
+        else
+            w.showTeleportsOwnedCheckbox:Hide()
+        end
     end
     if w.teleportListLabel then
-        w.teleportListLabel:SetAlpha(enabled and 1 or 0.5)
+        if enabled then
+            w.teleportListLabel:Show()
+            w.teleportListLabel:SetAlpha(1)
+        else
+            w.teleportListLabel:Hide()
+        end
     end
+    if w.teleportListScrollFrame then
+        if enabled then
+            w.teleportListScrollFrame:GetParent():Show()  -- The background
+            w.teleportListScrollFrame:Show()
+        else
+            w.teleportListScrollFrame:GetParent():Hide()
+            w.teleportListScrollFrame:Hide()
+        end
+    end
+    
     -- Refresh the teleport list display
-    self:RefreshTeleportList()
+    if enabled then
+        self:RefreshTeleportList()
+    end
+    
     -- If module exists, ask it to refresh its display state
     if self.parent and self.parent.modules and self.parent.modules.teleports and self.parent.modules.teleports.UpdateMapDisplay then
         self.parent.modules.teleports:UpdateMapDisplay()

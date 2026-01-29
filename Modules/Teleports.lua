@@ -6,7 +6,7 @@ local ADDON_NAME, BOLT = ...
 local Teleports = {}
 BOLT:RegisterModule("teleports", Teleports)
 
-local DEFAULT_ICON = "Interface\\Icons\\INV_Misc_Rune_01"
+local DEFAULT_ICON = 237509  -- Modern teleportation portal icon (high quality)
 
 -- Pin Template Mixin for WorldMap pins (modern approach)
 BOLTTeleportPinMixin = CreateFromMixins(MapCanvasPinMixin)
@@ -73,9 +73,6 @@ function BOLTTeleportPinMixin:OnMouseEnter()
         end
     end
     
-    GameTooltip:AddLine(" ")
-    GameTooltip:AddLine("|cFFFFFF00Left-click:|r Use teleport", 0.5, 1, 0.5)
-    GameTooltip:AddLine("|cFFFFFF00Right-click:|r Delete pin", 1, 0.5, 0.5)
     GameTooltip:Show()
 end
 
@@ -87,12 +84,15 @@ function BOLTTeleportPinMixin:OnMouseClickAction(button)
     if not self.entry or not self.teleportsModule then return end
     
     if button == "RightButton" then
-        -- Right-click to delete
-        local combined = self.teleportsModule:GetTeleportList()
-        for i, entry in ipairs(combined) do
-            if entry == self.entry then
-                self.teleportsModule:DeleteTeleport(i)
-                return
+        -- Right-click to delete - only if edit mode is enabled
+        local cfg = self.teleportsModule.parent:GetConfig("teleports") or {}
+        if cfg.editMode then
+            local combined = self.teleportsModule:GetTeleportList()
+            for i, entry in ipairs(combined) do
+                if entry == self.entry then
+                    self.teleportsModule:DeleteTeleport(i)
+                    return
+                end
             end
         end
     elseif button == "LeftButton" then
@@ -101,14 +101,17 @@ function BOLTTeleportPinMixin:OnMouseClickAction(button)
         if not castName then return end
         
         if self.entry.type == "spell" then
-            C_Spell.CastSpell(castName)
+            -- Use CastSpellByName for spell names
+            CastSpellByName(castName)
         elseif self.entry.type == "toy" then
-            C_ToyBox.PickupToyBoxItem(self.entry.id or castName)
+            if self.entry.id then
+                C_ToyBox.PickupToyBoxItem(self.entry.id)
+            end
         elseif self.entry.type == "item" then
             UseItemByName(castName)
         else
-            -- Fallback to slash command
-            ChatFrame1:AddMessage("/cast " .. castName, 1, 1, 0)
+            -- Fallback - try casting by name
+            CastSpellByName(castName)
         end
     end
 end
@@ -257,18 +260,15 @@ end
 function Teleports:SetupMouseClickHandler()
     if self.mouseHandler then return end
     
-    -- Create a frame to capture $ key presses on the world map
+    -- Create a frame to capture alt+shift+right mouse clicks on the world map
     local handler = CreateFrame("Frame", nil, WorldMapFrame)
     handler:SetAllPoints(WorldMapFrame.ScrollContainer)
-    handler:EnableKeyboard(true)
-    handler:SetPropagateKeyboardInput(true)
+    handler:RegisterForClicks("RightButtonUp")
+    handler:EnableMouse(true)
     
-    handler:SetScript("OnKeyDown", function(frame, key)
-        if key == "DOLLAR" or key == "$" or string.find(tostring(key), "4") then  -- $ is Shift+4
+    handler:SetScript("OnMouseUp", function(frame, button)
+        if button == "RightButton" and IsAltKeyDown() and IsShiftKeyDown() then
             self:ShowAddTeleportPopup()
-            frame:SetPropagateKeyboardInput(false)
-        else
-            frame:SetPropagateKeyboardInput(true)
         end
     end)
     
@@ -401,6 +401,12 @@ end
 -------------------------------------------------
 
 function Teleports:ShowAddTeleportPopup()
+    -- Check if edit mode is enabled
+    local cfg = self.parent:GetConfig("teleports") or {}
+    if not cfg.editMode then
+        return  -- Edit mode is disabled, don't show popup
+    end
+    
     if not WorldMapFrame or not WorldMapFrame:IsShown() then
         if self.parent and self.parent.Print then
             self.parent:Print("Teleports: Open the World Map first.")
