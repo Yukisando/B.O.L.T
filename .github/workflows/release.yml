@@ -26,22 +26,22 @@ jobs:
           latest=$(git tag --list 'v*-*' --sort=-v:refname | head -n 1)
 
           if [ -z "$latest" ]; then
-            echo "Create initial tag v1-0 first"
-            exit 1
-          fi
-
-          major=${latest#v}
-          major=${major%-*}
-          minor=${latest#*-}
-
-          if echo "${{ github.event.head_commit.message }}" | grep -q "\[major\]"; then
-            major=$((major + 1))
-            minor=0
+            # No tags yet, start with v1-0
+            echo "version=v1-0" >> $GITHUB_OUTPUT
           else
-            minor=$((minor + 1))
-          fi
+            major=${latest#v}
+            major=${major%-*}
+            minor=${latest#*-}
 
-          echo "version=v$major-$minor" >> $GITHUB_OUTPUT
+            if echo "${{ github.event.head_commit.message }}" | grep -q "\[major\]"; then
+              major=$((major + 1))
+              minor=0
+            else
+              minor=$((minor + 1))
+            fi
+
+            echo "version=v$major-$minor" >> $GITHUB_OUTPUT
+          fi
 
       - name: Create and push tag
         run: |

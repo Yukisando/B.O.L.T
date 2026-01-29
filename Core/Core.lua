@@ -46,14 +46,7 @@ BOLT.defaults = {
             showOnMap = true,
             showOnAnyMap = false, -- show pins ONLY on matching map IDs by default (prevents spurious pins on other maps)
             showOnlyOwned = false,
-            -- Pre-filled example list (users should edit/update as needed). Coordinates are approximate.
-            teleportList = {
-
-                { name = "Dalaran (Legion)", mapID = 1014, x = 0.48, y = 0.66, icon = "Interface\\Icons\\INV_Misc_Rune_01", type = "item",  id = nil },
-                { name = "Stormwind City",   mapID = 84,   x = 0.51, y = 0.69, icon = "Interface\\Icons\\INV_Misc_Rune_01", type = "spell", id = nil },
-                { name = "Orgrimmar",        mapID = 85,   x = 0.53, y = 0.44, icon = "Interface\\Icons\\INV_Misc_Rune_01", type = "spell", id = nil },
-                { name = "Shattrath City",   mapID = 111,  x = 0.49, y = 0.54, icon = "Interface\\Icons\\INV_Misc_Rune_01", type = "spell", id = nil },
-            }
+            teleportList = {} -- User-created teleport locations (use keybind to add)
         }
     }
 }
