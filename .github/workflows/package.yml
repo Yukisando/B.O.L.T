@@ -2,6 +2,16 @@ name: Package and Upload to CurseForge
 
 on:
   workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release type'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - beta
+          - alpha
 
 jobs:
   package:
@@ -14,9 +24,22 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Package and upload
+      - name: Get latest tag
+        id: latesttag
+        run: |
+          git fetch --tags
+          latest=$(git tag --list 'v*-*' --sort=-v:refname | head -n 1)
+          if [ -z "$latest" ]; then
+            echo "No tags found!"
+            exit 1
+          fi
+          echo "Latest tag: $latest"
+          echo "tag=$latest" >> $GITHUB_OUTPUT
+          git checkout $latest
+
+      - name: Package and upload to CurseForge
         uses: BigWigsMods/packager@v2
         env:
           CF_API_KEY: ${{ secrets.CF_API_KEY }}
           GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
-          CF_RELEASE_TYPE: release
+          CF_RELEASE_TYPE: ${{ inputs.release_type }}
