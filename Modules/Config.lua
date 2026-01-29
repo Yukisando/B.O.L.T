@@ -1345,6 +1345,13 @@ function Config:PopulateToyList()
     table.sort(self.allToys, function(a, b) return a.name < b.name end)
 
     self._toyPopulateRetries = 0
+    
+    -- Show warning if toy list is empty after all attempts
+    if #self.allToys == 0 and self._toyFilterFixAttempted then
+        if self.parent and self.parent.Print then
+            self.parent:Print("|cFFFF8800Warning:|r No toys found in your collection. This may be due to filters applied in the WoW Toy Box. Please open your Toy Box (Shift+P) and clear any active filters.")
+        end
+    end
 
     self:FilterToyList()
 
