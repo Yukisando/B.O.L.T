@@ -5,9 +5,6 @@
             <OnLoad>
                 self:OnLoad()
             </OnLoad>
-            <OnAcquired>
-                self:OnAcquired()
-            </OnAcquired>
             <OnEnter>
                 self:OnMouseEnter()
             </OnEnter>

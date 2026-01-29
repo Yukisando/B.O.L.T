@@ -20,56 +20,62 @@ function BOLTTeleportPinMixin:OnAcquired()
     -- Set up the pin icon
     if not self.Icon then
         self.Icon = self:CreateTexture(nil, "ARTWORK")
-        self.Icon:SetSize(20, 20)
-        self.Icon:SetPoint("CENTER")
-        
-        -- Add background for visibility
-        self.Bg = self:CreateTexture(nil, "BACKGROUND")
-        self.Bg:SetSize(22, 22)
-        self.Bg:SetPoint("CENTER")
-        self.Bg:SetColorTexture(0, 0, 0, 0.6)
+        self.Icon:SetSize(24, 24)
+        self.Icon:SetPoint("CENTER", self, "CENTER", 0, 0)
     end
     
     if self.entry then
         local icon = self.entry.icon or DEFAULT_ICON
         if tonumber(icon) then
-            self.Icon:SetTexture(tonumber(icon))
+            self.Icon:SetTexture(icon)
         else
             self.Icon:SetTexture(icon)
         end
         
-        -- Make sure textures are visible
         self.Icon:Show()
-        self.Bg:Show()
-        
-        if self.teleportsModule then
-            self.teleportsModule:Debug("Pin OnAcquired: " .. (self.entry.name or "?") .. " with icon " .. tostring(icon))
-        end
     end
+    
+    -- Ensure the pin itself is visible and clickable
+    self:SetSize(24, 24)
+    self:Show()
+    self:EnableMouse(true)
+    self:SetAlpha(1.0)
 end
 
 function BOLTTeleportPinMixin:OnMouseEnter()
     if not self.entry then return end
+    
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:ClearLines()
     
     if self.entry.type == "item" and self.entry.id then
         if GameTooltip.SetItemByID then
             GameTooltip:SetItemByID(self.entry.id)
         else
-            GameTooltip:SetText(self.entry.name or "Teleport")
+            GameTooltip:AddLine(self.entry.name or "Teleport", 1, 1, 1, true)
+            if self.entry.desc then
+                GameTooltip:AddLine(self.entry.desc, 0.8, 0.8, 0.8, true)
+            end
         end
     elseif self.entry.type == "spell" and self.entry.id then
         if GameTooltip.SetSpellByID then
             GameTooltip:SetSpellByID(self.entry.id)
         else
-            GameTooltip:SetText(self.entry.name or "Teleport")
+            GameTooltip:AddLine(self.entry.name or "Teleport", 1, 1, 1, true)
+            if self.entry.desc then
+                GameTooltip:AddLine(self.entry.desc, 0.8, 0.8, 0.8, true)
+            end
         end
     else
-        GameTooltip:SetText(self.entry.name or "Teleport")
+        GameTooltip:AddLine(self.entry.name or "Teleport", 1, 1, 1, true)
         if self.entry.desc then
-            GameTooltip:AddLine(self.entry.desc, 1, 1, 1)
+            GameTooltip:AddLine(self.entry.desc, 0.8, 0.8, 0.8, true)
         end
     end
+    
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine("|cFFFFFF00Left-click:|r Use teleport", 0.5, 1, 0.5)
+    GameTooltip:AddLine("|cFFFFFF00Right-click:|r Delete pin", 1, 0.5, 0.5)
     GameTooltip:Show()
 end
 
@@ -78,21 +84,32 @@ function BOLTTeleportPinMixin:OnMouseLeave()
 end
 
 function BOLTTeleportPinMixin:OnMouseClickAction(button)
-    if button ~= "LeftButton" or not self.entry then return end
+    if not self.entry or not self.teleportsModule then return end
     
-    -- Use the spell/item/toy name to cast
-    local castName = self.entry.spellName or self.entry.name
-    if not castName then return end
-    
-    if self.entry.type == "spell" then
-        C_Spell.CastSpell(castName)
-    elseif self.entry.type == "toy" then
-        C_ToyBox.PickupToyBoxItem(self.entry.id or castName)
-    elseif self.entry.type == "item" then
-        UseItemByName(castName)
-    else
-        -- Fallback to slash command
-        ChatFrame1:AddMessage("/cast " .. castName, 1, 1, 0)
+    if button == "RightButton" then
+        -- Right-click to delete
+        local combined = self.teleportsModule:GetTeleportList()
+        for i, entry in ipairs(combined) do
+            if entry == self.entry then
+                self.teleportsModule:DeleteTeleport(i)
+                return
+            end
+        end
+    elseif button == "LeftButton" then
+        -- Left-click to teleport
+        local castName = self.entry.spellName or self.entry.name
+        if not castName then return end
+        
+        if self.entry.type == "spell" then
+            C_Spell.CastSpell(castName)
+        elseif self.entry.type == "toy" then
+            C_ToyBox.PickupToyBoxItem(self.entry.id or castName)
+        elseif self.entry.type == "item" then
+            UseItemByName(castName)
+        else
+            -- Fallback to slash command
+            ChatFrame1:AddMessage("/cast " .. castName, 1, 1, 0)
+        end
     end
 end
 
@@ -143,34 +160,50 @@ function Teleports:CreateDataProvider()
     local provider = CreateFromMixins(MapCanvasDataProviderMixin)
     provider.teleportsModule = self
     
+    function provider:OnAdded(mapCanvas)
+        MapCanvasDataProviderMixin.OnAdded(self, mapCanvas)
+    end
+    
+    function provider:OnRemoved(mapCanvas)
+        MapCanvasDataProviderMixin.OnRemoved(self, mapCanvas)
+    end
+    
     function provider:RefreshAllData()
         if not self:GetMap() then 
-            print("BOLT Teleports: No map found")
             return 
         end
         self:GetMap():RemoveAllPinsByTemplate("BOLTTeleportPinTemplate")
         
         local teleportsModule = self.teleportsModule
         if not teleportsModule then 
-            print("BOLT Teleports: No module reference")
             return 
         end
         
         local cfg = teleportsModule.parent:GetConfig("teleports") or {}
-        if not cfg or not cfg.showOnMap then 
-            print("BOLT Teleports: Module disabled or showOnMap=false")
+        
+        -- Default showOnMap to true if not set
+        local showOnMap = true
+        if cfg.showOnMap ~= nil then
+            showOnMap = cfg.showOnMap
+        end
+        
+        if not showOnMap then 
             return 
         end
         
         local currentMapID = self:GetMap():GetMapID()
         if not currentMapID then 
-            print("BOLT Teleports: No current map ID")
             return 
         end
         
         -- Use the combined list (defaults + user additions)
-        local list = teleportsModule:GetTeleportList()
-        print("BOLT Teleports: RefreshAllData - currentMapID=" .. tostring(currentMapID) .. ", " .. #list .. " teleports in list")
+        local success, list = pcall(function()
+            return teleportsModule:GetTeleportList()
+        end)
+        
+        if not success or not list or type(list) ~= "table" then
+            return
+        end
         
         local pinCount = 0
         for i, entry in ipairs(list) do
@@ -197,25 +230,19 @@ function Teleports:CreateDataProvider()
                 end
             end
             
-            print(string.format("BOLT: Entry %d '%s': canProject=%s, x=%s, y=%s", 
-                i, entry.name or "?", tostring(canProject), tostring(projX), tostring(projY)))
-            
             if canProject and projX and projY then
                 local pin = self:GetMap():AcquirePin("BOLTTeleportPinTemplate")
                 if pin then
-                    pin:SetPosition(projX, projY)
                     pin.entry = entry
                     pin.teleportsModule = teleportsModule
+                    pin:SetPosition(projX, projY)
+                    pin:Show()
+                    pin:EnableMouse(true)
+                    pin:SetAlpha(1.0)
                     pinCount = pinCount + 1
-                    print(string.format("BOLT: ✓ Pin #%d for '%s' at %.3f, %.3f", 
-                        pinCount, entry.name, projX, projY))
-                else
-                    print("BOLT: ✗ Failed to acquire pin template!")
                 end
             end
         end
-        
-        print("BOLT: Refresh complete. " .. pinCount .. " pins created.")
     end
     
     function provider:RemoveAllData()
@@ -230,16 +257,18 @@ end
 function Teleports:SetupMouseClickHandler()
     if self.mouseHandler then return end
     
-    -- Create a frame to capture mouse clicks on the world map
+    -- Create a frame to capture $ key presses on the world map
     local handler = CreateFrame("Frame", nil, WorldMapFrame)
     handler:SetAllPoints(WorldMapFrame.ScrollContainer)
-    handler:SetFrameStrata("DIALOG")
-    handler:EnableMouse(true)
-    handler:RegisterForClicks("MiddleButtonUp")
+    handler:EnableKeyboard(true)
+    handler:SetPropagateKeyboardInput(true)
     
-    handler:SetScript("OnMouseUp", function(frame, button)
-        if button == "MiddleButton" then
+    handler:SetScript("OnKeyDown", function(frame, key)
+        if key == "DOLLAR" or key == "$" or string.find(tostring(key), "4") then  -- $ is Shift+4
             self:ShowAddTeleportPopup()
+            frame:SetPropagateKeyboardInput(false)
+        else
+            frame:SetPropagateKeyboardInput(true)
         end
     end)
     
@@ -638,26 +667,34 @@ function Teleports:DeleteTeleport(index)
     if index <= 0 or index > #combined then return end
     
     local entry = combined[index]
-    if entry.isUserAdded then
-        -- Find and remove from user list
-        local cfg = self.parent:GetConfig("teleports") or {}
-        local userList = cfg.userTeleportList or {}
-        for i, userEntry in ipairs(userList) do
-            if userEntry == entry then
-                table.remove(userList, i)
-                self.parent:SetConfig(userList, "teleports", "userTeleportList")
-                if self.parent and self.parent.Print then
-                    self.parent:Print("Teleports: Removed '" .. tostring(entry.name) .. "'")
-                end
-                self:RefreshPins()
-                return
+    
+    -- Remove from the combined list regardless of whether it's user-added or default
+    table.remove(combined, index)
+    
+    -- Now rebuild both lists from the modified combined list
+    local defaultTeleports = BOLT.DefaultTeleports or {}
+    local newUserList = {}
+    
+    -- Anything not in defaults goes to user list
+    for _, e in ipairs(combined) do
+        local isDefault = false
+        for _, d in ipairs(defaultTeleports) do
+            if d == e then
+                isDefault = true
+                break
             end
         end
-    else
-        if self.parent and self.parent.Print then
-            self.parent:Print("Teleports: Cannot delete default teleport. Only user-added pins can be deleted.")
+        if not isDefault then
+            table.insert(newUserList, e)
         end
     end
+    
+    -- Save the updated user list
+    self.parent:SetConfig(newUserList, "teleports", "userTeleportList")
+    if self.parent and self.parent.Print then
+        self.parent:Print("Teleports: Removed '" .. tostring(entry.name) .. "'")
+    end
+    self:RefreshPins()
 end
 
 -- Update an existing teleport entry
@@ -685,12 +722,6 @@ function Teleports:UpdateTeleport(index, newData)
             self.parent:Print("Teleports: Cannot edit default teleport. Only user-added pins can be edited.")
         end
     end
-end
-
--- Get all teleport entries
-function Teleports:GetTeleportList()
-    local cfg = self.parent:GetConfig("teleports") or {}
-    return cfg.teleportList or {}
 end
 
 -- Global function for keybind
