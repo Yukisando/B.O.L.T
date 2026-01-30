@@ -433,15 +433,6 @@ function Config:CreateInterfaceOptionsPanel()
     self.widgets.teleportsReloadIndicator = self:CreateReloadIndicator(content, tpEnable)
     y = y - 30
 
-    local showMapEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    showMapEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
-    showMapEnable.Text:SetText("Show Teleports on Main Map")
-    showMapEnable:SetScript("OnClick", function(button)
-        self.parent:SetConfig(button:GetChecked(), "teleports", "showOnMap")
-    end)
-    self.widgets.showTeleportsOnMapCheckbox = showMapEnable
-    y = y - 30
-
     local editModeEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
     editModeEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
     editModeEnable.Text:SetText("Edit Mode (Allow adding/removing teleport pins)")
@@ -716,10 +707,6 @@ function Config:RefreshOptionsPanel()
         if w.wowheadLinkCheckbox then w.wowheadLinkCheckbox:SetChecked(self.parent:IsModuleEnabled("wowheadLink")) end
         if w.autoRepSwitchCheckbox then w.autoRepSwitchCheckbox:SetChecked(self.parent:IsModuleEnabled("autoRepSwitch")) end
         if w.teleportsCheckbox then w.teleportsCheckbox:SetChecked(self.parent:IsModuleEnabled("teleports")) end
-        if w.showTeleportsOnMapCheckbox then
-            w.showTeleportsOnMapCheckbox:SetChecked(self.parent:GetConfig("teleports",
-                "showOnMap"))
-        end
         if w.teleportsEditModeCheckbox then
             local cfg = self.parent:GetConfig("teleports") or {}
             local editMode = cfg.editMode or false  -- Default to false
@@ -742,73 +729,8 @@ function Config:UpdateSkyridingChildControls()
 end
 
 function Config:UpdateTeleportsChildControls()
-    local enabled = self.parent:IsModuleEnabled("teleports")
-    local w = self.widgets
-    
-    -- Hide/show all teleport child controls
-    if w.showTeleportsOnMapCheckbox then
-        if enabled then
-            w.showTeleportsOnMapCheckbox:Show()
-            w.showTeleportsOnMapCheckbox:SetEnabled(true)
-            w.showTeleportsOnMapCheckbox:SetAlpha(1)
-        else
-            w.showTeleportsOnMapCheckbox:Hide()
-        end
-    end
-    if w.teleportsEditModeCheckbox then
-        if enabled then
-            w.teleportsEditModeCheckbox:Show()
-            w.teleportsEditModeCheckbox:SetEnabled(true)
-            w.teleportsEditModeCheckbox:SetAlpha(1)
-        else
-            w.teleportsEditModeCheckbox:Hide()
-        end
-    end
-    if w.showTeleportsAnyMapCheckbox then
-        if enabled then
-            w.showTeleportsAnyMapCheckbox:Show()
-            w.showTeleportsAnyMapCheckbox:SetEnabled(true)
-            w.showTeleportsAnyMapCheckbox:SetAlpha(1)
-        else
-            w.showTeleportsAnyMapCheckbox:Hide()
-        end
-    end
-    if w.showTeleportsOwnedCheckbox then
-        if enabled then
-            w.showTeleportsOwnedCheckbox:Show()
-            w.showTeleportsOwnedCheckbox:SetEnabled(true)
-            w.showTeleportsOwnedCheckbox:SetAlpha(1)
-        else
-            w.showTeleportsOwnedCheckbox:Hide()
-        end
-    end
-    if w.teleportListLabel then
-        if enabled then
-            w.teleportListLabel:Show()
-            w.teleportListLabel:SetAlpha(1)
-        else
-            w.teleportListLabel:Hide()
-        end
-    end
-    if w.teleportListScrollFrame then
-        if enabled then
-            w.teleportListScrollFrame:GetParent():Show()  -- The background
-            w.teleportListScrollFrame:Show()
-        else
-            w.teleportListScrollFrame:GetParent():Hide()
-            w.teleportListScrollFrame:Hide()
-        end
-    end
-    
     -- Refresh the teleport list display
-    if enabled then
-        self:RefreshTeleportList()
-    end
-    
-    -- If module exists, ask it to refresh its display state
-    if self.parent and self.parent.modules and self.parent.modules.teleports and self.parent.modules.teleports.UpdateMapDisplay then
-        self.parent.modules.teleports:UpdateMapDisplay()
-    end
+    self:RefreshTeleportList()
 end
 
 function Config:RefreshTeleportList()
@@ -911,7 +833,7 @@ function Config:RefreshTeleportList()
     -- Show "No teleports saved" if empty
     if #teleportList == 0 then
         local emptyLabel = container:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        emptyLabel:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
+        emptyLabel:SetPoint("CENTER", container, "CENTER", 0, 0)
         emptyLabel:SetTextColor(0.6, 0.6, 0.6)
         emptyLabel:SetText("No teleports saved. Open the World Map and press your keybind to add one.")
         local emptyRow = CreateFrame("Frame", nil, container)

@@ -8,7 +8,10 @@
 	<Binding name="BOLT_SHOW_WOWHEAD_LINK" category="B.O.L.T">
 		BOLT_ShowWowheadLink()
 	</Binding>
-	<Binding name="BOLT_ADD_TELEPORT" category="B.O.L.T">
+	<Binding name="BOLT_ADD_TELEPORT" category="B.O.L.T" header="BOLT_TELEPORTS">
 		BOLT_AddTeleportLocation()
+	</Binding>
+	<Binding name="BOLT_TOGGLE_TELEPORT_EDIT_MODE" category="B.O.L.T">
+		BOLT_ToggleTeleportEditMode()
 	</Binding>
 </Bindings>

@@ -9,6 +9,8 @@ L["BINDING_NAME_BOLT_TOGGLE_MASTER_VOLUME"] = "Toggle Master Volume"
 L["BINDING_NAME_BOLT_COPY_TARGET_MOUNT"] = "Copy Target Mount"
 L["BINDING_NAME_BOLT_SHOW_WOWHEAD_LINK"] = "Wowhead link"
 L["BINDING_NAME_BOLT_ADD_TELEPORT"] = "Add Teleport Location"
+L["BINDING_NAME_BOLT_TOGGLE_TELEPORT_EDIT_MODE"] = "Toggle Teleport Edit Mode"
+L["BINDING_HEADER_BOLT_TELEPORTS"] = "Teleports"
 
 
 -- Register localization
@@ -20,17 +22,23 @@ elseif GetLocale() == "frFR" then
     L["BINDING_NAME_BOLT_COPY_TARGET_MOUNT"] = "Copier la monture de la cible"
     L["BINDING_NAME_BOLT_SHOW_WOWHEAD_LINK"] = "Wowhead link"
     L["BINDING_NAME_BOLT_ADD_TELEPORT"] = "Ajouter un lieu de téléportation"
+    L["BINDING_NAME_BOLT_TOGGLE_TELEPORT_EDIT_MODE"] = "Basculer le mode édition de téléportation"
+    L["BINDING_HEADER_BOLT_TELEPORTS"] = "Téléportations"
 elseif GetLocale() == "deDE" then
     L["BINDING_HEADER_B_O_L_T"] = "B.O.L.T"
     L["BINDING_NAME_BOLT_TOGGLE_MASTER_VOLUME"] = "Hauptlautstärke umschalten"
     L["BINDING_NAME_BOLT_SHOW_WOWHEAD_LINK"] = "Wowhead link"
     L["BINDING_NAME_BOLT_ADD_TELEPORT"] = "Teleport-Ort hinzufügen"
+    L["BINDING_NAME_BOLT_TOGGLE_TELEPORT_EDIT_MODE"] = "Teleport-Bearbeitungsmodus umschalten"
+    L["BINDING_HEADER_BOLT_TELEPORTS"] = "Teleporte"
 elseif GetLocale() == "esES" or GetLocale() == "esMX" then
     L["BINDING_HEADER_B_O_L_T"] = "B.O.L.T"
     L["BINDING_NAME_BOLT_TOGGLE_MASTER_VOLUME"] = "Alternar volumen maestro"
     L["BINDING_NAME_BOLT_COPY_TARGET_MOUNT"] = "Copiar montura del objetivo"
     L["BINDING_NAME_BOLT_SHOW_WOWHEAD_LINK"] = "Wowhead link"
     L["BINDING_NAME_BOLT_ADD_TELEPORT"] = "Añadir ubicación de teletransporte"
+    L["BINDING_NAME_BOLT_TOGGLE_TELEPORT_EDIT_MODE"] = "Alternar modo de edición de teletransporte"
+    L["BINDING_HEADER_BOLT_TELEPORTS"] = "Teletransportes"
 end
 
 -- Apply localization to global scope

@@ -6,7 +6,7 @@ local ADDON_NAME, BOLT = ...
 local Teleports = {}
 BOLT:RegisterModule("teleports", Teleports)
 
-local DEFAULT_ICON = 237509  -- Modern teleportation portal icon (high quality)
+local DEFAULT_ICON = "Interface\\Icons\\Spell_Arcane_TeleportDalaran"  -- Working teleport rune texture
 
 -- Pin Template Mixin for WorldMap pins (modern approach)
 BOLTTeleportPinMixin = CreateFromMixins(MapCanvasPinMixin)
@@ -22,24 +22,32 @@ function BOLTTeleportPinMixin:OnAcquired()
         self.Icon = self:CreateTexture(nil, "ARTWORK")
         self.Icon:SetSize(24, 24)
         self.Icon:SetPoint("CENTER", self, "CENTER", 0, 0)
+        self.Icon:SetDrawLayer("ARTWORK", 7)
     end
     
     if self.entry then
         local icon = self.entry.icon or DEFAULT_ICON
-        if tonumber(icon) then
-            self.Icon:SetTexture(icon)
-        else
-            self.Icon:SetTexture(icon)
-        end
-        
+        -- Use SetTexture directly - simpler and more reliable
+        self.Icon:SetTexture(icon)
         self.Icon:Show()
+        self.Icon:SetVertexColor(1, 1, 1, 1)
     end
     
     -- Ensure the pin itself is visible and clickable
     self:SetSize(24, 24)
     self:Show()
     self:EnableMouse(true)
+    self:SetMouseClickEnabled(true)
     self:SetAlpha(1.0)
+end
+
+function BOLTTeleportPinMixin:OnReleased()
+    -- Clean up when pin is released back to pool
+    self.entry = nil
+    self.teleportsModule = nil
+    if self.Icon then
+        self.Icon:Hide()
+    end
 end
 
 function BOLTTeleportPinMixin:OnMouseEnter()
@@ -96,7 +104,7 @@ function BOLTTeleportPinMixin:OnMouseClickAction(button)
             end
         end
     elseif button == "LeftButton" then
-        -- Left-click to teleport
+        -- Left-click to teleport - always works regardless of edit mode
         local castName = self.entry.spellName or self.entry.name
         if not castName then return end
         
@@ -182,17 +190,7 @@ function Teleports:CreateDataProvider()
             return 
         end
         
-        local cfg = teleportsModule.parent:GetConfig("teleports") or {}
-        
-        -- Default showOnMap to true if not set
-        local showOnMap = true
-        if cfg.showOnMap ~= nil then
-            showOnMap = cfg.showOnMap
-        end
-        
-        if not showOnMap then 
-            return 
-        end
+        -- Always show teleports on map (showOnMap removed)
         
         local currentMapID = self:GetMap():GetMapID()
         if not currentMapID then 
@@ -258,21 +256,7 @@ function Teleports:CreateDataProvider()
 end
 
 function Teleports:SetupMouseClickHandler()
-    if self.mouseHandler then return end
-    
-    -- Create a frame to capture alt+shift+right mouse clicks on the world map
-    local handler = CreateFrame("Frame", nil, WorldMapFrame)
-    handler:SetAllPoints(WorldMapFrame.ScrollContainer)
-    handler:RegisterForClicks("RightButtonUp")
-    handler:EnableMouse(true)
-    
-    handler:SetScript("OnMouseUp", function(frame, button)
-        if button == "RightButton" and IsAltKeyDown() and IsShiftKeyDown() then
-            self:ShowAddTeleportPopup()
-        end
-    end)
-    
-    self.mouseHandler = handler
+    -- No custom mouse handler needed - use keybind from Bindings.xml instead
 end
 
 -- Project coordinates from entry's mapID to the currently displayed map.
@@ -332,7 +316,15 @@ function Teleports:OnEnable()
         return
     end
     
-    -- Setup middle mouse click handler for adding teleports
+    -- Set default keybindings if not already set
+    local key1, key2 = GetBindingKey("BOLT_ADD_TELEPORT")
+    if not key1 and not key2 then
+        -- Note: The actual Ctrl+Alt+Right-Click is handled by the mouse handler
+        -- This keybind is for those who want to use keyboard shortcut instead
+        -- We don't set a default keyboard binding to avoid conflicts
+    end
+    
+    -- Setup Ctrl+Alt+Right-Click mouse handler for adding teleports
     self:SetupMouseClickHandler()
 
     -- Add the data provider to the WorldMap
@@ -548,7 +540,7 @@ function Teleports:CreateAddTeleportPopup()
     helpText:SetPoint("TOPLEFT", idLabel, "BOTTOMLEFT", 0, -10)
     helpText:SetWidth(350)
     helpText:SetJustifyH("LEFT")
-    helpText:SetText("|cFFAAAAAATip: Use middle mouse button on the map to add teleports.\nOnly name is required. Add spell/item name if you want it clickable.|r")
+    helpText:SetText("|cFFAAAAAATip: Use Ctrl+Alt+Right-Click on the map to add teleports.\nOnly name is required. Add spell/item name if you want it clickable.|r")
 
     -- Save button
     local saveBtn = CreateFrame("Button", nil, popup, "UIPanelButtonTemplate")
@@ -734,6 +726,22 @@ end
 function BOLT_AddTeleportLocation()
     if BOLT and BOLT.modules and BOLT.modules.teleports then
         BOLT.modules.teleports:ShowAddTeleportPopup()
+    end
+end
+
+-- Global function for toggling edit mode
+function BOLT_ToggleTeleportEditMode()
+    if BOLT and BOLT.modules and BOLT.modules.teleports then
+        local cfg = BOLT:GetConfig("teleports") or {}
+        local editMode = cfg.editMode or false
+        BOLT:SetConfig(not editMode, "teleports", "editMode")
+        if BOLT.Print then
+            BOLT:Print("Teleports Edit Mode: " .. (editMode and "OFF" or "ON"))
+        end
+        -- Refresh config UI if it exists
+        if BOLT.modules.config and BOLT.modules.config.RefreshAll then
+            BOLT.modules.config:RefreshAll()
+        end
     end
 end
 
