@@ -109,22 +109,21 @@ function BOLTTeleportPinMixin:OnMouseClickAction(button)
         end
     elseif button == "LeftButton" then
         -- Left-click to teleport - always works regardless of edit mode
-        local castName = self.entry.spellName or self.entry.name
-        if not castName then return end
+        local entryType = self.entry.type or "unknown"
+        local entryID = self.entry.id
+        local entryName = self.entry.name or "Unknown"
         
-        if self.entry.type == "spell" then
-            -- Use CastSpellByName for spell names
-            CastSpellByName(castName)
-        elseif self.entry.type == "toy" then
-            if self.entry.id then
-                C_ToyBox.PickupToyBoxItem(self.entry.id)
+        -- Log the attempt
+        if self.teleportsModule and self.teleportsModule.parent then
+            if entryID then
+                self.teleportsModule.parent:Print(string.format("Teleports: Attempting to use %s (ID: %d, Type: %s)", entryName, entryID, entryType))
+            else
+                self.teleportsModule.parent:Print(string.format("Teleports: Attempting to use %s (Type: %s, No ID)", entryName, entryType))
             end
-        elseif self.entry.type == "item" then
-            UseItemByName(castName)
-        else
-            -- Fallback - try casting by name
-            CastSpellByName(castName)
         end
+        
+        -- Show secure confirmation popup (compliant with 12.0 restrictions)
+        self.teleportsModule:ShowConfirmPopup(self.entry)
     end
 end
 
@@ -190,8 +189,12 @@ end
 -- Get the combined list of default + user teleports
 function Teleports:GetTeleportList()
     local defaultTeleports = BOLT.DefaultTeleports or {}
-    local cfg = self.parent:GetConfig("teleports") or {}
-    local userTeleports = cfg.userTeleportList or {}
+    
+    -- Use global storage for account-wide teleports
+    if not BOLTDB.teleports then
+        BOLTDB.teleports = {}
+    end
+    local userTeleports = BOLTDB.teleports or {}
     
     -- Merge both lists (defaults first, then user additions)
     local combined = {}
@@ -313,6 +316,9 @@ function Teleports:UpdateMapDisplay()
 end
 
 function Teleports:OnEnable()
+    -- Create secure confirmation popup (must be done out of combat)
+    self:CreateConfirmPopup()
+    
     -- Setup Ctrl+Alt+Right-Click mouse handler for adding teleports
     self:SetupMouseClickHandler()
 
@@ -369,6 +375,112 @@ function Teleports:Dump()
 end
 
 -------------------------------------------------
+-- Secure Teleport Confirmation Popup
+-------------------------------------------------
+
+function Teleports:CreateConfirmPopup()
+    if self.confirmPopup then return end
+
+    local f = CreateFrame("Frame", "BOLTTeleportConfirm", UIParent, "BackdropTemplate")
+    f:SetSize(280, 140)
+    f:SetPoint("CENTER")
+    f:SetFrameStrata("DIALOG")
+    f:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+        tile = true, tileSize = 32, edgeSize = 32,
+        insets = { left = 11, right = 12, top = 12, bottom = 11 }
+    })
+    f:SetBackdropColor(0, 0, 0, 1)
+    f:Hide()
+
+    -- Title
+    f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    f.title:SetPoint("TOP", 0, -16)
+    f.title:SetText("Confirm Teleport")
+
+    -- Description
+    f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    f.text:SetPoint("TOP", f.title, "BOTTOM", 0, -10)
+    f.text:SetWidth(250)
+    f.text:SetJustifyH("CENTER")
+    f.text:SetText("")
+
+    -- Secure confirm button
+    local btn = CreateFrame(
+        "Button",
+        "BOLTTeleportConfirmButton",
+        f,
+        "SecureActionButtonTemplate, UIPanelButtonTemplate"
+    )
+    btn:SetSize(120, 26)
+    btn:SetPoint("BOTTOM", 0, 16)
+    btn:SetText("Teleport")
+    
+    -- Close popup after clicking teleport
+    btn:HookScript("PostClick", function()
+        f:Hide()
+    end)
+
+    f.confirmButton = btn
+    
+    -- Cancel button
+    local cancelBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    cancelBtn:SetSize(80, 26)
+    cancelBtn:SetPoint("RIGHT", btn, "LEFT", -10, 0)
+    cancelBtn:SetText("Cancel")
+    cancelBtn:SetScript("OnClick", function() f:Hide() end)
+    
+    -- Close button
+    local closeBtn = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    closeBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", -5, -5)
+    
+    -- ESC-close support
+    tinsert(UISpecialFrames, "BOLTTeleportConfirm")
+
+    self.confirmPopup = f
+end
+
+function Teleports:ShowConfirmPopup(entry)
+    if not entry or not entry.id then 
+        if self.parent and self.parent.Print then
+            self.parent:Print("Teleports: No ID specified.")
+        end
+        return 
+    end
+    
+    if InCombatLockdown() then
+        if self.parent and self.parent.Print then
+            self.parent:Print("Cannot prepare teleport during combat.")
+        end
+        return
+    end
+
+    self:CreateConfirmPopup()
+
+    local popup = self.confirmPopup
+    popup.text:SetText("Teleport to:\n|cff00ff00" .. (entry.name or "Unknown") .. "|r")
+
+    local btn = popup.confirmButton
+    btn:ClearAllPoints()
+    btn:SetPoint("BOTTOM", 0, 16)
+    btn:SetAttribute("type", nil)
+
+    if entry.type == "spell" then
+        btn:SetAttribute("type", "spell")
+        btn:SetAttribute("spell", entry.id)
+    elseif entry.type == "item" then
+        btn:SetAttribute("type", "item")
+        btn:SetAttribute("item", "item:" .. entry.id)
+    elseif entry.type == "toy" then
+        btn:SetAttribute("type", "toy")
+        btn:SetAttribute("toy", entry.id)
+    end
+
+    popup:Show()
+end
+
+-------------------------------------------------
 -- Teleport Location Add Popup
 -------------------------------------------------
 
@@ -413,7 +525,6 @@ function Teleports:ShowAddTeleportPopup()
 
     -- Clear inputs
     self.addPopup.nameInput:SetText("")
-    self.addPopup.spellNameInput:SetText("")
     self.addPopup.idInput:SetText("")
     self.addPopup.selectedType = "spell"
     UIDropDownMenu_SetText(self.addPopup.typeDropdown, "Spell")
@@ -424,7 +535,7 @@ end
 
 function Teleports:CreateAddTeleportPopup()
     local popup = CreateFrame("Frame", "BOLTAddTeleportPopup", UIParent, "BackdropTemplate")
-    popup:SetSize(420, 280)
+    popup:SetSize(420, 240)
     popup:SetPoint("CENTER", UIParent, "CENTER", 0, 100)
     popup:SetFrameStrata("DIALOG")
     popup:SetBackdrop({
@@ -464,21 +575,9 @@ function Teleports:CreateAddTeleportPopup()
     nameInput:SetMaxLetters(100)
     popup.nameInput = nameInput
 
-    -- Spell/Item/Toy Name input (macro-style, e.g. "Teleport: Stormwind")
-    local spellNameLabel = popup:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    spellNameLabel:SetPoint("TOPLEFT", nameLabel, "BOTTOMLEFT", 0, -20)
-    spellNameLabel:SetText("Spell/Item Name (optional):")
-
-    local spellNameInput = CreateFrame("EditBox", nil, popup, "InputBoxTemplate")
-    spellNameInput:SetPoint("LEFT", spellNameLabel, "RIGHT", 10, 0)
-    spellNameInput:SetSize(200, 20)
-    spellNameInput:SetAutoFocus(false)
-    spellNameInput:SetMaxLetters(100)
-    popup.spellNameInput = spellNameInput
-
     -- Type dropdown (spell, item, toy)
     local typeLabel = popup:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    typeLabel:SetPoint("TOPLEFT", spellNameLabel, "BOTTOMLEFT", 0, -20)
+    typeLabel:SetPoint("TOPLEFT", nameLabel, "BOTTOMLEFT", 0, -25)
     typeLabel:SetText("Type:")
 
     local typeDropdown = CreateFrame("Frame", "BOLTTeleportTypeDropdown", popup, "UIDropDownMenuTemplate")
@@ -515,13 +614,6 @@ function Teleports:CreateAddTeleportPopup()
     idInput:SetNumeric(true)
     popup.idInput = idInput
 
-    -- Help text
-    local helpText = popup:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    helpText:SetPoint("TOPLEFT", idLabel, "BOTTOMLEFT", 0, -10)
-    helpText:SetWidth(350)
-    helpText:SetJustifyH("LEFT")
-    helpText:SetText("|cFFAAAAAATip: Use Ctrl+Alt+Right-Click on the map to add teleports.\nOnly name is required. Add spell/item name if you want it clickable.|r")
-
     -- Save button
     local saveBtn = CreateFrame("Button", nil, popup, "UIPanelButtonTemplate")
     saveBtn:SetSize(100, 24)
@@ -556,12 +648,11 @@ function Teleports:SaveTeleportFromPopup()
     if not popup then return end
 
     local displayName = popup.nameInput:GetText()
-    local spellName = popup.spellNameInput:GetText()
     local entryType = popup.selectedType or "spell"
     local idText = popup.idInput:GetText()
     local id = tonumber(idText)
 
-    -- Only require display name
+    -- Require both name and ID
     if not displayName or displayName == "" then
         if self.parent and self.parent.Print then
             self.parent:Print("Teleports: Please enter a name.")
@@ -569,12 +660,14 @@ function Teleports:SaveTeleportFromPopup()
         return
     end
     
-    -- Use display name as spell name if not provided
-    if not spellName or spellName == "" then
-        spellName = displayName
+    if not id then
+        if self.parent and self.parent.Print then
+            self.parent:Print("Teleports: Please enter a valid ID.")
+        end
+        return
     end
 
-    -- Try to get icon from ID if provided, otherwise use a default based on type
+    -- Try to get icon from ID
     local icon = "Interface\\Icons\\INV_Misc_Rune_01" ---@type string|number
 
     if id then
@@ -582,16 +675,21 @@ function Teleports:SaveTeleportFromPopup()
             local spellInfo = C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(id)
             if spellInfo and spellInfo.iconID then
                 icon = spellInfo.iconID
+            elseif C_Spell and C_Spell.GetSpellTexture then
+                local texture = C_Spell.GetSpellTexture(id)
+                if texture then
+                    icon = texture
+                end
             end
         elseif entryType == "toy" then
             if C_ToyBox and C_ToyBox.GetToyInfo then
-                local toyItemID, toyName, toyIcon = C_ToyBox.GetToyInfo(id)
+                local _, toyName, toyIcon = C_ToyBox.GetToyInfo(id)
                 if toyIcon then
                     icon = toyIcon
                 end
             end
         elseif entryType == "item" then
-            local itemName, _, _, _, _, _, _, _, _, itemIcon = C_Item.GetItemInfo(id)
+            local itemIcon = C_Item.GetItemIconByID(id)
             if itemIcon then
                 icon = itemIcon
             end
@@ -607,36 +705,34 @@ function Teleports:SaveTeleportFromPopup()
         end
     end
 
-    -- Create the entry - store spellName for macro-style casting
+    -- Create the entry
     local entry = {
         name = displayName,
-        spellName = spellName,  -- The actual name to cast (e.g. "Teleport: Stormwind")
         mapID = popup.mapID,
         x = popup.x,
         y = popup.y,
         icon = icon,
         type = entryType,
-        id = id,  -- Optional, for tooltip/icon lookup
-        isUserAdded = true  -- Mark as user-added
+        id = id,
+        isUserAdded = true
     }
 
-    -- Get current user list and add the entry
-    local cfg = self.parent:GetConfig("teleports") or {}
-    local list = cfg.userTeleportList or {}
-    table.insert(list, entry)
-
-    -- Save back to config (only user additions, not defaults)
-    self.parent:SetConfig(list, "teleports", "userTeleportList")
+    -- Save to global account-wide storage
+    if not BOLTDB.teleports then
+        BOLTDB.teleports = {}
+    end
+    table.insert(BOLTDB.teleports, entry)
 
     if self.parent and self.parent.Print then
-        self.parent:Print(string.format("Teleports: Added '%s' (%s) at map %d (%.1f%%, %.1f%%)", displayName, spellName, popup.mapID, popup.x * 100, popup.y * 100))
+        self.parent:Print(string.format("Teleports: Added '%s' (ID: %d, Type: %s) at map %d (%.1f%%, %.1f%%)", displayName, id, entryType, popup.mapID, popup.x * 100, popup.y * 100))
     end
 
     popup:Hide()
     
-    -- Force immediate refresh
-    self:RefreshPins()
-    print("BOLT: Teleport added. Total teleports: " .. #list .. ". Refreshing map...")
+    -- Force immediate refresh of pins
+    if WorldMapFrame and WorldMapFrame:IsShown() and self.dataProvider then
+        self.dataProvider:RefreshAllData()
+    end
 end
 
 -- Delete a teleport entry by index
@@ -646,29 +742,24 @@ function Teleports:DeleteTeleport(index)
     
     local entry = combined[index]
     
-    -- Remove from the combined list regardless of whether it's user-added or default
-    table.remove(combined, index)
+    -- Only allow deleting user-added teleports
+    if not entry.isUserAdded then
+        if self.parent and self.parent.Print then
+            self.parent:Print("Teleports: Cannot delete default teleport.")
+        end
+        return
+    end
     
-    -- Now rebuild both lists from the modified combined list
-    local defaultTeleports = BOLT.DefaultTeleports or {}
-    local newUserList = {}
-    
-    -- Anything not in defaults goes to user list
-    for _, e in ipairs(combined) do
-        local isDefault = false
-        for _, d in ipairs(defaultTeleports) do
-            if d == e then
-                isDefault = true
+    -- Find and remove from BOLTDB.teleports
+    if BOLTDB.teleports then
+        for i, e in ipairs(BOLTDB.teleports) do
+            if e == entry then
+                table.remove(BOLTDB.teleports, i)
                 break
             end
         end
-        if not isDefault then
-            table.insert(newUserList, e)
-        end
     end
     
-    -- Save the updated user list
-    self.parent:SetConfig(newUserList, "teleports", "userTeleportList")
     if self.parent and self.parent.Print then
         self.parent:Print("Teleports: Removed '" .. tostring(entry.name) .. "'")
     end
@@ -681,23 +772,23 @@ function Teleports:UpdateTeleport(index, newData)
     if index <= 0 or index > #combined then return end
     
     local entry = combined[index]
-    if entry.isUserAdded then
-        -- Find and update in user list
-        local cfg = self.parent:GetConfig("teleports") or {}
-        local userList = cfg.userTeleportList or {}
-        for i, userEntry in ipairs(userList) do
-            if userEntry == entry then
+    if not entry.isUserAdded then
+        if self.parent and self.parent.Print then
+            self.parent:Print("Teleports: Cannot edit default teleport. Only user-added pins can be edited.")
+        end
+        return
+    end
+    
+    -- Find and update in BOLTDB.teleports
+    if BOLTDB.teleports then
+        for i, e in ipairs(BOLTDB.teleports) do
+            if e == entry then
                 for k, v in pairs(newData) do
-                    userList[i][k] = v
+                    BOLTDB.teleports[i][k] = v
                 end
-                self.parent:SetConfig(userList, "teleports", "userTeleportList")
                 self:RefreshPins()
                 return
             end
-        end
-    else
-        if self.parent and self.parent.Print then
-            self.parent:Print("Teleports: Cannot edit default teleport. Only user-added pins can be edited.")
         end
     end
 end

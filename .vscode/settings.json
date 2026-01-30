@@ -44,7 +44,12 @@
     "CloseDropDownMenus",
     "MapCanvasDataProviderMixin",
     "MapCanvasPinMixin",
-    "ChatFrame1"
+    "ChatFrame1",
+    "ChatEdit_ActivateChat",
+    "ChatEdit_OnEscapePressed",
+    "ChatEdit_ParseText",
+    "ChatEdit_ChooseBoxForSend",
+    "ChatEdit_GetActiveWindow"
   ],
   "Lua.type.weakUnionCheck": true,
   "workbench.colorCustomizations": {

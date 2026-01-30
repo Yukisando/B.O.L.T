@@ -42,9 +42,7 @@ BOLT.defaults = {
             enabled = true
         },
         teleports = {
-            enabled = true,
-            showOnMap = true,
-            teleportList = {} -- User-created teleport locations (use keybind to add)
+            enabled = true
         }
     }
 }
