@@ -33,5 +33,10 @@ Modules\Playground.lua
 Modules\SpecialGamemode.lua
 Modules\WowheadLink.lua
 Modules\AutoRepSwitch.lua
+
+# Teleports Module (12.0 compliant architecture)
 TeleportPins.xml
+Modules\Teleports_PinMixin.lua
+Modules\Teleports_DataProvider.lua
+Modules\Teleports_SecureUI.lua
 Modules\Teleports.lua
