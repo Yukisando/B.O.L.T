@@ -17,20 +17,12 @@ function BOLTTeleportPinMixin:OnLoad()
 end
 
 function BOLTTeleportPinMixin:OnAcquired()
-    -- Set up the pin icon
+    -- Create the icon texture if it doesn't exist
     if not self.Icon then
         self.Icon = self:CreateTexture(nil, "ARTWORK")
         self.Icon:SetSize(24, 24)
         self.Icon:SetPoint("CENTER", self, "CENTER", 0, 0)
         self.Icon:SetDrawLayer("ARTWORK", 7)
-    end
-    
-    if self.entry then
-        local icon = self.entry.icon or DEFAULT_ICON
-        -- Use SetTexture directly - simpler and more reliable
-        self.Icon:SetTexture(icon)
-        self.Icon:Show()
-        self.Icon:SetVertexColor(1, 1, 1, 1)
     end
     
     -- Ensure the pin itself is visible and clickable
@@ -39,6 +31,18 @@ function BOLTTeleportPinMixin:OnAcquired()
     self:EnableMouse(true)
     self:SetMouseClickEnabled(true)
     self:SetAlpha(1.0)
+end
+
+function BOLTTeleportPinMixin:SetupPin(entry)
+    -- Called after entry is assigned to set up the visual
+    self.entry = entry
+    
+    if self.Icon and entry then
+        local icon = entry.icon or DEFAULT_ICON
+        self.Icon:SetTexture(icon)
+        self.Icon:Show()
+        self.Icon:SetVertexColor(1, 1, 1, 1)
+    end
 end
 
 function BOLTTeleportPinMixin:OnReleased()
@@ -130,9 +134,57 @@ local function SafeCall(fn, ...)
     return res
 end
 
+-- Project coordinates from entry's mapID to the currently displayed map.
+-- Returns (x, y, true) if successful, or (nil, nil, false) if the entry isn't visible on currentMapID.
+local function ProjectToCurrentMap(entry, currentMapID)
+    if not entry or not currentMapID then return nil, nil, false end
+    local entryMapID = entry.mapID
+    local entryX = entry.x or 0.5
+    local entryY = entry.y or 0.5
+
+    -- If entry has no mapID, treat as "show anywhere" at given coords
+    if not entryMapID then
+        return entryX, entryY, true
+    end
+
+    -- Exact match: use coords directly
+    if entryMapID == currentMapID then
+        return entryX, entryY, true
+    end
+
+    -- Try to project via world coordinates
+    if C_Map and C_Map.GetWorldPosFromMapPos and C_Map.GetMapPosFromWorldPos then
+        -- Convert entry's map-relative coords to world position
+        local continentID, worldPos = SafeCall(C_Map.GetWorldPosFromMapPos, entryMapID, CreateVector2D(entryX, entryY))
+        if continentID and worldPos then
+            -- Now convert world position back to the current map's coordinates
+            local mapPos = SafeCall(C_Map.GetMapPosFromWorldPos, continentID, worldPos, currentMapID)
+            if mapPos then
+                local projX, projY = mapPos:GetXY()
+                -- Only valid if within [0,1] range (i.e., visible on current map)
+                if projX and projY and projX >= 0 and projX <= 1 and projY >= 0 and projY <= 1 then
+                    return projX, projY, true
+                end
+            end
+        end
+    end
+
+    return nil, nil, false
+end
+
 function Teleports:OnInitialize()
     -- Nothing heavy on init; data comes from saved profile defaults
     self:CreateDataProvider()
+    
+    -- Create persistent event frame (will be enabled/disabled by OnEnable/OnDisable)
+    if not self.eventFrame then
+        self.eventFrame = CreateFrame("Frame")
+        self.eventFrame:SetScript("OnEvent", function(_, event, ...)
+            if WorldMapFrame and WorldMapFrame:IsShown() then
+                self:RefreshPins()
+            end
+        end)
+    end
 end
 
 -- Get the combined list of default + user teleports
@@ -173,6 +225,7 @@ function Teleports:CreateDataProvider()
     
     function provider:OnAdded(mapCanvas)
         MapCanvasDataProviderMixin.OnAdded(self, mapCanvas)
+        self:RefreshAllData()
     end
     
     function provider:OnRemoved(mapCanvas)
@@ -190,7 +243,10 @@ function Teleports:CreateDataProvider()
             return 
         end
         
-        -- Always show teleports on map (showOnMap removed)
+        -- Check if module is enabled
+        if not (teleportsModule.parent and teleportsModule.parent:IsModuleEnabled("teleports")) then
+            return
+        end
         
         local currentMapID = self:GetMap():GetMapID()
         if not currentMapID then 
@@ -208,41 +264,24 @@ function Teleports:CreateDataProvider()
         
         local pinCount = 0
         for i, entry in ipairs(list) do
-            -- Inline the projection logic to avoid function call issues
-            local projX, projY, canProject = nil, nil, false
-            
-            if entry and entry.mapID and entry.x and entry.y then
-                -- Entry coordinates are already normalized (0-1)
-                if entry.mapID == currentMapID then
-                    -- Exact match
-                    projX, projY, canProject = entry.x, entry.y, true
-                elseif C_Map and C_Map.GetWorldPosFromMapPos and C_Map.GetMapPosFromWorldPos then
-                    -- Try to project to parent map
-                    local continentID, worldPos = C_Map.GetWorldPosFromMapPos(entry.mapID, CreateVector2D(entry.x, entry.y))
-                    if continentID and worldPos then
-                        local mapPos = C_Map.GetMapPosFromWorldPos(continentID, worldPos, currentMapID)
-                        if mapPos then
-                            local px, py = mapPos:GetXY()
-                            if px and py and px >= 0 and px <= 1 and py >= 0 and py <= 1 then
-                                projX, projY, canProject = px, py, true
-                            end
-                        end
-                    end
-                end
-            end
+            -- Use the ProjectToCurrentMap function
+            local projX, projY, canProject = ProjectToCurrentMap(entry, currentMapID)
             
             if canProject and projX and projY then
                 local pin = self:GetMap():AcquirePin("BOLTTeleportPinTemplate")
                 if pin then
-                    pin.entry = entry
                     pin.teleportsModule = teleportsModule
+                    pin:SetupPin(entry)  -- This sets entry and configures the icon
                     pin:SetPosition(projX, projY)
-                    pin:Show()
-                    pin:EnableMouse(true)
-                    pin:SetAlpha(1.0)
                     pinCount = pinCount + 1
                 end
             end
+        end
+        
+        -- Debug output
+        if teleportsModule.parent and teleportsModule.parent:GetConfig("debug") then
+            teleportsModule:Debug(string.format("RefreshAllData: Placed %d pins on map %d from %d total teleports", 
+                pinCount, currentMapID, #list))
         end
     end
     
@@ -257,44 +296,6 @@ end
 
 function Teleports:SetupMouseClickHandler()
     -- No custom mouse handler needed - use keybind from Bindings.xml instead
-end
-
--- Project coordinates from entry's mapID to the currently displayed map.
--- Returns (x, y, true) if successful, or (nil, nil, false) if the entry isn't visible on currentMapID.
-local function ProjectToCurrentMap(entry, currentMapID)
-    if not entry or not currentMapID then return nil, nil, false end
-    local entryMapID = entry.mapID
-    local entryX = entry.x or 0.5
-    local entryY = entry.y or 0.5
-
-    -- If entry has no mapID, treat as "show anywhere" at given coords
-    if not entryMapID then
-        return entryX, entryY, true
-    end
-
-    -- Exact match: use coords directly
-    if entryMapID == currentMapID then
-        return entryX, entryY, true
-    end
-
-    -- Try to project via world coordinates
-    if C_Map and C_Map.GetWorldPosFromMapPos and C_Map.GetMapPosFromWorldPos then
-        -- Convert entry's map-relative coords to world position
-        local continentID, worldPos = SafeCall(C_Map.GetWorldPosFromMapPos, entryMapID, CreateVector2D(entryX, entryY))
-        if continentID and worldPos then
-            -- Now convert world position back to the current map's coordinates
-            local mapPos = SafeCall(C_Map.GetMapPosFromWorldPos, continentID, worldPos, currentMapID)
-            if mapPos then
-                local projX, projY = mapPos:GetXY()
-                -- Only valid if within [0,1] range (i.e., visible on current map)
-                if projX and projY and projX >= 0 and projX <= 1 and projY >= 0 and projY <= 1 then
-                    return projX, projY, true
-                end
-            end
-        end
-    end
-
-    return nil, nil, false
 end
 
 function Teleports:RefreshPins()
@@ -312,49 +313,29 @@ function Teleports:UpdateMapDisplay()
 end
 
 function Teleports:OnEnable()
-    if not self.parent:GetConfig("teleports", "enabled") then
-        return
-    end
-    
-    -- Set default keybindings if not already set
-    local key1, key2 = GetBindingKey("BOLT_ADD_TELEPORT")
-    if not key1 and not key2 then
-        -- Note: The actual Ctrl+Alt+Right-Click is handled by the mouse handler
-        -- This keybind is for those who want to use keyboard shortcut instead
-        -- We don't set a default keyboard binding to avoid conflicts
-    end
-    
     -- Setup Ctrl+Alt+Right-Click mouse handler for adding teleports
     self:SetupMouseClickHandler()
 
-    -- Add the data provider to the WorldMap
-    if WorldMapFrame and self.dataProvider then
-        WorldMapFrame:AddDataProvider(self.dataProvider)
+    -- Register events on the persistent frame
+    if self.eventFrame then
+        self.eventFrame:RegisterEvent("PLAYER_LOGIN")
+        self.eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+        self.eventFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
     end
 
-    -- Event-driven refresh
-    if not self.eventFrame then
-        local ef = CreateFrame("Frame")
-        ef:RegisterEvent("PLAYER_LOGIN")
-        ef:RegisterEvent("PLAYER_ENTERING_WORLD")
-        ef:RegisterEvent("ZONE_CHANGED_NEW_AREA")
-        ef:SetScript("OnEvent", function(_, event, ...)
-            if WorldMapFrame and WorldMapFrame:IsShown() then
+    -- Hook WorldMapFrame if not already hooked
+    if WorldMapFrame and not self.mapHooked then
+        WorldMapFrame:HookScript("OnShow", function()
+            if self.parent:IsModuleEnabled("teleports") then
                 self:RefreshPins()
             end
         end)
-        self.eventFrame = ef
+        self.mapHooked = true
     end
 
-    if WorldMapFrame then
-        WorldMapFrame:HookScript("OnShow", function()
-            self:RefreshPins()
-        end)
-    end
-
-    -- Refresh now in case map is already open
-    if WorldMapFrame and WorldMapFrame:IsShown() then
-        self:RefreshPins()
+    -- Add the data provider to the WorldMap (OnAdded will trigger RefreshAllData)
+    if WorldMapFrame and self.dataProvider then
+        WorldMapFrame:AddDataProvider(self.dataProvider)
     end
 end
 
@@ -365,14 +346,13 @@ function Teleports:OnDisable()
     end
     
     -- Remove data provider from WorldMap
-    if WorldMapFrame and self.dataProvider and WorldMapFrame.dataProviders then
+    if WorldMapFrame and self.dataProvider then
         WorldMapFrame:RemoveDataProvider(self.dataProvider)
     end
     
+    -- Unregister events but keep the frame for re-enabling
     if self.eventFrame then
         self.eventFrame:UnregisterAllEvents()
-        self.eventFrame:SetScript("OnEvent", nil)
-        self.eventFrame = nil
     end
 end
 
