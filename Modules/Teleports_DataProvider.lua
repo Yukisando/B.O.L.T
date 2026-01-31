@@ -74,6 +74,12 @@ function BOLTTeleportDataProviderMixin:RefreshAllData()
         end
     end
     
+    -- Force the map canvas to process the new pins immediately
+    -- This is similar to how TomTom/HereBeDragons triggers updates
+    if map.TriggerEvent then
+        map:TriggerEvent("DataProviderRefreshed", self)
+    end
+    
     -- Debug output
     if teleportsModule.Debug then
         teleportsModule:Debug(string.format("RefreshAllData: Placed %d pins on map %d from %d total teleports", 

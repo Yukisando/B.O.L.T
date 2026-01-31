@@ -1,6 +1,9 @@
 -- B.O.L.T Teleports Module (Main Entry Point)
 -- Data management, events, and coordination
--- Follows 12.0 architecture: data here, pins in PinMixin, secure in SecureUI
+-- Architecture: Direct-click secure pins (like OPie), immediate refresh (like TomTom)
+-- - PinMixin: Secure buttons that teleport on click
+-- - DataProvider: Immediate map refresh without reopening
+-- - SecureUI: Fallback popup (rarely needed)
 
 local ADDON_NAME, BOLT = ...
 
@@ -181,26 +184,14 @@ function Teleports:UpdateMapDisplay()
 end
 
 -------------------------------------------------
--- Teleport Popup Interface (delegates to SecureUI)
+-- Teleport Popup Interface (legacy fallback - pins now teleport directly)
 -------------------------------------------------
 
--- Open the teleport confirmation popup
+-- Open the teleport popup (fallback method - direct pin click is preferred)
 function Teleports:OpenTeleportPopup(entry)
     if not entry then return end
     
-    -- Log the attempt
-    if self.parent and self.parent.Print and self.parent:GetConfig("debug") then
-        local entryName = entry.name or "Unknown"
-        local entryType = entry.type or "unknown"
-        local entryID = entry.id
-        if entryID then
-            self.parent:Print(string.format("Teleports: Opening popup for %s (ID: %d, Type: %s)", entryName, entryID, entryType))
-        else
-            self.parent:Print(string.format("Teleports: Opening popup for %s (Type: %s)", entryName, entryType))
-        end
-    end
-    
-    -- Delegate to SecureUI
+    -- Delegate to SecureUI (rarely used now)
     if BOLT.TeleportSecureUI then
         BOLT.TeleportSecureUI:ShowPopup(entry)
     end

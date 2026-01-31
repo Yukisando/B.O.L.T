@@ -1,16 +1,16 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/">
     <!-- 
-        BOLTTeleportPinTemplate - Display-only map pin (12.0 compliant)
-        NO secure actions - pins only show icons, tooltips, and open popup
-        Secure teleport execution is handled by Teleports_SecureUI.lua
+        BOLTTeleportPinTemplate - Secure map pins (like OPie)
+        Pins ARE secure buttons - left-click directly casts spell/uses item
+        No popup needed - instant teleport on click!
     -->
-    <Frame name="BOLTTeleportPinTemplate" mixin="BOLTTeleportPinMixin" virtual="true" enableMouse="true">
+    <Button name="BOLTTeleportPinTemplate" mixin="BOLTTeleportPinMixin" inherits="SecureActionButtonTemplate" virtual="true" enableMouse="true" registerForClicks="LeftButtonUp,RightButtonUp">
         <Size x="24" y="24"/>
         <Scripts>
             <OnLoad method="OnLoad"/>
             <OnEnter method="OnMouseEnter"/>
             <OnLeave method="OnMouseLeave"/>
-            <OnMouseDown method="OnMouseDown"/>
+            <OnClick method="OnClick"/>
         </Scripts>
-    </Frame>
+    </Button>
 </Ui>

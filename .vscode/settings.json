@@ -59,7 +59,14 @@
     "QuestInfoFrame",
     "WardrobeCollectionFrame",
     "AuctionHouseFrame",
-    "GuildBankFrame"
+    "GuildBankFrame",
+    "RegisterStateDriver",
+    "GenerateClosure",
+    "SLASH_CLICK1",
+    "GetFrameHandleFrame",
+    "FACTION_HORDE",
+    "FACTION_ALLIANCE",
+    "WorldMapMixin"
   ],
   "Lua.type.weakUnionCheck": true,
   "workbench.colorCustomizations": {
