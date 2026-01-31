@@ -49,7 +49,17 @@
     "ChatEdit_OnEscapePressed",
     "ChatEdit_ParseText",
     "ChatEdit_ChooseBoxForSend",
-    "ChatEdit_GetActiveWindow"
+    "ChatEdit_GetActiveWindow",
+    "ShoppingTooltip1",
+    "ShoppingTooltip2",
+    "ItemRefShoppingTooltip1",
+    "ItemRefShoppingTooltip2",
+    "ToyBox",
+    "MerchantFrame",
+    "QuestInfoFrame",
+    "WardrobeCollectionFrame",
+    "AuctionHouseFrame",
+    "GuildBankFrame"
   ],
   "Lua.type.weakUnionCheck": true,
   "workbench.colorCustomizations": {

@@ -145,6 +145,234 @@ function WowheadLink:ShowLinkForItem(itemLink)
     linkFrame.editBox:SetFocus()
 end
 
+-- Helper function to extract item ID from various sources
+local function GetItemIDFromTooltipData(tooltipData)
+    if not tooltipData then return nil end
+    
+    -- Check for item ID directly in tooltip data
+    if tooltipData.id and tooltipData.type then
+        if tooltipData.type == Enum.TooltipDataType.Item then
+            return tooltipData.id
+        end
+        if tooltipData.type == Enum.TooltipDataType.Toy then
+            return tooltipData.id
+        end
+    end
+    
+    -- Check hyperlink in tooltip data
+    if tooltipData.hyperlink then
+        local itemID = string.match(tooltipData.hyperlink, "item:(%d+)")
+        if itemID then return tonumber(itemID) end
+    end
+    
+    return nil
+end
+
+-- Try to get item from various tooltip frames
+local function GetItemFromTooltips()
+    local tooltipsToCheck = {
+        GameTooltip,
+        ItemRefTooltip,
+        ShoppingTooltip1,
+        ShoppingTooltip2,
+        ItemRefShoppingTooltip1,
+        ItemRefShoppingTooltip2,
+    }
+    
+    for _, tooltip in ipairs(tooltipsToCheck) do
+        if tooltip and tooltip:IsShown() then
+            -- Try the standard GetItem method
+            local _, itemLink = tooltip:GetItem()
+            if itemLink then
+                return itemLink
+            end
+            
+            -- Try the modern tooltip data API
+            if tooltip.GetTooltipData then
+                local tooltipData = tooltip:GetTooltipData()
+                local itemID = GetItemIDFromTooltipData(tooltipData)
+                if itemID then
+                    local _, link = C_Item.GetItemInfo(itemID)
+                    if link then return link end
+                    -- Fallback: create a basic item link
+                    return "item:" .. itemID
+                end
+            end
+        end
+    end
+    
+    return nil
+end
+
+-- Try to get item from the focused frame (bags, equipment, etc.)
+local function GetItemFromFocusedFrame()
+    local getMouseFocus = rawget(_G, "GetMouseFocus")
+    if not getMouseFocus then return nil end
+    
+    local frame = getMouseFocus()
+    if not frame then return nil end
+    
+    -- Check if it's a container item via ItemLocation
+    if frame.GetItemLocation then
+        local itemLocation = frame:GetItemLocation()
+        if itemLocation and itemLocation:IsValid() then
+            return C_Item.GetItemLink(itemLocation)
+        end
+    end
+    
+    -- Check if it's a bag item
+    if frame.GetBagID and frame.GetID then
+        local bag = frame:GetBagID()
+        local slot = frame:GetID()
+        if bag and slot then
+            return C_Container.GetContainerItemLink(bag, slot)
+        end
+    end
+    
+    return nil
+end
+
+-- Try to get item from ToyBox
+local function GetItemFromToyBox()
+    if not ToyBox or not ToyBox:IsShown() then return nil end
+    
+    -- Check if we have a toy button hovered
+    local getMouseFocus = rawget(_G, "GetMouseFocus")
+    if not getMouseFocus then return nil end
+    
+    local frame = getMouseFocus()
+    if frame and frame.itemID then
+        local _, link = C_Item.GetItemInfo(frame.itemID)
+        if link then return link end
+        return "item:" .. frame.itemID
+    end
+    
+    -- Try to get from the toy's spellID
+    if frame and frame.spellID then
+        local itemID = C_ToyBox and C_ToyBox.GetToyInfo and select(1, C_ToyBox.GetToyInfo(frame.spellID))
+        if itemID then
+            local _, link = C_Item.GetItemInfo(itemID)
+            if link then return link end
+            return "item:" .. itemID
+        end
+    end
+    
+    return nil
+end
+
+-- Try to get item from vendor frame
+local function GetItemFromMerchant()
+    if not MerchantFrame or not MerchantFrame:IsShown() then return nil end
+    
+    local getMouseFocus = rawget(_G, "GetMouseFocus")
+    if not getMouseFocus then return nil end
+    
+    local frame = getMouseFocus()
+    
+    -- Check for merchant item buttons
+    if frame then
+        -- Try to get the merchant index from the button
+        local buttonName = frame:GetName()
+        if buttonName then
+            local index = string.match(buttonName, "MerchantItem(%d+)ItemButton")
+            if index then
+                index = tonumber(index)
+                local link = GetMerchantItemLink(index)
+                if link then return link end
+            end
+        end
+        
+        -- Check for buyback items
+        local buybackIndex = buttonName and string.match(buttonName, "MerchantBuyBackItemItemButton")
+        if buybackIndex then
+            local link = GetBuybackItemLink(1)
+            if link then return link end
+        end
+    end
+    
+    return nil
+end
+
+-- Try to get item from quest reward frame
+local function GetItemFromQuestReward()
+    if not QuestInfoFrame or not QuestInfoFrame:IsShown() then return nil end
+    
+    local getMouseFocus = rawget(_G, "GetMouseFocus")
+    if not getMouseFocus then return nil end
+    
+    local frame = getMouseFocus()
+    if not frame then return nil end
+    
+    local buttonName = frame:GetName()
+    if not buttonName then return nil end
+    
+    -- Quest reward choices
+    local rewardIndex = string.match(buttonName, "QuestInfoRewardsFrameQuestInfoItem(%d+)")
+    if rewardIndex then
+        rewardIndex = tonumber(rewardIndex)
+        if QuestInfoFrame.questLog then
+            return GetQuestLogItemLink("choice", rewardIndex)
+        else
+            return GetQuestItemLink("choice", rewardIndex)
+        end
+    end
+    
+    return nil
+end
+
+-- Try to get item from collections/appearances
+local function GetItemFromCollections()
+    if not WardrobeCollectionFrame or not WardrobeCollectionFrame:IsShown() then return nil end
+    
+    local getMouseFocus = rawget(_G, "GetMouseFocus")
+    if not getMouseFocus then return nil end
+    
+    local frame = getMouseFocus()
+    if frame and frame.visualInfo and frame.visualInfo.visualID then
+        local sources = C_TransmogCollection.GetAppearanceSources(frame.visualInfo.visualID)
+        if sources and sources[1] and sources[1].itemID then
+            local _, link = C_Item.GetItemInfo(sources[1].itemID)
+            if link then return link end
+            return "item:" .. sources[1].itemID
+        end
+    end
+    
+    return nil
+end
+
+-- Try to get item from auction house
+local function GetItemFromAuctionHouse()
+    if not AuctionHouseFrame or not AuctionHouseFrame:IsShown() then return nil end
+    
+    -- The AH uses the tooltip data system, so GetItemFromTooltips should handle it
+    return nil
+end
+
+-- Try to get item from guild bank
+local function GetItemFromGuildBank()
+    if not GuildBankFrame or not GuildBankFrame:IsShown() then return nil end
+    
+    local getMouseFocus = rawget(_G, "GetMouseFocus")
+    if not getMouseFocus then return nil end
+    
+    local frame = getMouseFocus()
+    if not frame then return nil end
+    
+    local buttonName = frame:GetName()
+    if buttonName then
+        local tab, slot = string.match(buttonName, "GuildBankColumn(%d+)Button(%d+)")
+        if tab and slot then
+            tab = tonumber(tab)
+            slot = tonumber(slot)
+            local trueSlot = (tab - 1) * 14 + slot
+            local currentTab = GetCurrentGuildBankTab()
+            return GetGuildBankItemLink(currentTab, trueSlot)
+        end
+    end
+    
+    return nil
+end
+
 -- Global function for keybinding
 function BOLT_ShowWowheadLink()
     local BOLT = _G["BOLT"]
@@ -157,30 +385,33 @@ function BOLT_ShowWowheadLink()
             return
         end
 
-        -- Get the item link from the tooltip
-        local _, itemLink = GameTooltip:GetItem()
-
+        local itemLink = nil
+        
+        -- Try multiple sources in order of likelihood
+        itemLink = GetItemFromTooltips()
+        
         if not itemLink then
-            -- Try to get from mouseover unit if it's an item
-            local getMouseFocus = rawget(_G, "GetMouseFocus")
-            if getMouseFocus then
-                local frame = getMouseFocus()
-                -- Check if it's a container item
-                if frame and frame.GetItemLocation then
-                    local itemLocation = frame:GetItemLocation()
-                    if itemLocation and itemLocation:IsValid() then
-                        itemLink = C_Item.GetItemLink(itemLocation)
-                    end
-                end
-                -- Check if it's a bag item
-                if not itemLink and frame.GetBagID and frame.GetID then
-                    local bag = frame:GetBagID()
-                    local slot = frame:GetID()
-                    if bag and slot then
-                        itemLink = C_Container.GetContainerItemLink(bag, slot)
-                    end
-                end
-            end
+            itemLink = GetItemFromFocusedFrame()
+        end
+        
+        if not itemLink then
+            itemLink = GetItemFromToyBox()
+        end
+        
+        if not itemLink then
+            itemLink = GetItemFromMerchant()
+        end
+        
+        if not itemLink then
+            itemLink = GetItemFromQuestReward()
+        end
+        
+        if not itemLink then
+            itemLink = GetItemFromCollections()
+        end
+        
+        if not itemLink then
+            itemLink = GetItemFromGuildBank()
         end
 
         if itemLink then
