@@ -5,10 +5,12 @@ local ADDON_NAME, BOLT = ...
 
 local WowheadLink = {}
 
+
 -- Frame for showing the link
 local linkFrame = nil
 local currentItemLink = nil
 local currentWowheadURL = nil
+
 
 function WowheadLink:OnInitialize()
     -- Module initialization
@@ -30,6 +32,8 @@ function WowheadLink:OnEnable()
     if not linkFrame then
         self:CreateLinkFrame()
     end
+
+
 end
 
 function WowheadLink:OnDisable()
@@ -120,10 +124,14 @@ function WowheadLink:ShowLinkForItem(itemLink)
         end
     end
 
+
+
     if not id then
         self.parent:Print("Could not parse link")
         return
     end
+
+
 
     -- Get a display name for the id
     local displayName
@@ -157,7 +165,7 @@ function WowheadLink:ShowLinkForItem(itemLink)
     local wowheadURL
     if idType == "item" then
         wowheadURL = "https://www.wowhead.com/item=" .. id
-    else
+    elseif idType == "spell" then
         wowheadURL = "https://www.wowhead.com/spell=" .. id
     end
 
@@ -221,24 +229,29 @@ local function GetItemFromTooltips()
             
             -- Try the modern tooltip data API
             if tooltip.GetTooltipData then
-                local tooltipData = tooltip:GetTooltipData()
-                local id, idType = GetItemIDFromTooltipData(tooltipData)
-                if id then
-                    if idType == "spell" then
-                        -- Try to get a localized spell link
-                        if GetSpellLink then
-                            local spellLink = GetSpellLink(id)
-                            if spellLink then return spellLink end
+                local ok2, tooltipData = pcall(tooltip.GetTooltipData, tooltip)
+                if ok2 and tooltipData then
+                    local id, idType = GetItemIDFromTooltipData(tooltipData)
+                    if id then
+                        if idType == "spell" then
+                            -- Try to get a localized spell link
+                            if GetSpellLink then
+                                local spellLink = GetSpellLink(id)
+                                if spellLink then return spellLink end
+                            end
+                            return "spell:" .. id
+                        elseif idType == "mount" then
+                            return "mount:" .. id
+                        else
+                            local _, link = C_Item.GetItemInfo(id)
+                            if link then return link end
+                            -- Fallback: create a basic item link
+                            return "item:" .. id
                         end
-                        return "spell:" .. id
-                    else
-                        local _, link = C_Item.GetItemInfo(id)
-                        if link then return link end
-                        -- Fallback: create a basic item link
-                        return "item:" .. id
                     end
                 end
             end
+
         end
     end
     
@@ -435,6 +448,7 @@ function BOLT_ShowWowheadLink()
             itemLink = GetItemFromFocusedFrame()
         end
         
+
         if not itemLink then
             itemLink = GetItemFromToyBox()
         end
@@ -458,7 +472,77 @@ function BOLT_ShowWowheadLink()
         if itemLink then
             BOLT.modules.wowheadLink:ShowLinkForItem(itemLink)
         else
-            BOLT:Print("No item found. Hover over an item and try again.")
+            BOLT:Print("No item found. Hover over an item and try again. (debug info below)")
+
+            -- Debugging info: list visible tooltips and mouse focus details to help identify the hovered object
+            local tooltipsToCheck = {
+                GameTooltip,
+                ItemRefTooltip,
+                ShoppingTooltip1,
+                ShoppingTooltip2,
+                ItemRefShoppingTooltip1,
+                ItemRefShoppingTooltip2,
+            }
+
+            BOLT:Print("Debug: checking visible tooltips and their data:")
+            for _, tt in ipairs(tooltipsToCheck) do
+                if tt and tt:IsShown() then
+                    local name = tt:GetName() or "<unnamed>"
+                    BOLT:Print(" Tooltip: " .. name)
+                    local ok, itemLinkFromGetItem = pcall(function() return tt:GetItem() end)
+                    if ok and itemLinkFromGetItem and itemLinkFromGetItem ~= "" then
+                        BOLT:Print("  GetItem() -> " .. tostring(itemLinkFromGetItem))
+                    end
+
+                    if tt.GetTooltipData then
+                        local ok2, tooltipData = pcall(tt.GetTooltipData, tt)
+                        if ok2 and tooltipData then
+                            if tooltipData.hyperlink then
+                                BOLT:Print("  hyperlink -> " .. tostring(tooltipData.hyperlink))
+                            end
+                            if tooltipData.id and tooltipData.type then
+                                BOLT:Print("  id -> " .. tostring(tooltipData.id) .. " type -> " .. tostring(tooltipData.type))
+                            end
+                        end
+                    end
+
+                    -- Also dump tooltip text lines for easier diagnosis
+                    local regions = { tt:GetRegions() }
+                    for i, region in ipairs(regions) do
+                        if region and type(region.GetText) == "function" then
+                            local okText, txt = pcall(region.GetText, region)
+                            if okText and txt and txt ~= "" then
+                                -- limit line length to avoid flooding
+                                local short = txt
+                                if #short > 200 then short = string.sub(short, 1, 200) .. "..." end
+                                BOLT:Print("  text[" .. tostring(i) .. "] -> " .. tostring(short))
+                            end
+                        end
+                    end
+                end
+            end
+
+            -- Also print mouse focus/frame details
+            local getMouseFocus = rawget(_G, "GetMouseFocus")
+            if getMouseFocus then
+                local mf = getMouseFocus()
+                if mf then
+                    local mfName = "<unnamed>"
+                    pcall(function() mfName = mf:GetName() end)
+                    local mfType = "<unknown>"
+                    pcall(function() mfType = mf:GetObjectType() end)
+                    BOLT:Print("MouseFocus: " .. tostring(mfName) .. " (" .. tostring(mfType) .. ")")
+                    if mf.itemID then BOLT:Print("  itemID -> " .. tostring(mf.itemID)) end
+                    if mf.spellID then BOLT:Print("  spellID -> " .. tostring(mf.spellID)) end
+                    if mf.visualInfo and mf.visualInfo.visualID then BOLT:Print("  visualID -> " .. tostring(mf.visualInfo.visualID)) end
+                    if mf.GetBagID and mf.GetID then
+                        local ok3, bag, slot = pcall(function() return mf:GetBagID(), mf:GetID() end)
+                        if ok3 and bag and slot then
+                            BOLT:Print("  bag,slot -> " .. tostring(bag) .. "," .. tostring(slot))
+                        end
+                    end
+                end
+            end
         end
     end
 end

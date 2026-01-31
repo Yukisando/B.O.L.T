@@ -61,7 +61,8 @@
     "AuctionHouseFrame",
     "GuildBankFrame",
     "GetSpellInfo",
-    "GetSpellLink"
+    "GetSpellLink",
+    "PetJournal"
   ],
   "Lua.type.weakUnionCheck": true,
   "workbench.colorCustomizations": {
