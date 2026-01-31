@@ -59,7 +59,9 @@
     "QuestInfoFrame",
     "WardrobeCollectionFrame",
     "AuctionHouseFrame",
-    "GuildBankFrame"
+    "GuildBankFrame",
+    "GetSpellInfo",
+    "GetSpellLink"
   ],
   "Lua.type.weakUnionCheck": true,
   "workbench.colorCustomizations": {

@@ -105,34 +105,61 @@ function WowheadLink:ShowLinkForItem(itemLink)
         return
     end
 
-    -- Parse the item ID from the item link
+    -- Try to parse item or spell IDs from the link
+    local id, idType
+
     local itemString = string.match(itemLink, "item[%-?%d:]+")
-    if not itemString then
-        self.parent:Print("Could not parse item link")
-        return
-    end
-
-    -- Extract just the item ID (first number after "item:")
-    local itemID = string.match(itemString, "item:(%d+)")
-    if not itemID then
-        self.parent:Print("Could not extract item ID")
-        return
-    end
-
-    -- Get item name for display
-    local itemName
-    if C_Item and C_Item.GetItemInfoByID then
-        local info = C_Item.GetItemInfoByID(tonumber(itemID))
-        if info and info.name then
-            itemName = info.name
+    if itemString then
+        id = string.match(itemString, "item:(%d+)")
+        idType = "item"
+    else
+        local spellString = string.match(itemLink, "spell[%-?%d:]+")
+        if spellString then
+            id = string.match(spellString, "spell:(%d+)")
+            idType = "spell"
         end
     end
-    if not itemName then
-        itemName = "Item " .. itemID
+
+    if not id then
+        self.parent:Print("Could not parse link")
+        return
+    end
+
+    -- Get a display name for the id
+    local displayName
+    if idType == "item" then
+        if C_Item and C_Item.GetItemInfoByID then
+            local info = C_Item.GetItemInfoByID(tonumber(id))
+            if info and info.name then
+                displayName = info.name
+            end
+        end
+        if not displayName then
+            displayName = "Item " .. id
+        end
+    elseif idType == "spell" then
+        -- Safely obtain spell name; some environments may not expose GetSpellInfo
+        local name
+        if type(GetSpellInfo) == "function" then
+            name = GetSpellInfo(tonumber(id))
+        elseif C_Spell and C_Spell.GetSpellInfo then
+            name = C_Spell.GetSpellInfo(tonumber(id))
+        end
+
+        if name then
+            displayName = name
+        else
+            displayName = "Spell " .. id
+        end
     end
 
     -- Generate Wowhead URL
-    local wowheadURL = "https://www.wowhead.com/item=" .. itemID
+    local wowheadURL
+    if idType == "item" then
+        wowheadURL = "https://www.wowhead.com/item=" .. id
+    else
+        wowheadURL = "https://www.wowhead.com/spell=" .. id
+    end
 
     -- Store the current link
     currentItemLink = itemLink
@@ -149,20 +176,25 @@ end
 local function GetItemIDFromTooltipData(tooltipData)
     if not tooltipData then return nil end
     
-    -- Check for item ID directly in tooltip data
+    -- Check for ID directly in tooltip data (item, toy, or spell)
     if tooltipData.id and tooltipData.type then
         if tooltipData.type == Enum.TooltipDataType.Item then
-            return tooltipData.id
+            return tooltipData.id, "item"
         end
         if tooltipData.type == Enum.TooltipDataType.Toy then
-            return tooltipData.id
+            return tooltipData.id, "toy"
+        end
+        if tooltipData.type == Enum.TooltipDataType.Spell then
+            return tooltipData.id, "spell"
         end
     end
     
-    -- Check hyperlink in tooltip data
+    -- Check hyperlink in tooltip data (item or spell)
     if tooltipData.hyperlink then
         local itemID = string.match(tooltipData.hyperlink, "item:(%d+)")
-        if itemID then return tonumber(itemID) end
+        if itemID then return tonumber(itemID), "item" end
+        local spellID = string.match(tooltipData.hyperlink, "spell:(%d+)")
+        if spellID then return tonumber(spellID), "spell" end
     end
     
     return nil
@@ -190,12 +222,21 @@ local function GetItemFromTooltips()
             -- Try the modern tooltip data API
             if tooltip.GetTooltipData then
                 local tooltipData = tooltip:GetTooltipData()
-                local itemID = GetItemIDFromTooltipData(tooltipData)
-                if itemID then
-                    local _, link = C_Item.GetItemInfo(itemID)
-                    if link then return link end
-                    -- Fallback: create a basic item link
-                    return "item:" .. itemID
+                local id, idType = GetItemIDFromTooltipData(tooltipData)
+                if id then
+                    if idType == "spell" then
+                        -- Try to get a localized spell link
+                        if GetSpellLink then
+                            local spellLink = GetSpellLink(id)
+                            if spellLink then return spellLink end
+                        end
+                        return "spell:" .. id
+                    else
+                        local _, link = C_Item.GetItemInfo(id)
+                        if link then return link end
+                        -- Fallback: create a basic item link
+                        return "item:" .. id
+                    end
                 end
             end
         end
