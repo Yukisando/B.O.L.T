@@ -210,14 +210,13 @@ function BOLT:ColorText(text, color)
     end
 end
 
--- Check if a module is enabled
+-- Check if a module is enabled (reads account-wide state)
 function BOLT:IsModuleEnabled(moduleName)
-    local config = self:GetConfig(moduleName, "enabled")
-    -- If config is nil, use the default value from the defaults table
-    if config == nil then
-        return self.defaults.profile[moduleName] and self.defaults.profile[moduleName].enabled or false
+    if BOLTDB and BOLTDB.moduleStates and BOLTDB.moduleStates[moduleName] ~= nil then
+        return BOLTDB.moduleStates[moduleName] == true
     end
-    return config == true
+    -- Fallback for unknown modules
+    return false
 end
 
 -- Get table keys utility function

@@ -58,12 +58,6 @@ function Playground:OnInitialize()
 end
 
 function Playground:OnEnable()
-    
-    if not self.parent:IsModuleEnabled("playground") then
-        return
-    end
-    
-    
     -- Hook into the game menu show event
     self:HookGameMenu()
 
@@ -136,7 +130,7 @@ end
 
 function Playground:UpdateGameMenu()
     
-    if not self.parent:GetConfig("playground", "enabled") then
+    if not self.parent:IsModuleEnabled("playground") then
         return
     end
     

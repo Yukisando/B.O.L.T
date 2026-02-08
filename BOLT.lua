@@ -16,15 +16,16 @@ function BOLT:RegisterModule(name, module)
     end
 end
 
--- Enable or disable a module immediately and store the setting
+-- Enable or disable a module immediately and persist account-wide
 function BOLT:SetModuleEnabled(moduleName, enabled)
-    -- Persist the enabled value
-    self:SetConfig(enabled, moduleName, "enabled")
+    -- Persist in account-wide storage
+    if not BOLTDB then BOLTDB = {} end
+    if not BOLTDB.moduleStates then BOLTDB.moduleStates = {} end
+    BOLTDB.moduleStates[moduleName] = enabled
 
     local mod = self.modules[moduleName]
     if not mod then
-        -- Module file not loaded yet; saved preference will be applied when modules are initialized
-        self:Print("Module setting for '" .. tostring(moduleName) .. "' saved; it will be applied when the module loads.")
+        self:Print("Module setting for '" .. tostring(moduleName) .. "' saved; it will be applied after /reload.")
         return
     end
 
@@ -92,23 +93,9 @@ SlashCmdList["BOLT"] = function(msg)
             return
         end
         
-        local currentValue = BOLT:GetConfig(moduleName, "enabled")
+        local currentValue = BOLT:IsModuleEnabled(moduleName)
         local newValue = not currentValue
-        -- Persist the setting even if the module file hasn't been loaded yet
-        BOLT:SetConfig(newValue, moduleName, "enabled")
-        if BOLT.modules[moduleName] then
-            if newValue then
-                if BOLT.modules[moduleName].OnEnable then BOLT.modules[moduleName]:OnEnable() end
-            else
-                if BOLT.modules[moduleName].OnDisable then BOLT.modules[moduleName]:OnDisable() end
-            end
-            local status = newValue and "enabled" or "disabled"
-            BOLT:Print("Module '" .. moduleName .. "' " .. status .. ".")
-        else
-            -- Module not yet registered; save the preference and inform the user
-            local status = newValue and "enabled" or "disabled"
-            BOLT:Print("Module setting for '" .. moduleName .. "' saved as " .. status .. "; it will be applied when the module loads.")
-        end
+        BOLT:SetModuleEnabled(moduleName, newValue)
     elseif args[1] == "reload" then
         ReloadUI()
     elseif args[1] == "reset" then
@@ -122,12 +109,12 @@ SlashCmdList["BOLT"] = function(msg)
         -- Open the Interface Options to B.O.L.T panel
         BOLT:OpenConfigPanel()
     elseif args[1] == "debug" and args[2] == "config" then
-        -- Show debug configuration information
         BOLT:Print("=== B.O.L.T Debug Configuration ===")
-        for name, module in pairs(BOLT.modules) do
-            local enabled = BOLT:IsModuleEnabled(name)
-            local configValue = BOLT:GetConfig(name, "enabled")
-            BOLT:Print(("Module '%s': IsModuleEnabled=%s, config value=%s"):format(name, tostring(enabled), tostring(configValue)))
+        BOLT:Print("Module states (account-wide):")
+        if BOLTDB and BOLTDB.moduleStates then
+            for name, enabled in pairs(BOLTDB.moduleStates) do
+                BOLT:Print(("  %s = %s"):format(name, tostring(enabled)))
+            end
         end
         BOLT:Print("Debug mode: " .. tostring(BOLT:GetConfig("debug")))
         local playerKey = UnitName("player") .. " - " .. GetRealmName()

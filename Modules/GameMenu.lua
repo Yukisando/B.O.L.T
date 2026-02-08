@@ -144,9 +144,6 @@ function GameMenu:OnInitialize()
 end
 
 function GameMenu:OnEnable()
-    if not self.parent:IsModuleEnabled("gameMenu") then
-        return
-    end
 
     -- Hook into the game menu show event
     self:HookGameMenu()
@@ -363,7 +360,7 @@ function GameMenu:HookGameMenu()
 end
 
 function GameMenu:UpdateGameMenu()
-    if not self.parent:GetConfig("gameMenu", "enabled") then
+    if not self.parent:IsModuleEnabled("gameMenu") then
         return
     end
 

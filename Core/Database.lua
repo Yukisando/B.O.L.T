@@ -5,31 +5,50 @@ local ADDON_NAME, BOLT = ...
 
 -- Initialize database
 function BOLT:InitializeDatabase()
-    -- Initialize global saved variables
+    -- Initialize global (account-wide) saved variables
     if not BOLTDB then
         BOLTDB = {}
     end
-    
-    -- Initialize character-specific saved variables
-    if not BOLTCharDB then
-        BOLTCharDB = {}
+
+    -- Initialize account-wide module enabled states
+    -- Migrate from old per-profile system if needed
+    if not BOLTDB.moduleStates then
+        BOLTDB.moduleStates = {}
+        -- Migrate: pull enabled states from the current character's old profile
+        if BOLTDB.profiles then
+            local playerKey = UnitName("player") .. " - " .. GetRealmName()
+            local oldProfile = BOLTDB.profiles[playerKey]
+            if oldProfile then
+                local moduleNames = {"gameMenu", "playground", "skyriding", "wowheadLink", "autoRepSwitch", "teleports"}
+                for _, name in ipairs(moduleNames) do
+                    if oldProfile[name] and oldProfile[name].enabled ~= nil then
+                        BOLTDB.moduleStates[name] = oldProfile[name].enabled
+                    end
+                end
+            end
+        end
+        -- Fill in any missing modules with the default (false)
+        for name, default in pairs(self.defaultModuleStates) do
+            if BOLTDB.moduleStates[name] == nil then
+                BOLTDB.moduleStates[name] = default
+            end
+        end
     end
-    
+
     -- Set up database structure
     self.db = {
         global = BOLTDB,
-        char = BOLTCharDB,
         profile = {}
     }
-    
+
     -- Merge defaults with saved settings
     self:MergeDefaults(self.db.profile, self.defaults.profile)
-    
+
     -- Store profile settings in global DB if they don't exist
     if not BOLTDB.profiles then
         BOLTDB.profiles = {}
     end
-    
+
     local playerKey = UnitName("player") .. " - " .. GetRealmName()
     if not BOLTDB.profiles[playerKey] then
         BOLTDB.profiles[playerKey] = CopyTable(self.db.profile)
@@ -38,24 +57,35 @@ function BOLT:InitializeDatabase()
         self:MergeDefaults(self.db.profile, self.defaults.profile)
     end
 
-    -- Migrate deprecated saved-variable keys
-    -- Older versions used skyriding.toggleMode; remove it from any stored
-    -- profiles so the deprecated setting can't reappear or confuse logic.
-    local migrated = false
-    if BOLTDB.profiles then
-        for pkey, profile in pairs(BOLTDB.profiles) do
-            if profile and profile.skyriding and profile.skyriding.toggleMode ~= nil then
-                profile.skyriding.toggleMode = nil
-                migrated = true
+    -- Clean legacy "enabled" keys out of profiles (now in moduleStates)
+    local moduleNames = {"gameMenu", "playground", "skyriding", "wowheadLink", "autoRepSwitch", "teleports"}
+    local cleaned = false
+    for pkey, profile in pairs(BOLTDB.profiles) do
+        for _, name in ipairs(moduleNames) do
+            if profile[name] and profile[name].enabled ~= nil then
+                profile[name].enabled = nil
+                cleaned = true
             end
         end
+        -- Remove deprecated skyriding.toggleMode
+        if profile.skyriding and profile.skyriding.toggleMode ~= nil then
+            profile.skyriding.toggleMode = nil
+            cleaned = true
+        end
     end
-    if self.db.profile and self.db.profile.skyriding and self.db.profile.skyriding.toggleMode ~= nil then
-        self.db.profile.skyriding.toggleMode = nil
-        migrated = true
+    if self.db.profile then
+        for _, name in ipairs(moduleNames) do
+            if self.db.profile[name] and self.db.profile[name].enabled ~= nil then
+                self.db.profile[name].enabled = nil
+                cleaned = true
+            end
+        end
+        if self.db.profile.skyriding and self.db.profile.skyriding.toggleMode ~= nil then
+            self.db.profile.skyriding.toggleMode = nil
+            cleaned = true
+        end
     end
-    if migrated then
-        -- Persist the cleaned profile for the current player
+    if cleaned then
         self:SaveProfile()
     end
 end

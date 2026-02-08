@@ -9,12 +9,13 @@ BOLT.version = "dev" -- Will be set from TOC after ADDON_LOADED
 BOLT.modules = {}
 
 -- Default configuration
+-- Module enabled states live in BOLTDB.moduleStates (account-wide).
+-- These profile defaults only cover per-module *options*, not the enabled toggle.
 BOLT.defaults = {
     profile = {
         debug = false,
         autoCollapseBuffs = true,
         gameMenu = {
-            enabled = true,
             showLeaveGroup = true,
             showReloadButton = true,
             groupToolsEnabled = true,
@@ -23,7 +24,6 @@ BOLT.defaults = {
             showVolumeButton = true
         },
         playground = {
-            enabled = true,
             showFavoriteToy = true,
             favoriteToyId = nil,
             showSpeedometer = true,
@@ -31,20 +31,23 @@ BOLT.defaults = {
             copyTargetMount = true
         },
         skyriding = {
-            enabled = true,
             enablePitchControl = true,
             invertPitch = true
         },
-        wowheadLink = {
-            enabled = true
-        },
-        autoRepSwitch = {
-            enabled = true
-        },
-        teleports = {
-            enabled = true
-        }
+        wowheadLink = {},
+        autoRepSwitch = {},
+        teleports = {}
     }
+}
+
+-- Default module enabled states for NEW users (all off)
+BOLT.defaultModuleStates = {
+    gameMenu = false,
+    playground = false,
+    skyriding = false,
+    wowheadLink = false,
+    autoRepSwitch = false,
+    teleports = false,
 }
 
 -- Initialize the addon
@@ -54,11 +57,6 @@ function BOLT:OnInitialize()
 
     -- Initialize database
     self:InitializeDatabase()
-
-    -- Debug: print saved value for autoRepSwitch when debug mode is enabled
-    if self and self.Debug then
-        self:Debug("autoRepSwitch.saved = " .. tostring(self:GetConfig("autoRepSwitch", "enabled")))
-    end
 
     -- Initialize modules
     self:InitializeModules()

@@ -17,10 +17,6 @@ function WowheadLink:OnInitialize()
 end
 
 function WowheadLink:OnEnable()
-    if not self.parent:IsModuleEnabled("wowheadLink") then
-        return
-    end
-
     -- Set default keybinding if none exists
     local key1, key2 = GetBindingKey("BOLT_SHOW_WOWHEAD_LINK")
     if not key1 and not key2 then

@@ -67,8 +67,6 @@ function AutoRepSwitch:ProcessQueue()
 end
 
 function AutoRepSwitch:OnEnable()
-    if not self.parent:IsModuleEnabled("autoRepSwitch") then return end
-
     if not self.eventFrame then
         self.eventFrame = CreateFrame("Frame")
         self.eventFrame:RegisterEvent("PLAYER_LOGIN")
