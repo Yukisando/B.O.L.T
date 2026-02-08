@@ -153,8 +153,25 @@ function Admin:ShowAdminPanel()
 end
 
 function Admin:CreateAdminPanel()
+    -- Channel options for dropdowns
+    local channelOptions = {
+        { value = "say", label = "Say" },
+        { value = "yell", label = "Yell" },
+        { value = "party", label = "Party" },
+        { value = "raid", label = "Raid" },
+        { value = "instance", label = "Instance" },
+        { value = "whisper", label = "Whisper" },
+    }
+    
+    local function GetChannelLabel(value)
+        for _, opt in ipairs(channelOptions) do
+            if opt.value == value then return opt.label end
+        end
+        return "Yell"
+    end
+    
     local panel = CreateFrame("Frame", "BOLTAdminPanel", UIParent, "BackdropTemplate")
-    panel:SetSize(400, 320)
+    panel:SetSize(400, 420)
     panel:SetPoint("CENTER", UIParent, "CENTER", 0, 50)
     panel:SetFrameStrata("DIALOG")
     panel:SetBackdrop({
@@ -194,6 +211,46 @@ function Admin:CreateAdminPanel()
     dismountInput:SetAutoFocus(false)
     dismountInput:SetMaxLetters(50)
     panel.dismountInput = dismountInput
+    
+    yOffset = yOffset - 30
+    
+    -- Dismount Channel Dropdown (Multi-select)
+    local dismountChannelLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    dismountChannelLabel:SetPoint("TOPLEFT", panel, "TOPLEFT", 25, yOffset)
+    dismountChannelLabel:SetText("Dismount Channels:")
+    
+    local dismountChannelDropdown = CreateFrame("Frame", "BOLTAdminDismountChannelDropdown", panel, "UIDropDownMenuTemplate")
+    dismountChannelDropdown:SetPoint("LEFT", dismountChannelLabel, "RIGHT", -10, -2)
+    UIDropDownMenu_SetWidth(dismountChannelDropdown, 120)
+    panel.dismountChannelDropdown = dismountChannelDropdown
+    panel.selectedDismountChannels = { yell = true }  -- Multi-select table
+    
+    local function UpdateDismountDropdownText()
+        local selected = {}
+        for _, opt in ipairs(channelOptions) do
+            if panel.selectedDismountChannels[opt.value] then
+                table.insert(selected, opt.label)
+            end
+        end
+        UIDropDownMenu_SetText(dismountChannelDropdown, #selected > 0 and table.concat(selected, ", ") or "None")
+    end
+    
+    UIDropDownMenu_Initialize(dismountChannelDropdown, function(self, level)
+        for _, opt in ipairs(channelOptions) do
+            local info = UIDropDownMenu_CreateInfo()
+            info.text = opt.label
+            info.value = opt.value
+            info.isNotRadio = true
+            info.keepShownOnClick = true
+            info.checked = panel.selectedDismountChannels[opt.value] or false
+            info.func = function(_, _, _, checked)
+                panel.selectedDismountChannels[opt.value] = checked
+                UpdateDismountDropdownText()
+            end
+            UIDropDownMenu_AddButton(info, level)
+        end
+    end)
+    panel.UpdateDismountDropdownText = UpdateDismountDropdownText
     
     yOffset = yOffset - 35
     
@@ -251,6 +308,46 @@ function Admin:CreateAdminPanel()
     msgInput2:SetMaxLetters(100)
     panel.hardcoreDisableMsgInput = msgInput2
     
+    yOffset = yOffset - 30
+    
+    -- Hardcore Channel Dropdown (Multi-select)
+    local hardcoreChannelLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    hardcoreChannelLabel:SetPoint("TOPLEFT", panel, "TOPLEFT", 25, yOffset)
+    hardcoreChannelLabel:SetText("Hardcore Channels:")
+    
+    local hardcoreChannelDropdown = CreateFrame("Frame", "BOLTAdminHardcoreChannelDropdown", panel, "UIDropDownMenuTemplate")
+    hardcoreChannelDropdown:SetPoint("LEFT", hardcoreChannelLabel, "RIGHT", -10, -2)
+    UIDropDownMenu_SetWidth(hardcoreChannelDropdown, 120)
+    panel.hardcoreChannelDropdown = hardcoreChannelDropdown
+    panel.selectedHardcoreChannels = { yell = true }  -- Multi-select table
+    
+    local function UpdateHardcoreDropdownText()
+        local selected = {}
+        for _, opt in ipairs(channelOptions) do
+            if panel.selectedHardcoreChannels[opt.value] then
+                table.insert(selected, opt.label)
+            end
+        end
+        UIDropDownMenu_SetText(hardcoreChannelDropdown, #selected > 0 and table.concat(selected, ", ") or "None")
+    end
+    
+    UIDropDownMenu_Initialize(hardcoreChannelDropdown, function(self, level)
+        for _, opt in ipairs(channelOptions) do
+            local info = UIDropDownMenu_CreateInfo()
+            info.text = opt.label
+            info.value = opt.value
+            info.isNotRadio = true
+            info.keepShownOnClick = true
+            info.checked = panel.selectedHardcoreChannels[opt.value] or false
+            info.func = function(_, _, _, checked)
+                panel.selectedHardcoreChannels[opt.value] = checked
+                UpdateHardcoreDropdownText()
+            end
+            UIDropDownMenu_AddButton(info, level)
+        end
+    end)
+    panel.UpdateHardcoreDropdownText = UpdateHardcoreDropdownText
+    
     yOffset = yOffset - 45
     
     -- Status display
@@ -271,30 +368,11 @@ function Admin:CreateAdminPanel()
     -- Buttons row
     local saveBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     saveBtn:SetSize(120, 24)
-    saveBtn:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 25, 20)
+    saveBtn:SetPoint("BOTTOM", panel, "BOTTOM", 0, 20)
     saveBtn:SetText("Save & Quit")
     saveBtn:SetScript("OnClick", function()
         Admin:SaveSettings()
         panel:Hide()
-    end)
-    
-    local testDismountBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    testDismountBtn:SetSize(120, 24)
-    testDismountBtn:SetPoint("LEFT", saveBtn, "RIGHT", 10, 0)
-    testDismountBtn:SetText("Test Dismount")
-    testDismountBtn:SetScript("OnClick", function()
-        if IsMounted and IsMounted() then
-            Dismount()
-            if self.parent and self.parent.Print then
-                self.parent:Print("|cFF00FF00Dismount triggered!|r")
-            end
-        elseif UnitInVehicle and UnitInVehicle("player") then
-            VehicleExit()
-        else
-            if self.parent and self.parent.Print then
-                self.parent:Print("Not mounted or in vehicle")
-            end
-        end
     end)
     
     -- Close button
@@ -317,6 +395,21 @@ function Admin:RefreshAdminPanel()
     self.adminPanel.hardcoreEnableMsgInput:SetText(cfg.hardcoreEnableMsg or "Hardcore mode activated!")
     self.adminPanel.hardcoreDisableMsgInput:SetText(cfg.hardcoreDisableMsg or "Hardcore mode deactivated!")
     
+    -- Update channel multi-selects
+    local dismountChannels = cfg.dismountChannels or { yell = true }
+    self.adminPanel.selectedDismountChannels = {}
+    for k, v in pairs(dismountChannels) do
+        self.adminPanel.selectedDismountChannels[k] = v
+    end
+    self.adminPanel.UpdateDismountDropdownText()
+    
+    local hardcoreChannels = cfg.hardcoreChannels or { yell = true }
+    self.adminPanel.selectedHardcoreChannels = {}
+    for k, v in pairs(hardcoreChannels) do
+        self.adminPanel.selectedHardcoreChannels[k] = v
+    end
+    self.adminPanel.UpdateHardcoreDropdownText()
+    
     -- Update status
     local specialGamemode = BOLT.modules.specialGamemode
     if specialGamemode and specialGamemode:IsHardcoreModeActive() then
@@ -331,8 +424,10 @@ function Admin:SaveSettings()
     
     local cfg = {
         dismountTrigger = self.adminPanel.dismountInput:GetText() or "oops",
+        dismountChannels = self.adminPanel.selectedDismountChannels or { yell = true },
         hardcoreActivateTrigger = self.adminPanel.activateInput:GetText() or "carrot",
         hardcoreDeactivateTrigger = self.adminPanel.deactivateInput:GetText() or "feta",
+        hardcoreChannels = self.adminPanel.selectedHardcoreChannels or { yell = true },
         hardcoreEnableMsg = self.adminPanel.hardcoreEnableMsgInput:GetText() or "Hardcore mode activated!",
         hardcoreDisableMsg = self.adminPanel.hardcoreDisableMsgInput:GetText() or "Hardcore mode deactivated!"
     }
@@ -358,11 +453,36 @@ function Admin:GetAdminConfig()
     end
     return {
         dismountTrigger = "oops",
+        dismountChannels = { yell = true },
         hardcoreActivateTrigger = "carrot",
         hardcoreDeactivateTrigger = "feta",
+        hardcoreChannels = { yell = true },
         hardcoreEnableMsg = "Hardcore mode activated!",
         hardcoreDisableMsg = "Hardcore mode deactivated!"
     }
+end
+
+function Admin:GetChannelLabel(value)
+    local channelLabels = {
+        say = "Say",
+        yell = "Yell",
+        party = "Party",
+        raid = "Raid",
+        instance = "Instance",
+        whisper = "Whisper",
+    }
+    return channelLabels[value] or "Yell"
+end
+
+-- Convert channels table to list of selected channel names
+function Admin:GetSelectedChannelsList(channelsTable)
+    local list = {}
+    for channel, enabled in pairs(channelsTable or {}) do
+        if enabled then
+            table.insert(list, channel)
+        end
+    end
+    return list
 end
 
 -- Register the module

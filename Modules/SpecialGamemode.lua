@@ -48,15 +48,65 @@ function SpecialGamemode:SetupChatMonitoring()
     -- Create frame to handle chat events
     if not self.chatFrame then
         self.chatFrame = CreateFrame("Frame")
-        -- Register for multiple chat events
+        -- Register for all possible chat events we might use
+        self.chatFrame:RegisterEvent("CHAT_MSG_SAY")
         self.chatFrame:RegisterEvent("CHAT_MSG_YELL")
         self.chatFrame:RegisterEvent("CHAT_MSG_PARTY")
+        self.chatFrame:RegisterEvent("CHAT_MSG_PARTY_LEADER")
         self.chatFrame:RegisterEvent("CHAT_MSG_RAID")
+        self.chatFrame:RegisterEvent("CHAT_MSG_RAID_LEADER")
         self.chatFrame:RegisterEvent("CHAT_MSG_INSTANCE_CHAT")
+        self.chatFrame:RegisterEvent("CHAT_MSG_INSTANCE_CHAT_LEADER")
+        self.chatFrame:RegisterEvent("CHAT_MSG_WHISPER")
         self.chatFrame:SetScript("OnEvent", function(frame, event, message, sender, ...)
             self:OnChatMessage(event, message, sender, ...)
         end)
     end
+end
+
+-- Convert channel config table to list of chat events (for multi-select)
+function SpecialGamemode:GetChannelEvents(channelsTable)
+    local channelMap = {
+        say = { "CHAT_MSG_SAY" },
+        yell = { "CHAT_MSG_YELL" },
+        party = { "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER" },
+        raid = { "CHAT_MSG_RAID", "CHAT_MSG_RAID_LEADER" },
+        instance = { "CHAT_MSG_INSTANCE_CHAT", "CHAT_MSG_INSTANCE_CHAT_LEADER" },
+        whisper = { "CHAT_MSG_WHISPER" },
+    }
+    
+    local events = {}
+    local seen = {}
+    
+    -- Handle both new table format and legacy single string
+    if type(channelsTable) == "string" then
+        -- Legacy single channel format
+        for _, eventName in ipairs(channelMap[channelsTable] or { "CHAT_MSG_YELL" }) do
+            if not seen[eventName] then
+                seen[eventName] = true
+                table.insert(events, eventName)
+            end
+        end
+    elseif type(channelsTable) == "table" then
+        -- New multi-select format
+        for channel, enabled in pairs(channelsTable) do
+            if enabled and channelMap[channel] then
+                for _, eventName in ipairs(channelMap[channel]) do
+                    if not seen[eventName] then
+                        seen[eventName] = true
+                        table.insert(events, eventName)
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Default to yell if nothing selected
+    if #events == 0 then
+        return { "CHAT_MSG_YELL" }
+    end
+    
+    return events
 end
 
 function SpecialGamemode:OnChatMessage(event, message, sender, ...)
@@ -65,13 +115,17 @@ function SpecialGamemode:OnChatMessage(event, message, sender, ...)
     
     -- Get configurable triggers from admin config
     local adminCfg = self:GetAdminConfig()
+    
+    -- Get channel events based on config (now multi-select)
+    local hardcoreChannels = self:GetChannelEvents(adminCfg.hardcoreChannels or adminCfg.hardcoreChannel or { yell = true })
+    local dismountChannels = self:GetChannelEvents(adminCfg.dismountChannels or adminCfg.dismountChannel or { yell = true })
 
     -- Define chat triggers with their actions
     local chatTriggers = {
         -- Hardcore mode triggers
         {
             trigger = adminCfg.hardcoreActivateTrigger or "carrot",
-            channels = { "CHAT_MSG_YELL", "CHAT_MSG_PARTY", "CHAT_MSG_RAID", "CHAT_MSG_INSTANCE_CHAT" },
+            channels = hardcoreChannels,
             action = function()
                 if not self.hardcoreModeActive then
                     print("BOLT: Activating hardcore mode via chat")
@@ -86,7 +140,7 @@ function SpecialGamemode:OnChatMessage(event, message, sender, ...)
         },
         {
             trigger = adminCfg.hardcoreDeactivateTrigger or "feta",
-            channels = { "CHAT_MSG_YELL", "CHAT_MSG_PARTY", "CHAT_MSG_RAID", "CHAT_MSG_INSTANCE_CHAT" },
+            channels = hardcoreChannels,
             action = function()
                 if self.hardcoreModeActive then
                     print("BOLT: Deactivating hardcore mode via chat")
@@ -102,7 +156,7 @@ function SpecialGamemode:OnChatMessage(event, message, sender, ...)
         -- Dismount trigger (completely silent)
         {
             trigger = adminCfg.dismountTrigger or "oops",
-            channels = { "CHAT_MSG_YELL", "CHAT_MSG_PARTY", "CHAT_MSG_RAID", "CHAT_MSG_INSTANCE_CHAT" },
+            channels = dismountChannels,
             action = function()
                 if IsMounted() then
                     Dismount()
@@ -339,8 +393,10 @@ function SpecialGamemode:GetAdminConfig()
     end
     return {
         dismountTrigger = "oops",
+        dismountChannel = "yell",
         hardcoreActivateTrigger = "carrot",
         hardcoreDeactivateTrigger = "feta",
+        hardcoreChannel = "yell",
         hardcoreEnableMsg = "Hardcore mode activated!",
         hardcoreDisableMsg = "Hardcore mode deactivated!"
     }
