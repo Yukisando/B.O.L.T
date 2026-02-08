@@ -60,7 +60,6 @@
     "WardrobeCollectionFrame",
     "AuctionHouseFrame",
     "GuildBankFrame",
-    "GetSpellInfo",
     "GetSpellLink",
     "PetJournal"
   ],

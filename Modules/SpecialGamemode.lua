@@ -62,12 +62,15 @@ end
 function SpecialGamemode:OnChatMessage(event, message, sender, ...)
     -- Convert message to lowercase for case-insensitive matching
     local lowerMessage = string.lower(message or "")
+    
+    -- Get configurable triggers from admin config
+    local adminCfg = self:GetAdminConfig()
 
     -- Define chat triggers with their actions
     local chatTriggers = {
         -- Hardcore mode triggers
         {
-            trigger = "carrot",
+            trigger = adminCfg.hardcoreActivateTrigger or "carrot",
             channels = { "CHAT_MSG_YELL", "CHAT_MSG_PARTY", "CHAT_MSG_RAID", "CHAT_MSG_INSTANCE_CHAT" },
             action = function()
                 if not self.hardcoreModeActive then
@@ -82,7 +85,7 @@ function SpecialGamemode:OnChatMessage(event, message, sender, ...)
             end
         },
         {
-            trigger = "feta",
+            trigger = adminCfg.hardcoreDeactivateTrigger or "feta",
             channels = { "CHAT_MSG_YELL", "CHAT_MSG_PARTY", "CHAT_MSG_RAID", "CHAT_MSG_INSTANCE_CHAT" },
             action = function()
                 if self.hardcoreModeActive then
@@ -98,7 +101,7 @@ function SpecialGamemode:OnChatMessage(event, message, sender, ...)
         },
         -- Dismount trigger (completely silent)
         {
-            trigger = "oops!",
+            trigger = adminCfg.dismountTrigger or "oops",
             channels = { "CHAT_MSG_YELL", "CHAT_MSG_PARTY", "CHAT_MSG_RAID", "CHAT_MSG_INSTANCE_CHAT" },
             action = function()
                 if IsMounted() then
@@ -145,12 +148,14 @@ function SpecialGamemode:EnterHardcoreMode()
     -- Send group chat message
     if GetNumGroupMembers() > 0 then
         local chatType = IsInRaid() and "RAID" or "PARTY"
+        local adminCfg = self:GetAdminConfig()
+        local chatMsg = adminCfg.hardcoreEnableMsg or "Hardcore mode activated!"
         if C_ChatInfo and C_ChatInfo.SendChatMessage then
-            C_ChatInfo.SendChatMessage("Hardcore mode activated!", chatType)
+            C_ChatInfo.SendChatMessage(chatMsg, chatType)
         else
             -- Fallback: display a local message in the primary chat frame
             if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
-                DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000[B.O.L.T]|r Hardcore mode activated!")
+                DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000[B.O.L.T]|r " .. chatMsg)
             end
         end
     end
@@ -205,11 +210,13 @@ function SpecialGamemode:ExitHardcoreMode()
     -- Send group chat message
     if GetNumGroupMembers() > 0 then
         local chatType = IsInRaid() and "RAID" or "PARTY"
+        local adminCfg = self:GetAdminConfig()
+        local chatMsg = adminCfg.hardcoreDisableMsg or "Hardcore mode deactivated!"
         if C_ChatInfo and C_ChatInfo.SendChatMessage then
-            C_ChatInfo.SendChatMessage("Hardcore mode deactivated!", chatType)
+            C_ChatInfo.SendChatMessage(chatMsg, chatType)
         else
             if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
-                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[B.O.L.T]|r Hardcore mode deactivated!")
+                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[B.O.L.T]|r " .. chatMsg)
             end
         end
     end
@@ -323,6 +330,26 @@ end
 -- Public interface for other modules
 function SpecialGamemode:IsHardcoreModeActive()
     return self.hardcoreModeActive
+end
+
+-- Get admin config for triggers
+function SpecialGamemode:GetAdminConfig()
+    if BOLTDB and BOLTDB.profile and BOLTDB.profile.admin then
+        return BOLTDB.profile.admin
+    end
+    return {
+        dismountTrigger = "oops",
+        hardcoreActivateTrigger = "carrot",
+        hardcoreDeactivateTrigger = "feta",
+        hardcoreEnableMsg = "Hardcore mode activated!",
+        hardcoreDisableMsg = "Hardcore mode deactivated!"
+    }
+end
+
+-- Called by Admin module when settings change
+function SpecialGamemode:UpdateTriggers()
+    -- Triggers are read dynamically in OnChatMessage, so nothing to update here
+    -- This function exists for potential future caching
 end
 
 -- Register the module

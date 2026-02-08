@@ -31,6 +31,7 @@ Modules\GameMenu.lua
 Modules\Skyriding.lua
 Modules\Playground.lua
 Modules\SpecialGamemode.lua
+Modules\Admin.lua
 Modules\WowheadLink.lua
 Modules\AutoRepSwitch.lua
 

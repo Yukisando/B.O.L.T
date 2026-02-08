@@ -256,7 +256,13 @@ function Teleports:ShowAddTeleportPopup()
     UIDropDownMenu_SetText(self.addPopup.typeDropdown, "Spell")
 
     self.addPopup:Show()
-    self.addPopup.nameInput:SetFocus()
+    -- Delay focus to prevent keybind letter from being captured in the input
+    C_Timer.After(0.05, function()
+        if self.addPopup and self.addPopup:IsShown() then
+            self.addPopup.nameInput:SetText("")
+            self.addPopup.nameInput:SetFocus()
+        end
+    end)
 end
 
 function Teleports:CreateAddTeleportPopup()
