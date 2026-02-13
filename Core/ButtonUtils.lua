@@ -14,6 +14,25 @@ local BUTTON_CONFIG = {
     size = 25,
 }
 
+-- Helper: add a thin Blizzard-style circular border ring around a masked icon button
+local function AddCircularBorder(btn, iconSize)
+    local borderWidth = 1.5
+    local borderSize = iconSize + (borderWidth * 2)
+
+    local border = btn:CreateTexture(nil, "BORDER")
+    border:SetSize(borderSize, borderSize)
+    border:SetPoint("CENTER", btn, "CENTER")
+    border:SetColorTexture(0.3, 0.28, 0.24, 1.0) -- Dark metallic tint
+
+    local borderMask = btn:CreateMaskTexture()
+    borderMask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+    borderMask:SetAllPoints(border)
+    border:AddMaskTexture(borderMask)
+
+    btn.border = border
+    btn.borderMask = borderMask
+end
+
 -- Create a simple square icon button using clean approach
 function ButtonUtils:CreateIconButton(name, parent, iconPath, options)
     options = options or {}
@@ -64,6 +83,9 @@ function ButtonUtils:CreateIconButton(name, parent, iconPath, options)
         mask:SetAllPoints(icon)
         icon:AddMaskTexture(mask)
         btn.mask = mask
+
+        -- Add thin border ring
+        AddCircularBorder(btn, iconSize)
     end
     
     -- Create subtle highlight with rounded mask
@@ -169,6 +191,9 @@ function ButtonUtils:CreateSecureActionButton(name, parent, iconPath, options)
         mask:SetAllPoints(icon)
         icon:AddMaskTexture(mask)
         btn.mask = mask
+
+        -- Add thin border ring
+        AddCircularBorder(btn, iconSize)
     end
     
     -- Create subtle highlight with rounded mask
