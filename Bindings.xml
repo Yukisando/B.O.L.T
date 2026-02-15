@@ -14,4 +14,7 @@
 	<Binding name="BOLT_TOGGLE_TELEPORT_EDIT_MODE" category="B.O.L.T">
 		BOLT_ToggleTeleportEditMode()
 	</Binding>
+	<Binding name="BOLT_TOGGLE_SMART_TELEPORT" category="B.O.L.T">
+		BOLT_ToggleSmartTeleportSuggestions()
+	</Binding>
 </Bindings>

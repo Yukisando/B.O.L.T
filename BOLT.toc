@@ -41,3 +41,4 @@ Modules\Teleports_PinMixin.lua
 Modules\Teleports_DataProvider.lua
 Modules\Teleports_SecureUI.lua
 Modules\Teleports.lua
+Modules\SmartTeleportSuggestions.lua

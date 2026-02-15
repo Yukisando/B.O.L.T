@@ -36,7 +36,8 @@ BOLT.defaults = {
         },
         wowheadLink = {},
         autoRepSwitch = {},
-        teleports = {}
+        teleports = {},
+        smartTeleport = {}
     }
 }
 
@@ -48,6 +49,7 @@ BOLT.defaultModuleStates = {
     wowheadLink = false,
     autoRepSwitch = false,
     teleports = false,
+    smartTeleport = false,
 }
 
 -- Initialize the addon

@@ -528,6 +528,30 @@ function Config:CreateInterfaceOptionsPanel()
     arsDesc:SetText("Automatically switch the watched reputation to the faction you just gained reputation with.")
     y = y - 36
 
+    -- Smart Teleport Suggestions section
+    local stLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    stLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
+    stLabel:SetText("Smart Teleport Suggestions")
+    y = y - 24
+
+    local stEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    stEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    stEnable.Text:SetText("Enable Smart Teleport Suggestions Module")
+    stEnable:SetScript("OnClick", function(button)
+        local checked = button:GetChecked()
+        self.parent:SetModuleEnabled("smartTeleport", checked)
+    end)
+    self.widgets.smartTeleportCheckbox = stEnable
+    self.widgets.smartTeleportReloadIndicator = self:CreateReloadIndicator(content, stEnable)
+    y = y - 30
+
+    local stDesc = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    stDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    stDesc:SetWidth(520)
+    stDesc:SetJustifyH("LEFT")
+    stDesc:SetText("Shows context-relevant teleports you own when viewing the World Map. Toggle with a keybind while the map is open.")
+    y = y - 36
+
     -- Reload button and version
     local reloadBtn = CreateFrame("Button", "BOLTOptionsReloadButton", content, "UIPanelButtonTemplate")
     reloadBtn:SetSize(120, 25); reloadBtn:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y); reloadBtn:SetText("Reload UI")
@@ -706,6 +730,7 @@ function Config:RefreshOptionsPanel()
         end
         if w.wowheadLinkCheckbox then w.wowheadLinkCheckbox:SetChecked(self.parent:IsModuleEnabled("wowheadLink")) end
         if w.autoRepSwitchCheckbox then w.autoRepSwitchCheckbox:SetChecked(self.parent:IsModuleEnabled("autoRepSwitch")) end
+        if w.smartTeleportCheckbox then w.smartTeleportCheckbox:SetChecked(self.parent:IsModuleEnabled("smartTeleport")) end
         if w.teleportsCheckbox then w.teleportsCheckbox:SetChecked(self.parent:IsModuleEnabled("teleports")) end
         if w.teleportsEditModeCheckbox then
             local cfg = self.parent:GetConfig("teleports") or {}
