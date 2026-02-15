@@ -101,7 +101,7 @@ function SmartTeleport:RebuildOwnershipCache()
     for i, entry in ipairs(self.TeleportData) do
         local owned = false
         for _, sid in ipairs(entry.spellIDs) do
-            if IsPlayerSpell(sid) then owned = true; break end
+            if C_SpellBook.IsSpellKnown(sid) then owned = true; break end
         end
         if not owned then
             for _, iid in ipairs(entry.itemIDs) do
@@ -301,7 +301,7 @@ end
 -- Resolve the first usable spellID or itemID
 local function GetUsableAction(entry)
     for _, sid in ipairs(entry.spellIDs) do
-        if IsPlayerSpell(sid) then return "spell", sid end
+        if C_SpellBook.IsSpellKnown(sid) then return "spell", sid end
     end
     for _, iid in ipairs(entry.itemIDs) do
         if C_Item.GetItemCount(iid) > 0 then return "item", iid end
@@ -439,23 +439,6 @@ function SmartTeleport:CreateEntryButton(parent, index)
 end
 
 -- ────────────────────────────────────────────────────────────────────────────
--- Toggle
--- ────────────────────────────────────────────────────────────────────────────
-
-function SmartTeleport:Toggle()
-    if not self.parent:IsModuleEnabled("smartTeleport") then return end
-    if not WorldMapFrame or not WorldMapFrame:IsShown() then return end
-
-    isVisible = not isVisible
-    if isVisible then
-        self:RebuildOwnershipCache()
-        self:RefreshPanel()
-    else
-        if panelFrame then panelFrame:Hide() end
-    end
-end
-
--- ────────────────────────────────────────────────────────────────────────────
 -- Events
 -- ────────────────────────────────────────────────────────────────────────────
 
@@ -476,10 +459,18 @@ function SmartTeleport:RegisterEvents()
 
     self.eventFrame = f
 
-    -- Hook WorldMapFrame map changes
+    -- Hook WorldMapFrame map changes and show/hide
     if WorldMapFrame and not self._mapHooked then
         hooksecurefunc(WorldMapFrame, "SetMapID", function()
             if isVisible then self:RefreshPanel() end
+        end)
+
+        -- Auto-show when the map opens
+        WorldMapFrame:HookScript("OnShow", function()
+            if not self.parent:IsModuleEnabled("smartTeleport") then return end
+            isVisible = true
+            self:RebuildOwnershipCache()
+            self:RefreshPanel()
         end)
 
         -- Auto-hide when the map closes
@@ -489,16 +480,6 @@ function SmartTeleport:RegisterEvents()
         end)
 
         self._mapHooked = true
-    end
-end
-
--- ────────────────────────────────────────────────────────────────────────────
--- Global toggle function (called from Bindings.xml)
--- ────────────────────────────────────────────────────────────────────────────
-
-function BOLT_ToggleSmartTeleportSuggestions()
-    if BOLT and BOLT.modules and BOLT.modules.smartTeleport then
-        BOLT.modules.smartTeleport:Toggle()
     end
 end
 
