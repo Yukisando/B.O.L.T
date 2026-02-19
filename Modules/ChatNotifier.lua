@@ -27,23 +27,15 @@ local CHANNEL_TYPES = {
 -- Available sound options
 local SOUND_OPTIONS = {
     { label = "Raid Warning",    soundID = 8959 },
-    { label = "Ready Check",     soundID = 8960 },
-    { label = "LFG Ding",        soundID = 8458 },
-    { label = "Quest Complete",  soundID = 618 },
-    { label = "Quest Accept",    soundID = 619 },
     { label = "Auction Open",    soundID = 5274 },
     { label = "Map Ping",        soundID = 3175 },
     { label = "Loot Coin",       soundID = 120 },
     { label = "GM Chat",         soundID = 9637 },
-    { label = "Level Up",        soundID = 888 },
-    { label = "Alarm Clock 1",   soundID = 12867 },
-    { label = "Alarm Clock 2",   soundID = 12889 },
     { label = "Alarm Clock 3",   soundID = 7355 },
     { label = "Jeweler Craft",   soundID = 3337 },
     { label = "Bell Toll",       soundID = 6674 },
     { label = "PVP Warning",     soundID = 8332 },
     { label = "Store Purchase",  soundID = 39517 },
-    { label = "Murloc Aggro",    soundID = 10986 },
 }
 
 local THROTTLE_SECONDS = 1

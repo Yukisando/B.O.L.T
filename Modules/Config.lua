@@ -620,30 +620,60 @@ function Config:CreateInterfaceOptionsPanel()
     self.widgets.chatNotifierPreviewBtn = cnPreviewBtn
     y = y - 36
 
-    -- Channel checkboxes
+    -- Channel multi-select dropdown
     local cnChannelsLabel = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     cnChannelsLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
-    cnChannelsLabel:SetText("Monitored Channels:")
-    y = y - 20
+    cnChannelsLabel:SetText("Channels:")
 
-    self.widgets.chatNotifierChannelChecks = {}
     local chatMod = self.parent.modules.chatNotifier
     local channelTypes = chatMod and chatMod.CHANNEL_TYPES or {}
 
-    for _, ch in ipairs(channelTypes) do
-        local cb = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-        cb:SetPoint("TOPLEFT", content, "TOPLEFT", 60, y)
-        cb.Text:SetText(ch.label)
-        cb.channelEvent = ch.event
-        cb:SetScript("OnClick", function(button)
-            if chatMod then
-                chatMod:SetChannelEnabled(ch.event, button:GetChecked())
+    -- Build initial selection from saved config
+    self.widgets.chatNotifierSelectedChannels = {}
+    if chatMod then
+        for _, ch in ipairs(channelTypes) do
+            if chatMod:IsChannelEnabled(ch.event) then
+                self.widgets.chatNotifierSelectedChannels[ch.event] = true
             end
-        end)
-        self.widgets.chatNotifierChannelChecks[ch.event] = cb
-        y = y - 24
+        end
     end
-    y = y - 12
+
+    local function UpdateChatNotifierDropdownText()
+        local selected = {}
+        for _, ch in ipairs(channelTypes) do
+            if self.widgets.chatNotifierSelectedChannels[ch.event] then
+                table.insert(selected, ch.label)
+            end
+        end
+        local text = #selected > 0 and table.concat(selected, ", ") or "None"
+        UIDropDownMenu_SetText(self.widgets.chatNotifierChannelsDropdown, text)
+    end
+    self.widgets.UpdateChatNotifierDropdownText = UpdateChatNotifierDropdownText
+
+    local cnChannelsDropdown = CreateFrame("Frame", "BOLTChatNotifierChannelsDropdown", content, "UIDropDownMenuTemplate")
+    cnChannelsDropdown:SetPoint("LEFT", cnChannelsLabel, "RIGHT", -15, -2)
+    UIDropDownMenu_SetWidth(cnChannelsDropdown, 250)
+    UIDropDownMenu_Initialize(cnChannelsDropdown, function(dropdown, level)
+        local mod = self.parent.modules.chatNotifier
+        if not mod then return end
+        for _, ch in ipairs(channelTypes) do
+            local info = UIDropDownMenu_CreateInfo()
+            info.text = ch.label
+            info.value = ch.event
+            info.isNotRadio = true
+            info.keepShownOnClick = true
+            info.checked = self.widgets.chatNotifierSelectedChannels[ch.event] or false
+            info.func = function(_, _, _, checked)
+                self.widgets.chatNotifierSelectedChannels[ch.event] = checked
+                mod:SetChannelEnabled(ch.event, checked)
+                UpdateChatNotifierDropdownText()
+            end
+            UIDropDownMenu_AddButton(info, level)
+        end
+    end)
+    self.widgets.chatNotifierChannelsDropdown = cnChannelsDropdown
+    UpdateChatNotifierDropdownText()
+    y = y - 36
 
     -- Reload button and version
     local reloadBtn = CreateFrame("Button", "BOLTOptionsReloadButton", content, "UIPanelButtonTemplate")
@@ -826,12 +856,16 @@ function Config:RefreshOptionsPanel()
         if w.autoRepSwitchCheckbox then w.autoRepSwitchCheckbox:SetChecked(self.parent:IsModuleEnabled("autoRepSwitch")) end
         if w.smartTeleportCheckbox then w.smartTeleportCheckbox:SetChecked(self.parent:IsModuleEnabled("smartTeleport")) end
         if w.chatNotifierCheckbox then w.chatNotifierCheckbox:SetChecked(self.parent:IsModuleEnabled("chatNotifier")) end
-        -- Chat Notifier channel checkboxes
-        if w.chatNotifierChannelChecks then
+        -- Chat Notifier channels dropdown
+        if w.chatNotifierChannelsDropdown and w.chatNotifierSelectedChannels then
             local chatMod = self.parent.modules.chatNotifier
             if chatMod then
-                for eventSuffix, cb in pairs(w.chatNotifierChannelChecks) do
-                    cb:SetChecked(chatMod:IsChannelEnabled(eventSuffix))
+                local chTypes = chatMod.CHANNEL_TYPES or {}
+                for _, ch in ipairs(chTypes) do
+                    w.chatNotifierSelectedChannels[ch.event] = chatMod:IsChannelEnabled(ch.event)
+                end
+                if w.UpdateChatNotifierDropdownText then
+                    w.UpdateChatNotifierDropdownText()
                 end
             end
         end
@@ -891,10 +925,11 @@ function Config:UpdateChatNotifierChildControls()
         w.chatNotifierPreviewBtn:SetEnabled(enabled)
         w.chatNotifierPreviewBtn:SetAlpha(enabled and 1 or 0.5)
     end
-    if w.chatNotifierChannelChecks then
-        for _, cb in pairs(w.chatNotifierChannelChecks) do
-            cb:SetEnabled(enabled)
-            cb:SetAlpha(enabled and 1 or 0.5)
+    if w.chatNotifierChannelsDropdown then
+        if enabled then
+            UIDropDownMenu_EnableDropDown(w.chatNotifierChannelsDropdown)
+        else
+            UIDropDownMenu_DisableDropDown(w.chatNotifierChannelsDropdown)
         end
     end
 end
