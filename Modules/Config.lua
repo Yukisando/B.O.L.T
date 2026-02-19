@@ -552,6 +552,99 @@ function Config:CreateInterfaceOptionsPanel()
     stDesc:SetText("Shows context-relevant teleports you own when viewing the World Map. Toggle with a keybind while the map is open.")
     y = y - 36
 
+    -- Chat Notifier section
+    local cnLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    cnLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
+    cnLabel:SetText("Chat Notifier")
+    y = y - 24
+
+    local cnEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    cnEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    cnEnable.Text:SetText("Enable Chat Notifier Module")
+    cnEnable:SetScript("OnClick", function(button)
+        local checked = button:GetChecked()
+        self.parent:SetModuleEnabled("chatNotifier", checked)
+        self:UpdateChatNotifierChildControls()
+    end)
+    self.widgets.chatNotifierCheckbox = cnEnable
+    self.widgets.chatNotifierReloadIndicator = self:CreateReloadIndicator(content, cnEnable)
+    y = y - 30
+
+    local cnDesc = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    cnDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    cnDesc:SetWidth(520)
+    cnDesc:SetJustifyH("LEFT")
+    cnDesc:SetText("Plays a notification sound when a new message appears in any checked channel below.")
+    y = y - 24
+
+    -- Sound selector dropdown
+    local cnSoundLabel = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    cnSoundLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    cnSoundLabel:SetText("Sound:")
+
+    local cnSoundDropdown = CreateFrame("Frame", "BOLTChatNotifierSoundDropdown", content, "UIDropDownMenuTemplate")
+    self.widgets.chatNotifierSoundDropdown = cnSoundDropdown
+    UIDropDownMenu_SetWidth(cnSoundDropdown, 150)
+    UIDropDownMenu_Initialize(cnSoundDropdown, function(dropdown, level)
+        local chatMod = self.parent.modules.chatNotifier
+        if not chatMod then return end
+        local currentSoundID = chatMod:GetSoundID()
+        for _, snd in ipairs(chatMod.SOUND_OPTIONS) do
+            local info = UIDropDownMenu_CreateInfo()
+            info.text = snd.label
+            info.value = snd.soundID
+            info.func = function(btn)
+                chatMod:SetSoundID(btn.value)
+                UIDropDownMenu_SetSelectedValue(cnSoundDropdown, btn.value)
+                UIDropDownMenu_SetText(cnSoundDropdown, snd.label)
+                PlaySound(btn.value, "Master")
+            end
+            info.checked = (currentSoundID == snd.soundID)
+            UIDropDownMenu_AddButton(info, level)
+        end
+    end)
+    cnSoundDropdown:ClearAllPoints()
+    cnSoundDropdown:SetPoint("LEFT", cnSoundLabel, "RIGHT", -15, -2)
+
+    -- Preview button
+    local cnPreviewBtn = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+    cnPreviewBtn:SetSize(70, 22)
+    cnPreviewBtn:SetPoint("LEFT", cnSoundDropdown, "RIGHT", -10, 2)
+    cnPreviewBtn:SetText("Preview")
+    cnPreviewBtn:SetScript("OnClick", function()
+        local chatMod = self.parent.modules.chatNotifier
+        if chatMod then
+            PlaySound(chatMod:GetSoundID(), "Master")
+        end
+    end)
+    self.widgets.chatNotifierPreviewBtn = cnPreviewBtn
+    y = y - 36
+
+    -- Channel checkboxes
+    local cnChannelsLabel = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    cnChannelsLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    cnChannelsLabel:SetText("Monitored Channels:")
+    y = y - 20
+
+    self.widgets.chatNotifierChannelChecks = {}
+    local chatMod = self.parent.modules.chatNotifier
+    local channelTypes = chatMod and chatMod.CHANNEL_TYPES or {}
+
+    for _, ch in ipairs(channelTypes) do
+        local cb = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+        cb:SetPoint("TOPLEFT", content, "TOPLEFT", 60, y)
+        cb.Text:SetText(ch.label)
+        cb.channelEvent = ch.event
+        cb:SetScript("OnClick", function(button)
+            if chatMod then
+                chatMod:SetChannelEnabled(ch.event, button:GetChecked())
+            end
+        end)
+        self.widgets.chatNotifierChannelChecks[ch.event] = cb
+        y = y - 24
+    end
+    y = y - 12
+
     -- Reload button and version
     local reloadBtn = CreateFrame("Button", "BOLTOptionsReloadButton", content, "UIPanelButtonTemplate")
     reloadBtn:SetSize(120, 25); reloadBtn:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y); reloadBtn:SetText("Reload UI")
@@ -675,6 +768,7 @@ function Config:RefreshAll()
     self:UpdatePlaygroundChildControls()
     self:UpdateSkyridingChildControls()
     self:UpdateTeleportsChildControls()
+    self:UpdateChatNotifierChildControls()
     self:UpdateCurrentToyDisplay()
 end
 
@@ -731,6 +825,30 @@ function Config:RefreshOptionsPanel()
         if w.wowheadLinkCheckbox then w.wowheadLinkCheckbox:SetChecked(self.parent:IsModuleEnabled("wowheadLink")) end
         if w.autoRepSwitchCheckbox then w.autoRepSwitchCheckbox:SetChecked(self.parent:IsModuleEnabled("autoRepSwitch")) end
         if w.smartTeleportCheckbox then w.smartTeleportCheckbox:SetChecked(self.parent:IsModuleEnabled("smartTeleport")) end
+        if w.chatNotifierCheckbox then w.chatNotifierCheckbox:SetChecked(self.parent:IsModuleEnabled("chatNotifier")) end
+        -- Chat Notifier channel checkboxes
+        if w.chatNotifierChannelChecks then
+            local chatMod = self.parent.modules.chatNotifier
+            if chatMod then
+                for eventSuffix, cb in pairs(w.chatNotifierChannelChecks) do
+                    cb:SetChecked(chatMod:IsChannelEnabled(eventSuffix))
+                end
+            end
+        end
+        -- Chat Notifier sound dropdown
+        if w.chatNotifierSoundDropdown then
+            local chatMod = self.parent.modules.chatNotifier
+            if chatMod then
+                local currentSoundID = chatMod:GetSoundID()
+                UIDropDownMenu_SetSelectedValue(w.chatNotifierSoundDropdown, currentSoundID)
+                for _, snd in ipairs(chatMod.SOUND_OPTIONS) do
+                    if snd.soundID == currentSoundID then
+                        UIDropDownMenu_SetText(w.chatNotifierSoundDropdown, snd.label)
+                        break
+                    end
+                end
+            end
+        end
         if w.teleportsCheckbox then w.teleportsCheckbox:SetChecked(self.parent:IsModuleEnabled("teleports")) end
         if w.teleportsEditModeCheckbox then
             local cfg = self.parent:GetConfig("teleports") or {}
@@ -756,6 +874,29 @@ end
 function Config:UpdateTeleportsChildControls()
     -- Refresh the teleport list display
     self:RefreshTeleportList()
+end
+
+function Config:UpdateChatNotifierChildControls()
+    local enabled = self.parent:IsModuleEnabled("chatNotifier")
+    local w = self.widgets
+
+    if w.chatNotifierSoundDropdown then
+        if enabled then
+            UIDropDownMenu_EnableDropDown(w.chatNotifierSoundDropdown)
+        else
+            UIDropDownMenu_DisableDropDown(w.chatNotifierSoundDropdown)
+        end
+    end
+    if w.chatNotifierPreviewBtn then
+        w.chatNotifierPreviewBtn:SetEnabled(enabled)
+        w.chatNotifierPreviewBtn:SetAlpha(enabled and 1 or 0.5)
+    end
+    if w.chatNotifierChannelChecks then
+        for _, cb in pairs(w.chatNotifierChannelChecks) do
+            cb:SetEnabled(enabled)
+            cb:SetAlpha(enabled and 1 or 0.5)
+        end
+    end
 end
 
 function Config:RefreshTeleportList()

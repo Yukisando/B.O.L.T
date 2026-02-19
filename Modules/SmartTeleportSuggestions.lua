@@ -105,7 +105,7 @@ function SmartTeleport:RebuildOwnershipCache()
         end
         if not owned then
             for _, iid in ipairs(entry.itemIDs) do
-                if C_Item.GetItemCount(iid) > 0 then owned = true; break end
+                if C_Item.GetItemCount(iid) > 0 or PlayerHasToy(iid) then owned = true; break end
             end
         end
         ownedCache[i] = owned
@@ -304,6 +304,7 @@ local function GetUsableAction(entry)
         if C_SpellBook.IsSpellKnown(sid) then return "spell", sid end
     end
     for _, iid in ipairs(entry.itemIDs) do
+        if PlayerHasToy(iid) then return "toy", iid end
         if C_Item.GetItemCount(iid) > 0 then return "item", iid end
     end
     return nil, nil
@@ -373,6 +374,10 @@ function SmartTeleport:RefreshPanel()
                 btn:SetAttribute("type", "spell")
                 btn:SetAttribute("spell", actionID)
                 btn:SetAttribute("macrotext", nil)
+            elseif actionType == "toy" then
+                btn:SetAttribute("type", "macro")
+                btn:SetAttribute("macrotext", "/use item:" .. actionID)
+                btn:SetAttribute("spell", nil)
             elseif actionType == "item" then
                 btn:SetAttribute("type", "macro")
                 btn:SetAttribute("macrotext", "/use item:" .. actionID)
@@ -426,7 +431,7 @@ function SmartTeleport:CreateEntryButton(parent, index)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         if self.actionType == "spell" then
             GameTooltip:SetSpellByID(self.actionID)
-        elseif self.actionType == "item" then
+        elseif self.actionType == "toy" or self.actionType == "item" then
             GameTooltip:SetItemByID(self.actionID)
         else
             GameTooltip:SetText("No usable action")

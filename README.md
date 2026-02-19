@@ -32,6 +32,14 @@
 - **Favorite Toy Button**: Quick access to your favorite toy from the ESC menu
 - **Speedometer**: Display your movement speed in yards/second
 
+### Chat Notifier Module
+
+- **Channel Sound Alerts**: Plays a notification sound when a new message appears in monitored chat channels
+- **Configurable Channels**: Pick which channels to monitor from a checklist (Guild, Party, Raid, Whisper, Say, Yell, Instance, Custom Channels, etc.)
+- **Multiple Sound Options**: Choose from several built-in notification sounds with a preview button
+- **Throttled Alerts**: Rapid messages are throttled so sounds don't overlap
+- **Self-Filtering**: Your own messages are ignored
+
 ## Installation
 
 1. Download the addon files

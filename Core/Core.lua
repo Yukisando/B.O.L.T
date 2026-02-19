@@ -37,7 +37,11 @@ BOLT.defaults = {
         wowheadLink = {},
         autoRepSwitch = {},
         teleports = {},
-        smartTeleport = {}
+        smartTeleport = {},
+        chatNotifier = {
+            channels = {},
+            soundID = 8959,
+        },
     }
 }
 
@@ -50,6 +54,7 @@ BOLT.defaultModuleStates = {
     autoRepSwitch = false,
     teleports = false,
     smartTeleport = false,
+    chatNotifier = false,
 }
 
 -- Initialize the addon
