@@ -36,6 +36,8 @@ local SOUND_OPTIONS = {
     { label = "Bell Toll",       soundID = 6674 },
     { label = "PVP Warning",     soundID = 8332 },
     { label = "Store Purchase",  soundID = 39517 },
+    { label = "Put ring down",  soundID = 1210 },
+    { label = "Put ring wood",  soundID = 1217 },
 }
 
 local THROTTLE_SECONDS = 1
