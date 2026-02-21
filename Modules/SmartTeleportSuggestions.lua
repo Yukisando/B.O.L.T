@@ -79,7 +79,7 @@ function SmartTeleport:OnEnable()
     self:RebuildOwnershipCache()
     self:CreatePanel()
     self:RegisterEvents()
-end
+end            
 
 function SmartTeleport:OnDisable()
     if panelFrame then panelFrame:Hide() end

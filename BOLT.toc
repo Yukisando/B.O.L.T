@@ -36,10 +36,7 @@ Modules\WowheadLink.lua
 Modules\AutoRepSwitch.lua
 Modules\ChatNotifier.lua
 
-# Teleports Module (12.0 compliant architecture)
+# Teleports Module
 TeleportPins.xml
-Modules\Teleports_PinMixin.lua
-Modules\Teleports_DataProvider.lua
-Modules\Teleports_SecureUI.lua
 Modules\Teleports.lua
 Modules\SmartTeleportSuggestions.lua

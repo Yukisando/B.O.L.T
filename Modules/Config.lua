@@ -477,6 +477,14 @@ function Config:CreateInterfaceOptionsPanel()
     self.widgets.teleportListRows = {}
     y = y - 210 -- Account for fixed scroll frame height
 
+    local exportHint = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    exportHint:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    exportHint:SetWidth(520)
+    exportHint:SetJustifyH("LEFT")
+    exportHint:SetTextColor(0.6, 0.8, 1)
+    exportHint:SetText("Tip: Use |cffffffff/bolt export-teleports|r to export runtime-added teleports as Lua you can paste into Data/TeleportData.lua so they ship with the addon.")
+    y = y - 30
+
     -- Store the Y position reference so we can update content height
     self.widgets.teleportListYOffset = y
 

@@ -1,17 +1,309 @@
--- B.O.L.T Teleports Module (Main Entry Point)
--- Data management, events, and coordination
--- Follows 12.0 architecture: data here, pins in PinMixin, secure in SecureUI
+-- B.O.L.T Teleports Module
+-- Map pins for teleport locations with secure button execution.
+-- Static data lives in Data/TeleportData.lua; runtime additions in BOLTDB.teleports.
+-- Use "/bolt export-teleports" to dump runtime teleports for pasting into TeleportData.lua.
 
 local ADDON_NAME, BOLT = ...
 
 local Teleports = {}
 BOLT:RegisterModule("teleports", Teleports)
 
--- Data provider instance (created in OnInitialize)
 local dataProvider = nil
-
--- Event frame for map events
 local eventFrame = nil
+
+local DEFAULT_ICON = "Interface\\Icons\\Spell_Arcane_TeleportDalaran"
+
+-------------------------------------------------
+-- Pin Mixin (referenced by TeleportPins.xml)
+-------------------------------------------------
+
+---@class BOLTTeleportPinMixin : MapCanvasPinMixin
+BOLTTeleportPinMixin = CreateFromMixins(MapCanvasPinMixin)
+
+function BOLTTeleportPinMixin:OnLoad()
+    self:SetScalingLimits(1, 1.0, 1.2)
+    self:UseFrameLevelType("PIN_FRAME_LEVEL_AREA_POI")
+end
+
+function BOLTTeleportPinMixin:OnAcquired(entry, x, y)
+    self.entry = entry
+
+    if not self.Icon then
+        self.Icon = self:CreateTexture(nil, "ARTWORK")
+        self.Icon:SetSize(24, 24)
+        self.Icon:SetPoint("CENTER")
+        self.Icon:SetDrawLayer("ARTWORK", 7)
+    end
+
+    if self.Icon and entry then
+        self.Icon:SetTexture(entry.icon or DEFAULT_ICON)
+        self.Icon:Show()
+        self.Icon:SetVertexColor(1, 1, 1, 1)
+    end
+
+    self:SetSize(24, 24)
+    self:Show()
+    self:EnableMouse(true)
+    self:SetAlpha(1.0)
+
+    if x and y then
+        self:SetPosition(x, y)
+    end
+end
+
+function BOLTTeleportPinMixin:OnReleased()
+    self.entry = nil
+    if self.Icon then self.Icon:Hide() end
+end
+
+function BOLTTeleportPinMixin:OnMouseEnter()
+    if not self.entry then return end
+
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:ClearLines()
+
+    local entry = self.entry
+    if entry.type == "item" and entry.id and GameTooltip.SetItemByID then
+        GameTooltip:SetItemByID(entry.id)
+    elseif entry.type == "spell" and entry.id and GameTooltip.SetSpellByID then
+        GameTooltip:SetSpellByID(entry.id)
+    else
+        GameTooltip:AddLine(entry.name or "Teleport", 1, 1, 1, true)
+        if entry.desc then
+            GameTooltip:AddLine(entry.desc, 0.8, 0.8, 0.8, true)
+        end
+    end
+
+    local cfg = BOLT:GetConfig("teleports") or {}
+    if cfg.editMode and entry.isUserAdded then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("Right-click to delete", 0.7, 0.7, 0.7)
+    end
+
+    GameTooltip:Show()
+end
+
+function BOLTTeleportPinMixin:OnMouseLeave()
+    GameTooltip:Hide()
+end
+
+function BOLTTeleportPinMixin:OnMouseDown(button)
+    if not self.entry then return end
+
+    if button == "RightButton" then
+        local cfg = BOLT:GetConfig("teleports") or {}
+        if cfg.editMode and self.entry.isUserAdded then
+            local teleportsModule = BOLT.modules and BOLT.modules.teleports
+            if teleportsModule then
+                local combined = teleportsModule:GetTeleportList()
+                for i, e in ipairs(combined) do
+                    if e == self.entry then
+                        teleportsModule:DeleteTeleport(i)
+                        return
+                    end
+                end
+            end
+        end
+    elseif button == "LeftButton" then
+        local teleportsModule = BOLT.modules and BOLT.modules.teleports
+        if teleportsModule then
+            teleportsModule:OpenTeleportPopup(self.entry)
+        end
+    end
+end
+
+-------------------------------------------------
+-- Data Provider Mixin
+-------------------------------------------------
+
+---@class BOLTTeleportDataProviderMixin : MapCanvasDataProviderMixin
+BOLTTeleportDataProviderMixin = CreateFromMixins(MapCanvasDataProviderMixin)
+
+function BOLTTeleportDataProviderMixin:OnAdded(mapCanvas)
+    MapCanvasDataProviderMixin.OnAdded(self, mapCanvas)
+    self:RefreshAllData()
+end
+
+function BOLTTeleportDataProviderMixin:OnRemoved(mapCanvas)
+    self:RemoveAllData()
+    MapCanvasDataProviderMixin.OnRemoved(self, mapCanvas)
+end
+
+function BOLTTeleportDataProviderMixin:OnMapChanged()
+    self:RefreshAllData()
+end
+
+function BOLTTeleportDataProviderMixin:RemoveAllData()
+    local map = self:GetMap()
+    if map then
+        map:RemoveAllPinsByTemplate("BOLTTeleportPinTemplate")
+    end
+end
+
+function BOLTTeleportDataProviderMixin:RefreshAllData()
+    local map = self:GetMap()
+    if not map then return end
+
+    self:RemoveAllData()
+
+    local teleportsModule = BOLT.modules and BOLT.modules.teleports
+    if not teleportsModule then return end
+    if not BOLT:IsModuleEnabled("teleports") then return end
+
+    local currentMapID = map:GetMapID()
+    if not currentMapID then return end
+
+    local ok, list = pcall(teleportsModule.GetTeleportList, teleportsModule)
+    if not ok or not list or type(list) ~= "table" then return end
+
+    for _, entry in ipairs(list) do
+        local x, y, canProject = teleportsModule:ProjectToMap(entry, currentMapID)
+        if canProject and x and y then
+            map:AcquirePin("BOLTTeleportPinTemplate", entry, x, y)
+        end
+    end
+end
+
+-------------------------------------------------
+-- Secure UI (single secure button + popup)
+-------------------------------------------------
+
+local SecureButton = nil
+local TeleportPopup = nil
+
+local function InitSecureButton()
+    if SecureButton then return end
+    if InCombatLockdown() then
+        local w = CreateFrame("Frame")
+        w:RegisterEvent("PLAYER_REGEN_ENABLED")
+        w:SetScript("OnEvent", function(self)
+            self:UnregisterAllEvents()
+            InitSecureButton()
+        end)
+        return
+    end
+
+    SecureButton = CreateFrame("Button", "BOLTTeleportSecureButton", UIParent, "SecureActionButtonTemplate")
+    SecureButton:SetSize(1, 1)
+    SecureButton:SetPoint("CENTER")
+    SecureButton:RegisterForClicks("AnyUp", "AnyDown")
+    SecureButton:Hide()
+    SecureButton:SetScript("PostClick", function()
+        if TeleportPopup then TeleportPopup:Hide() end
+    end)
+end
+
+local function InitTeleportPopup()
+    if TeleportPopup then return end
+    if not SecureButton then InitSecureButton() end
+    if not SecureButton then return end
+
+    local popup = CreateFrame("Frame", "BOLTTeleportPopup", UIParent, "BackdropTemplate")
+    popup:SetSize(280, 160)
+    popup:SetPoint("CENTER")
+    popup:SetFrameStrata("DIALOG")
+    popup:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+        tile = true, tileSize = 32, edgeSize = 32,
+        insets = { left = 11, right = 12, top = 12, bottom = 11 }
+    })
+    popup:SetBackdropColor(0, 0, 0, 1)
+    popup:EnableMouse(true)
+    popup:SetMovable(true)
+    popup:RegisterForDrag("LeftButton")
+    popup:SetScript("OnDragStart", popup.StartMoving)
+    popup:SetScript("OnDragStop", popup.StopMovingOrSizing)
+    popup:Hide()
+
+    popup.title = popup:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    popup.title:SetPoint("TOP", 0, -16)
+    popup.title:SetText("Confirm Teleport")
+
+    popup.text = popup:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    popup.text:SetPoint("TOP", popup.title, "BOTTOM", 0, -10)
+    popup.text:SetWidth(250)
+    popup.text:SetJustifyH("CENTER")
+
+    popup.combatWarning = popup:CreateFontString(nil, "OVERLAY", "GameFontRed")
+    popup.combatWarning:SetPoint("TOP", popup.text, "BOTTOM", 0, -5)
+    popup.combatWarning:SetWidth(250)
+    popup.combatWarning:SetText("Cannot teleport during combat!")
+    popup.combatWarning:Hide()
+
+    local visualBtn = CreateFrame("Button", nil, popup, "UIPanelButtonTemplate")
+    visualBtn:SetSize(120, 26)
+    visualBtn:SetPoint("BOTTOM", 0, 16)
+    visualBtn:SetText("Teleport")
+    popup.visualButton = visualBtn
+
+    SecureButton:SetParent(popup)
+    SecureButton:ClearAllPoints()
+    SecureButton:SetAllPoints(visualBtn)
+    SecureButton:SetFrameStrata("DIALOG")
+    SecureButton:SetFrameLevel(visualBtn:GetFrameLevel() + 10)
+
+    local closeBtn = CreateFrame("Button", nil, popup, "UIPanelCloseButton")
+    closeBtn:SetPoint("TOPRIGHT", -5, -5)
+
+    tinsert(UISpecialFrames, "BOLTTeleportPopup")
+
+    popup:RegisterEvent("PLAYER_REGEN_DISABLED")
+    popup:RegisterEvent("PLAYER_REGEN_ENABLED")
+    popup:SetScript("OnEvent", function(_, event)
+        if event == "PLAYER_REGEN_DISABLED" then
+            visualBtn:SetEnabled(false)
+            popup.combatWarning:Show()
+        elseif event == "PLAYER_REGEN_ENABLED" then
+            visualBtn:SetEnabled(true)
+            popup.combatWarning:Hide()
+        end
+    end)
+
+    popup:SetScript("OnShow", function()
+        SecureButton:Show()
+        if InCombatLockdown() then
+            visualBtn:SetEnabled(false)
+            popup.combatWarning:Show()
+        else
+            visualBtn:SetEnabled(true)
+            popup.combatWarning:Hide()
+        end
+    end)
+
+    popup:SetScript("OnHide", function()
+        SecureButton:Hide()
+    end)
+
+    TeleportPopup = popup
+end
+
+local function PrepareTeleport(entry)
+    if not entry then return false end
+    if InCombatLockdown() then
+        BOLT:Print("Cannot prepare teleport during combat.")
+        return false
+    end
+    if not SecureButton then
+        InitSecureButton()
+        if not SecureButton then return false end
+    end
+
+    SecureButton:SetAttribute("type", nil)
+    SecureButton:SetAttribute("spell", nil)
+    SecureButton:SetAttribute("item", nil)
+    SecureButton:SetAttribute("macrotext", nil)
+
+    if entry.type == "spell" then
+        SecureButton:SetAttribute("type", "spell")
+        SecureButton:SetAttribute("spell", entry.id)
+    elseif entry.type == "item" or entry.type == "toy" then
+        SecureButton:SetAttribute("type", "macro")
+        SecureButton:SetAttribute("macrotext", "/use item:" .. entry.id)
+    end
+
+    return true
+end
 
 -------------------------------------------------
 -- Coordinate Projection
@@ -19,39 +311,25 @@ local eventFrame = nil
 
 local function SafeCall(fn, ...)
     local ok, res = pcall(fn, ...)
-    if not ok then return nil end
-    return res
+    return ok and res or nil
 end
 
--- Project coordinates from entry's mapID to the specified map
--- Returns (x, y, true) if successful, or (nil, nil, false) if not visible
 function Teleports:ProjectToMap(entry, targetMapID)
     if not entry or not targetMapID then return nil, nil, false end
-    
+
     local entryMapID = entry.mapID
     local entryX = entry.x or 0.5
     local entryY = entry.y or 0.5
 
-    -- If entry has no mapID, treat as "show anywhere" at given coords
-    if not entryMapID then
-        return entryX, entryY, true
-    end
+    if not entryMapID then return entryX, entryY, true end
+    if entryMapID == targetMapID then return entryX, entryY, true end
 
-    -- Exact match: use coords directly
-    if entryMapID == targetMapID then
-        return entryX, entryY, true
-    end
-
-    -- Try to project via world coordinates
     if C_Map and C_Map.GetWorldPosFromMapPos and C_Map.GetMapPosFromWorldPos then
-        -- Convert entry's map-relative coords to world position
         local continentID, worldPos = SafeCall(C_Map.GetWorldPosFromMapPos, entryMapID, CreateVector2D(entryX, entryY))
         if continentID and worldPos then
-            -- Now convert world position back to the target map's coordinates
             local mapPos = SafeCall(C_Map.GetMapPosFromWorldPos, continentID, worldPos, targetMapID)
             if mapPos then
                 local projX, projY = mapPos:GetXY()
-                -- Only valid if within [0,1] range (visible on target map)
                 if projX and projY and projX >= 0 and projX <= 1 and projY >= 0 and projY <= 1 then
                     return projX, projY, true
                 end
@@ -66,45 +344,33 @@ end
 -- Teleport List Management
 -------------------------------------------------
 
--- Get the combined list of default + user teleports
 function Teleports:GetTeleportList()
-    local defaultTeleports = BOLT.DefaultTeleports or {}
-    
-    -- Use global storage for account-wide teleports
+    local shipped = BOLT.TeleportData or {}
+
     if not BOLTDB then BOLTDB = {} end
-    if not BOLTDB.teleports then
-        BOLTDB.teleports = {}
-    end
-    local userTeleports = BOLTDB.teleports or {}
-    
-    -- Merge both lists (defaults first, then user additions)
+    if not BOLTDB.teleports then BOLTDB.teleports = {} end
+    local userAdded = BOLTDB.teleports
+
     local combined = {}
-    for _, entry in ipairs(defaultTeleports) do
+    for _, entry in ipairs(shipped) do
         table.insert(combined, entry)
     end
-    for _, entry in ipairs(userTeleports) do
+    for _, entry in ipairs(userAdded) do
         table.insert(combined, entry)
     end
-    
     return combined
 end
 
--- Delete a teleport entry by index
 function Teleports:DeleteTeleport(index)
     local combined = self:GetTeleportList()
     if index <= 0 or index > #combined then return end
-    
+
     local entry = combined[index]
-    
-    -- Only allow deleting user-added teleports
     if not entry.isUserAdded then
-        if self.parent and self.parent.Print then
-            self.parent:Print("Teleports: Cannot delete default teleport.")
-        end
+        BOLT:Print("Teleports: Cannot delete a shipped teleport. Remove it from Data/TeleportData.lua instead.")
         return
     end
-    
-    -- Find and remove from BOLTDB.teleports
+
     if BOLTDB.teleports then
         for i, e in ipairs(BOLTDB.teleports) do
             if e == entry then
@@ -113,36 +379,27 @@ function Teleports:DeleteTeleport(index)
             end
         end
     end
-    
-    if self.parent and self.parent.Print then
-        self.parent:Print("Teleports: Removed '" .. tostring(entry.name) .. "'")
-    end
-    
-    -- Refresh pins immediately
+
+    BOLT:Print("Teleports: Removed '" .. tostring(entry.name) .. "'")
     self:RefreshPins()
 end
 
--- Update an existing teleport entry
 function Teleports:UpdateTeleport(index, newData)
     local combined = self:GetTeleportList()
     if index <= 0 or index > #combined then return end
-    
+
     local entry = combined[index]
     if not entry.isUserAdded then
-        if self.parent and self.parent.Print then
-            self.parent:Print("Teleports: Cannot edit default teleport.")
-        end
+        BOLT:Print("Teleports: Cannot edit a shipped teleport. Edit Data/TeleportData.lua instead.")
         return
     end
-    
-    -- Find and update in BOLTDB.teleports
+
     if BOLTDB.teleports then
         for i, e in ipairs(BOLTDB.teleports) do
             if e == entry then
                 for k, v in pairs(newData) do
                     BOLTDB.teleports[i][k] = v
                 end
-                -- Refresh pins immediately
                 self:RefreshPins()
                 return
             end
@@ -151,29 +408,13 @@ function Teleports:UpdateTeleport(index, newData)
 end
 
 -------------------------------------------------
--- Debug Logging
--------------------------------------------------
-
-function Teleports:Debug(msg)
-    if not msg then return end
-    if self.parent and self.parent.GetConfig and self.parent:GetConfig("debug") then
-        if self.parent and type(self.parent.Debug) == "function" then
-            self.parent:Debug("Teleports: " .. tostring(msg))
-        end
-    end
-end
-
--------------------------------------------------
--- Pin Refresh (via Data Provider)
+-- Pin Refresh
 -------------------------------------------------
 
 function Teleports:RefreshPins()
-    if dataProvider then
-        dataProvider:RefreshAllData()
-    end
+    if dataProvider then dataProvider:RefreshAllData() end
 end
 
--- Called by settings UI to refresh immediately
 function Teleports:UpdateMapDisplay()
     if WorldMapFrame and WorldMapFrame:IsShown() then
         self:RefreshPins()
@@ -181,28 +422,25 @@ function Teleports:UpdateMapDisplay()
 end
 
 -------------------------------------------------
--- Teleport Popup Interface (delegates to SecureUI)
+-- Teleport Popup
 -------------------------------------------------
 
--- Open the teleport confirmation popup
 function Teleports:OpenTeleportPopup(entry)
     if not entry then return end
-    
-    -- Log the attempt
-    if self.parent and self.parent.Print and self.parent:GetConfig("debug") then
-        local entryName = entry.name or "Unknown"
-        local entryType = entry.type or "unknown"
-        local entryID = entry.id
-        if entryID then
-            self.parent:Print(string.format("Teleports: Opening popup for %s (ID: %d, Type: %s)", entryName, entryID, entryType))
-        else
-            self.parent:Print(string.format("Teleports: Opening popup for %s (Type: %s)", entryName, entryType))
-        end
-    end
-    
-    -- Delegate to SecureUI
-    if BOLT.TeleportSecureUI then
-        BOLT.TeleportSecureUI:ShowPopup(entry)
+
+    if not TeleportPopup then InitTeleportPopup() end
+    if not TeleportPopup then return end
+
+    local prepared = PrepareTeleport(entry)
+
+    local displayName = entry.name or "Unknown"
+    local typeLabel = entry.type and (entry.type:sub(1, 1):upper() .. entry.type:sub(2)) or "Unknown"
+    TeleportPopup.text:SetText(string.format("Teleport to:\n|cff00ff00%s|r\n|cff888888(%s)|r", displayName, typeLabel))
+    TeleportPopup:Show()
+
+    if not prepared and InCombatLockdown() then
+        TeleportPopup.combatWarning:Show()
+        TeleportPopup.visualButton:SetEnabled(false)
     end
 end
 
@@ -211,52 +449,37 @@ end
 -------------------------------------------------
 
 function Teleports:ShowAddTeleportPopup()
-    -- Check if edit mode is enabled
-    local cfg = self.parent:GetConfig("teleports") or {}
-    if not cfg.editMode then
-        return  -- Edit mode is disabled
-    end
-    
+    local cfg = BOLT:GetConfig("teleports") or {}
+    if not cfg.editMode then return end
+
     if not WorldMapFrame or not WorldMapFrame:IsShown() then
-        if self.parent and self.parent.Print then
-            self.parent:Print("Teleports: Open the World Map first.")
-        end
+        BOLT:Print("Teleports: Open the World Map first.")
         return
     end
 
-    if not self.addPopup then
-        self:CreateAddTeleportPopup()
-    end
+    if not self.addPopup then self:CreateAddTeleportPopup() end
 
-    -- Get current map info
     local mapID = WorldMapFrame:GetMapID()
-    
-    -- Get cursor position on the map (normalized 0-1)
     local cursorX, cursorY = 0.5, 0.5
     if WorldMapFrame.ScrollContainer and WorldMapFrame.ScrollContainer.GetNormalizedCursorPosition then
         local cx, cy = WorldMapFrame.ScrollContainer:GetNormalizedCursorPosition()
-        if cx and cy then
-            cursorX, cursorY = cx, cy
-        end
+        if cx and cy then cursorX, cursorY = cx, cy end
     end
 
     self.addPopup.mapID = mapID
     self.addPopup.x = cursorX
     self.addPopup.y = cursorY
 
-    -- Update map info display
     local mapInfo = C_Map.GetMapInfo(mapID)
     local mapName = mapInfo and mapInfo.name or ("Map " .. tostring(mapID))
     self.addPopup.mapLabel:SetText(string.format("Map: %s (%d) at %.1f%%, %.1f%%", mapName, mapID, cursorX * 100, cursorY * 100))
 
-    -- Clear inputs
     self.addPopup.nameInput:SetText("")
     self.addPopup.idInput:SetText("")
     self.addPopup.selectedType = "spell"
     UIDropDownMenu_SetText(self.addPopup.typeDropdown, "Spell")
 
     self.addPopup:Show()
-    -- Delay focus to prevent keybind letter from being captured in the input
     C_Timer.After(0.05, function()
         if self.addPopup and self.addPopup:IsShown() then
             self.addPopup.nameInput:SetText("")
@@ -284,30 +507,24 @@ function Teleports:CreateAddTeleportPopup()
     popup:SetScript("OnDragStop", popup.StopMovingOrSizing)
     popup:Hide()
 
-    -- Title
     local title = popup:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOP", popup, "TOP", 0, -20)
     title:SetText("Add Teleport at Cursor")
 
-    -- Map info label
-    local mapLabel = popup:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    mapLabel:SetPoint("TOP", title, "BOTTOM", 0, -10)
-    mapLabel:SetText("Map: Unknown")
-    popup.mapLabel = mapLabel
+    popup.mapLabel = popup:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    popup.mapLabel:SetPoint("TOP", title, "BOTTOM", 0, -10)
+    popup.mapLabel:SetText("Map: Unknown")
 
-    -- Display name input
     local nameLabel = popup:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     nameLabel:SetPoint("TOPLEFT", popup, "TOPLEFT", 25, -70)
     nameLabel:SetText("Name (required):")
 
-    local nameInput = CreateFrame("EditBox", nil, popup, "InputBoxTemplate")
-    nameInput:SetPoint("LEFT", nameLabel, "RIGHT", 10, 0)
-    nameInput:SetSize(230, 20)
-    nameInput:SetAutoFocus(false)
-    nameInput:SetMaxLetters(100)
-    popup.nameInput = nameInput
+    popup.nameInput = CreateFrame("EditBox", nil, popup, "InputBoxTemplate")
+    popup.nameInput:SetPoint("LEFT", nameLabel, "RIGHT", 10, 0)
+    popup.nameInput:SetSize(230, 20)
+    popup.nameInput:SetAutoFocus(false)
+    popup.nameInput:SetMaxLetters(100)
 
-    -- Type dropdown
     local typeLabel = popup:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     typeLabel:SetPoint("TOPLEFT", nameLabel, "BOTTOMLEFT", 0, -25)
     typeLabel:SetText("Type:")
@@ -319,57 +536,47 @@ function Teleports:CreateAddTeleportPopup()
     popup.typeDropdown = typeDropdown
     popup.selectedType = "spell"
 
-    UIDropDownMenu_Initialize(typeDropdown, function(self, level)
+    UIDropDownMenu_Initialize(typeDropdown, function(_, level)
         local info = UIDropDownMenu_CreateInfo()
-        for _, t in ipairs({"spell", "item", "toy"}) do
-            info.text = t:sub(1,1):upper() .. t:sub(2)
+        for _, t in ipairs({ "spell", "item", "toy" }) do
+            info.text = t:sub(1, 1):upper() .. t:sub(2)
             info.value = t
             info.checked = (popup.selectedType == t)
             info.func = function()
                 popup.selectedType = t
-                UIDropDownMenu_SetText(typeDropdown, t:sub(1,1):upper() .. t:sub(2))
+                UIDropDownMenu_SetText(typeDropdown, t:sub(1, 1):upper() .. t:sub(2))
                 CloseDropDownMenus()
             end
             UIDropDownMenu_AddButton(info, level)
         end
     end)
 
-    -- ID input
     local idLabel = popup:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     idLabel:SetPoint("TOPLEFT", typeLabel, "BOTTOMLEFT", 0, -25)
     idLabel:SetText("ID (required):")
 
-    local idInput = CreateFrame("EditBox", nil, popup, "InputBoxTemplate")
-    idInput:SetPoint("LEFT", idLabel, "RIGHT", 10, 0)
-    idInput:SetSize(100, 20)
-    idInput:SetAutoFocus(false)
-    idInput:SetNumeric(true)
-    popup.idInput = idInput
+    popup.idInput = CreateFrame("EditBox", nil, popup, "InputBoxTemplate")
+    popup.idInput:SetPoint("LEFT", idLabel, "RIGHT", 10, 0)
+    popup.idInput:SetSize(100, 20)
+    popup.idInput:SetAutoFocus(false)
+    popup.idInput:SetNumeric(true)
 
-    -- Save button
     local saveBtn = CreateFrame("Button", nil, popup, "UIPanelButtonTemplate")
     saveBtn:SetSize(100, 24)
     saveBtn:SetPoint("BOTTOMRIGHT", popup, "BOTTOM", -10, 20)
     saveBtn:SetText("Save")
-    saveBtn:SetScript("OnClick", function()
-        self:SaveTeleportFromPopup()
-    end)
+    saveBtn:SetScript("OnClick", function() self:SaveTeleportFromPopup() end)
 
-    -- Cancel button
     local cancelBtn = CreateFrame("Button", nil, popup, "UIPanelButtonTemplate")
     cancelBtn:SetSize(100, 24)
     cancelBtn:SetPoint("BOTTOMLEFT", popup, "BOTTOM", 10, 20)
     cancelBtn:SetText("Cancel")
-    cancelBtn:SetScript("OnClick", function()
-        popup:Hide()
-    end)
+    cancelBtn:SetScript("OnClick", function() popup:Hide() end)
 
-    -- Close button
     local closeBtn = CreateFrame("Button", nil, popup, "UIPanelCloseButton")
     closeBtn:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -5, -5)
 
     tinsert(UISpecialFrames, "BOLTAddTeleportPopup")
-
     self.addPopup = popup
 end
 
@@ -379,38 +586,30 @@ function Teleports:SaveTeleportFromPopup()
 
     local displayName = popup.nameInput:GetText()
     local entryType = popup.selectedType or "spell"
-    local idText = popup.idInput:GetText()
-    local id = tonumber(idText)
+    local id = tonumber(popup.idInput:GetText())
 
-    -- Require both name and ID
     if not displayName or displayName == "" then
-        if self.parent and self.parent.Print then
-            self.parent:Print("Teleports: Please enter a name.")
-        end
+        BOLT:Print("Teleports: Please enter a name.")
         return
     end
-    
     if not id then
-        if self.parent and self.parent.Print then
-            self.parent:Print("Teleports: Please enter a valid ID.")
-        end
+        BOLT:Print("Teleports: Please enter a valid ID.")
         return
     end
 
-    -- Get icon from ID
+    -- Resolve icon from the spell/item/toy ID
     local icon = "Interface\\Icons\\INV_Misc_Rune_01"
-
     if entryType == "spell" then
         local spellInfo = C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(id)
         if spellInfo and spellInfo.iconID then
             icon = spellInfo.iconID
         elseif C_Spell and C_Spell.GetSpellTexture then
-            local texture = C_Spell.GetSpellTexture(id)
-            if texture then icon = texture end
+            local tex = C_Spell.GetSpellTexture(id)
+            if tex then icon = tex end
         end
     elseif entryType == "toy" then
         if C_ToyBox and C_ToyBox.GetToyInfo then
-            local _, toyName, toyIcon = C_ToyBox.GetToyInfo(id)
+            local _, _, toyIcon = C_ToyBox.GetToyInfo(id)
             if toyIcon then icon = toyIcon end
         end
     elseif entryType == "item" then
@@ -418,7 +617,6 @@ function Teleports:SaveTeleportFromPopup()
         if itemIcon then icon = itemIcon end
     end
 
-    -- Create the entry
     local entry = {
         name = displayName,
         mapID = popup.mapID,
@@ -427,24 +625,49 @@ function Teleports:SaveTeleportFromPopup()
         icon = icon,
         type = entryType,
         id = id,
-        isUserAdded = true
+        isUserAdded = true,
     }
 
-    -- Save to global storage
     if not BOLTDB then BOLTDB = {} end
-    if not BOLTDB.teleports then
-        BOLTDB.teleports = {}
-    end
+    if not BOLTDB.teleports then BOLTDB.teleports = {} end
     table.insert(BOLTDB.teleports, entry)
 
-    if self.parent and self.parent.Print then
-        self.parent:Print(string.format("Teleports: Added '%s' (ID: %d, Type: %s)", displayName, id, entryType))
+    BOLT:Print(string.format("Teleports: Added '%s' (ID: %d, Type: %s). Use /bolt export-teleports to export for your repo.", displayName, id, entryType))
+    popup:Hide()
+    self:RefreshPins()
+end
+
+-------------------------------------------------
+-- Export (runtime teleports -> Lua for the data file)
+-------------------------------------------------
+
+function Teleports:ExportTeleports()
+    if not BOLTDB or not BOLTDB.teleports or #BOLTDB.teleports == 0 then
+        BOLT:Print("No runtime-added teleports to export.")
+        return
     end
 
-    popup:Hide()
-    
-    -- Refresh pins immediately
-    self:RefreshPins()
+    BOLT:Print("--- Copy the lines below into Data/TeleportData.lua ---")
+    for _, e in ipairs(BOLTDB.teleports) do
+        local iconStr
+        if type(e.icon) == "number" then
+            iconStr = tostring(e.icon)
+        else
+            iconStr = string.format("%q", tostring(e.icon))
+        end
+        local line = string.format(
+            '    { name = %q, mapID = %d, x = %.4f, y = %.4f, icon = %s, type = %q, id = %d },',
+            e.name or "Unknown",
+            e.mapID or 0,
+            e.x or 0,
+            e.y or 0,
+            iconStr,
+            e.type or "spell",
+            e.id or 0
+        )
+        print(line)
+    end
+    BOLT:Print("--- End of export ---")
 end
 
 -------------------------------------------------
@@ -452,59 +675,37 @@ end
 -------------------------------------------------
 
 function Teleports:OnInitialize()
-    -- Create the data provider (will be added to map in OnEnable)
-    dataProvider = BOLT:CreateTeleportDataProvider()
-    
-    -- Create event frame for map events
+    dataProvider = CreateFromMixins(BOLTTeleportDataProviderMixin)
+
     if not eventFrame then
         eventFrame = CreateFrame("Frame")
-        eventFrame:SetScript("OnEvent", function(_, event, ...)
-            if event == "ZONE_CHANGED_NEW_AREA" then
-                if WorldMapFrame and WorldMapFrame:IsShown() then
-                    self:RefreshPins()
-                end
+        eventFrame:SetScript("OnEvent", function(_, event)
+            if event == "ZONE_CHANGED_NEW_AREA" and WorldMapFrame and WorldMapFrame:IsShown() then
+                self:RefreshPins()
             end
         end)
     end
 end
 
 function Teleports:OnEnable()
-    -- Initialize secure UI (must be done out of combat)
-    if BOLT.TeleportSecureUI then
-        BOLT.TeleportSecureUI:Initialize()
-    end
-    
-    -- Register events
+    InitSecureButton()
+
     if eventFrame then
         eventFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
     end
-    
-    -- Add data provider to WorldMap
+
     if WorldMapFrame and dataProvider then
         WorldMapFrame:AddDataProvider(dataProvider)
     end
 end
 
 function Teleports:OnDisable()
-    -- Remove data provider from WorldMap
     if WorldMapFrame and dataProvider then
         WorldMapFrame:RemoveDataProvider(dataProvider)
     end
-    
-    -- Unregister events
     if eventFrame then
         eventFrame:UnregisterAllEvents()
     end
-end
-
--- Debug dump
-function Teleports:Dump()
-    local cfg = (self.parent and self.parent.GetConfig) and self.parent:GetConfig("teleports") or {}
-    self:Debug(
-        "Dump: enabled=" ..
-        tostring((self.parent and self.parent:IsModuleEnabled("teleports"))) ..
-        " showOnMap=" .. tostring(cfg.showOnMap) ..
-        " dataProvider=" .. tostring(dataProvider ~= nil))
 end
 
 -------------------------------------------------
@@ -518,30 +719,12 @@ function BOLT_AddTeleportLocation()
 end
 
 function BOLT_ToggleTeleportEditMode()
-    if BOLT then
-        local cfg = BOLT:GetConfig("teleports") or {}
-        local editMode = cfg.editMode or false
-        BOLT:SetConfig(not editMode, "teleports", "editMode")
-        if BOLT.Print then
-            BOLT:Print("Teleports Edit Mode: " .. (editMode and "OFF" or "ON"))
-        end
-        -- Refresh config UI if it exists
-        if BOLT.modules.config and BOLT.modules.config.RefreshAll then
-            BOLT.modules.config:RefreshAll()
-        end
+    if not BOLT then return end
+    local cfg = BOLT:GetConfig("teleports") or {}
+    local editMode = cfg.editMode or false
+    BOLT:SetConfig(not editMode, "teleports", "editMode")
+    BOLT:Print("Teleports Edit Mode: " .. (editMode and "OFF" or "ON"))
+    if BOLT.modules.config and BOLT.modules.config.RefreshAll then
+        BOLT.modules.config:RefreshAll()
     end
 end
-
--------------------------------------------------
--- Cleanup on logout
--------------------------------------------------
-
-local cleanupFrame = CreateFrame("Frame")
-cleanupFrame:RegisterEvent("PLAYER_LOGOUT")
-cleanupFrame:SetScript("OnEvent", function()
-    if Teleports.OnDisable then
-        Teleports:OnDisable()
-    end
-end)
-
-return Teleports

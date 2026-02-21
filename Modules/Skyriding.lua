@@ -1,24 +1,29 @@
 -- B.O.L.T Skyriding Module (mouse-hold only)
 -- A/D -> horizontal turn, optional W/S -> pitch (climb/dive)
 -- Active only while Skyriding AND holding Left Mouse (not both buttons).
+--
+-- State machine prevents stuck keys by NEVER changing override bindings
+-- while managed keys are physically held. Overrides are only applied/cleared
+-- after all managed keys are released.
 
 local ADDON_NAME, BOLT = ...
 
 local Skyriding = {}
 
--- =========================
--- Small, explicit state
--- =========================
+-- State machine:
+--   "idle"              – no overrides applied
+--   "active"            – overrides applied and working
+--   "pendingActivate"   – waiting for managed keys to release before applying
+--   "pendingDeactivate" – waiting for managed keys to release before clearing
+local state = "idle"
+
 local leftDown, rightDown = false, false
 local inCombat = false
 local inSkyriding = false
-local active = false -- overrides currently applied
 local overrideFrame
+local transitionPoller -- OnUpdate frame for pending-state polling
 local watchdog
 
--- =========================
--- Helpers
--- =========================
 local function Safe() return not InCombatLockdown() end
 
 -- "Steady Flight" aura (id 404468) means NOT Skyriding
@@ -26,7 +31,6 @@ local function IsSkyridingSelected()
     return C_UnitAuras.GetPlayerAuraBySpellID(404468) == nil
 end
 
--- Single source of truth
 local function IsSkyridingActiveNow()
     return IsMounted()
        and IsAdvancedFlyableArea()
@@ -43,9 +47,9 @@ local function GetManagedKeys(enablePitch)
     end
     local t = {}
     local function addAll(...)
-        for i=1, select("#", ...) do
+        for i = 1, select("#", ...) do
             local key = select(i, ...)
-            if key then t[#t+1] = key end
+            if key then t[#t + 1] = key end
         end
     end
     addAll(GetBindingKey("STRAFELEFT"))
@@ -58,36 +62,17 @@ local function GetManagedKeys(enablePitch)
     return t
 end
 
-local function AnyKeyDown(keys)
-    for i=1, #keys do if IsKeyDown(keys[i]) then return true end end
+local function AnyManagedKeyDown()
+    local enablePitch = BOLT:GetConfig("skyriding", "enablePitchControl")
+    local keys = GetManagedKeys(enablePitch)
+    for i = 1, #keys do
+        if IsKeyDown(keys[i]) then return true end
+    end
     return false
 end
 
--- Gate: run cb once all managed keys are UP (or after timeout)
-local deferFrame
-local function DeferUntilKeysUp(keys, cb, timeout)
-    if not keys or #keys == 0 or not AnyKeyDown(keys) then
-        cb() ; return
-    end
-    if not deferFrame then deferFrame = CreateFrame("Frame") end
-    local waiting = {}
-    for i=1,#keys do if IsKeyDown(keys[i]) then waiting[keys[i]] = true end end
-    local waited, limit = 0, timeout or 1.5
-    deferFrame:SetScript("OnUpdate", function(_, dt)
-        waited = waited + dt
-        local held = false
-        for k in pairs(waiting) do
-            if IsKeyDown(k) then held = true break end
-        end
-        if not held or waited >= limit then
-            deferFrame:SetScript("OnUpdate", nil)
-            cb()
-        end
-    end)
-end
-
 -- =========================
--- Binding apply/clear
+-- Binding apply / clear
 -- =========================
 local function ClearOverrides()
     if overrideFrame then ClearOverrideBindings(overrideFrame) end
@@ -102,90 +87,152 @@ local function ApplyBindings(enablePitch, invertPitch)
         if k3 then SetOverrideBinding(overrideFrame, true, k3, cmd) end
         if k4 then SetOverrideBinding(overrideFrame, true, k4, cmd) end
     end
-    -- A/D => turning (strafe -> turn)
     bindTo("TURNLEFT",  "STRAFELEFT")
     bindTo("TURNRIGHT", "STRAFERIGHT")
-    -- W/S => pitch (optional)
     if enablePitch then
-        bindTo(invertPitch and "PITCHDOWN" or "PITCHUP", "MOVEFORWARD")
+        bindTo(invertPitch and "PITCHDOWN" or "PITCHUP",   "MOVEFORWARD")
         bindTo(invertPitch and "PITCHUP"   or "PITCHDOWN", "MOVEBACKWARD")
     end
 end
 
-local function Activate(reason)
-    if BOLT:GetConfig("debug") then
-        BOLT:Print(("Skyriding Activate called: reason=%s, active=%s, safe=%s, enabled=%s, skyridingSelected=%s"):format(
-            tostring(reason), tostring(active), tostring(Safe()), 
-            tostring(BOLT:IsModuleEnabled("skyriding")), tostring(IsSkyridingSelected())
-        ))
+-- =========================
+-- Transition poller
+-- Polls every frame; fires callback once ALL managed keys are released.
+-- No timeout – overrides stay until keys are physically up.
+-- =========================
+local function StopTransitionPoller()
+    if transitionPoller then
+        transitionPoller:SetScript("OnUpdate", nil)
+        transitionPoller = nil
     end
-    if active or not Safe() then return end
+end
+
+local function StartTransitionPoller(onKeysReleased)
+    StopTransitionPoller()
+    transitionPoller = CreateFrame("Frame")
+    transitionPoller:SetScript("OnUpdate", function()
+        if not Safe() then return end
+        if not AnyManagedKeyDown() then
+            StopTransitionPoller()
+            onKeysReleased()
+        end
+    end)
+end
+
+-- =========================
+-- Actual apply / remove helpers (only called when keys are up)
+-- =========================
+local function DoActivate()
+    if not Safe() then return end
     if not BOLT:IsModuleEnabled("skyriding") then return end
     if not IsSkyridingSelected() then return end
     if not overrideFrame then
-        overrideFrame = CreateFrame("Frame","BOLTSkyridingOverrideFrame")
+        overrideFrame = CreateFrame("Frame", "BOLTSkyridingOverrideFrame")
     end
-    local enablePitch = BOLT:GetConfig("skyriding","enablePitchControl")
-    local keys = GetManagedKeys(enablePitch)
-    DeferUntilKeysUp(keys, function()
-        if not Safe() then return end
-        ApplyBindings(enablePitch, BOLT:GetConfig("skyriding","invertPitch"))
-        active = true
-        if BOLT:GetConfig("debug") then
-            local pitch  = enablePitch and (BOLT:GetConfig("skyriding","invertPitch") and " W=dive S=climb" or " W=climb S=dive") or ""
-            BOLT:Print(("Skyriding overrides ON (hold LMB)%s"):format(pitch))
-        end
-    end, 1.0)
+    local enablePitch = BOLT:GetConfig("skyriding", "enablePitchControl")
+    ApplyBindings(enablePitch, BOLT:GetConfig("skyriding", "invertPitch"))
+    state = "active"
+    if BOLT:GetConfig("debug") then
+        local pitch = enablePitch
+            and (BOLT:GetConfig("skyriding", "invertPitch")
+                 and " W=dive S=climb" or " W=climb S=dive")
+            or ""
+        BOLT:Print(("Skyriding overrides ON (hold LMB)%s"):format(pitch))
+    end
 end
 
-local function Deactivate(reason)
-    if not active or not Safe() then return end
-    local enablePitch = BOLT:GetConfig("skyriding","enablePitchControl")
-    local keys = GetManagedKeys(enablePitch)
-    DeferUntilKeysUp(keys, function()
-        if not Safe() then return end
-        ClearOverrides()
-        active = false
-        if BOLT:GetConfig("debug") then
-            BOLT:Print("Skyriding overrides OFF")
-        end
-    end, 1.0)
+local function DoDeactivate()
+    if not Safe() then return end
+    ClearOverrides()
+    state = "idle"
+    if BOLT:GetConfig("debug") then
+        BOLT:Print("Skyriding overrides OFF")
+    end
 end
 
 -- =========================
--- State driver
+-- Core state transitions
 -- =========================
 local function ShouldBeActive()
-    -- Only active when: skyriding AND LMB down AND RMB not down
     return inSkyriding and leftDown and not rightDown
+end
+
+local function TransitionTo(desired)
+    if not Safe() then return end
+
+    if desired == "active" then
+        if state == "active" then return end
+        if state == "pendingDeactivate" then
+            -- Cancel pending deactivation – overrides are still in place
+            StopTransitionPoller()
+            state = "active"
+            if BOLT:GetConfig("debug") then
+                BOLT:Print("Skyriding: cancelled pending deactivation, staying active")
+            end
+            return
+        end
+        if state == "pendingActivate" then return end -- already waiting
+
+        -- From idle: apply overrides only when no managed keys are held
+        StopTransitionPoller()
+        if AnyManagedKeyDown() then
+            state = "pendingActivate"
+            StartTransitionPoller(function()
+                if ShouldBeActive() then
+                    DoActivate()
+                else
+                    state = "idle"
+                end
+            end)
+        else
+            DoActivate()
+        end
+
+    elseif desired == "idle" then
+        if state == "idle" then return end
+        if state == "pendingActivate" then
+            -- Cancel pending activation – no overrides were applied yet
+            StopTransitionPoller()
+            state = "idle"
+            return
+        end
+        if state == "pendingDeactivate" then return end -- already waiting
+
+        -- From active: clear overrides only when no managed keys are held
+        StopTransitionPoller()
+        if AnyManagedKeyDown() then
+            state = "pendingDeactivate"
+            StartTransitionPoller(function()
+                DoDeactivate()
+                -- Re-evaluate in case conditions changed while waiting
+                C_Timer.After(0, function() if Safe() then Recalc() end end)
+            end)
+        else
+            DoDeactivate()
+        end
+    end
 end
 
 local function Recalc()
     if not Safe() then return end
     inSkyriding = IsSkyridingActiveNow()
-    if ShouldBeActive() and not active then
-        Activate("recalc")
-    elseif not ShouldBeActive() and active then
-        Deactivate("recalc")
+    if ShouldBeActive() then
+        TransitionTo("active")
+    else
+        TransitionTo("idle")
     end
 end
 
--- 3s watchdog to fix rare desyncs (e.g., eaten mouse-up)
+-- Watchdog: catches rare desyncs (eaten mouse-up, etc.)
 local function StartWatchdog()
     if watchdog then return end
     watchdog = CreateFrame("Frame")
     local t = 0
     watchdog:SetScript("OnUpdate", function(_, dt)
         t = t + dt
-        if t >= 3 then
+        if t >= 1 then
             t = 0
-            if Safe() then
-                if ShouldBeActive() and not active then
-                    Activate("watchdog")
-                elseif not ShouldBeActive() and active then
-                    Deactivate("watchdog")
-                end
-            end
+            if Safe() then Recalc() end
         end
     end)
 end
@@ -215,13 +262,12 @@ function Skyriding:CreateEventFrame()
     self.eventFrame:RegisterEvent("GLOBAL_MOUSE_DOWN")
     self.eventFrame:RegisterEvent("GLOBAL_MOUSE_UP")
 
-    self.eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED") -- combat start
-    self.eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")  -- combat end
+    self.eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
+    self.eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
 
     self.eventFrame:SetScript("OnEvent", function(_, event, ...)
         if event == "PLAYER_REGEN_DISABLED" then
             inCombat = true
-            if active and not inSkyriding and Safe() then Deactivate("combat") end
 
         elseif event == "PLAYER_REGEN_ENABLED" then
             inCombat = false
@@ -232,12 +278,10 @@ function Skyriding:CreateEventFrame()
             local btn = ...
             if btn == "LeftButton" then
                 leftDown = true
-                if inSkyriding and not rightDown then
-                    Activate("LMB down")
-                end
+                Recalc()
             elseif btn == "RightButton" then
                 rightDown = true
-                if active then Deactivate("RMB down") end
+                Recalc()
             end
 
         elseif event == "GLOBAL_MOUSE_UP" then
@@ -245,13 +289,10 @@ function Skyriding:CreateEventFrame()
             local btn = ...
             if btn == "LeftButton" then
                 leftDown = false
-                if active then Deactivate("LMB up") end
+                Recalc()
             elseif btn == "RightButton" then
-                local wasRight = rightDown
                 rightDown = false
-                if wasRight and leftDown and inSkyriding then
-                    Activate("RMB up resume")
-                end
+                Recalc()
             end
 
         elseif event == "UNIT_AURA" then
@@ -281,7 +322,7 @@ function Skyriding:OnInitialize() end
 
 function Skyriding:OnEnable()
     if BOLT:GetConfig("debug") then
-        BOLT:Print(("Skyriding OnEnable"):format())
+        BOLT:Print("Skyriding OnEnable")
     end
     inCombat = InCombatLockdown()
     self:CreateEventFrame()
@@ -291,40 +332,59 @@ end
 
 function Skyriding:OnDisable()
     StopWatchdog()
+    StopTransitionPoller()
     if self.eventFrame then
         self.eventFrame:UnregisterAllEvents()
         self.eventFrame:SetScript("OnEvent", nil)
         self.eventFrame = nil
     end
-    if Safe() and active then Deactivate("disable") end
+    if Safe() and (state == "active" or state == "pendingDeactivate") then
+        ClearOverrides()
+    end
     leftDown, rightDown = false, false
-    inSkyriding, active, inCombat = false, false, false
-    if deferFrame then deferFrame:SetScript("OnUpdate", nil) end
-    if overrideFrame then ClearOverrideBindings(overrideFrame) overrideFrame = nil end
+    inSkyriding, inCombat = false, false
+    state = "idle"
+    if overrideFrame then
+        ClearOverrideBindings(overrideFrame)
+        overrideFrame = nil
+    end
 end
 
 -- =========================
 -- Public hooks / settings
 -- =========================
 function Skyriding:OnPitchSettingChanged()
-    -- invalidate cache
     managedCache, managedCachePitch = nil, nil
-    if not active or not Safe() then return end
-    local enablePitch = BOLT:GetConfig("skyriding","enablePitchControl")
-    local keys = GetManagedKeys(enablePitch)
-    DeferUntilKeysUp(keys, function()
-        if not Safe() then return end
+    if state ~= "active" or not Safe() then return end
+    if not AnyManagedKeyDown() then
         ClearOverrides()
-        ApplyBindings(enablePitch, BOLT:GetConfig("skyriding","invertPitch"))
-    end, 1.0)
+        ApplyBindings(
+            BOLT:GetConfig("skyriding", "enablePitchControl"),
+            BOLT:GetConfig("skyriding", "invertPitch")
+        )
+    else
+        -- Wait for keys to release, then re-apply with new settings
+        StartTransitionPoller(function()
+            if state ~= "active" or not Safe() then return end
+            ClearOverrides()
+            ApplyBindings(
+                BOLT:GetConfig("skyriding", "enablePitchControl"),
+                BOLT:GetConfig("skyriding", "invertPitch")
+            )
+        end)
+    end
 end
 
 function Skyriding:EmergencyReset()
-    if InCombatLockdown() then self.parent:Print("B.O.L.T: Can't reset in combat.") return end
-    if deferFrame then deferFrame:SetScript("OnUpdate", nil) end
+    if InCombatLockdown() then
+        self.parent:Print("B.O.L.T: Can't reset in combat.")
+        return
+    end
+    StopTransitionPoller()
     if overrideFrame then ClearOverrideBindings(overrideFrame) end
     leftDown, rightDown = false, false
-    inSkyriding, active = false, false
+    inSkyriding = false
+    state = "idle"
     self.parent:Print("B.O.L.T: Emergency reset complete.")
 end
 
@@ -333,7 +393,6 @@ end
 -- =========================
 BOLT:RegisterModule("skyriding", Skyriding)
 
--- Slash reset
 SLASH_BOLTRESET1, SLASH_BOLTRESET2 = "/boltreset", "/boltnuke"
 SlashCmdList["BOLTRESET"] = function()
     if Skyriding and Skyriding.EmergencyReset then Skyriding:EmergencyReset() end
