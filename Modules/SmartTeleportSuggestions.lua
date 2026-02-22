@@ -59,14 +59,14 @@ SmartTeleport.TeleportData = {
     { name = "Stormstout Brewery",          mapID = 376,  x = 0.36, y = 0.69, spellIDs = {131205}, itemIDs = {} },
     { name = "Shado-Pan Monastery",         mapID = 379,  x = 0.36, y = 0.48, spellIDs = {131206}, itemIDs = {} },
     { name = "Mogu'shan Palace",            mapID = 390,  x = 0.80, y = 0.33, spellIDs = {131222}, itemIDs = {} },
-    { name = "Gate of the Setting Sun",     mapID = 390,  x = 0.16, y = 0.77, spellIDs = {131225}, itemIDs = {} },
+    { name = "Gate of the Setting Sun",     mapID = 422,  x = 0.16, y = 0.77, spellIDs = {131225}, itemIDs = {} },
     { name = "Siege of Niuzao Temple",      mapID = 388,  x = 0.35, y = 0.81, spellIDs = {131228}, itemIDs = {} },
     { name = "Scarlet Monastery",           mapID = 18,   x = 0.85, y = 0.31, spellIDs = {131229}, itemIDs = {} },
     { name = "Scarlet Halls",               mapID = 18,   x = 0.85, y = 0.31, spellIDs = {131231}, itemIDs = {} },
     { name = "Scholomance",                 mapID = 22,   x = 0.69, y = 0.73, spellIDs = {131232}, itemIDs = {} },
 
     -- ── Hero's Path: WoD (Challenge Mode Gold) ────────────────────────
-    { name = "Bloodmaul Slag Mines",        mapID = 525,  x = 0.50, y = 0.50, spellIDs = {159895}, itemIDs = {} },
+    { name = "Bloodmaul Slag Mines",        mapID = 525,  x = 0.496, y = 0.246, spellIDs = {159895}, itemIDs = {} },
     { name = "Iron Docks",                  mapID = 543,  x = 0.45, y = 0.14, spellIDs = {159896}, itemIDs = {} },
     { name = "Auchindoun",                  mapID = 535,  x = 0.44, y = 0.74, spellIDs = {159897}, itemIDs = {} },
     { name = "Skyreach",                    mapID = 542,  x = 0.36, y = 0.34, spellIDs = {159898}, itemIDs = {} },
@@ -76,16 +76,16 @@ SmartTeleport.TeleportData = {
     { name = "Upper Blackrock Spire",       mapID = 36,   x = 0.29, y = 0.38, spellIDs = {159902}, itemIDs = {} },
 
     -- ── Hero's Path: Shadowlands (Keystone Hero) ──────────────────────
-    { name = "The Necrotic Wake",           mapID = 1533, x = 0.52, y = 0.65, spellIDs = {354462}, itemIDs = {} },
-    { name = "Plaguefall",                  mapID = 1536, x = 0.60, y = 0.40, spellIDs = {354463}, itemIDs = {} },
-    { name = "Mists of Tirna Scithe",       mapID = 1565, x = 0.33, y = 0.53, spellIDs = {354464}, itemIDs = {} },
+    { name = "The Necrotic Wake",           mapID = 1533, x = 0.34, y = 0.26, spellIDs = {354462}, itemIDs = {} },
+    { name = "Plaguefall",                  mapID = 1536, x = 0.63, y = 0.36, spellIDs = {354463}, itemIDs = {} },
+    { name = "Mists of Tirna Scithe",       mapID = 1565, x = 0.33, y = 0.52, spellIDs = {354464}, itemIDs = {} },
     { name = "Halls of Atonement",          mapID = 1525, x = 0.73, y = 0.40, spellIDs = {354465}, itemIDs = {} },
-    { name = "Spires of Ascension",         mapID = 1533, x = 0.59, y = 0.35, spellIDs = {354466}, itemIDs = {} },
+    { name = "Spires of Ascension",         mapID = 1533, x = 0.58, y = 0.29, spellIDs = {354466}, itemIDs = {} },
     { name = "Theater of Pain",             mapID = 1536, x = 0.50, y = 0.52, spellIDs = {354467}, itemIDs = {} },
     { name = "De Other Side",               mapID = 1565, x = 0.20, y = 0.55, spellIDs = {354468}, itemIDs = {} },
     { name = "Sanguine Depths",             mapID = 1525, x = 0.51, y = 0.69, spellIDs = {354469}, itemIDs = {} },
     { name = "Tazavesh",                    mapID = 1670, x = 0.50, y = 0.50, spellIDs = {367416}, itemIDs = {} },
-    { name = "Return to Karazhan",          mapID = 42,   x = 0.47, y = 0.75, spellIDs = {373262}, itemIDs = {} },
+    { name = "Return to Karazhan",          mapID = 42,   x = 0.54, y = 0.78, spellIDs = {373262}, itemIDs = {} },
     { name = "Operation: Mechagon",         mapID = 1462, x = 0.72, y = 0.36, spellIDs = {373274}, itemIDs = {} },
 
     -- ── Hero's Path: Dragonflight S1 (Keystone Hero) ──────────────────
@@ -103,32 +103,32 @@ SmartTeleport.TeleportData = {
     -- ── Hero's Path: Dragonflight S2 (Keystone Hero) ──────────────────
     { name = "Freehold",                    mapID = 895,  x = 0.84, y = 0.79, spellIDs = {410071}, itemIDs = {} },
     { name = "The Underrot",                mapID = 863,  x = 0.51, y = 0.66, spellIDs = {410074}, itemIDs = {} },
-    { name = "Neltharion's Lair",           mapID = 650,  x = 0.50, y = 0.65, spellIDs = {410078}, itemIDs = {} },
+    { name = "Neltharion's Lair",           mapID = 650,  x = 0.49, y = 0.68, spellIDs = {410078}, itemIDs = {} },
     { name = "The Vortex Pinnacle",         mapID = 249,  x = 0.77, y = 0.84, spellIDs = {410080}, itemIDs = {} },
 
     -- ── Hero's Path: Dragonflight S3 (Keystone Hero) ──────────────────
-    { name = "Throne of the Tides",         mapID = 204,  x = 0.69, y = 0.25, spellIDs = {424142}, itemIDs = {} },
+    { name = "Throne of the Tides",         mapID = 204,  x = 0.71, y = 0.29, spellIDs = {424142}, itemIDs = {} },
     { name = "Black Rook Hold",             mapID = 641,  x = 0.38, y = 0.53, spellIDs = {424153}, itemIDs = {} },
     { name = "Darkheart Thicket",           mapID = 641,  x = 0.59, y = 0.31, spellIDs = {424163}, itemIDs = {} },
     { name = "Waycrest Manor",              mapID = 896,  x = 0.33, y = 0.13, spellIDs = {424167}, itemIDs = {} },
     { name = "Atal'Dazar",                  mapID = 862,  x = 0.44, y = 0.39, spellIDs = {424187}, itemIDs = {} },
-    { name = "Dawn of the Infinite",        mapID = 2025, x = 0.64, y = 0.80, spellIDs = {424197}, itemIDs = {} },
+    { name = "Dawn of the Infinite",        mapID = 2025, x = 0.61, y = 0.84, spellIDs = {424197}, itemIDs = {} },
 
     -- ── Hero's Path: The War Within S1 (Keystone Hero) ────────────────
-    { name = "The Stonevault",              mapID = 2248, x = 0.50, y = 0.50, spellIDs = {445269}, itemIDs = {} },
-    { name = "The Dawnbreaker",             mapID = 2215, x = 0.50, y = 0.50, spellIDs = {445414}, itemIDs = {} },
-    { name = "City of Threads",             mapID = 2255, x = 0.50, y = 0.50, spellIDs = {445416}, itemIDs = {} },
-    { name = "Ara-Kara, City of Echoes",    mapID = 2255, x = 0.50, y = 0.50, spellIDs = {445417}, itemIDs = {} },
+    { name = "The Stonevault",              mapID = 2214, x = 0.427, y = 0.086, spellIDs = {445269}, itemIDs = {} },
+    { name = "The Dawnbreaker",             mapID = 2215, x = 0.57, y = 0.62, spellIDs = {445414}, itemIDs = {} },
+    { name = "City of Threads",             mapID = 2255, x = 0.481, y = 0.713, spellIDs = {445416}, itemIDs = {} },
+    { name = "Ara-Kara, City of Echoes",    mapID = 2255, x = 0.51, y = 0.82, spellIDs = {445417}, itemIDs = {} },
     { name = "Siege of Boralus",            mapID = 895,  x = 0.73, y = 0.24, spellIDs = {445418, 464256}, itemIDs = {} },
-    { name = "Grim Batol",                  mapID = 241,  x = 0.19, y = 0.54, spellIDs = {445424}, itemIDs = {} },
-    { name = "Cinderbrew Meadery",          mapID = 2248, x = 0.50, y = 0.50, spellIDs = {445440}, itemIDs = {} },
-    { name = "Darkflame Cleft",             mapID = 2214, x = 0.50, y = 0.50, spellIDs = {445441}, itemIDs = {} },
-    { name = "The Rookery",                 mapID = 2214, x = 0.50, y = 0.50, spellIDs = {445443}, itemIDs = {} },
-    { name = "Priory of the Sacred Flame",  mapID = 2215, x = 0.50, y = 0.50, spellIDs = {445444}, itemIDs = {} },
+    { name = "Grim Batol",                  mapID = 241,  x = 0.19, y = 0.56, spellIDs = {445424}, itemIDs = {} },
+    { name = "Cinderbrew Meadery",          mapID = 2248, x = 0.81, y = 0.44, spellIDs = {445440}, itemIDs = {} },
+    { name = "Darkflame Cleft",             mapID = 2214, x = 0.56, y = 0.22, spellIDs = {445441}, itemIDs = {} },
+    { name = "The Rookery",                 mapID = 2248, x = 0.33, y = 0.35, spellIDs = {445443}, itemIDs = {} },
+    { name = "Priory of the Sacred Flame",  mapID = 2215, x = 0.42, y = 0.50, spellIDs = {445444}, itemIDs = {} },
 
     -- ── Hero's Path: The War Within S2 (Keystone Hero) ────────────────
     { name = "The MOTHERLODE!!",            mapID = 862,  x = 0.56, y = 0.60, spellIDs = {467553, 467555}, itemIDs = {} },
-    { name = "Operation: Floodgate",        mapID = 2346, x = 0.50, y = 0.50, spellIDs = {1216786}, itemIDs = {} },
+    { name = "Operation: Floodgate",        mapID = 2214, x = 0.421, y = 0.395, spellIDs = {1216786}, itemIDs = {} },
 
     -- ── Hearthstone (dynamic location) ─────────────────────────────────
     { name = "Hearthstone", mapID = 0, x = 0, y = 0, spellIDs = {8690}, itemIDs = {6948}, isHearthstone = true },
@@ -141,8 +141,8 @@ local ownedCache = {}   -- rebuilt on SPELLS_CHANGED / BAG_UPDATE
 local panelFrame = nil
 local entryButtons = {}
 local MAX_ENTRIES = 5
-local PANEL_WIDTH = 250
-local ENTRY_HEIGHT = 32
+local ENTRY_HEIGHT = 28
+local ENTRY_WIDTH  = 200
 local isVisible = false
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -322,7 +322,7 @@ function SmartTeleport:CreatePanel()
     if panelFrame then return end
 
     panelFrame = CreateFrame("Frame", "BOLTSmartTeleportPanel", UIParent, "BackdropTemplate")
-    panelFrame:SetSize(PANEL_WIDTH, 50) -- height adjusted dynamically
+    panelFrame:SetSize(400, 50) -- width adjusted dynamically to match map
     panelFrame:SetFrameStrata("DIALOG")
     panelFrame:SetFrameLevel(200)
     panelFrame:SetClampedToScreen(true)
@@ -339,8 +339,8 @@ function SmartTeleport:CreatePanel()
 
     -- Title
     local title = panelFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    title:SetPoint("TOPLEFT", panelFrame, "TOPLEFT", 10, -8)
-    title:SetText("Useful Teleports You Have")
+    title:SetPoint("TOP", panelFrame, "TOP", 0, -6)
+    title:SetText("Useful Teleports")
     title:SetTextColor(1, 0.82, 0)
     panelFrame.title = title
 
@@ -353,10 +353,10 @@ function SmartTeleport:CreatePanel()
         isVisible = false
     end)
 
-    -- Entry container
+    -- Entry container (horizontal strip)
     panelFrame.container = CreateFrame("Frame", nil, panelFrame)
-    panelFrame.container:SetPoint("TOPLEFT", panelFrame, "TOPLEFT", 8, -28)
-    panelFrame.container:SetPoint("RIGHT", panelFrame, "RIGHT", -8, 0)
+    panelFrame.container:SetPoint("TOPLEFT", panelFrame, "TOPLEFT", 8, -22)
+    panelFrame.container:SetPoint("BOTTOMRIGHT", panelFrame, "BOTTOMRIGHT", -8, 4)
 
     panelFrame:Hide()
 end
@@ -409,11 +409,15 @@ function SmartTeleport:RefreshPanel()
         entryButtons[i]:Hide()
     end
 
+    -- Match panel width to the map frame
+    local mapWidth = WorldMapFrame:GetWidth()
+    panelFrame:SetWidth(mapWidth)
+
     if #results == 0 then
-        panelFrame:SetHeight(50)
+        panelFrame:SetHeight(40)
         if not panelFrame.emptyText then
             panelFrame.emptyText = panelFrame.container:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-            panelFrame.emptyText:SetPoint("TOPLEFT", panelFrame.container, "TOPLEFT", 4, 0)
+            panelFrame.emptyText:SetPoint("CENTER", panelFrame.container, "CENTER", 0, 0)
             panelFrame.emptyText:SetText("No relevant teleports for this map.")
         end
         panelFrame.emptyText:Show()
@@ -423,6 +427,11 @@ function SmartTeleport:RefreshPanel()
     end
 
     if panelFrame.emptyText then panelFrame.emptyText:Hide() end
+
+    -- Calculate button width to fill available space evenly
+    local availableWidth = mapWidth - 16  -- 8px padding each side
+    local btnWidth = math.floor(availableWidth / #results)
+    if btnWidth > ENTRY_WIDTH then btnWidth = ENTRY_WIDTH end
 
     for i, result in ipairs(results) do
         local btn = entryButtons[i]
@@ -463,14 +472,15 @@ function SmartTeleport:RefreshPanel()
             end
         end
 
-        btn:SetPoint("TOPLEFT", panelFrame.container, "TOPLEFT", 0, -(i - 1) * ENTRY_HEIGHT)
+        btn:SetSize(btnWidth, ENTRY_HEIGHT)
+        btn:ClearAllPoints()
+        btn:SetPoint("TOPLEFT", panelFrame.container, "TOPLEFT", (i - 1) * btnWidth, 0)
         btn:Show()
     end
 
-    -- Dynamic height
-    local totalH = 28 + (#results * ENTRY_HEIGHT) + 10
+    -- Fixed height: title row + one row of buttons
+    local totalH = 22 + ENTRY_HEIGHT + 8
     panelFrame:SetHeight(totalH)
-    panelFrame.container:SetHeight(#results * ENTRY_HEIGHT)
 
     self:AnchorToMapFrame()
     panelFrame:Show()
@@ -479,12 +489,12 @@ end
 function SmartTeleport:AnchorToMapFrame()
     if not panelFrame or not WorldMapFrame then return end
     panelFrame:ClearAllPoints()
-    panelFrame:SetPoint("TOPLEFT", WorldMapFrame, "TOPRIGHT", 4, 0)
+    panelFrame:SetPoint("TOPLEFT", WorldMapFrame, "BOTTOMLEFT", 0, -4)
 end
 
 function SmartTeleport:CreateEntryButton(parent, index)
     local btn = CreateFrame("Button", "BOLTSmartTP_Entry" .. index, parent, "SecureActionButtonTemplate")
-    btn:SetSize(PANEL_WIDTH - 16, ENTRY_HEIGHT)
+    btn:SetSize(ENTRY_WIDTH, ENTRY_HEIGHT)
     btn:RegisterForClicks("AnyUp", "AnyDown")
     btn:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
 
