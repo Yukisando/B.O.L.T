@@ -35,6 +35,7 @@ Modules\Admin.lua
 Modules\WowheadLink.lua
 Modules\AutoRepSwitch.lua
 Modules\ChatNotifier.lua
+Modules\AchievementTracker.lua
 
 # Teleports Module
 TeleportPins.xml

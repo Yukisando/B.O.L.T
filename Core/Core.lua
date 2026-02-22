@@ -42,6 +42,7 @@ BOLT.defaults = {
             channels = {},
             soundID = 8959,
         },
+        achievementTracker = {},
     }
 }
 
@@ -55,6 +56,7 @@ BOLT.defaultModuleStates = {
     teleports = false,
     smartTeleport = false,
     chatNotifier = false,
+    achievementTracker = false,
 }
 
 -- Initialize the addon

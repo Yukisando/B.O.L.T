@@ -140,9 +140,8 @@ SmartTeleport.TeleportData = {
 local ownedCache = {}   -- rebuilt on SPELLS_CHANGED / BAG_UPDATE
 local panelFrame = nil
 local entryButtons = {}
-local MAX_ENTRIES = 5
 local ENTRY_HEIGHT = 28
-local ENTRY_WIDTH  = 200
+local PANEL_WIDTH  = 260
 local isVisible = false
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -205,6 +204,7 @@ end
 -- ────────────────────────────────────────────────────────────────────────────
 
 local PRIORITY_SAME_MAP    = 1000
+local PRIORITY_CHILD_MAP   = 800
 local PRIORITY_SAME_PARENT = 500
 local PRIORITY_SAME_CONTINENT = 200
 local PRIORITY_QUEST_BASE  = 250
@@ -231,12 +231,34 @@ local function GetContinentMapID(mapID)
     return nil
 end
 
+-- Check if childMapID is a descendant of ancestorMapID in the map hierarchy.
+local function IsDescendantMap(childMapID, ancestorMapID)
+    if not childMapID or not ancestorMapID or childMapID == 0 or ancestorMapID == 0 then
+        return false
+    end
+    local current = childMapID
+    for _ = 1, 10 do
+        local info = C_Map.GetMapInfo(current)
+        if not info then return false end
+        if info.parentMapID == ancestorMapID then return true end
+        if not info.parentMapID or info.parentMapID == 0 then return false end
+        current = info.parentMapID
+    end
+    return false
+end
+
 function SmartTeleport:ScoreEntries(viewedMapID)
     if not viewedMapID then return {} end
 
     local viewedInfo      = C_Map.GetMapInfo(viewedMapID)
     local viewedParent    = viewedInfo and viewedInfo.parentMapID
     local viewedContinent = GetContinentMapID(viewedMapID)
+
+    -- Only allow sibling matching when the parent is continent-level or lower
+    -- (mapType >= 2). This prevents all continent-level entries (e.g. wormholes)
+    -- from matching each other just because they share the World map as parent.
+    local parentInfo = viewedParent and viewedParent > 0 and C_Map.GetMapInfo(viewedParent)
+    local parentIsZoneLevel = parentInfo and parentInfo.mapType and parentInfo.mapType >= 2
 
     -- Quests on the currently viewed map (only useful for same-map proximity)
     local quests = C_QuestLog.GetQuestsOnMap(viewedMapID) or {}
@@ -252,13 +274,19 @@ function SmartTeleport:ScoreEntries(viewedMapID)
             else
                 local isSameMap = (entry.mapID == viewedMapID)
 
-                -- Same map
+                -- Same map (exact match)
                 if isSameMap then
                     score = score + PRIORITY_SAME_MAP
                 end
 
-                -- Same direct parent (sibling zones)
-                if viewedParent and viewedParent > 0 then
+                -- Entry is a child/descendant of the viewed map
+                -- (e.g. viewing a continent, entry is in a zone within it)
+                if not isSameMap and IsDescendantMap(entry.mapID, viewedMapID) then
+                    score = score + PRIORITY_CHILD_MAP
+                end
+
+                -- Same direct parent (sibling zones) — only at zone level or below
+                if viewedParent and viewedParent > 0 and parentIsZoneLevel then
                     local entryInfo = C_Map.GetMapInfo(entry.mapID)
                     if entryInfo and entryInfo.parentMapID == viewedParent then
                         score = score + PRIORITY_SAME_PARENT
@@ -306,12 +334,7 @@ function SmartTeleport:ScoreEntries(viewedMapID)
         return a.entry.name < b.entry.name
     end)
 
-    -- Limit to MAX_ENTRIES
-    local results = {}
-    for i = 1, math.min(#scored, MAX_ENTRIES) do
-        results[i] = scored[i]
-    end
-    return results
+    return scored
 end
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -322,7 +345,7 @@ function SmartTeleport:CreatePanel()
     if panelFrame then return end
 
     panelFrame = CreateFrame("Frame", "BOLTSmartTeleportPanel", UIParent, "BackdropTemplate")
-    panelFrame:SetSize(400, 50) -- width adjusted dynamically to match map
+    panelFrame:SetSize(PANEL_WIDTH, 300)
     panelFrame:SetFrameStrata("DIALOG")
     panelFrame:SetFrameLevel(200)
     panelFrame:SetClampedToScreen(true)
@@ -339,8 +362,8 @@ function SmartTeleport:CreatePanel()
 
     -- Title
     local title = panelFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    title:SetPoint("TOP", panelFrame, "TOP", 0, -6)
-    title:SetText("Useful Teleports")
+    title:SetPoint("TOP", panelFrame, "TOP", 0, -8)
+    title:SetText("Teleports")
     title:SetTextColor(1, 0.82, 0)
     panelFrame.title = title
 
@@ -353,10 +376,17 @@ function SmartTeleport:CreatePanel()
         isVisible = false
     end)
 
-    -- Entry container (horizontal strip)
-    panelFrame.container = CreateFrame("Frame", nil, panelFrame)
-    panelFrame.container:SetPoint("TOPLEFT", panelFrame, "TOPLEFT", 8, -22)
-    panelFrame.container:SetPoint("BOTTOMRIGHT", panelFrame, "BOTTOMRIGHT", -8, 4)
+    -- Scroll frame for the entry list
+    local scrollFrame = CreateFrame("ScrollFrame", "BOLTSmartTPScroll", panelFrame, "UIPanelScrollFrameTemplate")
+    scrollFrame:SetPoint("TOPLEFT", panelFrame, "TOPLEFT", 8, -26)
+    scrollFrame:SetPoint("BOTTOMRIGHT", panelFrame, "BOTTOMRIGHT", -28, 6)
+    panelFrame.scrollFrame = scrollFrame
+
+    local scrollChild = CreateFrame("Frame", "BOLTSmartTPScrollChild", scrollFrame)
+    scrollChild:SetWidth(PANEL_WIDTH - 36)
+    scrollChild:SetHeight(1) -- will be resized dynamically
+    scrollFrame:SetScrollChild(scrollChild)
+    panelFrame.scrollChild = scrollChild
 
     panelFrame:Hide()
 end
@@ -409,18 +439,18 @@ function SmartTeleport:RefreshPanel()
         entryButtons[i]:Hide()
     end
 
-    -- Match panel width to the map frame
-    local mapWidth = WorldMapFrame:GetWidth()
-    panelFrame:SetWidth(mapWidth)
+    -- Match panel height to the map frame
+    local mapHeight = WorldMapFrame:GetHeight()
+    panelFrame:SetHeight(mapHeight)
 
     if #results == 0 then
-        panelFrame:SetHeight(40)
         if not panelFrame.emptyText then
-            panelFrame.emptyText = panelFrame.container:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-            panelFrame.emptyText:SetPoint("CENTER", panelFrame.container, "CENTER", 0, 0)
+            panelFrame.emptyText = panelFrame.scrollChild:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+            panelFrame.emptyText:SetPoint("TOP", panelFrame.scrollChild, "TOP", 0, -8)
             panelFrame.emptyText:SetText("No relevant teleports for this map.")
         end
         panelFrame.emptyText:Show()
+        panelFrame.scrollChild:SetHeight(30)
         self:AnchorToMapFrame()
         panelFrame:Show()
         return
@@ -428,15 +458,12 @@ function SmartTeleport:RefreshPanel()
 
     if panelFrame.emptyText then panelFrame.emptyText:Hide() end
 
-    -- Calculate button width to fill available space evenly
-    local availableWidth = mapWidth - 16  -- 8px padding each side
-    local btnWidth = math.floor(availableWidth / #results)
-    if btnWidth > ENTRY_WIDTH then btnWidth = ENTRY_WIDTH end
+    local btnWidth = PANEL_WIDTH - 36
 
     for i, result in ipairs(results) do
         local btn = entryButtons[i]
         if not btn then
-            btn = self:CreateEntryButton(panelFrame.container, i)
+            btn = self:CreateEntryButton(panelFrame.scrollChild, i)
             entryButtons[i] = btn
         end
 
@@ -474,13 +501,12 @@ function SmartTeleport:RefreshPanel()
 
         btn:SetSize(btnWidth, ENTRY_HEIGHT)
         btn:ClearAllPoints()
-        btn:SetPoint("TOPLEFT", panelFrame.container, "TOPLEFT", (i - 1) * btnWidth, 0)
+        btn:SetPoint("TOPLEFT", panelFrame.scrollChild, "TOPLEFT", 0, -(i - 1) * ENTRY_HEIGHT)
         btn:Show()
     end
 
-    -- Fixed height: title row + one row of buttons
-    local totalH = 22 + ENTRY_HEIGHT + 8
-    panelFrame:SetHeight(totalH)
+    -- Resize scroll child to fit all entries
+    panelFrame.scrollChild:SetHeight(#results * ENTRY_HEIGHT)
 
     self:AnchorToMapFrame()
     panelFrame:Show()
@@ -488,13 +514,19 @@ end
 
 function SmartTeleport:AnchorToMapFrame()
     if not panelFrame or not WorldMapFrame then return end
+    -- Extra offset in windowed mode so we don't overlap the sidebar buttons
+    local xOffset = 4
+    if not WorldMapFrame:IsMaximized() then
+        xOffset = 48
+    end
     panelFrame:ClearAllPoints()
-    panelFrame:SetPoint("TOPLEFT", WorldMapFrame, "BOTTOMLEFT", 0, -4)
+    panelFrame:SetPoint("TOPLEFT", WorldMapFrame, "TOPRIGHT", xOffset, 0)
+    panelFrame:SetPoint("BOTTOMLEFT", WorldMapFrame, "BOTTOMRIGHT", xOffset, 0)
 end
 
 function SmartTeleport:CreateEntryButton(parent, index)
     local btn = CreateFrame("Button", "BOLTSmartTP_Entry" .. index, parent, "SecureActionButtonTemplate")
-    btn:SetSize(ENTRY_WIDTH, ENTRY_HEIGHT)
+    btn:SetSize(PANEL_WIDTH - 36, ENTRY_HEIGHT)
     btn:RegisterForClicks("AnyUp", "AnyDown")
     btn:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
 

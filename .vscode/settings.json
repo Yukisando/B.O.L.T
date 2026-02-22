@@ -62,7 +62,8 @@
     "GuildBankFrame",
     "GetSpellLink",
     "PetJournal",
-    "SOUND_OPTIONS"
+    "SOUND_OPTIONS",
+    "MinimapCluster"
   ],
   "Lua.type.weakUnionCheck": true,
   "workbench.colorCustomizations": {

@@ -683,6 +683,30 @@ function Config:CreateInterfaceOptionsPanel()
     UpdateChatNotifierDropdownText()
     y = y - 36
 
+    -- Achievement Tracker section
+    local atLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    atLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
+    atLabel:SetText("Achievement Progress Tracker")
+    y = y - 24
+
+    local atEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    atEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    atEnable.Text:SetText("Enable Achievement Progress Tracker")
+    atEnable:SetScript("OnClick", function(button)
+        local checked = button:GetChecked()
+        self.parent:SetModuleEnabled("achievementTracker", checked)
+    end)
+    self.widgets.achievementTrackerCheckbox = atEnable
+    self.widgets.achievementTrackerReloadIndicator = self:CreateReloadIndicator(content, atEnable)
+    y = y - 30
+
+    local atDesc = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    atDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    atDesc:SetWidth(520)
+    atDesc:SetJustifyH("LEFT")
+    atDesc:SetText("Prints a chat message whenever an action you perform advances progress on any achievement (e.g. /love a critter, completing a quest, defeating a boss).")
+    y = y - 36
+
     -- Reload button and version
     local reloadBtn = CreateFrame("Button", "BOLTOptionsReloadButton", content, "UIPanelButtonTemplate")
     reloadBtn:SetSize(120, 25); reloadBtn:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y); reloadBtn:SetText("Reload UI")
@@ -864,6 +888,7 @@ function Config:RefreshOptionsPanel()
         if w.autoRepSwitchCheckbox then w.autoRepSwitchCheckbox:SetChecked(self.parent:IsModuleEnabled("autoRepSwitch")) end
         if w.smartTeleportCheckbox then w.smartTeleportCheckbox:SetChecked(self.parent:IsModuleEnabled("smartTeleport")) end
         if w.chatNotifierCheckbox then w.chatNotifierCheckbox:SetChecked(self.parent:IsModuleEnabled("chatNotifier")) end
+        if w.achievementTrackerCheckbox then w.achievementTrackerCheckbox:SetChecked(self.parent:IsModuleEnabled("achievementTracker")) end
         -- Chat Notifier channels dropdown
         if w.chatNotifierChannelsDropdown and w.chatNotifierSelectedChannels then
             local chatMod = self.parent.modules.chatNotifier
