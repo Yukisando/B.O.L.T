@@ -54,6 +54,82 @@ SmartTeleport.TeleportData = {
     { name = "Wormhole: Dragon Isles",    mapID = 1978, x = 0.50, y = 0.50, spellIDs = {},  itemIDs = {198156} },
     { name = "Wormhole: Khaz Algar",      mapID = 2274, x = 0.50, y = 0.50, spellIDs = {},  itemIDs = {221966} },
 
+    -- ── Hero's Path: MoP (Challenge Mode Gold) ───────────────────────
+    { name = "Temple of the Jade Serpent",  mapID = 371,  x = 0.56, y = 0.58, spellIDs = {131204}, itemIDs = {} },
+    { name = "Stormstout Brewery",          mapID = 376,  x = 0.36, y = 0.69, spellIDs = {131205}, itemIDs = {} },
+    { name = "Shado-Pan Monastery",         mapID = 379,  x = 0.36, y = 0.48, spellIDs = {131206}, itemIDs = {} },
+    { name = "Mogu'shan Palace",            mapID = 390,  x = 0.80, y = 0.33, spellIDs = {131222}, itemIDs = {} },
+    { name = "Gate of the Setting Sun",     mapID = 390,  x = 0.16, y = 0.77, spellIDs = {131225}, itemIDs = {} },
+    { name = "Siege of Niuzao Temple",      mapID = 388,  x = 0.35, y = 0.81, spellIDs = {131228}, itemIDs = {} },
+    { name = "Scarlet Monastery",           mapID = 18,   x = 0.85, y = 0.31, spellIDs = {131229}, itemIDs = {} },
+    { name = "Scarlet Halls",               mapID = 18,   x = 0.85, y = 0.31, spellIDs = {131231}, itemIDs = {} },
+    { name = "Scholomance",                 mapID = 22,   x = 0.69, y = 0.73, spellIDs = {131232}, itemIDs = {} },
+
+    -- ── Hero's Path: WoD (Challenge Mode Gold) ────────────────────────
+    { name = "Bloodmaul Slag Mines",        mapID = 525,  x = 0.50, y = 0.50, spellIDs = {159895}, itemIDs = {} },
+    { name = "Iron Docks",                  mapID = 543,  x = 0.45, y = 0.14, spellIDs = {159896}, itemIDs = {} },
+    { name = "Auchindoun",                  mapID = 535,  x = 0.44, y = 0.74, spellIDs = {159897}, itemIDs = {} },
+    { name = "Skyreach",                    mapID = 542,  x = 0.36, y = 0.34, spellIDs = {159898}, itemIDs = {} },
+    { name = "Shadowmoon Burial Grounds",   mapID = 539,  x = 0.32, y = 0.43, spellIDs = {159899}, itemIDs = {} },
+    { name = "Grimrail Depot",              mapID = 543,  x = 0.55, y = 0.32, spellIDs = {159900}, itemIDs = {} },
+    { name = "The Everbloom",               mapID = 543,  x = 0.59, y = 0.46, spellIDs = {159901}, itemIDs = {} },
+    { name = "Upper Blackrock Spire",       mapID = 36,   x = 0.29, y = 0.38, spellIDs = {159902}, itemIDs = {} },
+
+    -- ── Hero's Path: Shadowlands (Keystone Hero) ──────────────────────
+    { name = "The Necrotic Wake",           mapID = 1533, x = 0.52, y = 0.65, spellIDs = {354462}, itemIDs = {} },
+    { name = "Plaguefall",                  mapID = 1536, x = 0.60, y = 0.40, spellIDs = {354463}, itemIDs = {} },
+    { name = "Mists of Tirna Scithe",       mapID = 1565, x = 0.33, y = 0.53, spellIDs = {354464}, itemIDs = {} },
+    { name = "Halls of Atonement",          mapID = 1525, x = 0.73, y = 0.40, spellIDs = {354465}, itemIDs = {} },
+    { name = "Spires of Ascension",         mapID = 1533, x = 0.59, y = 0.35, spellIDs = {354466}, itemIDs = {} },
+    { name = "Theater of Pain",             mapID = 1536, x = 0.50, y = 0.52, spellIDs = {354467}, itemIDs = {} },
+    { name = "De Other Side",               mapID = 1565, x = 0.20, y = 0.55, spellIDs = {354468}, itemIDs = {} },
+    { name = "Sanguine Depths",             mapID = 1525, x = 0.51, y = 0.69, spellIDs = {354469}, itemIDs = {} },
+    { name = "Tazavesh",                    mapID = 1670, x = 0.50, y = 0.50, spellIDs = {367416}, itemIDs = {} },
+    { name = "Return to Karazhan",          mapID = 42,   x = 0.47, y = 0.75, spellIDs = {373262}, itemIDs = {} },
+    { name = "Operation: Mechagon",         mapID = 1462, x = 0.72, y = 0.36, spellIDs = {373274}, itemIDs = {} },
+
+    -- ── Hero's Path: Dragonflight S1 (Keystone Hero) ──────────────────
+    { name = "Uldaman: Legacy of Tyr",      mapID = 15,   x = 0.42, y = 0.12, spellIDs = {393222}, itemIDs = {} },
+    { name = "Ruby Life Pools",             mapID = 2022, x = 0.60, y = 0.37, spellIDs = {393256}, itemIDs = {} },
+    { name = "The Nokhud Offensive",        mapID = 2023, x = 0.62, y = 0.41, spellIDs = {393262}, itemIDs = {} },
+    { name = "Brackenhide Hollow",          mapID = 2024, x = 0.12, y = 0.49, spellIDs = {393267}, itemIDs = {} },
+    { name = "Algeth'ar Academy",           mapID = 2025, x = 0.58, y = 0.42, spellIDs = {393273}, itemIDs = {} },
+    { name = "Neltharus",                   mapID = 2022, x = 0.25, y = 0.57, spellIDs = {393276}, itemIDs = {} },
+    { name = "The Azure Vault",             mapID = 2024, x = 0.39, y = 0.65, spellIDs = {393279}, itemIDs = {} },
+    { name = "Halls of Infusion",           mapID = 2025, x = 0.59, y = 0.60, spellIDs = {393283}, itemIDs = {} },
+    { name = "Halls of Valor",              mapID = 634,  x = 0.68, y = 0.66, spellIDs = {393764}, itemIDs = {} },
+    { name = "Court of Stars",              mapID = 680,  x = 0.50, y = 0.65, spellIDs = {393766}, itemIDs = {} },
+
+    -- ── Hero's Path: Dragonflight S2 (Keystone Hero) ──────────────────
+    { name = "Freehold",                    mapID = 895,  x = 0.84, y = 0.79, spellIDs = {410071}, itemIDs = {} },
+    { name = "The Underrot",                mapID = 863,  x = 0.51, y = 0.66, spellIDs = {410074}, itemIDs = {} },
+    { name = "Neltharion's Lair",           mapID = 650,  x = 0.50, y = 0.65, spellIDs = {410078}, itemIDs = {} },
+    { name = "The Vortex Pinnacle",         mapID = 249,  x = 0.77, y = 0.84, spellIDs = {410080}, itemIDs = {} },
+
+    -- ── Hero's Path: Dragonflight S3 (Keystone Hero) ──────────────────
+    { name = "Throne of the Tides",         mapID = 204,  x = 0.69, y = 0.25, spellIDs = {424142}, itemIDs = {} },
+    { name = "Black Rook Hold",             mapID = 641,  x = 0.38, y = 0.53, spellIDs = {424153}, itemIDs = {} },
+    { name = "Darkheart Thicket",           mapID = 641,  x = 0.59, y = 0.31, spellIDs = {424163}, itemIDs = {} },
+    { name = "Waycrest Manor",              mapID = 896,  x = 0.33, y = 0.13, spellIDs = {424167}, itemIDs = {} },
+    { name = "Atal'Dazar",                  mapID = 862,  x = 0.44, y = 0.39, spellIDs = {424187}, itemIDs = {} },
+    { name = "Dawn of the Infinite",        mapID = 2025, x = 0.64, y = 0.80, spellIDs = {424197}, itemIDs = {} },
+
+    -- ── Hero's Path: The War Within S1 (Keystone Hero) ────────────────
+    { name = "The Stonevault",              mapID = 2248, x = 0.50, y = 0.50, spellIDs = {445269}, itemIDs = {} },
+    { name = "The Dawnbreaker",             mapID = 2215, x = 0.50, y = 0.50, spellIDs = {445414}, itemIDs = {} },
+    { name = "City of Threads",             mapID = 2255, x = 0.50, y = 0.50, spellIDs = {445416}, itemIDs = {} },
+    { name = "Ara-Kara, City of Echoes",    mapID = 2255, x = 0.50, y = 0.50, spellIDs = {445417}, itemIDs = {} },
+    { name = "Siege of Boralus",            mapID = 895,  x = 0.73, y = 0.24, spellIDs = {445418, 464256}, itemIDs = {} },
+    { name = "Grim Batol",                  mapID = 241,  x = 0.19, y = 0.54, spellIDs = {445424}, itemIDs = {} },
+    { name = "Cinderbrew Meadery",          mapID = 2248, x = 0.50, y = 0.50, spellIDs = {445440}, itemIDs = {} },
+    { name = "Darkflame Cleft",             mapID = 2214, x = 0.50, y = 0.50, spellIDs = {445441}, itemIDs = {} },
+    { name = "The Rookery",                 mapID = 2214, x = 0.50, y = 0.50, spellIDs = {445443}, itemIDs = {} },
+    { name = "Priory of the Sacred Flame",  mapID = 2215, x = 0.50, y = 0.50, spellIDs = {445444}, itemIDs = {} },
+
+    -- ── Hero's Path: The War Within S2 (Keystone Hero) ────────────────
+    { name = "The MOTHERLODE!!",            mapID = 862,  x = 0.56, y = 0.60, spellIDs = {467553, 467555}, itemIDs = {} },
+    { name = "Operation: Floodgate",        mapID = 2346, x = 0.50, y = 0.50, spellIDs = {1216786}, itemIDs = {} },
+
     -- ── Hearthstone (dynamic location) ─────────────────────────────────
     { name = "Hearthstone", mapID = 0, x = 0, y = 0, spellIDs = {8690}, itemIDs = {6948}, isHearthstone = true },
 }
