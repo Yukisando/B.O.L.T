@@ -2,11 +2,5 @@
     <!-- BOLTTeleportPinTemplate - Map pin for teleport locations (mixin defined in Modules/Teleports.lua) -->
     <Frame name="BOLTTeleportPinTemplate" mixin="BOLTTeleportPinMixin" virtual="true" enableMouse="true">
         <Size x="24" y="24"/>
-        <Scripts>
-            <OnLoad method="OnLoad"/>
-            <OnEnter method="OnMouseEnter"/>
-            <OnLeave method="OnMouseLeave"/>
-            <OnMouseDown method="OnMouseDown"/>
-        </Scripts>
     </Frame>
 </Ui>

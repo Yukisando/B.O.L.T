@@ -109,7 +109,28 @@ function SpecialGamemode:GetChannelEvents(channelsTable)
     return events
 end
 
+-- Safely send a group chat message, respecting Midnight instance/combat restrictions
+function SpecialGamemode:SafeSendChat(chatMsg, chatType)
+    -- Addons cannot send chat while in an instance (Midnight 12.0 restriction)
+    if IsInInstance() then return end
+    if InCombatLockdown() then return end
+    if C_ChatInfo and C_ChatInfo.SendChatMessage then
+        local ok, err = pcall(C_ChatInfo.SendChatMessage, chatMsg, chatType)
+        if not ok then
+            if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
+                DEFAULT_CHAT_FRAME:AddMessage("|cFFFF6600[B.O.L.T]|r Chat send blocked: " .. tostring(err))
+            end
+        end
+    elseif DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
+        DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000[B.O.L.T]|r " .. chatMsg)
+    end
+end
+
 function SpecialGamemode:OnChatMessage(event, message, sender, ...)
+    -- In Midnight (12.0+), chat messages in instances arrive as Secret Values;
+    -- we cannot compare or operate on them, so bail out early.
+    if issecretvalue and (issecretvalue(message) or issecretvalue(sender)) then return end
+
     -- Convert message to lowercase for case-insensitive matching
     local lowerMessage = string.lower(message or "")
     
@@ -199,19 +220,12 @@ function SpecialGamemode:EnterHardcoreMode()
     self:ShowModeMessage("HARDCORE MODE ACTIVATED", 2.0)
     self.parent:Print("|cFFFF0000HARDCORE MODE ACTIVATED!|r")
 
-    -- Send group chat message
+    -- Send group chat message (combat/instance safe)
     if GetNumGroupMembers() > 0 then
         local chatType = IsInRaid() and "RAID" or "PARTY"
         local adminCfg = self:GetAdminConfig()
         local chatMsg = adminCfg.hardcoreEnableMsg or "Hardcore mode activated!"
-        if C_ChatInfo and C_ChatInfo.SendChatMessage then
-            C_ChatInfo.SendChatMessage(chatMsg, chatType)
-        else
-            -- Fallback: display a local message in the primary chat frame
-            if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
-                DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000[B.O.L.T]|r " .. chatMsg)
-            end
-        end
+        self:SafeSendChat(chatMsg, chatType)
     end
 
     -- Start the effect timer (applies effects every 0.2 seconds)
@@ -261,18 +275,12 @@ function SpecialGamemode:ExitHardcoreMode()
     -- Remove game menu hooks
     self:UnhookGameMenuFrame()
 
-    -- Send group chat message
+    -- Send group chat message (combat/instance safe)
     if GetNumGroupMembers() > 0 then
         local chatType = IsInRaid() and "RAID" or "PARTY"
         local adminCfg = self:GetAdminConfig()
         local chatMsg = adminCfg.hardcoreDisableMsg or "Hardcore mode deactivated!"
-        if C_ChatInfo and C_ChatInfo.SendChatMessage then
-            C_ChatInfo.SendChatMessage(chatMsg, chatType)
-        else
-            if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
-                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[B.O.L.T]|r " .. chatMsg)
-            end
-        end
+        self:SafeSendChat(chatMsg, chatType)
     end
 
     -- Show exit message

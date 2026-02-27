@@ -98,9 +98,15 @@ function ChatNotifier:RegisterChatEvents()
         if not suffix then return end
         if not self:IsChannelEnabled(suffix) then return end
 
-        -- Don't notify for own messages
-        local playerName = UnitName("player")
-        if sender and sender:find(playerName) then return end
+        -- In Midnight (12.0+), incoming messages in instances are Secret Values;
+        -- we can still play notification sounds but can't inspect sender.
+        if issecretvalue and issecretvalue(sender) then
+            -- Can't determine sender identity; play notification unconditionally
+        else
+            -- Don't notify for own messages
+            local playerName = UnitName("player")
+            if sender and sender:find(playerName) then return end
+        end
 
         -- Throttle so rapid messages don't spam sounds
         local now = GetTime()
