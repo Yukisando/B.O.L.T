@@ -569,16 +569,19 @@ end
 
 -- Mount Copy Feature
 -- Gets the mount spell ID that the target unit is currently using
+-- Midnight (12.0.0): Aura data fields are secret values in combat;
+-- skip mount detection when in combat lockdown to avoid taint errors.
 function Playground:GetTargetMountSpellID()
     if not UnitExists("target") then
         return nil
     end
-    
+    if InCombatLockdown() then return nil end
+
     -- Use UnitAura to check all buffs on the target
     local i = 1
     while true do
         local auraData = C_UnitAuras and C_UnitAuras.GetAuraDataByIndex and C_UnitAuras.GetAuraDataByIndex("target", i, "HELPFUL")
-        if auraData and auraData.spellId then
+        if auraData and not (issecretvalue and issecretvalue(auraData.spellId)) and auraData.spellId then
             if C_MountJournal and C_MountJournal.GetMountFromSpell then
                 local mountID = C_MountJournal.GetMountFromSpell(auraData.spellId)
                 if mountID then return auraData.spellId, mountID end

@@ -27,8 +27,14 @@ local watchdog
 local function Safe() return not InCombatLockdown() end
 
 -- "Steady Flight" aura (id 404468) means NOT Skyriding
+-- Midnight (12.0.0): GetPlayerAuraBySpellID may return secret values from
+-- tainted code in combat; use issecretvalue to avoid comparison errors.
 local function IsSkyridingSelected()
-    return C_UnitAuras.GetPlayerAuraBySpellID(404468) == nil
+    local aura = C_UnitAuras.GetPlayerAuraBySpellID(404468)
+    if issecretvalue and issecretvalue(aura) then
+        return true
+    end
+    return aura == nil
 end
 
 local function IsSkyridingActiveNow()
@@ -153,6 +159,8 @@ end
 -- =========================
 -- Core state transitions
 -- =========================
+local Recalc -- forward declaration (used in TransitionTo before definition)
+
 local function ShouldBeActive()
     return inSkyriding and leftDown and not rightDown
 end
@@ -213,7 +221,7 @@ local function TransitionTo(desired)
     end
 end
 
-local function Recalc()
+Recalc = function()
     if not Safe() then return end
     inSkyriding = IsSkyridingActiveNow()
     if ShouldBeActive() then

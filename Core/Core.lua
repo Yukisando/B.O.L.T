@@ -14,7 +14,6 @@ BOLT.modules = {}
 BOLT.defaults = {
     profile = {
         debug = false,
-        autoCollapseBuffs = true,
         gameMenu = {
             showLeaveGroup = true,
             showReloadButton = true,
@@ -96,39 +95,6 @@ function BOLT:EnableModules()
     if self and self.Print then
         self:Print("Enabled modules on startup: " ..
             (next(enabledModules) and table.concat(enabledModules, ", ") or "(none)"))
-    end
-
-    -- Handle auto collapse buffs
-    self:InitializeBuffCollapseHandler()
-end
-
--- Initialize buff collapse event handler
-function BOLT:InitializeBuffCollapseHandler()
-    if not self.buffCollapseFrame then
-        self.buffCollapseFrame = CreateFrame("Frame")
-        self.buffCollapseFrame:RegisterEvent("PLAYER_LOGIN")
-        self.buffCollapseFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-
-        self.buffCollapseFrame:SetScript("OnEvent", function(frame, event)
-            if self:GetConfig("autoCollapseBuffs") then
-                self:ApplyBuffCollapseSettings()
-            end
-        end)
-    end
-end
-
--- Apply buff collapse settings
-function BOLT:ApplyBuffCollapseSettings()
-    if self:GetConfig("autoCollapseBuffs") then
-        -- Delay to ensure the buff frame is loaded
-        C_Timer.After(0.5, function()
-            if BuffFrame and BuffFrame.CollapseAndExpandButton then
-                -- false = collapsed, true = expanded
-                BuffFrame.CollapseAndExpandButton:SetChecked(false)
-                BuffFrame.CollapseAndExpandButton:UpdateOrientation()
-                BuffFrame:SetBuffsExpandedState()
-            end
-        end)
     end
 end
 

@@ -45,6 +45,21 @@ local healingNumbersButton = nil
 -- Volume control button
 local volumeButton = nil
 
+-- Battle text console variable names (v2 API)
+local DAMAGE_CONSOLE_VARS = {
+    "floatingCombatTextCombatDamage_v2",
+    "floatingCombatTextCombatLogPeriodicSpells_v2",
+    "floatingCombatTextPetMeleeDamage_v2",
+    "floatingCombatTextPetSpellDamage_v2",
+}
+local HEALING_CONSOLE_VARS = {
+    "floatingCombatTextCombatHealing_v2",
+}
+
+-- Generation counter: incremented on each OnShow, checked by deferred callbacks
+-- to prevent stale timers from re-showing widgets after the menu has closed.
+local showGeneration = 0
+
 -- Utility: perform a protected call and surface a friendly message on error
 function GameMenu:SafeCall(fn, ...)
     local ok, res = pcall(fn, ...)
@@ -296,11 +311,16 @@ function GameMenu:HookGameMenu()
                 return
             end
 
+            -- Bump the generation so any stale timers from a previous open are ignored
+            showGeneration = showGeneration + 1
+            local gen = showGeneration
+
             -- Ensure container exists and is anchored to GameMenuFrame if available
             self:EnsureMenuContainer()
 
             -- Defer showing the container to avoid calling protected functions during Blizzard's secure ShowUIPanel execution
             C_Timer.After(0.01, function()
+                if gen ~= showGeneration then return end
                 -- Only show the container if the game menu is still shown (avoid race conditions)
                 if self.menuContainer and GameMenuFrame and GameMenuFrame:IsShown() then
                     self.menuContainer:Show()
@@ -309,6 +329,7 @@ function GameMenu:HookGameMenu()
 
             -- Small delay to ensure the menu is fully loaded
             C_Timer.After(0.05, function()
+                if gen ~= showGeneration then return end
                 if GameMenuFrame and GameMenuFrame:IsShown() then
                     self:UpdateGameMenu()
                 end
@@ -321,7 +342,7 @@ function GameMenu:HookGameMenu()
                 f:SetScript("OnEvent", function(_, _, name)
                     if name == "Sound_MasterVolume" or name == "Sound_EnableMusic" then
                         self:UpdateVolumeDisplay()
-                    elseif name == "floatingCombatTextCombatDamage" or name == "floatingCombatTextCombatHealing" then
+                    elseif name == "floatingCombatTextCombatDamage_v2" or name == "floatingCombatTextCombatHealing_v2" then
                         self:RefreshBattleTextTogglesState()
                     end
                 end)
@@ -330,6 +351,9 @@ function GameMenu:HookGameMenu()
         end)
 
         GameMenuFrame:HookScript("OnHide", function()
+            -- Invalidate any in-flight deferred timers from the OnShow that just ended
+            showGeneration = showGeneration + 1
+
             -- Hide all widgets immediately to ensure they disappear atomically with the GameMenu
             self:HideLeaveGroupButton()
             self:HideReloadButton()
@@ -661,7 +685,7 @@ function GameMenu:CreateDamageNumbersButton()
     end)
     damageNumbersButton:SetScript("OnEnter", function()
         GameTooltip:SetOwner(damageNumbersButton, "ANCHOR_RIGHT")
-        local enabled = GetCVar("floatingCombatTextCombatDamage") == "1"
+        local enabled = GetCVar("floatingCombatTextCombatDamage_v2") == "1"
         GameTooltip:SetText("Toggle Damage Numbers", 1, 1, 1)
         GameTooltip:AddLine("Current: " .. (enabled and "ON" or "OFF"), enabled and 0.0 or 1.0, enabled and 1.0 or 0.0,
             0.0, true)
@@ -684,7 +708,7 @@ function GameMenu:CreateHealingNumbersButton()
     end)
     healingNumbersButton:SetScript("OnEnter", function()
         GameTooltip:SetOwner(healingNumbersButton, "ANCHOR_RIGHT")
-        local enabled = GetCVar("floatingCombatTextCombatHealing") == "1"
+        local enabled = GetCVar("floatingCombatTextCombatHealing_v2") == "1"
         GameTooltip:SetText("Toggle Healing Numbers", 1, 1, 1)
         GameTooltip:AddLine("Current: " .. (enabled and "ON" or "OFF"), enabled and 0.0 or 1.0, enabled and 1.0 or 0.0,
             0.0, true)
@@ -878,11 +902,11 @@ end
 
 function GameMenu:RefreshBattleTextTogglesState()
     if damageNumbersButton then
-        local enabled = GetCVar("floatingCombatTextCombatDamage") == "1"
+        local enabled = GetCVar("floatingCombatTextCombatDamage_v2") == "1"
         damageNumbersButton:SetAlpha(enabled and 1.0 or 0.6)
     end
     if healingNumbersButton then
-        local enabled = GetCVar("floatingCombatTextCombatHealing") == "1"
+        local enabled = GetCVar("floatingCombatTextCombatHealing_v2") == "1"
         healingNumbersButton:SetAlpha(enabled and 1.0 or 0.6)
     end
 end
@@ -1103,11 +1127,12 @@ function GameMenu:OnRaidMarkerClick(button)
 end
 
 function GameMenu:OnDamageNumbersClick()
-    local currentValue = GetCVar("floatingCombatTextCombatDamage")
+    local currentValue = GetCVar("floatingCombatTextCombatDamage_v2")
     local newValue = (currentValue == "1") and "0" or "1"
-    SetCVar("floatingCombatTextCombatDamage", newValue)
+    for _, cvar in ipairs(DAMAGE_CONSOLE_VARS) do
+        ConsoleExec(cvar .. " " .. newValue)
+    end
 
-    -- Refresh the button state immediately
     self:RefreshBattleTextTogglesState()
 
     local state = (newValue == "1") and "ON" or "OFF"
@@ -1115,11 +1140,12 @@ function GameMenu:OnDamageNumbersClick()
 end
 
 function GameMenu:OnHealingNumbersClick()
-    local currentValue = GetCVar("floatingCombatTextCombatHealing")
+    local currentValue = GetCVar("floatingCombatTextCombatHealing_v2")
     local newValue = (currentValue == "1") and "0" or "1"
-    SetCVar("floatingCombatTextCombatHealing", newValue)
+    for _, cvar in ipairs(HEALING_CONSOLE_VARS) do
+        ConsoleExec(cvar .. " " .. newValue)
+    end
 
-    -- Refresh the button state immediately
     self:RefreshBattleTextTogglesState()
 
     local state = (newValue == "1") and "ON" or "OFF"
