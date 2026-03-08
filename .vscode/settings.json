@@ -55,7 +55,8 @@
         "QuestInfoFrame",
         "WardrobeCollectionFrame",
         "AuctionHouseFrame",
-        "GuildBankFrame"
+        "GuildBankFrame",
+        "STANDARD_TEXT_FONT"
     ],
     "Lua.type.weakUnionCheck": true
 }

@@ -41,7 +41,9 @@ BOLT.defaults = {
             channels = {},
             soundID = 8959,
         },
-        achievementTracker = {},
+        achievementTracker = {
+            trackedCategories = {},  -- empty = track all; otherwise catID → true
+        },
     }
 }
 

@@ -705,6 +705,97 @@ function Config:CreateInterfaceOptionsPanel()
     atDesc:SetWidth(520)
     atDesc:SetJustifyH("LEFT")
     atDesc:SetText("Prints a chat message whenever an action you perform advances progress on any achievement (e.g. /love a critter, completing a quest, defeating a boss).")
+    y = y - 24
+
+    -- Achievement category filter dropdown
+    local atCatLabel = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    atCatLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    atCatLabel:SetText("Track Categories:")
+
+    local function UpdateAchCategoryDropdownText()
+        local atMod = self.parent.modules.achievementTracker
+        if not atMod then return end
+        local topCats = atMod:GetTopLevelCategories()
+        local selected = {}
+        local allTracked = true
+        for _, cat in ipairs(topCats) do
+            if atMod:IsCategoryTracked(cat.id) then
+                selected[#selected + 1] = cat.name
+            else
+                allTracked = false
+            end
+        end
+        local text
+        if allTracked or #selected == 0 then
+            text = "All Categories"
+        elseif #selected <= 3 then
+            text = table.concat(selected, ", ")
+        else
+            text = selected[1] .. ", " .. selected[2] .. " + " .. (#selected - 2) .. " more"
+        end
+        UIDropDownMenu_SetText(self.widgets.achievementCategoryDropdown, text)
+    end
+    self.widgets.UpdateAchCategoryDropdownText = UpdateAchCategoryDropdownText
+
+    local atCatDropdown = CreateFrame("Frame", "BOLTAchievementCategoryDropdown", content, "UIDropDownMenuTemplate")
+    atCatDropdown:SetPoint("LEFT", atCatLabel, "RIGHT", -15, -2)
+    UIDropDownMenu_SetWidth(atCatDropdown, 280)
+    UIDropDownMenu_Initialize(atCatDropdown, function(dropdown, level)
+        local atMod = self.parent.modules.achievementTracker
+        if not atMod then return end
+        local topCats = atMod:GetTopLevelCategories()
+
+        -- "All" toggle at top
+        local allInfo = UIDropDownMenu_CreateInfo()
+        allInfo.text = "|cff00aaff-- Select All / Deselect All --|r"
+        allInfo.isNotRadio = true
+        allInfo.keepShownOnClick = true
+        allInfo.notCheckable = true
+        allInfo.func = function()
+            -- Check if all categories are currently tracked
+            local allTracked = true
+            for _, cat in ipairs(topCats) do
+                if not atMod:IsCategoryTracked(cat.id) then allTracked = false; break end
+            end
+            -- Toggle: if all tracked, deselect all; otherwise select all
+            local saved = {}
+            if not allTracked then
+                for _, cat in ipairs(topCats) do saved[cat.id] = true end
+            end
+            self.parent:SetConfig(saved, "achievementTracker", "trackedCategories")
+            UpdateAchCategoryDropdownText()
+        end
+        UIDropDownMenu_AddButton(allInfo, level)
+
+        for _, cat in ipairs(topCats) do
+            local info = UIDropDownMenu_CreateInfo()
+            info.text = cat.name
+            info.value = cat.id
+            info.isNotRadio = true
+            info.keepShownOnClick = true
+            info.checked = atMod:IsCategoryTracked(cat.id)
+            info.func = function(_, _, _, checked)
+                atMod:SetCategoryTracked(cat.id, checked)
+                UpdateAchCategoryDropdownText()
+            end
+            UIDropDownMenu_AddButton(info, level)
+        end
+    end)
+    self.widgets.achievementCategoryDropdown = atCatDropdown
+    C_Timer.After(0.1, UpdateAchCategoryDropdownText)
+
+    -- Rescan button
+    local atRescanBtn = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+    atRescanBtn:SetSize(80, 22)
+    atRescanBtn:SetPoint("LEFT", atCatDropdown, "RIGHT", -10, 2)
+    atRescanBtn:SetText("Rescan")
+    atRescanBtn:SetScript("OnClick", function()
+        local atMod = self.parent.modules.achievementTracker
+        if atMod and self.parent:IsModuleEnabled("achievementTracker") then
+            atMod:BuildSnapshot()
+        end
+    end)
+    self.widgets.achievementRescanButton = atRescanBtn
     y = y - 36
 
     -- Reload button and version
@@ -889,6 +980,7 @@ function Config:RefreshOptionsPanel()
         if w.smartTeleportCheckbox then w.smartTeleportCheckbox:SetChecked(self.parent:IsModuleEnabled("smartTeleport")) end
         if w.chatNotifierCheckbox then w.chatNotifierCheckbox:SetChecked(self.parent:IsModuleEnabled("chatNotifier")) end
         if w.achievementTrackerCheckbox then w.achievementTrackerCheckbox:SetChecked(self.parent:IsModuleEnabled("achievementTracker")) end
+        if w.UpdateAchCategoryDropdownText then w.UpdateAchCategoryDropdownText() end
         -- Chat Notifier channels dropdown
         if w.chatNotifierChannelsDropdown and w.chatNotifierSelectedChannels then
             local chatMod = self.parent.modules.chatNotifier
