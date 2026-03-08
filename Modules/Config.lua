@@ -632,7 +632,7 @@ function Config:CreateInterfaceOptionsPanel()
     atDesc:SetWidth(520)
     atDesc:SetJustifyH("LEFT")
     atDesc:SetText("Prints a chat message whenever an action you perform advances progress on any achievement (e.g. /love a critter, completing a quest, defeating a boss).")
-    y = y - 24
+    y = y - 36
 
     -- Achievement category filter dropdown
     local atCatLabel = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -681,6 +681,7 @@ function Config:CreateInterfaceOptionsPanel()
         noneInfo.func = function()
             self.parent:SetConfig({ ["__none"] = true }, "achievementTracker", "trackedCategories")
             UpdateAchCategoryDropdownText()
+            CloseDropDownMenus()
         end
         UIDropDownMenu_AddButton(noneInfo, level)
 
