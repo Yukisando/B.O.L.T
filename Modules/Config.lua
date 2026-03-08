@@ -415,79 +415,6 @@ function Config:CreateInterfaceOptionsPanel()
     self.widgets.invertPitchCheckbox = invertEnable
     y = y - 40
 
-    -- Teleports section
-    local tpLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    tpLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
-    tpLabel:SetText("Teleports")
-    y = y - 24
-
-    local tpEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    tpEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
-    tpEnable.Text:SetText("Enable Teleports Module")
-    tpEnable:SetScript("OnClick", function(button)
-        local checked = button:GetChecked()
-        self.parent:SetModuleEnabled("teleports", checked)
-        self:UpdateTeleportsChildControls()
-    end)
-    self.widgets.teleportsCheckbox = tpEnable
-    self.widgets.teleportsReloadIndicator = self:CreateReloadIndicator(content, tpEnable)
-    y = y - 30
-
-    local editModeEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    editModeEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
-    editModeEnable.Text:SetText("Edit Mode (Allow adding/removing teleport pins)")
-    editModeEnable:SetScript("OnClick", function(button)
-        self.parent:SetConfig(button:GetChecked(), "teleports", "editMode")
-    end)
-    self.widgets.teleportsEditModeCheckbox = editModeEnable
-    y = y - 30
-
-    -- Teleport list label
-    local tpListLabel = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    tpListLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
-    tpListLabel:SetText("Saved Teleports (click to edit, right-click to delete):")
-    self.widgets.teleportListLabel = tpListLabel
-    y = y - 20
-
-    -- Teleport list scroll frame background (for visual containment)
-    local tpScrollBg = CreateFrame("Frame", nil, content, "BackdropTemplate")
-    tpScrollBg:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
-    tpScrollBg:SetSize(520, 200)
-    tpScrollBg:SetBackdrop({
-        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 16,
-        insets = { left = 4, right = 4, top = 4, bottom = 4 }
-    })
-    tpScrollBg:SetBackdropColor(0, 0, 0, 0.5)
-    tpScrollBg:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
-    
-    -- Teleport list scroll frame (contained scrollable window)
-    local tpScrollFrame = CreateFrame("ScrollFrame", "BOLTTeleportListScrollFrame", tpScrollBg, "UIPanelScrollFrameTemplate")
-    tpScrollFrame:SetPoint("TOPLEFT", tpScrollBg, "TOPLEFT", 4, -4)
-    tpScrollFrame:SetPoint("BOTTOMRIGHT", tpScrollBg, "BOTTOMRIGHT", -4, 4)
-    
-    -- Create scroll child container
-    local tpListContainer = CreateFrame("Frame", nil, tpScrollFrame)
-    tpListContainer:SetSize(500, 200) -- Height will be adjusted dynamically
-    tpScrollFrame:SetScrollChild(tpListContainer)
-    
-    self.widgets.teleportListScrollFrame = tpScrollFrame
-    self.widgets.teleportListContainer = tpListContainer
-    self.widgets.teleportListRows = {}
-    y = y - 210 -- Account for fixed scroll frame height
-
-    local exportHint = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    exportHint:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
-    exportHint:SetWidth(520)
-    exportHint:SetJustifyH("LEFT")
-    exportHint:SetTextColor(0.6, 0.8, 1)
-    exportHint:SetText("Tip: Use |cffffffff/bolt export-teleports|r to export runtime-added teleports as Lua you can paste into Data/TeleportData.lua so they ship with the addon.")
-    y = y - 30
-
-    -- Store the Y position reference so we can update content height
-    self.widgets.teleportListYOffset = y
-
     -- WowheadLink section
     local wlLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     wlLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
@@ -798,6 +725,30 @@ function Config:CreateInterfaceOptionsPanel()
     self.widgets.achievementRescanButton = atRescanBtn
     y = y - 36
 
+    -- Saved Instances section
+    local siLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    siLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
+    siLabel:SetText("Saved Instances")
+    y = y - 24
+
+    local siEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    siEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    siEnable.Text:SetText("Enable Saved Instances Module")
+    siEnable:SetScript("OnClick", function(button)
+        local checked = button:GetChecked()
+        self.parent:SetModuleEnabled("savedInstances", checked)
+    end)
+    self.widgets.savedInstancesCheckbox = siEnable
+    self.widgets.savedInstancesReloadIndicator = self:CreateReloadIndicator(content, siEnable)
+    y = y - 30
+
+    local siDesc = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    siDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    siDesc:SetWidth(520)
+    siDesc:SetJustifyH("LEFT")
+    siDesc:SetText("Lists current expansion dungeons and raids you haven't completed yet. Type /boltsaved to print the list.")
+    y = y - 36
+
     -- Reload button and version
     local reloadBtn = CreateFrame("Button", "BOLTOptionsReloadButton", content, "UIPanelButtonTemplate")
     reloadBtn:SetSize(120, 25); reloadBtn:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y); reloadBtn:SetText("Reload UI")
@@ -920,7 +871,6 @@ function Config:RefreshAll()
     self:UpdateGameMenuChildControls()
     self:UpdatePlaygroundChildControls()
     self:UpdateSkyridingChildControls()
-    self:UpdateTeleportsChildControls()
     self:UpdateChatNotifierChildControls()
     self:UpdateCurrentToyDisplay()
 end
@@ -981,6 +931,7 @@ function Config:RefreshOptionsPanel()
         if w.chatNotifierCheckbox then w.chatNotifierCheckbox:SetChecked(self.parent:IsModuleEnabled("chatNotifier")) end
         if w.achievementTrackerCheckbox then w.achievementTrackerCheckbox:SetChecked(self.parent:IsModuleEnabled("achievementTracker")) end
         if w.UpdateAchCategoryDropdownText then w.UpdateAchCategoryDropdownText() end
+        if w.savedInstancesCheckbox then w.savedInstancesCheckbox:SetChecked(self.parent:IsModuleEnabled("savedInstances")) end
         -- Chat Notifier channels dropdown
         if w.chatNotifierChannelsDropdown and w.chatNotifierSelectedChannels then
             local chatMod = self.parent.modules.chatNotifier
@@ -1008,12 +959,6 @@ function Config:RefreshOptionsPanel()
                 end
             end
         end
-        if w.teleportsCheckbox then w.teleportsCheckbox:SetChecked(self.parent:IsModuleEnabled("teleports")) end
-        if w.teleportsEditModeCheckbox then
-            local cfg = self.parent:GetConfig("teleports") or {}
-            local editMode = cfg.editMode or false  -- Default to false
-            w.teleportsEditModeCheckbox:SetChecked(editMode)
-        end
     end)
 end
 
@@ -1028,11 +973,6 @@ function Config:UpdateSkyridingChildControls()
         local should = sk and pitch; w.invertPitchCheckbox:SetEnabled(should); w.invertPitchCheckbox:SetAlpha(should and
             1 or 0.5)
     end
-end
-
-function Config:UpdateTeleportsChildControls()
-    -- Refresh the teleport list display
-    self:RefreshTeleportList()
 end
 
 function Config:UpdateChatNotifierChildControls()
@@ -1057,284 +997,6 @@ function Config:UpdateChatNotifierChildControls()
             UIDropDownMenu_DisableDropDown(w.chatNotifierChannelsDropdown)
         end
     end
-end
-
-function Config:RefreshTeleportList()
-    local w = self.widgets
-    local container = w.teleportListContainer
-    if not container then return end
-
-    -- Clear existing rows
-    if w.teleportListRows then
-        for _, row in ipairs(w.teleportListRows) do
-            if row then row:Hide(); row:SetParent(nil) end
-        end
-    end
-    w.teleportListRows = {}
-
-    local enabled = self.parent:IsModuleEnabled("teleports")
-    local teleportList = {}
-    if self.parent.modules and self.parent.modules.teleports then
-        teleportList = self.parent.modules.teleports:GetTeleportList() or {}
-    end
-
-    local rowHeight = 24
-    local rowY = 0
-
-    for i, entry in ipairs(teleportList) do
-        local row = CreateFrame("Button", nil, container)
-        row:SetSize(480, rowHeight)
-        row:SetPoint("TOPLEFT", container, "TOPLEFT", 0, rowY)
-        row:EnableMouse(enabled)
-        row:SetAlpha(enabled and 1 or 0.5)
-
-        -- Hover highlight
-        local highlight = row:CreateTexture(nil, "HIGHLIGHT")
-        highlight:SetAllPoints()
-        highlight:SetColorTexture(1, 1, 1, 0.1)
-
-        -- Icon
-        local icon = row:CreateTexture(nil, "ARTWORK")
-        icon:SetSize(20, 20)
-        icon:SetPoint("LEFT", row, "LEFT", 0, 0)
-        local iconPath = entry.icon
-        if tonumber(iconPath) then
-            icon:SetTexture(tonumber(iconPath))
-        elseif iconPath and iconPath ~= "" then
-            icon:SetTexture(iconPath)
-        else
-            icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-        end
-
-        -- Name
-        local name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-        name:SetPoint("LEFT", icon, "RIGHT", 5, 0)
-        name:SetWidth(200)
-        name:SetJustifyH("LEFT")
-        name:SetText(entry.name or "Unknown")
-
-        -- Map info
-        local mapInfo = C_Map.GetMapInfo(entry.mapID or 0)
-        local mapName = mapInfo and mapInfo.name or ("Map " .. tostring(entry.mapID or 0))
-        local mapLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        mapLabel:SetPoint("LEFT", name, "RIGHT", 10, 0)
-        mapLabel:SetWidth(120)
-        mapLabel:SetJustifyH("LEFT")
-        mapLabel:SetTextColor(0.7, 0.7, 0.7)
-        mapLabel:SetText(mapName)
-
-        -- Spell/Item/Toy name (the castable name)
-        local castLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        castLabel:SetPoint("LEFT", mapLabel, "RIGHT", 10, 0)
-        castLabel:SetWidth(150)
-        castLabel:SetJustifyH("LEFT")
-        castLabel:SetTextColor(0.5, 0.8, 0.5)
-        local castName = entry.spellName or entry.name or "?"
-        castLabel:SetText(castName)
-
-        -- Click handler - left click to edit
-        row:SetScript("OnClick", function(_, button)
-            if button == "LeftButton" then
-                self:ShowEditTeleportPopup(i, entry)
-            elseif button == "RightButton" then
-                self:ConfirmDeleteTeleport(i, entry)
-            end
-        end)
-        row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-
-        table.insert(w.teleportListRows, row)
-        rowY = rowY - rowHeight
-    end
-
-    -- Update container height to fit all rows (enables scrolling)
-    local totalHeight = math.max(200, #teleportList * rowHeight)
-    container:SetHeight(totalHeight)
-    
-    -- Set width to match scroll frame content area
-    if w.teleportListScrollFrame then
-        local scrollFrameWidth = w.teleportListScrollFrame:GetWidth() or 500
-        container:SetWidth(scrollFrameWidth - 20) -- Account for scrollbar
-    end
-
-    -- Show "No teleports saved" if empty
-    if #teleportList == 0 then
-        local emptyLabel = container:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        emptyLabel:SetPoint("CENTER", container, "CENTER", 0, 0)
-        emptyLabel:SetTextColor(0.6, 0.6, 0.6)
-        emptyLabel:SetText("No teleports saved. Open the World Map and press your keybind to add one.")
-        local emptyRow = CreateFrame("Frame", nil, container)
-        emptyRow.label = emptyLabel
-        table.insert(w.teleportListRows, emptyRow)
-    end
-end
-
-function Config:ShowEditTeleportPopup(index, entry)
-    if not self.editTeleportPopup then
-        self:CreateEditTeleportPopup()
-    end
-
-    local popup = self.editTeleportPopup
-    popup.editIndex = index
-    popup.nameInput:SetText(entry.name or "")
-    popup.spellNameInput:SetText(entry.spellName or entry.name or "")
-    popup.idInput:SetText(entry.id and tostring(entry.id) or "")
-
-    local mapInfo = C_Map.GetMapInfo(entry.mapID or 0)
-    local mapName = mapInfo and mapInfo.name or ("Map " .. tostring(entry.mapID or 0))
-    popup.mapLabel:SetText(string.format("Map: %s (%d) at %.2f, %.2f", mapName, entry.mapID or 0, entry.x or 0, entry.y or 0))
-
-    popup:Show()
-    popup.nameInput:SetFocus()
-end
-
-function Config:CreateEditTeleportPopup()
-    local popup = CreateFrame("Frame", "BOLTEditTeleportPopup", UIParent, "BackdropTemplate")
-    popup:SetSize(420, 220)
-    popup:SetPoint("CENTER", UIParent, "CENTER", 0, 100)
-    popup:SetFrameStrata("DIALOG")
-    popup:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile = true, tileSize = 32, edgeSize = 32,
-        insets = { left = 11, right = 12, top = 12, bottom = 11 }
-    })
-    popup:SetBackdropColor(0, 0, 0, 1)
-    popup:EnableMouse(true)
-    popup:SetMovable(true)
-    popup:RegisterForDrag("LeftButton")
-    popup:SetScript("OnDragStart", popup.StartMoving)
-    popup:SetScript("OnDragStop", popup.StopMovingOrSizing)
-    popup:Hide()
-
-    -- Title
-    local title = popup:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", popup, "TOP", 0, -20)
-    title:SetText("Edit Teleport")
-
-    -- Map info label
-    local mapLabel = popup:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    mapLabel:SetPoint("TOP", title, "BOTTOM", 0, -10)
-    mapLabel:SetText("Map: Unknown")
-    popup.mapLabel = mapLabel
-
-    -- Display Name input
-    local nameLabel = popup:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    nameLabel:SetPoint("TOPLEFT", popup, "TOPLEFT", 25, -60)
-    nameLabel:SetText("Display Name:")
-
-    local nameInput = CreateFrame("EditBox", nil, popup, "InputBoxTemplate")
-    nameInput:SetPoint("LEFT", nameLabel, "RIGHT", 10, 0)
-    nameInput:SetSize(230, 20)
-    nameInput:SetAutoFocus(false)
-    nameInput:SetMaxLetters(100)
-    popup.nameInput = nameInput
-
-    -- Spell/Item/Toy Name input
-    local spellNameLabel = popup:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    spellNameLabel:SetPoint("TOPLEFT", nameLabel, "BOTTOMLEFT", 0, -20)
-    spellNameLabel:SetText("Spell/Item/Toy Name:")
-
-    local spellNameInput = CreateFrame("EditBox", nil, popup, "InputBoxTemplate")
-    spellNameInput:SetPoint("LEFT", spellNameLabel, "RIGHT", 10, 0)
-    spellNameInput:SetSize(200, 20)
-    spellNameInput:SetAutoFocus(false)
-    spellNameInput:SetMaxLetters(100)
-    popup.spellNameInput = spellNameInput
-
-    -- ID input (optional)
-    local idLabel = popup:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    idLabel:SetPoint("TOPLEFT", spellNameLabel, "BOTTOMLEFT", 0, -20)
-    idLabel:SetText("ID (optional):")
-
-    local idInput = CreateFrame("EditBox", nil, popup, "InputBoxTemplate")
-    idInput:SetPoint("LEFT", idLabel, "RIGHT", 10, 0)
-    idInput:SetSize(100, 20)
-    idInput:SetAutoFocus(false)
-    idInput:SetNumeric(true)
-    popup.idInput = idInput
-
-    -- Save button
-    local saveBtn = CreateFrame("Button", nil, popup, "UIPanelButtonTemplate")
-    saveBtn:SetSize(100, 24)
-    saveBtn:SetPoint("BOTTOMRIGHT", popup, "BOTTOM", -10, 20)
-    saveBtn:SetText("Save")
-    saveBtn:SetScript("OnClick", function()
-        self:SaveEditedTeleport()
-    end)
-
-    -- Cancel button
-    local cancelBtn = CreateFrame("Button", nil, popup, "UIPanelButtonTemplate")
-    cancelBtn:SetSize(100, 24)
-    cancelBtn:SetPoint("BOTTOMLEFT", popup, "BOTTOM", 10, 20)
-    cancelBtn:SetText("Cancel")
-    cancelBtn:SetScript("OnClick", function()
-        popup:Hide()
-    end)
-
-    -- Close button
-    local closeBtn = CreateFrame("Button", nil, popup, "UIPanelCloseButton")
-    closeBtn:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -5, -5)
-
-    -- ESC to close
-    tinsert(UISpecialFrames, "BOLTEditTeleportPopup")
-
-    self.editTeleportPopup = popup
-end
-
-function Config:SaveEditedTeleport()
-    local popup = self.editTeleportPopup
-    if not popup or not popup.editIndex then return end
-
-    local name = popup.nameInput:GetText()
-    local spellName = popup.spellNameInput:GetText()
-    
-    if not name or name == "" then
-        if self.parent and self.parent.Print then
-            self.parent:Print("Teleports: Please enter a display name.")
-        end
-        return
-    end
-    
-    if not spellName or spellName == "" then
-        if self.parent and self.parent.Print then
-            self.parent:Print("Teleports: Please enter a spell/item/toy name.")
-        end
-        return
-    end
-
-    local idText = popup.idInput:GetText()
-    local id = tonumber(idText)
-
-    -- Update via Teleports module
-    if self.parent.modules and self.parent.modules.teleports then
-        self.parent.modules.teleports:UpdateTeleport(popup.editIndex, {
-            name = name,
-            spellName = spellName,
-            id = id
-        })
-    end
-
-    popup:Hide()
-    self:RefreshTeleportList()
-end
-
-function Config:ConfirmDeleteTeleport(index, entry)
-    StaticPopupDialogs["BOLT_CONFIRM_DELETE_TELEPORT"] = {
-        text = "Delete teleport '" .. (entry.name or "Unknown") .. "'?",
-        button1 = "Delete",
-        button2 = "Cancel",
-        OnAccept = function()
-            if self.parent.modules and self.parent.modules.teleports then
-                self.parent.modules.teleports:DeleteTeleport(index)
-            end
-            self:RefreshTeleportList()
-        end,
-        timeout = 0,
-        whileDead = true,
-        hideOnEscape = true,
-        preferredIndex = 3,
-    }
-    StaticPopup_Show("BOLT_CONFIRM_DELETE_TELEPORT")
 end
 
 function Config:UpdateCurrentToyDisplay()

@@ -978,11 +978,18 @@ function GameMenu:CreateReloadButton()
             mod:OnReloadClick()
         elseif button == "RightButton" then
             mod:OnOpenSettings()
+        elseif button == "MiddleButton" then
+            local siMod = BOLT.modules.savedInstances
+            if siMod and BOLT:IsModuleEnabled("savedInstances") then
+                siMod:PrintUnsavedInstances()
+            else
+                BOLT:Print("Saved Instances module is not enabled.")
+            end
         end
     end)
 
-    -- Register for right-click
-    reloadButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    -- Register for right-click and middle-click
+    reloadButton:RegisterForClicks("LeftButtonUp", "RightButtonUp", "MiddleButtonUp")
 
     -- Add hover effects
     reloadButton:SetScript("OnEnter", function()
@@ -991,6 +998,7 @@ function GameMenu:CreateReloadButton()
             GameTooltip:SetText("Reload UI", 1, 1, 1)
             GameTooltip:AddLine("Left-click: Reload the user interface", 0.8, 0.8, 0.8, true)
             GameTooltip:AddLine("Right-click: Open B.O.L.T settings", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine("Middle-click: Show saved instances", 0.8, 0.8, 0.8, true)
             if InCombatLockdown() then
                 GameTooltip:AddLine("|cFFFF6B6BNot available during combat|r", 1, 0.42, 0.42, true)
             end

@@ -66,7 +66,6 @@ SlashCmdList["BOLT"] = function(msg)
         print("  |cffFFFFFF/bolt debug config|r - Show configuration debug info")
         print("  |cffFFFFFF/bolt reload|r - Reload the addon")
         print("  |cffFFFFFF/bolt reset|r - Emergency reset of skyriding bindings")
-        print("  |cffFFFFFF/bolt export-teleports|r - Export runtime teleports as Lua for TeleportData.lua")
     elseif args[1] == "status" then
         BOLT:Print("Module Status:")
         for name, module in pairs(BOLT.modules) do
@@ -109,12 +108,6 @@ SlashCmdList["BOLT"] = function(msg)
     elseif args[1] == "config" then
         -- Open the Interface Options to B.O.L.T panel
         BOLT:OpenConfigPanel()
-    elseif args[1] == "export-teleports" then
-        if BOLT.modules and BOLT.modules.teleports and BOLT.modules.teleports.ExportTeleports then
-            BOLT.modules.teleports:ExportTeleports()
-        else
-            BOLT:Print("Teleports module not loaded.")
-        end
     elseif args[1] == "debug" and args[2] == "config" then
         BOLT:Print("=== B.O.L.T Debug Configuration ===")
         BOLT:Print("Module states (account-wide):")

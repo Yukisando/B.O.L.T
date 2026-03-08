@@ -35,7 +35,6 @@ BOLT.defaults = {
         },
         wowheadLink = {},
         autoRepSwitch = {},
-        teleports = {},
         smartTeleport = {},
         chatNotifier = {
             channels = {},
@@ -54,10 +53,10 @@ BOLT.defaultModuleStates = {
     skyriding = false,
     wowheadLink = false,
     autoRepSwitch = false,
-    teleports = false,
     smartTeleport = false,
     chatNotifier = false,
     achievementTracker = false,
+    savedInstances = false,
 }
 
 -- Initialize the addon

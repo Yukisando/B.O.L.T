@@ -40,6 +40,12 @@
 - **Throttled Alerts**: Rapid messages are throttled so sounds don't overlap
 - **Self-Filtering**: Your own messages are ignored
 
+### Saved Instances Module
+
+- **Instance Lockout Overview**: Lists all current expansion dungeons and raids alongside your lockout status
+- **Slash Command**: Type `/boltsaved` to print unsaved instances to chat
+- **Color-Coded Output**: Green for unsaved, orange for in-progress, grey for completed
+
 ## Installation
 
 1. Download the addon files
