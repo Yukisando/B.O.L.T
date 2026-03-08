@@ -164,11 +164,13 @@ end
 function AchievementTracker:GetTrackedCategorySet()
     local saved = self.parent:GetConfig("achievementTracker", "trackedCategories")
     if not saved or not next(saved) then return nil end  -- nil = track all
+    if saved["__none"] then return {} end  -- explicit "none selected"
     return saved
 end
 
 function AchievementTracker:SetCategoryTracked(catID, enabled)
     local saved = self.parent:GetConfig("achievementTracker", "trackedCategories") or {}
+    saved["__none"] = nil  -- clear sentinel when manually toggling
     saved[catID] = enabled or nil
     self.parent:SetConfig(saved, "achievementTracker", "trackedCategories")
 end
@@ -176,6 +178,7 @@ end
 function AchievementTracker:IsCategoryTracked(catID)
     local saved = self.parent:GetConfig("achievementTracker", "trackedCategories")
     if not saved or not next(saved) then return true end  -- empty = all tracked
+    if saved["__none"] then return false end  -- explicit none
     return saved[catID] == true
 end
 

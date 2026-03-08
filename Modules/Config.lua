@@ -672,27 +672,17 @@ function Config:CreateInterfaceOptionsPanel()
         if not atMod then return end
         local topCats = atMod:GetTopLevelCategories()
 
-        -- "All" toggle at top
-        local allInfo = UIDropDownMenu_CreateInfo()
-        allInfo.text = "|cff00aaff-- Select All / Deselect All --|r"
-        allInfo.isNotRadio = true
-        allInfo.keepShownOnClick = true
-        allInfo.notCheckable = true
-        allInfo.func = function()
-            -- Check if all categories are currently tracked
-            local allTracked = true
-            for _, cat in ipairs(topCats) do
-                if not atMod:IsCategoryTracked(cat.id) then allTracked = false; break end
-            end
-            -- Toggle: if all tracked, deselect all; otherwise select all
-            local saved = {}
-            if not allTracked then
-                for _, cat in ipairs(topCats) do saved[cat.id] = true end
-            end
-            self.parent:SetConfig(saved, "achievementTracker", "trackedCategories")
+        -- "None" option to deselect all
+        local noneInfo = UIDropDownMenu_CreateInfo()
+        noneInfo.text = "|cff00aaff-- None --|r"
+        noneInfo.isNotRadio = true
+        noneInfo.keepShownOnClick = true
+        noneInfo.notCheckable = true
+        noneInfo.func = function()
+            self.parent:SetConfig({ ["__none"] = true }, "achievementTracker", "trackedCategories")
             UpdateAchCategoryDropdownText()
         end
-        UIDropDownMenu_AddButton(allInfo, level)
+        UIDropDownMenu_AddButton(noneInfo, level)
 
         for _, cat in ipairs(topCats) do
             local info = UIDropDownMenu_CreateInfo()
