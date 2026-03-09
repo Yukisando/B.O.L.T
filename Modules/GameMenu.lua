@@ -397,6 +397,7 @@ function GameMenu:UpdateGameMenu()
         if volumeButton then
             volumeButton:Show()
             self:PositionVolumeButton()
+            self:UpdateVolumeDisplay()
         end
     else
         if volumeButton then
@@ -1165,13 +1166,13 @@ function GameMenu:OnVolumeButtonLeftClick()
     local currentVolume = tonumber(GetCVar("Sound_MasterVolume")) or 1
 
     if currentVolume == 0 then
-        -- Unmute: restore previous volume or set to 50% if no previous volume stored
-        local previousVolume = self.previousVolume or 0.5
+        -- Unmute: restore previous volume from saved DB, fall back to 50%
+        local previousVolume = self.parent:GetConfig("gameMenu", "preMuteVolume") or 0.5
         self:SafeCall(SetCVar, "Sound_MasterVolume", tostring(previousVolume))
         self.parent:Print("Audio unmuted (" .. math.floor(previousVolume * 100) .. "%)")
     else
-        -- Mute: store current volume and set to 0
-        self.previousVolume = currentVolume
+        -- Mute: persist current volume so it survives reloads/relogs
+        self.parent:SetConfig(currentVolume, "gameMenu", "preMuteVolume")
         self:SafeCall(SetCVar, "Sound_MasterVolume", "0")
         self.parent:Print("Audio muted")
     end
@@ -1219,11 +1220,18 @@ function BOLT_ToggleMasterVolume()
         local currentVolume = tonumber(GetCVar("Sound_MasterVolume")) or 1
 
         if currentVolume == 0 then
-            -- Unmute: restore to 50%
-            pcall(SetCVar, "Sound_MasterVolume", "0.5")
-            print("|cff00aaff[B.O.L.T]|r Audio unmuted (50%)")
+            -- Unmute: restore from saved DB if available, else 50%
+            local prev = 0.5
+            if BOLT and BOLT.GetConfig then
+                prev = BOLT:GetConfig("gameMenu", "preMuteVolume") or 0.5
+            end
+            pcall(SetCVar, "Sound_MasterVolume", tostring(prev))
+            print("|cff00aaff[B.O.L.T]|r Audio unmuted (" .. math.floor(prev * 100) .. "%)")
         else
-            -- Mute
+            -- Mute: persist current volume
+            if BOLT and BOLT.SetConfig then
+                BOLT:SetConfig(currentVolume, "gameMenu", "preMuteVolume")
+            end
             pcall(SetCVar, "Sound_MasterVolume", "0")
             print("|cff00aaff[B.O.L.T]|r Audio muted")
         end
