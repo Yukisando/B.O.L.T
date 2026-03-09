@@ -138,11 +138,11 @@ SmartTeleport.TeleportData = {
 -- Caches
 -- ────────────────────────────────────────────────────────────────────────────
 local ownedCache = {}   -- rebuilt on SPELLS_CHANGED / BAG_UPDATE
-local panelFrame = nil
+local drawerFrame = nil
 local entryButtons = {}
-local ENTRY_HEIGHT = 28
-local PANEL_WIDTH  = 260
-local isVisible = false
+local ICON_SIZE    = 32
+local ICON_PAD     = 4
+local DRAWER_PAD   = 6
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- Lifecycle
@@ -152,13 +152,12 @@ function SmartTeleport:OnInitialize() end
 
 function SmartTeleport:OnEnable()
     self:RebuildOwnershipCache()
-    self:CreatePanel()
+    self:CreateDrawer()
     self:RegisterEvents()
-end            
+end
 
 function SmartTeleport:OnDisable()
-    if panelFrame then panelFrame:Hide() end
-    isVisible = false
+    if drawerFrame then drawerFrame:Hide() end
     if self.eventFrame then
         self.eventFrame:UnregisterAllEvents()
     end
@@ -341,54 +340,29 @@ end
 -- UI
 -- ────────────────────────────────────────────────────────────────────────────
 
-function SmartTeleport:CreatePanel()
-    if panelFrame then return end
+function SmartTeleport:CreateDrawer()
+    if drawerFrame then return end
+    if not WorldMapFrame then return end
 
-    panelFrame = CreateFrame("Frame", "BOLTSmartTeleportPanel", UIParent, "BackdropTemplate")
-    panelFrame:SetSize(PANEL_WIDTH, 300)
-    panelFrame:SetFrameStrata("DIALOG")
-    panelFrame:SetFrameLevel(200)
-    panelFrame:SetClampedToScreen(true)
-    panelFrame:SetMovable(false)
+    local mapAnchor = WorldMapFrame.ScrollContainer or WorldMapFrame
 
-    panelFrame:SetBackdrop({
-        bgFile   = "Interface\\DialogFrame\\UI-DialogBox-Background",
-        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile     = true, tileSize = 32, edgeSize = 16,
-        insets   = { left = 4, right = 4, top = 4, bottom = 4 },
+    drawerFrame = CreateFrame("Frame", "BOLTSmartTeleportDrawer", WorldMapFrame, "BackdropTemplate")
+    drawerFrame:SetHeight(ICON_SIZE + DRAWER_PAD * 2)
+    drawerFrame:SetPoint("BOTTOMLEFT", mapAnchor, "BOTTOMLEFT", 0, 0)
+    drawerFrame:SetPoint("BOTTOMRIGHT", mapAnchor, "BOTTOMRIGHT", 0, 0)
+    drawerFrame:SetFrameStrata("DIALOG")
+    drawerFrame:SetFrameLevel(500)
+
+    drawerFrame:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 12,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 },
     })
-    panelFrame:SetBackdropColor(0.06, 0.06, 0.06, 0.92)
-    panelFrame:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
+    drawerFrame:SetBackdropColor(0.05, 0.05, 0.05, 0.88)
+    drawerFrame:SetBackdropBorderColor(0.4, 0.4, 0.4, 0.9)
 
-    -- Title
-    local title = panelFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    title:SetPoint("TOP", panelFrame, "TOP", 0, -8)
-    title:SetText("Teleports")
-    title:SetTextColor(1, 0.82, 0)
-    panelFrame.title = title
-
-    -- Close button
-    local closeBtn = CreateFrame("Button", nil, panelFrame, "UIPanelCloseButton")
-    closeBtn:SetPoint("TOPRIGHT", panelFrame, "TOPRIGHT", -2, -2)
-    closeBtn:SetSize(20, 20)
-    closeBtn:SetScript("OnClick", function()
-        panelFrame:Hide()
-        isVisible = false
-    end)
-
-    -- Scroll frame for the entry list
-    local scrollFrame = CreateFrame("ScrollFrame", "BOLTSmartTPScroll", panelFrame, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", panelFrame, "TOPLEFT", 8, -26)
-    scrollFrame:SetPoint("BOTTOMRIGHT", panelFrame, "BOTTOMRIGHT", -28, 6)
-    panelFrame.scrollFrame = scrollFrame
-
-    local scrollChild = CreateFrame("Frame", "BOLTSmartTPScrollChild", scrollFrame)
-    scrollChild:SetWidth(PANEL_WIDTH - 36)
-    scrollChild:SetHeight(1) -- will be resized dynamically
-    scrollFrame:SetScrollChild(scrollChild)
-    panelFrame.scrollChild = scrollChild
-
-    panelFrame:Hide()
+    drawerFrame:Hide()
 end
 
 -- Resolve icon for an entry
@@ -416,68 +390,45 @@ local function GetUsableAction(entry)
     return nil, nil
 end
 
-function SmartTeleport:RefreshPanel()
-    if not panelFrame then return end
-    if not isVisible then return end
-
-    -- Require WorldMapFrame to be open
+function SmartTeleport:RefreshDrawer()
+    if not drawerFrame then return end
     if not WorldMapFrame or not WorldMapFrame:IsShown() then
-        panelFrame:Hide()
+        drawerFrame:Hide()
         return
     end
 
     local mapID = WorldMapFrame:GetMapID()
     if not mapID then
-        panelFrame:Hide()
+        drawerFrame:Hide()
         return
     end
 
     local results = self:ScoreEntries(mapID)
 
-    -- Hide all existing buttons beyond what we need
     for i = 1, #entryButtons do
         entryButtons[i]:Hide()
     end
 
-    -- Match panel height to the map frame
-    local mapHeight = WorldMapFrame:GetHeight()
-    panelFrame:SetHeight(mapHeight)
-
     if #results == 0 then
-        if not panelFrame.emptyText then
-            panelFrame.emptyText = panelFrame.scrollChild:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-            panelFrame.emptyText:SetPoint("TOP", panelFrame.scrollChild, "TOP", 0, -8)
-            panelFrame.emptyText:SetText("No relevant teleports for this map.")
-        end
-        panelFrame.emptyText:Show()
-        panelFrame.scrollChild:SetHeight(30)
-        self:AnchorToMapFrame()
-        panelFrame:Show()
+        drawerFrame:Hide()
         return
     end
-
-    if panelFrame.emptyText then panelFrame.emptyText:Hide() end
-
-    local btnWidth = PANEL_WIDTH - 36
 
     for i, result in ipairs(results) do
         local btn = entryButtons[i]
         if not btn then
-            btn = self:CreateEntryButton(panelFrame.scrollChild, i)
+            btn = self:CreateIconButton(drawerFrame, i)
             entryButtons[i] = btn
         end
 
         local entry = result.entry
-        local displayName = entry.name
-        if entry.isHearthstone then
-            displayName = "Hearthstone (" .. GetHearthstoneInfo() .. ")"
-        end
+        btn.entryName = entry.isHearthstone
+            and ("Hearthstone (" .. GetHearthstoneInfo() .. ")")
+            or entry.name
 
         btn.icon:SetTexture(GetEntryIcon(entry))
         btn.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-        btn.label:SetText(displayName)
 
-        -- Set secure attributes (safe: map can't be open during combat)
         local actionType, actionID = GetUsableAction(entry)
         btn.actionType = actionType
         btn.actionID   = actionID
@@ -499,60 +450,44 @@ function SmartTeleport:RefreshPanel()
             end
         end
 
-        btn:SetSize(btnWidth, ENTRY_HEIGHT)
+        btn:SetSize(ICON_SIZE, ICON_SIZE)
         btn:ClearAllPoints()
-        btn:SetPoint("TOPLEFT", panelFrame.scrollChild, "TOPLEFT", 0, -(i - 1) * ENTRY_HEIGHT)
+        btn:SetPoint("LEFT", drawerFrame, "LEFT", DRAWER_PAD + (i - 1) * (ICON_SIZE + ICON_PAD), 0)
         btn:Show()
     end
 
-    -- Resize scroll child to fit all entries
-    panelFrame.scrollChild:SetHeight(#results * ENTRY_HEIGHT)
+    -- Size drawer to fit icons, centered at bottom of map
+    local totalWidth = DRAWER_PAD * 2 + #results * ICON_SIZE + (#results - 1) * ICON_PAD
+    drawerFrame:SetWidth(totalWidth)
 
-    self:AnchorToMapFrame()
-    panelFrame:Show()
+    local mapAnchor = WorldMapFrame.ScrollContainer or WorldMapFrame
+    drawerFrame:ClearAllPoints()
+    drawerFrame:SetPoint("BOTTOM", mapAnchor, "BOTTOM", 0, 4)
+    drawerFrame:Show()
 end
 
-function SmartTeleport:AnchorToMapFrame()
-    if not panelFrame or not WorldMapFrame then return end
-    -- Extra offset in windowed mode so we don't overlap the sidebar buttons
-    local xOffset = 4
-    if not WorldMapFrame:IsMaximized() then
-        xOffset = 48
-    end
-    panelFrame:ClearAllPoints()
-    panelFrame:SetPoint("TOPLEFT", WorldMapFrame, "TOPRIGHT", xOffset, 0)
-    panelFrame:SetPoint("BOTTOMLEFT", WorldMapFrame, "BOTTOMRIGHT", xOffset, 0)
-end
-
-function SmartTeleport:CreateEntryButton(parent, index)
+function SmartTeleport:CreateIconButton(parent, index)
     local btn = CreateFrame("Button", "BOLTSmartTP_Entry" .. index, parent, "SecureActionButtonTemplate")
-    btn:SetSize(PANEL_WIDTH - 36, ENTRY_HEIGHT)
+    btn:SetSize(ICON_SIZE, ICON_SIZE)
     btn:RegisterForClicks("AnyUp", "AnyDown")
-    btn:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
 
-    -- Icon
     local icon = btn:CreateTexture(nil, "ARTWORK")
-    icon:SetSize(ENTRY_HEIGHT - 6, ENTRY_HEIGHT - 6)
-    icon:SetPoint("LEFT", btn, "LEFT", 2, 0)
+    icon:SetAllPoints()
     btn.icon = icon
 
-    -- Label
-    local label = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    label:SetPoint("LEFT", icon, "RIGHT", 6, 0)
-    label:SetPoint("RIGHT", btn, "RIGHT", -4, 0)
-    label:SetJustifyH("LEFT")
-    label:SetWordWrap(false)
-    btn.label = label
+    -- Highlight border on hover
+    local hl = btn:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints()
+    hl:SetColorTexture(1, 1, 1, 0.15)
 
-    -- Tooltip (hooks work on secure buttons without breaking security)
     btn:HookScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
         if self.actionType == "spell" then
             GameTooltip:SetSpellByID(self.actionID)
         elseif self.actionType == "toy" or self.actionType == "item" then
             GameTooltip:SetItemByID(self.actionID)
         else
-            GameTooltip:SetText("No usable action")
+            GameTooltip:SetText(self.entryName or "Teleport", 1, 1, 1)
         end
         GameTooltip:Show()
     end)
@@ -577,29 +512,20 @@ function SmartTeleport:RegisterEvents()
         if event == "SPELLS_CHANGED" or event == "BAG_UPDATE" then
             self:RebuildOwnershipCache()
         end
-        if isVisible then self:RefreshPanel() end
+        if drawerFrame and drawerFrame:IsShown() then self:RefreshDrawer() end
     end)
 
     self.eventFrame = f
 
-    -- Hook WorldMapFrame map changes and show/hide
     if WorldMapFrame and not self._mapHooked then
         hooksecurefunc(WorldMapFrame, "SetMapID", function()
-            if isVisible then self:RefreshPanel() end
+            if drawerFrame then self:RefreshDrawer() end
         end)
 
-        -- Auto-show when the map opens
         WorldMapFrame:HookScript("OnShow", function()
             if not self.parent:IsModuleEnabled("smartTeleport") then return end
-            isVisible = true
             self:RebuildOwnershipCache()
-            self:RefreshPanel()
-        end)
-
-        -- Auto-hide when the map closes
-        WorldMapFrame:HookScript("OnHide", function()
-            if panelFrame then panelFrame:Hide() end
-            isVisible = false
+            self:RefreshDrawer()
         end)
 
         self._mapHooked = true
