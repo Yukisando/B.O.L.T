@@ -145,6 +145,7 @@ local entryButtons = {}
 local ICON_SIZE    = 32
 local ICON_PAD     = 4
 local DRAWER_PAD   = 6
+local MAX_ICONS    = 8
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- Lifecycle
@@ -416,7 +417,9 @@ function SmartTeleport:RefreshDrawer()
         return
     end
 
-    for i, result in ipairs(results) do
+    local displayCount = math.min(#results, MAX_ICONS)
+    for i = 1, displayCount do
+        local result = results[i]
         local btn = entryButtons[i]
         if not btn then
             btn = self:CreateIconButton(drawerFrame, i)
@@ -459,7 +462,7 @@ function SmartTeleport:RefreshDrawer()
     end
 
     -- Size drawer to fit icons, centered at bottom of map
-    local totalWidth = DRAWER_PAD * 2 + #results * ICON_SIZE + (#results - 1) * ICON_PAD
+    local totalWidth = DRAWER_PAD * 2 + displayCount * ICON_SIZE + (displayCount - 1) * ICON_PAD
     drawerFrame:SetWidth(totalWidth)
 
     local mapAnchor = WorldMapFrame.ScrollContainer or WorldMapFrame
