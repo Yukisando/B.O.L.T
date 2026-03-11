@@ -21,7 +21,7 @@ SmartTeleport.TeleportData = {
     { name = "Orgrimmar",         mapID = 85,   x = 0.45, y = 0.63, spellIDs = {3567, 11417},  itemIDs = {} },
     { name = "Thunder Bluff",     mapID = 88,   x = 0.47, y = 0.49, spellIDs = {3566, 11420},  itemIDs = {} },
     { name = "Undercity",         mapID = 90,   x = 0.66, y = 0.38, spellIDs = {3563, 11418},  itemIDs = {} },
-    { name = "Silvermoon",        mapID = 110,  x = 0.58, y = 0.19, spellIDs = {32272, 32267, 1259190, 1259194}, itemIDs = {} },
+    { name = "Silvermoon",        mapID = 2393, x = 0.58, y = 0.19, spellIDs = {32272, 32267, 1259190, 1259194}, itemIDs = {} },
 
     -- ── Neutral / Expansion Hubs ───────────────────────────────────────
     { name = "Shattrath",         mapID = 111,  x = 0.51, y = 0.42, spellIDs = {33690, 35715}, itemIDs = {} },
@@ -42,7 +42,7 @@ SmartTeleport.TeleportData = {
     { name = "Dreamwalk (Druid)",           mapID = 747, x = 0.50, y = 0.50, spellIDs = {193753}, itemIDs = {} },
     { name = "Death Gate (DK)",             mapID = 647, x = 0.50, y = 0.50, spellIDs = {50977},  itemIDs = {} },
     { name = "Zen Pilgrimage (Monk)",       mapID = 809, x = 0.50, y = 0.50, spellIDs = {126892}, itemIDs = {} },
-    { name = "The Arcantina",                mapID = 110, x = 0.50, y = 0.50, spellIDs = {},        itemIDs = {253629} },
+    { name = "The Arcantina",                mapID = 2393, x = 0.50, y = 0.50, spellIDs = {},        itemIDs = {253629} },
 
     -- ── Engineering Wormholes ──────────────────────────────────────────
     { name = "Wormhole: Northrend",       mapID = 113,  x = 0.50, y = 0.50, spellIDs = {},  itemIDs = {48933} },
@@ -54,7 +54,7 @@ SmartTeleport.TeleportData = {
     { name = "Wormhole: Shadowlands",     mapID = 1550, x = 0.50, y = 0.50, spellIDs = {},  itemIDs = {172924} },
     { name = "Wormhole: Dragon Isles",    mapID = 1978, x = 0.50, y = 0.50, spellIDs = {},  itemIDs = {198156} },
     { name = "Wormhole: Khaz Algar",      mapID = 2274, x = 0.50, y = 0.50, spellIDs = {},  itemIDs = {221966} },
-    { name = "Wormhole: Quel'Thalas",    mapID = 110,  x = 0.50, y = 0.50, spellIDs = {},  itemIDs = {248485} },
+    { name = "Wormhole: Quel'Thalas",    mapID = 2537, x = 0.50, y = 0.50, spellIDs = {},  itemIDs = {248485} },
 
     -- ── Hero's Path: MoP (Challenge Mode Gold) ───────────────────────
     { name = "Temple of the Jade Serpent",  mapID = 371,  x = 0.56, y = 0.58, spellIDs = {131204}, itemIDs = {} },
