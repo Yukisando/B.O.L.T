@@ -1166,13 +1166,13 @@ function GameMenu:OnVolumeButtonLeftClick()
     local currentVolume = tonumber(GetCVar("Sound_MasterVolume")) or 1
 
     if currentVolume == 0 then
-        -- Unmute: restore previous volume from saved DB, fall back to 50%
-        local previousVolume = self.parent:GetConfig("gameMenu", "preMuteVolume") or 0.5
+        -- Unmute: restore previous volume from global (account-wide) DB, fall back to 50%
+        local previousVolume = BOLTDB and BOLTDB.preMuteVolume or 0.5
         self:SafeCall(SetCVar, "Sound_MasterVolume", tostring(previousVolume))
         self.parent:Print("Audio unmuted (" .. math.floor(previousVolume * 100) .. "%)")
     else
-        -- Mute: persist current volume so it survives reloads/relogs
-        self.parent:SetConfig(currentVolume, "gameMenu", "preMuteVolume")
+        -- Mute: persist current volume globally so it survives reloads/relogs/character switches
+        if BOLTDB then BOLTDB.preMuteVolume = currentVolume end
         self:SafeCall(SetCVar, "Sound_MasterVolume", "0")
         self.parent:Print("Audio muted")
     end
@@ -1220,18 +1220,13 @@ function BOLT_ToggleMasterVolume()
         local currentVolume = tonumber(GetCVar("Sound_MasterVolume")) or 1
 
         if currentVolume == 0 then
-            -- Unmute: restore from saved DB if available, else 50%
-            local prev = 0.5
-            if BOLT and BOLT.GetConfig then
-                prev = BOLT:GetConfig("gameMenu", "preMuteVolume") or 0.5
-            end
+            -- Unmute: restore from global DB if available, else 50%
+            local prev = BOLTDB and BOLTDB.preMuteVolume or 0.5
             pcall(SetCVar, "Sound_MasterVolume", tostring(prev))
             print("|cff00aaff[B.O.L.T]|r Audio unmuted (" .. math.floor(prev * 100) .. "%)")
         else
-            -- Mute: persist current volume
-            if BOLT and BOLT.SetConfig then
-                BOLT:SetConfig(currentVolume, "gameMenu", "preMuteVolume")
-            end
+            -- Mute: persist current volume globally
+            if BOLTDB then BOLTDB.preMuteVolume = currentVolume end
             pcall(SetCVar, "Sound_MasterVolume", "0")
             print("|cff00aaff[B.O.L.T]|r Audio muted")
         end
