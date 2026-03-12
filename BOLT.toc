@@ -33,6 +33,6 @@ Modules\WowheadLink.lua
 Modules\AutoRepSwitch.lua
 Modules\ChatNotifier.lua
 Modules\AchievementTracker.lua
-Modules\SavedInstances.lua
+Modules\SavedInstances.lua\nModules\SoundMuter.lua
 
 Modules\SmartTeleportSuggestions.lua

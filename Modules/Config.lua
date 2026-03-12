@@ -740,6 +740,105 @@ function Config:CreateInterfaceOptionsPanel()
     siDesc:SetText("Lists current expansion dungeons and raids you haven't completed yet. Type /boltsaved to print the list.")
     y = y - 36
 
+    -- Sound Muter section
+    local smLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    smLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
+    smLabel:SetText("Sound Muter")
+    y = y - 24
+
+    local smEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
+    smEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    smEnable.Text:SetText("Enable Sound Muter Module")
+    smEnable:SetScript("OnClick", function(button)
+        local checked = button:GetChecked()
+        self.parent:SetModuleEnabled("soundMuter", checked)
+        self:UpdateSoundMuterChildControls()
+    end)
+    self.widgets.soundMuterCheckbox = smEnable
+    self.widgets.soundMuterReloadIndicator = self:CreateReloadIndicator(content, smEnable)
+    y = y - 30
+
+    local smDesc = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    smDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    smDesc:SetWidth(520)
+    smDesc:SetJustifyH("LEFT")
+    smDesc:SetText("Mute specific sound IDs so they never play in-game. Useful for silencing ambient music or annoying repeated sounds.")
+    y = y - 36
+
+    -- Input row: editbox + add button
+    local smInputLabel = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    smInputLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    smInputLabel:SetText("Sound ID:")
+
+    local smInput = CreateFrame("EditBox", "BOLTSoundMuterInput", content, "InputBoxTemplate")
+    smInput:SetSize(100, 20)
+    smInput:SetPoint("LEFT", smInputLabel, "RIGHT", 8, 0)
+    smInput:SetAutoFocus(false)
+    smInput:SetNumeric(true)
+    smInput:SetMaxLetters(10)
+    self.widgets.soundMuterInput = smInput
+
+    local smAddBtn = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+    smAddBtn:SetSize(50, 22)
+    smAddBtn:SetPoint("LEFT", smInput, "RIGHT", 6, 0)
+    smAddBtn:SetText("Add")
+    smAddBtn:SetScript("OnClick", function()
+        local text = smInput:GetText()
+        local soundID = tonumber(text)
+        if not soundID or soundID <= 0 then return end
+        local mod = self.parent.modules.soundMuter
+        if mod and mod.AddSoundID then
+            if mod:AddSoundID(soundID) then
+                smInput:SetText("")
+                self:RefreshSoundMuterList()
+            end
+        end
+    end)
+    self.widgets.soundMuterAddBtn = smAddBtn
+
+    local smPreviewBtn = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+    smPreviewBtn:SetSize(70, 22)
+    smPreviewBtn:SetPoint("LEFT", smAddBtn, "RIGHT", 4, 0)
+    smPreviewBtn:SetText("Preview")
+    smPreviewBtn:SetScript("OnClick", function()
+        local text = smInput:GetText()
+        local soundID = tonumber(text)
+        if soundID and soundID > 0 then
+            PlaySoundFile(soundID, "Master")
+        end
+    end)
+    self.widgets.soundMuterPreviewBtn = smPreviewBtn
+    y = y - 30
+
+    -- Scrollable list of muted sound IDs
+    local smListFrame = CreateFrame("Frame", nil, content, "BackdropTemplate")
+    smListFrame:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    smListFrame:SetSize(400, 120)
+    smListFrame:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 12,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    smListFrame:SetBackdropColor(0, 0, 0, 0.6)
+    smListFrame:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+    self.widgets.soundMuterListFrame = smListFrame
+
+    local smScrollFrame = CreateFrame("ScrollFrame", "BOLTSoundMuterScrollFrame", smListFrame, "UIPanelScrollFrameTemplate")
+    smScrollFrame:SetPoint("TOPLEFT", smListFrame, "TOPLEFT", 4, -4)
+    smScrollFrame:SetPoint("BOTTOMRIGHT", smListFrame, "BOTTOMRIGHT", -24, 4)
+    local smScrollChild = CreateFrame("Frame", "BOLTSoundMuterScrollChild", smScrollFrame)
+    smScrollChild:SetWidth(360)
+    smScrollChild:SetHeight(1)
+    smScrollFrame:SetScrollChild(smScrollChild)
+    self.widgets.soundMuterScrollChild = smScrollChild
+    self.widgets.soundMuterRows = {}
+
+    y = y - 130
+
+    -- Populate the list on first show
+    C_Timer.After(0.1, function() self:RefreshSoundMuterList() end)
+
     -- Reload button and version
     local reloadBtn = CreateFrame("Button", "BOLTOptionsReloadButton", content, "UIPanelButtonTemplate")
     reloadBtn:SetSize(120, 25); reloadBtn:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y); reloadBtn:SetText("Reload UI")
@@ -863,6 +962,7 @@ function Config:RefreshAll()
     self:UpdatePlaygroundChildControls()
     self:UpdateSkyridingChildControls()
     self:UpdateChatNotifierChildControls()
+    self:UpdateSoundMuterChildControls()
     self:UpdateCurrentToyDisplay()
 end
 
@@ -923,6 +1023,7 @@ function Config:RefreshOptionsPanel()
         if w.achievementTrackerCheckbox then w.achievementTrackerCheckbox:SetChecked(self.parent:IsModuleEnabled("achievementTracker")) end
         if w.UpdateAchCategoryDropdownText then w.UpdateAchCategoryDropdownText() end
         if w.savedInstancesCheckbox then w.savedInstancesCheckbox:SetChecked(self.parent:IsModuleEnabled("savedInstances")) end
+        if w.soundMuterCheckbox then w.soundMuterCheckbox:SetChecked(self.parent:IsModuleEnabled("soundMuter")) end
         -- Chat Notifier channels dropdown
         if w.chatNotifierChannelsDropdown and w.chatNotifierSelectedChannels then
             local chatMod = self.parent.modules.chatNotifier
@@ -988,6 +1089,72 @@ function Config:UpdateChatNotifierChildControls()
             UIDropDownMenu_DisableDropDown(w.chatNotifierChannelsDropdown)
         end
     end
+end
+
+function Config:UpdateSoundMuterChildControls()
+    local enabled = self.parent:IsModuleEnabled("soundMuter")
+    local w = self.widgets
+    if w.soundMuterInput then
+        w.soundMuterInput:SetEnabled(enabled)
+        w.soundMuterInput:SetAlpha(enabled and 1 or 0.5)
+    end
+    if w.soundMuterAddBtn then
+        w.soundMuterAddBtn:SetEnabled(enabled)
+        w.soundMuterAddBtn:SetAlpha(enabled and 1 or 0.5)
+    end
+    if w.soundMuterPreviewBtn then
+        w.soundMuterPreviewBtn:SetEnabled(enabled)
+        w.soundMuterPreviewBtn:SetAlpha(enabled and 1 or 0.5)
+    end
+    if w.soundMuterListFrame then
+        w.soundMuterListFrame:SetAlpha(enabled and 1 or 0.5)
+    end
+    self:RefreshSoundMuterList()
+end
+
+function Config:RefreshSoundMuterList()
+    local w = self.widgets
+    local scrollChild = w.soundMuterScrollChild
+    if not scrollChild then return end
+
+    -- Clear existing rows
+    for _, row in ipairs(w.soundMuterRows or {}) do
+        row:Hide()
+        row:SetParent(nil)
+    end
+    w.soundMuterRows = {}
+
+    local mod = self.parent.modules.soundMuter
+    if not mod then return end
+    local list = mod:GetMutedSoundIDs()
+    local enabled = self.parent:IsModuleEnabled("soundMuter")
+    local rowY = 0
+
+    for i, soundID in ipairs(list) do
+        local row = CreateFrame("Frame", nil, scrollChild)
+        row:SetSize(350, 20)
+        row:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -rowY)
+
+        local label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        label:SetPoint("LEFT", row, "LEFT", 4, 0)
+        label:SetText(tostring(soundID))
+
+        local removeBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+        removeBtn:SetSize(55, 18)
+        removeBtn:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+        removeBtn:SetText("Remove")
+        removeBtn:SetEnabled(enabled)
+        local capturedID = soundID
+        removeBtn:SetScript("OnClick", function()
+            mod:RemoveSoundID(capturedID)
+            self:RefreshSoundMuterList()
+        end)
+
+        w.soundMuterRows[i] = row
+        rowY = rowY + 22
+    end
+
+    scrollChild:SetHeight(math.max(rowY, 1))
 end
 
 function Config:UpdateCurrentToyDisplay()

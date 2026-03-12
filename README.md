@@ -46,6 +46,13 @@
 - **Slash Command**: Type `/boltsaved` to print unsaved instances to chat
 - **Color-Coded Output**: Green for unsaved, orange for in-progress, grey for completed
 
+### Sound Muter Module
+
+- **Mute Specific Sounds**: Add sound IDs to a list and they will be completely silenced in-game
+- **Persistent List**: Muted sounds are saved and automatically re-applied on login
+- **Easy Management**: Add or remove sound IDs from the config panel with a scrollable list
+- **Preview Button**: Test a sound ID before adding it to hear what it is
+
 ## Installation
 
 1. Download the addon files

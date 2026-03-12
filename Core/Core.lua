@@ -43,6 +43,9 @@ BOLT.defaults = {
         achievementTracker = {
             trackedCategories = {},  -- empty = track all; otherwise catID → true
         },
+        soundMuter = {
+            mutedSoundIDs = {},
+        },
     }
 }
 
@@ -57,6 +60,7 @@ BOLT.defaultModuleStates = {
     chatNotifier = false,
     achievementTracker = false,
     savedInstances = false,
+    soundMuter = false,
 }
 
 -- Initialize the addon
