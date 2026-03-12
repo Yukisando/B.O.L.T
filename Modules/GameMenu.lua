@@ -130,18 +130,12 @@ function GameMenu:EnsureMenuContainer()
     if not self.menuContainer then
         local c = CreateFrame("Frame", "BOLTGameMenuContainer", UIParent)
         c:SetFrameStrata("LOW")
-        if GameMenuFrame and GameMenuFrame.GetNumPoints then
-            c:SetAllPoints(GameMenuFrame)
-        else
-            c:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-            c:SetSize(100, 100)
-        end
+        -- Use a fallback position; actual anchoring to GameMenuFrame is deferred
+        -- to avoid calling the protected SetAllPoints during ShowUIPanel's secure path.
+        c:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+        c:SetSize(100, 100)
         c:Hide()
         self.menuContainer = c
-    else
-        if GameMenuFrame and self.menuContainer.SetAllPoints then
-            self.menuContainer:SetAllPoints(GameMenuFrame)
-        end
     end
 
     -- Reparent existing buttons so they follow the container visibility and anchoring
@@ -323,6 +317,9 @@ function GameMenu:HookGameMenu()
                 if gen ~= showGeneration then return end
                 -- Only show the container if the game menu is still shown (avoid race conditions)
                 if self.menuContainer and GameMenuFrame and GameMenuFrame:IsShown() then
+                    -- Anchor to GameMenuFrame now that we're outside the secure execution path
+                    self.menuContainer:ClearAllPoints()
+                    self.menuContainer:SetAllPoints(GameMenuFrame)
                     self.menuContainer:Show()
                 end
             end)
