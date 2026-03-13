@@ -897,6 +897,91 @@ function Config:CreateInterfaceOptionsPanel()
     c:SetHeight(sm.optionsHeight)
 
     ---------------------------------------------------------------------------
+    -- NAMEPLATES ENHANCEMENT
+    ---------------------------------------------------------------------------
+    local ne = self:CreateSection(content, "Nameplates Enhancement", "nameplatesEnhancement", true)
+    c = ne.container
+    cy = 0
+
+    ne.checkbox:SetScript("OnClick", function(button)
+        self.parent:SetModuleEnabled("nameplatesEnhancement", button:GetChecked())
+        self:RelayoutPanel()
+        self:UpdateNameplatesChildControls()
+    end)
+    self.widgets.nameplatesEnhancementCheckbox = ne.checkbox
+    self.widgets.nameplatesEnhancementReloadIndicator = ne.reloadIndicator
+
+    local neDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    neDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
+    neDesc:SetWidth(520)
+    neDesc:SetJustifyH("LEFT")
+    neDesc:SetText("Colors nameplate health bars for mana users and greys out enemy cast bars when your interrupt is on cooldown.")
+    cy = cy - 30
+
+    local neColorLabel = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    neColorLabel:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
+    neColorLabel:SetText("Mana Color:")
+
+    local neColorSwatch = CreateFrame("Button", nil, c, "BackdropTemplate")
+    neColorSwatch:SetSize(20, 20)
+    neColorSwatch:SetPoint("LEFT", neColorLabel, "RIGHT", 8, 0)
+    neColorSwatch:SetBackdrop({
+        bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 8,
+        insets = { left = 1, right = 1, top = 1, bottom = 1 },
+    })
+    neColorSwatch:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
+    self.widgets.neColorSwatch = neColorSwatch
+
+    local function UpdateSwatchColor()
+        local mc = self.parent:GetConfig("nameplatesEnhancement", "manaColor") or { r = 0.2, g = 0.4, b = 1.0 }
+        neColorSwatch:SetBackdropColor(mc.r, mc.g, mc.b, 1)
+    end
+    UpdateSwatchColor()
+
+    neColorSwatch:SetScript("OnClick", function()
+        local mc = self.parent:GetConfig("nameplatesEnhancement", "manaColor") or { r = 0.2, g = 0.4, b = 1.0 }
+        local function OnColorChanged()
+            local r, g, b = ColorPickerFrame:GetColorRGB()
+            self.parent:SetConfig({ r = r, g = g, b = b }, "nameplatesEnhancement", "manaColor")
+            UpdateSwatchColor()
+            local mod = self.parent.modules.nameplatesEnhancement
+            if mod and mod.LoadManaColor then mod:LoadManaColor() end
+        end
+        local function OnCancel(prev)
+            self.parent:SetConfig({ r = prev.r, g = prev.g, b = prev.b }, "nameplatesEnhancement", "manaColor")
+            UpdateSwatchColor()
+            local mod = self.parent.modules.nameplatesEnhancement
+            if mod and mod.LoadManaColor then mod:LoadManaColor() end
+        end
+        local info = {
+            r = mc.r, g = mc.g, b = mc.b,
+            swatchFunc = OnColorChanged,
+            cancelFunc = OnCancel,
+            previousValues = { r = mc.r, g = mc.g, b = mc.b },
+        }
+        ColorPickerFrame:SetupColorPickerAndShow(info)
+    end)
+
+    local neResetBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
+    neResetBtn:SetSize(55, 20)
+    neResetBtn:SetPoint("LEFT", neColorSwatch, "RIGHT", 6, 0)
+    neResetBtn:SetText("Reset")
+    neResetBtn:SetScript("OnClick", function()
+        self.parent:SetConfig({ r = 0.2, g = 0.4, b = 1.0 }, "nameplatesEnhancement", "manaColor")
+        UpdateSwatchColor()
+        local mod = self.parent.modules.nameplatesEnhancement
+        if mod and mod.LoadManaColor then mod:LoadManaColor() end
+    end)
+    self.widgets.neResetBtn = neResetBtn
+    self.widgets.UpdateNameplatesSwatchColor = UpdateSwatchColor
+    cy = cy - 28
+
+    ne.optionsHeight = math.abs(cy)
+    c:SetHeight(ne.optionsHeight)
+
+    ---------------------------------------------------------------------------
     -- FOOTER
     ---------------------------------------------------------------------------
     local reloadBtn = CreateFrame("Button", "BOLTOptionsReloadButton", content, "UIPanelButtonTemplate")
@@ -1012,6 +1097,7 @@ function Config:RefreshAll()
     self:UpdatePlaygroundChildControls()
     self:UpdateSkyridingChildControls()
     self:UpdateChatNotifierChildControls()
+    self:UpdateNameplatesChildControls()
     self:UpdateCurrentToyDisplay()
     self:RefreshSoundMuterList()
     self:RelayoutPanel()
@@ -1050,6 +1136,8 @@ function Config:RefreshOptionsPanel()
         if w.UpdateAchCategoryDropdownText then w.UpdateAchCategoryDropdownText() end
         if w.savedInstancesCheckbox then w.savedInstancesCheckbox:SetChecked(self.parent:IsModuleEnabled("savedInstances")) end
         if w.soundMuterCheckbox then w.soundMuterCheckbox:SetChecked(self.parent:IsModuleEnabled("soundMuter")) end
+        if w.nameplatesEnhancementCheckbox then w.nameplatesEnhancementCheckbox:SetChecked(self.parent:IsModuleEnabled("nameplatesEnhancement")) end
+        if w.UpdateNameplatesSwatchColor then w.UpdateNameplatesSwatchColor() end
         -- Chat Notifier channels dropdown
         if w.chatNotifierChannelsDropdown and w.chatNotifierSelectedChannels then
             local chatMod = self.parent.modules.chatNotifier
@@ -1109,6 +1197,22 @@ function Config:UpdateChatNotifierChildControls()
         if enabled then UIDropDownMenu_EnableDropDown(w.chatNotifierChannelsDropdown)
         else UIDropDownMenu_DisableDropDown(w.chatNotifierChannelsDropdown) end
     end
+end
+
+function Config:UpdateNameplatesChildControls()
+    self:RelayoutPanel()
+    local enabled = self.parent:IsModuleEnabled("nameplatesEnhancement")
+    local w = self.widgets
+
+    if w.neColorSwatch then
+        w.neColorSwatch:SetEnabled(enabled)
+        w.neColorSwatch:SetAlpha(enabled and 1 or 0.5)
+    end
+    if w.neResetBtn then
+        w.neResetBtn:SetEnabled(enabled)
+        w.neResetBtn:SetAlpha(enabled and 1 or 0.5)
+    end
+    if w.UpdateNameplatesSwatchColor then w.UpdateNameplatesSwatchColor() end
 end
 
 function Config:RefreshSoundMuterList()

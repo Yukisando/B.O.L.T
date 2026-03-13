@@ -56,7 +56,8 @@
         "WardrobeCollectionFrame",
         "AuctionHouseFrame",
         "GuildBankFrame",
-        "STANDARD_TEXT_FONT"
+        "STANDARD_TEXT_FONT",
+        "ColorPickerFrame"
     ],
     "Lua.type.weakUnionCheck": true
 }

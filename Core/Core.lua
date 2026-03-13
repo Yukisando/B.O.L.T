@@ -46,6 +46,9 @@ BOLT.defaults = {
         soundMuter = {
             mutedSoundIDs = {},
         },
+        nameplatesEnhancement = {
+            manaColor = { r = 0.2, g = 0.4, b = 1.0 },
+        },
     }
 }
 
@@ -61,6 +64,7 @@ BOLT.defaultModuleStates = {
     achievementTracker = false,
     savedInstances = false,
     soundMuter = false,
+    nameplatesEnhancement = false,
 }
 
 -- Initialize the addon

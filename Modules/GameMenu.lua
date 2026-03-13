@@ -315,6 +315,7 @@ function GameMenu:HookGameMenu()
             -- Defer showing the container to avoid calling protected functions during Blizzard's secure ShowUIPanel execution
             C_Timer.After(0.01, function()
                 if gen ~= showGeneration then return end
+                if InCombatLockdown() then return end
                 -- Only show the container if the game menu is still shown (avoid race conditions)
                 if self.menuContainer and GameMenuFrame and GameMenuFrame:IsShown() then
                     -- Anchor to GameMenuFrame now that we're outside the secure execution path

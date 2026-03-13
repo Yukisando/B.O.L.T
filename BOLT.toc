@@ -35,5 +35,6 @@ Modules\ChatNotifier.lua
 Modules\AchievementTracker.lua
 Modules\SavedInstances.lua
 Modules\SoundMuter.lua
+Modules\NameplatesEnhancement.lua
 
 Modules\SmartTeleportSuggestions.lua
