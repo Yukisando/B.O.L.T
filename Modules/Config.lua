@@ -799,6 +799,7 @@ function Config:CreateInterfaceOptionsPanel()
 
     sm.checkbox:SetScript("OnClick", function(button)
         self.parent:SetModuleEnabled("soundMuter", button:GetChecked())
+        self:RefreshSoundMuterList()
         self:RelayoutPanel()
     end)
     self.widgets.soundMuterCheckbox = sm.checkbox
@@ -854,29 +855,6 @@ function Config:CreateInterfaceOptionsPanel()
         end
     end)
     self.widgets.soundMuterPreviewBtn = smPreviewBtn
-    cy = cy - 30
-
-    -- "Add Currently Playing Music" button
-    local smAddMusicBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
-    smAddMusicBtn:SetSize(200, 22)
-    smAddMusicBtn:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
-    smAddMusicBtn:SetText("Add Currently Playing Music")
-    smAddMusicBtn:SetScript("OnClick", function()
-        local mod = self.parent.modules.soundMuter
-        if not mod then return end
-        local musicID = mod:GetCurrentZoneMusicID()
-        if musicID then
-            if mod:AddSoundID(musicID) then
-                self.parent:Print(("Added zone music ID |cff00ff00%s|r to mute list."):format(tostring(musicID)))
-                self:RefreshSoundMuterList()
-            else
-                self.parent:Print(("Music ID |cff00ff00%s|r is already in the mute list."):format(tostring(musicID)))
-            end
-        else
-            self.parent:Print("No zone music currently playing, or the music ID could not be detected.")
-        end
-    end)
-    self.widgets.soundMuterAddMusicBtn = smAddMusicBtn
     cy = cy - 30
 
     -- Scrollable list of muted sound IDs
@@ -1026,6 +1004,7 @@ function Config:RefreshAll()
     self:UpdateSkyridingChildControls()
     self:UpdateChatNotifierChildControls()
     self:UpdateCurrentToyDisplay()
+    self:RefreshSoundMuterList()
     self:RelayoutPanel()
 end
 
