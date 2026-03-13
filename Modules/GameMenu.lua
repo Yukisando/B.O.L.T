@@ -318,9 +318,16 @@ function GameMenu:HookGameMenu()
                 if InCombatLockdown() then return end
                 -- Only show the container if the game menu is still shown (avoid race conditions)
                 if self.menuContainer and GameMenuFrame and GameMenuFrame:IsShown() then
-                    -- Anchor to GameMenuFrame now that we're outside the secure execution path
+                    -- Position the container to cover GameMenuFrame using UIParent-relative
+                    -- absolute coordinates. Using SetAllPoints(GameMenuFrame) would anchor
+                    -- the container to a forbidden frame, making its Hide() method also
+                    -- forbidden (ADDON_ACTION_BLOCKED). Reading the position as plain numbers
+                    -- and anchoring to UIParent avoids that restriction while achieving the
+                    -- same visual result.
                     self.menuContainer:ClearAllPoints()
-                    self.menuContainer:SetAllPoints(GameMenuFrame)
+                    self.menuContainer:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT",
+                        GameMenuFrame:GetLeft(), GameMenuFrame:GetBottom())
+                    self.menuContainer:SetSize(GameMenuFrame:GetWidth(), GameMenuFrame:GetHeight())
                     self.menuContainer:Show()
                 end
             end)
@@ -1051,10 +1058,10 @@ function GameMenu:OnOpenSettings()
         end
     end)
 
-    -- Immediately hide our container to ensure all widgets are hidden at once
-    if self.menuContainer then
-        self.menuContainer:Hide()
-    end
+    -- All individual widgets above are already hidden; the container itself has no
+    -- visual representation so hiding it is redundant. Calling Hide() on it would
+    -- also trigger ADDON_ACTION_BLOCKED if the container was ever anchored to a
+    -- forbidden frame, so we intentionally skip the container hide here.
 
     -- While we open the settings, suppress our OnShow handler to prevent the menu
     -- from briefly reappearing when the Settings frame is shown.
