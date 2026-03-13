@@ -59,10 +59,7 @@
 - **Mana User Highlighting**: Enemy nameplate health bars are colored for mana-using units (healers/casters), making them easy to spot in packs
 - **Combat Persistent**: Colors survive entering combat and threat updates via a secure post-hook on Blizzard's health color system
 - **Enemies Only**: Only enemy nameplates are affected — friendly and neutral units keep their default appearance
-- **Interrupt Cooldown on Cast Bars**: Enemy cast bars change color based on your interrupt availability:
-  - **Orange**: Interrupt is ready
-  - **Yellow**: Interrupt is on cooldown but will be ready before the cast ends
-  - **Grey**: Interrupt won't be ready in time
+- **Instance-Only Mode**: Optional toggle to limit nameplate coloring to dungeons, raids, and scenarios
 - **Customizable Mana Color**: Pick any color for mana-user nameplates from the config panel
 
 ## Installation

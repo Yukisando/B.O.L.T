@@ -915,7 +915,7 @@ function Config:CreateInterfaceOptionsPanel()
     neDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
     neDesc:SetWidth(520)
     neDesc:SetJustifyH("LEFT")
-    neDesc:SetText("Colors enemy nameplate health bars for mana users (persists in combat) and greys out enemy cast bars when your interrupt is on cooldown.")
+    neDesc:SetText("Colors enemy nameplate health bars for mana users (healers/casters). Persists through combat and threat changes.")
     cy = cy - 30
 
     local neColorLabel = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -977,6 +977,19 @@ function Config:CreateInterfaceOptionsPanel()
     self.widgets.neResetBtn = neResetBtn
     self.widgets.UpdateNameplatesSwatchColor = UpdateSwatchColor
     cy = cy - 28
+
+    local neInstanceOnly = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
+    neInstanceOnly:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
+    neInstanceOnly.Text:SetText("Only in instances (dungeons, raids, scenarios)")
+    neInstanceOnly.Text:SetFontObject("GameFontHighlightSmall")
+    neInstanceOnly:SetChecked(self.parent:GetConfig("nameplatesEnhancement", "instanceOnly") or false)
+    neInstanceOnly:SetScript("OnClick", function(button)
+        self.parent:SetConfig(button:GetChecked(), "nameplatesEnhancement", "instanceOnly")
+        local mod = self.parent.modules.nameplatesEnhancement
+        if mod then mod:RefreshInstanceOnly() end
+    end)
+    self.widgets.neInstanceOnly = neInstanceOnly
+    cy = cy - 26
 
     ne.optionsHeight = math.abs(cy)
     c:SetHeight(ne.optionsHeight)
@@ -1211,6 +1224,10 @@ function Config:UpdateNameplatesChildControls()
     if w.neResetBtn then
         w.neResetBtn:SetEnabled(enabled)
         w.neResetBtn:SetAlpha(enabled and 1 or 0.5)
+    end
+    if w.neInstanceOnly then
+        w.neInstanceOnly:SetEnabled(enabled)
+        w.neInstanceOnly:SetAlpha(enabled and 1 or 0.5)
     end
     if w.UpdateNameplatesSwatchColor then w.UpdateNameplatesSwatchColor() end
 end
