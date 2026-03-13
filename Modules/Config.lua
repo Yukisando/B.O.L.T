@@ -991,6 +991,82 @@ function Config:CreateInterfaceOptionsPanel()
     self.widgets.neInstanceOnly = neInstanceOnly
     cy = cy - 26
 
+    -- Interrupt Warning toggle
+    local neInterruptWarn = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
+    neInterruptWarn:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
+    neInterruptWarn.Text:SetText("Interrupt Warning (tint bar when kick is on cooldown)")
+    neInterruptWarn.Text:SetFontObject("GameFontHighlightSmall")
+    neInterruptWarn:SetChecked(self.parent:GetConfig("nameplatesEnhancement", "interruptWarning") or false)
+    neInterruptWarn:SetScript("OnClick", function(button)
+        self.parent:SetConfig(button:GetChecked(), "nameplatesEnhancement", "interruptWarning")
+        local mod = self.parent.modules.nameplatesEnhancement
+        if mod then mod:RefreshInterruptWarning() end
+        self:UpdateNameplatesChildControls()
+    end)
+    self.widgets.neInterruptWarn = neInterruptWarn
+    cy = cy - 26
+
+    -- Interrupt Warning color swatch
+    local neIWColorLabel = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    neIWColorLabel:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
+    neIWColorLabel:SetText("Warning Color:")
+
+    local neIWColorSwatch = CreateFrame("Button", nil, c, "BackdropTemplate")
+    neIWColorSwatch:SetSize(20, 20)
+    neIWColorSwatch:SetPoint("LEFT", neIWColorLabel, "RIGHT", 8, 0)
+    neIWColorSwatch:SetBackdrop({
+        bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 8,
+        insets = { left = 1, right = 1, top = 1, bottom = 1 },
+    })
+    neIWColorSwatch:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
+    self.widgets.neIWColorSwatch = neIWColorSwatch
+
+    local function UpdateIWSwatchColor()
+        local ic = self.parent:GetConfig("nameplatesEnhancement", "interruptWarningColor") or { r = 0.8, g = 0.15, b = 0.15 }
+        neIWColorSwatch:SetBackdropColor(ic.r, ic.g, ic.b, 1)
+    end
+    UpdateIWSwatchColor()
+
+    neIWColorSwatch:SetScript("OnClick", function()
+        local ic = self.parent:GetConfig("nameplatesEnhancement", "interruptWarningColor") or { r = 0.8, g = 0.15, b = 0.15 }
+        local function OnColorChanged()
+            local r, g, b = ColorPickerFrame:GetColorRGB()
+            self.parent:SetConfig({ r = r, g = g, b = b }, "nameplatesEnhancement", "interruptWarningColor")
+            UpdateIWSwatchColor()
+            local mod = self.parent.modules.nameplatesEnhancement
+            if mod and mod.LoadInterruptWarningColor then mod:LoadInterruptWarningColor() end
+        end
+        local function OnCancel(prev)
+            self.parent:SetConfig({ r = prev.r, g = prev.g, b = prev.b }, "nameplatesEnhancement", "interruptWarningColor")
+            UpdateIWSwatchColor()
+            local mod = self.parent.modules.nameplatesEnhancement
+            if mod and mod.LoadInterruptWarningColor then mod:LoadInterruptWarningColor() end
+        end
+        local info = {
+            r = ic.r, g = ic.g, b = ic.b,
+            swatchFunc = OnColorChanged,
+            cancelFunc = OnCancel,
+            previousValues = { r = ic.r, g = ic.g, b = ic.b },
+        }
+        ColorPickerFrame:SetupColorPickerAndShow(info)
+    end)
+
+    local neIWResetBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
+    neIWResetBtn:SetSize(55, 20)
+    neIWResetBtn:SetPoint("LEFT", neIWColorSwatch, "RIGHT", 6, 0)
+    neIWResetBtn:SetText("Reset")
+    neIWResetBtn:SetScript("OnClick", function()
+        self.parent:SetConfig({ r = 0.8, g = 0.15, b = 0.15 }, "nameplatesEnhancement", "interruptWarningColor")
+        UpdateIWSwatchColor()
+        local mod = self.parent.modules.nameplatesEnhancement
+        if mod and mod.LoadInterruptWarningColor then mod:LoadInterruptWarningColor() end
+    end)
+    self.widgets.neIWResetBtn = neIWResetBtn
+    self.widgets.UpdateIWSwatchColor = UpdateIWSwatchColor
+    cy = cy - 28
+
     ne.optionsHeight = math.abs(cy)
     c:SetHeight(ne.optionsHeight)
 
@@ -1229,7 +1305,21 @@ function Config:UpdateNameplatesChildControls()
         w.neInstanceOnly:SetEnabled(enabled)
         w.neInstanceOnly:SetAlpha(enabled and 1 or 0.5)
     end
+    if w.neInterruptWarn then
+        w.neInterruptWarn:SetEnabled(enabled)
+        w.neInterruptWarn:SetAlpha(enabled and 1 or 0.5)
+    end
+    local iwEnabled = enabled and (self.parent:GetConfig("nameplatesEnhancement", "interruptWarning") or false)
+    if w.neIWColorSwatch then
+        w.neIWColorSwatch:SetEnabled(iwEnabled)
+        w.neIWColorSwatch:SetAlpha(iwEnabled and 1 or 0.5)
+    end
+    if w.neIWResetBtn then
+        w.neIWResetBtn:SetEnabled(iwEnabled)
+        w.neIWResetBtn:SetAlpha(iwEnabled and 1 or 0.5)
+    end
     if w.UpdateNameplatesSwatchColor then w.UpdateNameplatesSwatchColor() end
+    if w.UpdateIWSwatchColor then w.UpdateIWSwatchColor() end
 end
 
 function Config:RefreshSoundMuterList()

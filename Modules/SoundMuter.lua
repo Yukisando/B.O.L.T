@@ -76,6 +76,36 @@ function SoundMuter:InstallSoundHooks()
 
         return OriginalPlaySoundFile(soundFile, ...)
     end
+
+    if C_Sound and C_Sound.PlaySoundKitID then
+        local OriginalPlaySoundKitID = C_Sound.PlaySoundKitID
+        C_Sound.PlaySoundKitID = function(soundKitID, ...)
+            if type(soundKitID) == "number" then
+                module:RecordRecentSound(soundKitID, "SoundKit")
+
+                if module:IsMuted(soundKitID) then
+                    return
+                end
+            end
+
+            return OriginalPlaySoundKitID(soundKitID, ...)
+        end
+    end
+
+    if C_Sound and C_Sound.PlayVocalErrorSoundID then
+        local OriginalPlayVocalErrorSoundID = C_Sound.PlayVocalErrorSoundID
+        C_Sound.PlayVocalErrorSoundID = function(vocalErrorSoundID, ...)
+            if type(vocalErrorSoundID) == "number" then
+                module:RecordRecentSound(vocalErrorSoundID, "VocalError")
+
+                if module:IsMuted(vocalErrorSoundID) then
+                    return
+                end
+            end
+
+            return OriginalPlayVocalErrorSoundID(vocalErrorSoundID, ...)
+        end
+    end
 end
 
 function SoundMuter:RecordRecentSound(id, sourceType)
