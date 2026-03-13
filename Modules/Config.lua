@@ -915,7 +915,7 @@ function Config:CreateInterfaceOptionsPanel()
     neDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
     neDesc:SetWidth(520)
     neDesc:SetJustifyH("LEFT")
-    neDesc:SetText("Colors nameplate health bars for mana users and greys out enemy cast bars when your interrupt is on cooldown.")
+    neDesc:SetText("Colors enemy nameplate health bars for mana users (persists in combat) and greys out enemy cast bars when your interrupt is on cooldown.")
     cy = cy - 30
 
     local neColorLabel = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")

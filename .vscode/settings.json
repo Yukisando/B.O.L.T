@@ -57,7 +57,8 @@
         "AuctionHouseFrame",
         "GuildBankFrame",
         "STANDARD_TEXT_FONT",
-        "ColorPickerFrame"
+        "ColorPickerFrame",
+        "CompactUnitFrame_UpdateHealthColor"
     ],
     "Lua.type.weakUnionCheck": true
 }

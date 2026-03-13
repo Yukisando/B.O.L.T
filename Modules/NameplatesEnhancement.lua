@@ -20,18 +20,23 @@ local INTERRUPT_SPELLS = {
 
 local MANA_R, MANA_G, MANA_B = 0.2, 0.4, 1.0
 local DEFAULT_MANA_R, DEFAULT_MANA_G, DEFAULT_MANA_B = 0.2, 0.4, 1.0
-local DEFAULT_R, DEFAULT_G, DEFAULT_B = 0.9, 0.35, 0.2
 local GREY_R, GREY_G, GREY_B = 0.5, 0.5, 0.5
 local YELLOW_R, YELLOW_G, YELLOW_B = 1.0, 0.82, 0.0
 local CASTBAR_R, CASTBAR_G, CASTBAR_B = 1.0, 0.7, 0.0
 
 local interruptSpellID
+local isEnabled = false
 
 local function GetPlayerInterruptSpell()
     if interruptSpellID then return interruptSpellID end
     local _, classToken = UnitClass("player")
     interruptSpellID = classToken and INTERRUPT_SPELLS[classToken]
     return interruptSpellID
+end
+
+local function IsEnemyUnit(unit)
+    local reaction = UnitReaction("player", unit)
+    return reaction and reaction <= 4
 end
 
 local function GetHealthBar(unit)
@@ -50,23 +55,37 @@ local function GetCastBar(unit)
     return uf.castBar
 end
 
--- Feature 1: Color nameplate health bar based on power type
+-- Feature 1: Color enemy nameplate health bars for mana users
 local function UpdateNameplatePowerColor(unit)
-    if not unit then return end
+    if not unit or not isEnabled then return end
+    if not IsEnemyUnit(unit) then return end
     local healthBar = GetHealthBar(unit)
     if not healthBar then return end
 
     local powerType = UnitPowerType(unit)
     if powerType == Enum.PowerType.Mana then
         healthBar:SetStatusBarColor(MANA_R, MANA_G, MANA_B)
-    else
-        healthBar:SetStatusBarColor(DEFAULT_R, DEFAULT_G, DEFAULT_B)
     end
 end
 
--- Feature 2: Grey/yellow cast bar when interrupt is on cooldown
+-- Post-hook for Blizzard's health color update — re-applies our color after
+-- Blizzard sets its default so mana coloring persists through combat/threat changes
+local function OnHealthColorUpdated(frame)
+    if not isEnabled or not frame then return end
+    local unit = frame.unit
+    if not unit or not unit:match("^nameplate%d+$") then return end
+    if not IsEnemyUnit(unit) then return end
+
+    local powerType = UnitPowerType(unit)
+    if powerType == Enum.PowerType.Mana and frame.healthBar then
+        frame.healthBar:SetStatusBarColor(MANA_R, MANA_G, MANA_B)
+    end
+end
+
+-- Feature 2: Grey/yellow cast bar when interrupt is on cooldown (enemies only)
 local function UpdateCastBarInterruptState(unit)
     if not unit then return end
+    if not IsEnemyUnit(unit) then return end
     local castBar = GetCastBar(unit)
     if not castBar then return end
 
@@ -80,15 +99,16 @@ local function UpdateCastBarInterruptState(unit)
     if not endTime then return end
     if notInterruptible then return end
 
-    local start, duration = GetSpellCooldown(spellID)
-    if duration == 0 then
-        -- Interrupt is ready: restore default cast bar color
+    local cooldownInfo = C_Spell.GetSpellCooldown(spellID)
+    if not cooldownInfo then return end
+
+    if cooldownInfo.duration == 0 then
         castBar:SetStatusBarColor(CASTBAR_R, CASTBAR_G, CASTBAR_B)
         return
     end
 
     -- Interrupt is on cooldown — check if it will be ready before the cast ends
-    local cooldownEnd = start + duration
+    local cooldownEnd = cooldownInfo.startTime + cooldownInfo.duration
     local castEndSec = endTime / 1000
     if cooldownEnd < castEndSec then
         castBar:SetStatusBarColor(YELLOW_R, YELLOW_G, YELLOW_B)
@@ -109,7 +129,6 @@ local function UpdateAllCastBars()
     end
 end
 
--- Pre-create the event frame at load time to avoid taint from PLAYER_LOGIN execution path
 local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("NAME_PLATE_UNIT_ADDED")
 eventFrame:RegisterEvent("UNIT_DISPLAYPOWER")
@@ -117,6 +136,14 @@ eventFrame:RegisterEvent("UNIT_POWER_BAR_SHOW")
 eventFrame:RegisterEvent("UNIT_SPELLCAST_START")
 eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_START")
 eventFrame:RegisterEvent("SPELL_UPDATE_COOLDOWN")
+
+-- Hook Blizzard's health color function so our color survives combat/threat updates.
+-- hooksecurefunc runs after the original without spreading taint, safe in combat.
+if CompactUnitFrame_UpdateHealthColor then
+    hooksecurefunc("CompactUnitFrame_UpdateHealthColor", OnHealthColorUpdated)
+elseif CompactUnitFrameMixin and CompactUnitFrameMixin.UpdateHealthColor then
+    hooksecurefunc(CompactUnitFrameMixin, "UpdateHealthColor", OnHealthColorUpdated)
+end
 
 -- ========== LIFECYCLE ==========
 
@@ -134,6 +161,7 @@ end
 
 function NameplatesEnhancement:OnEnable()
     interruptSpellID = nil
+    isEnabled = true
     self:LoadManaColor()
 
     eventFrame:SetScript("OnEvent", function(_, event, unit, ...)
@@ -155,6 +183,7 @@ function NameplatesEnhancement:OnEnable()
 end
 
 function NameplatesEnhancement:OnDisable()
+    isEnabled = false
     eventFrame:SetScript("OnEvent", nil)
 end
 

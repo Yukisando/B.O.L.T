@@ -54,6 +54,17 @@
 - **Preview Button**: Test a sound ID before adding it to hear what it is
 - **Recent Sounds Detection**: Hooks into PlaySound/PlaySoundFile to capture the last 10 sounds played — click "Recent Sounds" to browse them and mute any entry with one click
 
+### Nameplates Enhancement Module
+
+- **Mana User Highlighting**: Enemy nameplate health bars are colored for mana-using units (healers/casters), making them easy to spot in packs
+- **Combat Persistent**: Colors survive entering combat and threat updates via a secure post-hook on Blizzard's health color system
+- **Enemies Only**: Only enemy nameplates are affected — friendly and neutral units keep their default appearance
+- **Interrupt Cooldown on Cast Bars**: Enemy cast bars change color based on your interrupt availability:
+  - **Orange**: Interrupt is ready
+  - **Yellow**: Interrupt is on cooldown but will be ready before the cast ends
+  - **Grey**: Interrupt won't be ready in time
+- **Customizable Mana Color**: Pick any color for mana-user nameplates from the config panel
+
 ## Installation
 
 1. Download the addon files
