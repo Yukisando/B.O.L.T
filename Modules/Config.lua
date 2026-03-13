@@ -92,15 +92,100 @@ function Config:CreateReloadIndicator(parent, anchor)
     return label
 end
 
+-- Reusable: create a section frame with header + collapsible options container.
+-- Returns { section, header, container, headerHeight }
+-- The container auto-hides when the module is disabled.
+function Config:CreateSection(parent, labelText, moduleName, hasOptions)
+    local section = CreateFrame("Frame", nil, parent)
+    section:SetPoint("LEFT", parent, "LEFT", 0, 0)
+    section:SetPoint("RIGHT", parent, "RIGHT", 0, 0)
+    section.moduleName = moduleName
+
+    -- Section label
+    local label = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    label:SetPoint("TOPLEFT", section, "TOPLEFT", 20, 0)
+    label:SetText(labelText)
+
+    -- Enable checkbox
+    local checkbox = CreateFrame("CheckButton", nil, section, "InterfaceOptionsCheckButtonTemplate")
+    checkbox:SetPoint("TOPLEFT", section, "TOPLEFT", 30, -24)
+    checkbox.Text:SetText("Enable " .. labelText .. " Module")
+
+    local reloadIndicator = self:CreateReloadIndicator(section, checkbox)
+    reloadIndicator:Hide()
+
+    -- Options container (collapsible)
+    local container = nil
+    if hasOptions then
+        container = CreateFrame("Frame", nil, section)
+        container:SetPoint("TOPLEFT", section, "TOPLEFT", 0, -54)
+        container:SetPoint("RIGHT", section, "RIGHT", 0, 0)
+        container:SetHeight(1)
+    end
+
+    local data = {
+        section = section,
+        label = label,
+        checkbox = checkbox,
+        reloadIndicator = reloadIndicator,
+        container = container,
+        moduleName = moduleName,
+        headerHeight = hasOptions and 54 or 54,
+        optionsHeight = 0,
+    }
+
+    if not self.sections then self.sections = {} end
+    table.insert(self.sections, data)
+
+    return data
+end
+
+-- Relayout all sections vertically, collapsing options when module is disabled
+function Config:RelayoutPanel()
+    if not self.sections then return end
+    local y = -60 -- below title
+    for _, sec in ipairs(self.sections) do
+        sec.section:ClearAllPoints()
+        sec.section:SetPoint("TOPLEFT", self.optionsScrollChild, "TOPLEFT", 0, y)
+        sec.section:SetPoint("RIGHT", self.optionsScrollChild, "RIGHT", 0, 0)
+
+        local enabled = self.parent:IsModuleEnabled(sec.moduleName)
+        local showOptions = enabled and sec.container and sec.optionsHeight > 0
+        if sec.container then
+            if showOptions then
+                sec.container:Show()
+            else
+                sec.container:Hide()
+            end
+        end
+
+        local sectionHeight = sec.headerHeight + (showOptions and sec.optionsHeight or 0)
+        sec.section:SetHeight(sectionHeight)
+        y = y - sectionHeight - 10
+    end
+
+    -- Footer: Reload button + version
+    if self.widgets.reloadButton then
+        self.widgets.reloadButton:ClearAllPoints()
+        self.widgets.reloadButton:SetPoint("TOPLEFT", self.optionsScrollChild, "TOPLEFT", 30, y)
+        y = y - 40
+    end
+    if self.widgets.versionText then
+        self.widgets.versionText:ClearAllPoints()
+        self.widgets.versionText:SetPoint("TOPLEFT", self.optionsScrollChild, "TOPLEFT", 30, y)
+        y = y - 30
+    end
+
+    self.optionsScrollChild:SetHeight(math.abs(y) + 100)
+end
+
 function Config:CreateInterfaceOptionsPanel()
     local panel = CreateFrame("Frame", "BOLTOptionsPanel")
     panel.name = "B.O.L.T"
-    -- When the options panel shows, mark the GameMenu module so it won't re-show widgets.
     panel:SetScript("OnShow", function()
         self:RefreshAll()
         if self.parent and self.parent.modules and self.parent.modules.gameMenu then
             self.parent.modules.gameMenu.settingsPanelOpen = true
-            -- Ensure all widgets are hidden immediately when the panel opens
             self.parent.modules.gameMenu:EnsureHiddenIfMenuNotShown()
         end
     end)
@@ -125,83 +210,78 @@ function Config:CreateInterfaceOptionsPanel()
     title:SetPoint("TOPLEFT", content, "TOPLEFT", 16, -16)
     title:SetText("B.O.L.T")
 
-    local y = -60
+    self.sections = {}
 
-    -- Game Menu section
-    local gmLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    gmLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
-    gmLabel:SetText("Game Menu")
-    y = y - 24
+    ---------------------------------------------------------------------------
+    -- GAME MENU
+    ---------------------------------------------------------------------------
+    local gm = self:CreateSection(content, "Game Menu", "gameMenu", true)
+    local c = gm.container
+    local cy = 0
 
-    local gmEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    gmEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
-    gmEnable.Text:SetText("Enable Game Menu Module")
-    gmEnable:SetScript("OnClick", function(button)
-        local checked = button:GetChecked()
-        self.parent:SetModuleEnabled("gameMenu", checked)
+    gm.checkbox:SetScript("OnClick", function(button)
+        self.parent:SetModuleEnabled("gameMenu", button:GetChecked())
+        self:RelayoutPanel()
         self:UpdateGameMenuChildControls()
     end)
-    self.widgets.gameMenuCheckbox = gmEnable
-    self.widgets.gameMenuReloadIndicator = self:CreateReloadIndicator(content, gmEnable)
+    self.widgets.gameMenuCheckbox = gm.checkbox
+    self.widgets.gameMenuReloadIndicator = gm.reloadIndicator
 
-    -- Game Menu options
-    y = y - 30
-
-    local leaveGroupEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    leaveGroupEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    local leaveGroupEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
+    leaveGroupEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
     leaveGroupEnable.Text:SetText("Show Leave Group Button")
     leaveGroupEnable:SetScript("OnClick", function(button)
         self.parent:SetConfig(button:GetChecked(), "gameMenu", "showLeaveGroup")
         self:UpdateGameMenuChildControls()
     end)
     self.widgets.leaveGroupCheckbox = leaveGroupEnable
-    y = y - 30
+    cy = cy - 30
 
-    local reloadEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    reloadEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    local reloadEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
+    reloadEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
     reloadEnable.Text:SetText("Show Reload UI Button")
     reloadEnable:SetScript("OnClick", function(button)
         self.parent:SetConfig(button:GetChecked(), "gameMenu", "showReloadButton")
         self:UpdateGameMenuChildControls()
     end)
     self.widgets.reloadCheckbox = reloadEnable
-    y = y - 30
+    cy = cy - 30
 
-    local groupToolsEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    groupToolsEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    local groupToolsEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
+    groupToolsEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
     groupToolsEnable.Text:SetText("Enable Group Tools (Ready/Countdown/Raid Marker)")
     groupToolsEnable:SetScript("OnClick", function(button)
         self.parent:SetConfig(button:GetChecked(), "gameMenu", "groupToolsEnabled")
         self:UpdateGameMenuChildControls()
     end)
     self.widgets.groupToolsCheckbox = groupToolsEnable
-    y = y - 30
+    cy = cy - 30
 
-    local battleTextEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    battleTextEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    local battleTextEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
+    battleTextEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
     battleTextEnable.Text:SetText("Show Battle Text Toggles")
     battleTextEnable:SetScript("OnClick", function(button)
         self.parent:SetConfig(button:GetChecked(), "gameMenu", "showBattleTextToggles")
         self:UpdateGameMenuChildControls()
     end)
     self.widgets.battleTextCheckbox = battleTextEnable
-    y = y - 30
+    cy = cy - 30
 
-    local volumeEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    volumeEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    local volumeEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
+    volumeEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
     volumeEnable.Text:SetText("Show Volume Control Button")
     volumeEnable:SetScript("OnClick", function(button)
         self.parent:SetConfig(button:GetChecked(), "gameMenu", "showVolumeButton")
         self:UpdateGameMenuChildControls()
     end)
     self.widgets.volumeButtonCheckbox = volumeEnable
-    y = y - 36
+    cy = cy - 36
 
-    -- Raid marker selector (for Group Tools)
-    local markerLabel = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    markerLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    -- Raid marker selector
+    local markerLabel = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    markerLabel:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
     markerLabel:SetText("Raid Marker Icon:")
-    y = y - 22
+    cy = cy - 22
 
     local MARKER_TEXCOORDS = {
         [1] = { 0, 0.25, 0, 0.25 },
@@ -217,12 +297,10 @@ function Config:CreateInterfaceOptionsPanel()
     self.widgets.raidMarkerButtons = self.widgets.raidMarkerButtons or {}
     local buttons = self.widgets.raidMarkerButtons
     local btnSize = 22
-    local startX = 50
-    local startY = y
     for i = 1, 8 do
         local b = buttons[i]
         if not b then
-            b = CreateFrame("Button", nil, content)
+            b = CreateFrame("Button", nil, c)
             b:SetSize(btnSize, btnSize)
             b.tex = b:CreateTexture(nil, "ARTWORK")
             b.tex:SetAllPoints(b)
@@ -231,7 +309,7 @@ function Config:CreateInterfaceOptionsPanel()
             buttons[i] = b
         end
         b:ClearAllPoints()
-        b:SetPoint("TOPLEFT", content, "TOPLEFT", startX + ((i - 1) * (btnSize + 4)), startY)
+        b:SetPoint("TOPLEFT", c, "TOPLEFT", 50 + ((i - 1) * (btnSize + 4)), cy)
         local tc = MARKER_TEXCOORDS[i]
         b.tex:SetTexCoord(tc[1], tc[2], tc[3], tc[4])
         b:SetScript("OnClick", function()
@@ -244,7 +322,7 @@ function Config:CreateInterfaceOptionsPanel()
 
     local clearBtn = self.widgets.raidMarkerClearButton
     if not clearBtn then
-        clearBtn = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+        clearBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
         clearBtn:SetSize(48, btnSize)
         clearBtn:SetText("Clear")
         clearBtn:SetScript("OnClick", function()
@@ -255,31 +333,29 @@ function Config:CreateInterfaceOptionsPanel()
         self.widgets.raidMarkerClearButton = clearBtn
     end
     clearBtn:ClearAllPoints()
-    clearBtn:SetPoint("TOPLEFT", content, "TOPLEFT", startX + (8 * (btnSize + 4)) + 8, startY + 1)
+    clearBtn:SetPoint("TOPLEFT", c, "TOPLEFT", 50 + (8 * (btnSize + 4)) + 8, cy + 1)
+    cy = cy - 40
 
-    y = y - 40
+    gm.optionsHeight = math.abs(cy)
+    c:SetHeight(gm.optionsHeight)
 
-    -- Playground section
-    local pgLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    pgLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
-    pgLabel:SetText("Playground")
-    y = y - 24
+    ---------------------------------------------------------------------------
+    -- PLAYGROUND
+    ---------------------------------------------------------------------------
+    local pg = self:CreateSection(content, "Playground", "playground", true)
+    c = pg.container
+    cy = 0
 
-    local pgEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    pgEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
-    pgEnable.Text:SetText("Enable Playground Module")
-    pgEnable:SetScript("OnClick", function(button)
-        local checked = button:GetChecked()
-        self.parent:SetModuleEnabled("playground", checked)
+    pg.checkbox:SetScript("OnClick", function(button)
+        self.parent:SetModuleEnabled("playground", button:GetChecked())
+        self:RelayoutPanel()
         self:UpdatePlaygroundChildControls()
     end)
-    self.widgets.playgroundCheckbox = pgEnable
-    self.widgets.playgroundReloadIndicator = self:CreateReloadIndicator(content, pgEnable)
-    y = y - 30
+    self.widgets.playgroundCheckbox = pg.checkbox
+    self.widgets.playgroundReloadIndicator = pg.reloadIndicator
 
-    -- Favorite Toy row: checkbox + button + current toy display
-    local favToyEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    favToyEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    local favToyEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
+    favToyEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
     favToyEnable.Text:SetText("Favorite Toy Button")
     favToyEnable:SetScript("OnClick", function(button)
         self.parent:SetConfig(button:GetChecked(), "playground", "showFavoriteToy")
@@ -287,39 +363,32 @@ function Config:CreateInterfaceOptionsPanel()
     end)
     self.widgets.favoriteToyCheckbox = favToyEnable
 
-    local chooseToyBtn = self.widgets.chooseToyButton
-    if not chooseToyBtn then
-        chooseToyBtn = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
-        chooseToyBtn:SetSize(120, 24)
-        chooseToyBtn:SetText("Choose Toy")
-        chooseToyBtn:SetScript("OnClick", function() self:ShowToySelectionPopup() end)
-        self.widgets.chooseToyButton = chooseToyBtn
-
-        local toyRow = CreateFrame("Frame", nil, content)
-        toyRow:SetSize(360, 24)
-        self.widgets.currentToyRow = toyRow
-
-        local icon = toyRow:CreateTexture(nil, "ARTWORK")
-        icon:SetPoint("LEFT", toyRow, "LEFT", 0, 0)
-        icon:SetSize(20, 20)
-        self.widgets.currentToyIcon = icon
-
-        local text = toyRow:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-        text:SetPoint("LEFT", icon, "RIGHT", 8, 0)
-        text:SetJustifyH("LEFT")
-        text:SetText("None selected")
-        self.widgets.currentToyText = text
-    end
-
-    chooseToyBtn:ClearAllPoints()
+    local chooseToyBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
+    chooseToyBtn:SetSize(120, 24)
+    chooseToyBtn:SetText("Choose Toy")
+    chooseToyBtn:SetScript("OnClick", function() self:ShowToySelectionPopup() end)
     chooseToyBtn:SetPoint("LEFT", favToyEnable.Text, "RIGHT", 10, 0)
-    self.widgets.currentToyRow:ClearAllPoints()
-    self.widgets.currentToyRow:SetPoint("LEFT", chooseToyBtn, "RIGHT", 12, 0)
-    y = y - 30
+    self.widgets.chooseToyButton = chooseToyBtn
 
-    -- Speedometer row: checkbox + position dropdown
-    local speedometerEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    speedometerEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    local toyRow = CreateFrame("Frame", nil, c)
+    toyRow:SetSize(360, 24)
+    toyRow:SetPoint("LEFT", chooseToyBtn, "RIGHT", 12, 0)
+    self.widgets.currentToyRow = toyRow
+
+    local toyIcon = toyRow:CreateTexture(nil, "ARTWORK")
+    toyIcon:SetPoint("LEFT", toyRow, "LEFT", 0, 0)
+    toyIcon:SetSize(20, 20)
+    self.widgets.currentToyIcon = toyIcon
+
+    local toyText = toyRow:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    toyText:SetPoint("LEFT", toyIcon, "RIGHT", 8, 0)
+    toyText:SetJustifyH("LEFT")
+    toyText:SetText("None selected")
+    self.widgets.currentToyText = toyText
+    cy = cy - 30
+
+    local speedometerEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
+    speedometerEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
     speedometerEnable.Text:SetText("Speedometer")
     speedometerEnable:SetScript("OnClick", function(button)
         self.parent:SetConfig(button:GetChecked(), "playground", "showSpeedometer")
@@ -327,197 +396,183 @@ function Config:CreateInterfaceOptionsPanel()
     end)
     self.widgets.speedometerCheckbox = speedometerEnable
 
-    local posLabel = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    local posLabel = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     posLabel:SetPoint("LEFT", speedometerEnable.Text, "RIGHT", 10, 0)
     posLabel:SetText("Position:")
 
-    local posDropdown = self.widgets.speedometerPositionDropdown
-    if not posDropdown then
-        posDropdown = CreateFrame("Frame", "BOLTSpeedometerPositionDropdown", content, "UIDropDownMenuTemplate")
-        self.widgets.speedometerPositionDropdown = posDropdown
-
-        UIDropDownMenu_SetWidth(posDropdown, 110)
-        UIDropDownMenu_Initialize(posDropdown, function(dropdown, level)
-            local positions = {
-                { text = "Top Left",     value = "TOPLEFT" },
-                { text = "Top Right",    value = "TOPRIGHT" },
-                { text = "Bottom Left",  value = "BOTTOMLEFT" },
-                { text = "Bottom Right", value = "BOTTOMRIGHT" },
-            }
-
-            for _, pos in ipairs(positions) do
-                local info = UIDropDownMenu_CreateInfo()
-                info.text = pos.text
-                info.value = pos.value
-                info.func = function(btn)
-                    self.parent:SetConfig(btn.value, "playground", "statsPosition")
-                    UIDropDownMenu_SetSelectedValue(posDropdown, btn.value)
-                    if self.parent.modules.playground and self.parent.modules.playground.UpdateStatsPosition then
-                        self.parent.modules.playground:UpdateStatsPosition()
-                    end
+    local posDropdown = CreateFrame("Frame", "BOLTSpeedometerPositionDropdown", c, "UIDropDownMenuTemplate")
+    self.widgets.speedometerPositionDropdown = posDropdown
+    UIDropDownMenu_SetWidth(posDropdown, 110)
+    UIDropDownMenu_Initialize(posDropdown, function(dropdown, level)
+        local positions = {
+            { text = "Top Left",     value = "TOPLEFT" },
+            { text = "Top Right",    value = "TOPRIGHT" },
+            { text = "Bottom Left",  value = "BOTTOMLEFT" },
+            { text = "Bottom Right", value = "BOTTOMRIGHT" },
+        }
+        for _, pos in ipairs(positions) do
+            local info = UIDropDownMenu_CreateInfo()
+            info.text = pos.text
+            info.value = pos.value
+            info.func = function(btn)
+                self.parent:SetConfig(btn.value, "playground", "statsPosition")
+                UIDropDownMenu_SetSelectedValue(posDropdown, btn.value)
+                if self.parent.modules.playground and self.parent.modules.playground.UpdateStatsPosition then
+                    self.parent.modules.playground:UpdateStatsPosition()
                 end
-                info.checked = (self.parent:GetConfig("playground", "statsPosition") == pos.value)
-                UIDropDownMenu_AddButton(info, level)
             end
-        end)
-    end
-
+            info.checked = (self.parent:GetConfig("playground", "statsPosition") == pos.value)
+            UIDropDownMenu_AddButton(info, level)
+        end
+    end)
     posDropdown:ClearAllPoints()
     posDropdown:SetPoint("LEFT", posLabel, "RIGHT", -15, -2)
 
     local currentPos = self.parent:GetConfig("playground", "statsPosition") or "TOPRIGHT"
     UIDropDownMenu_SetSelectedValue(posDropdown, currentPos)
-    local posNames = {
-        TOPLEFT = "Top Left",
-        TOPRIGHT = "Top Right",
-        BOTTOMLEFT = "Bottom Left",
-        BOTTOMRIGHT =
-        "Bottom Right"
-    }
+    local posNames = { TOPLEFT = "Top Left", TOPRIGHT = "Top Right", BOTTOMLEFT = "Bottom Left", BOTTOMRIGHT = "Bottom Right" }
     UIDropDownMenu_SetText(posDropdown, posNames[currentPos] or "Top Right")
+    cy = cy - 36
 
-    y = y - 36
+    pg.optionsHeight = math.abs(cy)
+    c:SetHeight(pg.optionsHeight)
 
-    -- Skyriding section
-    local skLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    skLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
-    skLabel:SetText("Skyriding")
-    y = y - 24
+    ---------------------------------------------------------------------------
+    -- SKYRIDING
+    ---------------------------------------------------------------------------
+    local sk = self:CreateSection(content, "Skyriding", "skyriding", true)
+    c = sk.container
+    cy = 0
 
-    local skEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    skEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
-    skEnable.Text:SetText("Enable Skyriding Module")
-    skEnable:SetScript("OnClick", function(button)
-        local checked = button:GetChecked()
-        self.parent:SetModuleEnabled("skyriding", checked)
+    sk.checkbox:SetScript("OnClick", function(button)
+        self.parent:SetModuleEnabled("skyriding", button:GetChecked())
+        self:RelayoutPanel()
         self:UpdateSkyridingChildControls()
     end)
-    self.widgets.skyridingCheckbox = skEnable
-    self.widgets.skyridingReloadIndicator = self:CreateReloadIndicator(content, skEnable)
-    y = y - 30
+    self.widgets.skyridingCheckbox = sk.checkbox
+    self.widgets.skyridingReloadIndicator = sk.reloadIndicator
 
-    local pitchEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    pitchEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    local pitchEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
+    pitchEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
     pitchEnable.Text:SetText("Enable Pitch Control (W/S)")
     pitchEnable:SetScript("OnClick", function(button)
         self.parent:SetConfig(button:GetChecked(), "skyriding", "enablePitchControl")
         self:UpdateSkyridingChildControls()
     end)
     self.widgets.pitchControlCheckbox = pitchEnable
-    y = y - 30
+    cy = cy - 30
 
-    local invertEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    invertEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    local invertEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
+    invertEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
     invertEnable.Text:SetText("Invert Pitch")
     invertEnable:SetScript("OnClick", function(button)
         self.parent:SetConfig(button:GetChecked(), "skyriding", "invertPitch")
     end)
     self.widgets.invertPitchCheckbox = invertEnable
-    y = y - 40
+    cy = cy - 30
 
-    -- WowheadLink section
-    local wlLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    wlLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
-    wlLabel:SetText("Wowhead Link")
-    y = y - 24
+    sk.optionsHeight = math.abs(cy)
+    c:SetHeight(sk.optionsHeight)
 
-    local wlEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    wlEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
-    wlEnable.Text:SetText("Enable Wowhead Link Module")
-    wlEnable:SetScript("OnClick", function(button)
-        local checked = button:GetChecked()
-        self.parent:SetModuleEnabled("wowheadLink", checked)
+    ---------------------------------------------------------------------------
+    -- WOWHEAD LINK (description only, no child options beyond desc)
+    ---------------------------------------------------------------------------
+    local wl = self:CreateSection(content, "Wowhead Link", "wowheadLink", true)
+    c = wl.container
+    cy = 0
+
+    wl.checkbox:SetScript("OnClick", function(button)
+        self.parent:SetModuleEnabled("wowheadLink", button:GetChecked())
+        self:RelayoutPanel()
     end)
-    self.widgets.wowheadLinkCheckbox = wlEnable
-    self.widgets.wowheadLinkReloadIndicator = self:CreateReloadIndicator(content, wlEnable)
-    y = y - 30
+    self.widgets.wowheadLinkCheckbox = wl.checkbox
+    self.widgets.wowheadLinkReloadIndicator = wl.reloadIndicator
 
-    local wlDesc = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    wlDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    local wlDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    wlDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
     wlDesc:SetWidth(520)
     wlDesc:SetJustifyH("LEFT")
     wlDesc:SetText("Press Ctrl+C while hovering over an item to copy its Wowhead link. Default keybind is Ctrl+C.")
-    y = y - 36
+    cy = cy - 30
 
-    -- Auto Rep Switch section
-    local arsLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    arsLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
-    arsLabel:SetText("Auto Rep Switch")
-    y = y - 24
+    wl.optionsHeight = math.abs(cy)
+    c:SetHeight(wl.optionsHeight)
 
-    local arsEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    arsEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
-    arsEnable.Text:SetText("Enable Auto Rep Switch Module")
-    arsEnable:SetScript("OnClick", function(button)
-        local checked = button:GetChecked()
-        self.parent:SetModuleEnabled("autoRepSwitch", checked)
+    ---------------------------------------------------------------------------
+    -- AUTO REP SWITCH
+    ---------------------------------------------------------------------------
+    local ars = self:CreateSection(content, "Auto Rep Switch", "autoRepSwitch", true)
+    c = ars.container
+    cy = 0
+
+    ars.checkbox:SetScript("OnClick", function(button)
+        self.parent:SetModuleEnabled("autoRepSwitch", button:GetChecked())
+        self:RelayoutPanel()
     end)
-    self.widgets.autoRepSwitchCheckbox = arsEnable
-    self.widgets.autoRepSwitchReloadIndicator = self:CreateReloadIndicator(content, arsEnable)
-    y = y - 30
+    self.widgets.autoRepSwitchCheckbox = ars.checkbox
+    self.widgets.autoRepSwitchReloadIndicator = ars.reloadIndicator
 
-    local arsDesc = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    arsDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    local arsDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    arsDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
     arsDesc:SetWidth(520)
     arsDesc:SetJustifyH("LEFT")
     arsDesc:SetText("Automatically switch the watched reputation to the faction you just gained reputation with.")
-    y = y - 36
+    cy = cy - 30
 
-    -- Smart Teleport Suggestions section
-    local stLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    stLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
-    stLabel:SetText("Smart Teleport Suggestions")
-    y = y - 24
+    ars.optionsHeight = math.abs(cy)
+    c:SetHeight(ars.optionsHeight)
 
-    local stEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    stEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
-    stEnable.Text:SetText("Enable Smart Teleport Suggestions Module")
-    stEnable:SetScript("OnClick", function(button)
-        local checked = button:GetChecked()
-        self.parent:SetModuleEnabled("smartTeleport", checked)
+    ---------------------------------------------------------------------------
+    -- SMART TELEPORT SUGGESTIONS
+    ---------------------------------------------------------------------------
+    local st = self:CreateSection(content, "Smart Teleport Suggestions", "smartTeleport", true)
+    c = st.container
+    cy = 0
+
+    st.checkbox:SetScript("OnClick", function(button)
+        self.parent:SetModuleEnabled("smartTeleport", button:GetChecked())
+        self:RelayoutPanel()
     end)
-    self.widgets.smartTeleportCheckbox = stEnable
-    self.widgets.smartTeleportReloadIndicator = self:CreateReloadIndicator(content, stEnable)
-    y = y - 30
+    self.widgets.smartTeleportCheckbox = st.checkbox
+    self.widgets.smartTeleportReloadIndicator = st.reloadIndicator
 
-    local stDesc = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    stDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    local stDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    stDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
     stDesc:SetWidth(520)
     stDesc:SetJustifyH("LEFT")
     stDesc:SetText("Shows context-relevant teleports you own when viewing the World Map. Toggle with a keybind while the map is open.")
-    y = y - 36
+    cy = cy - 30
 
-    -- Chat Notifier section
-    local cnLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    cnLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
-    cnLabel:SetText("Chat Notifier")
-    y = y - 24
+    st.optionsHeight = math.abs(cy)
+    c:SetHeight(st.optionsHeight)
 
-    local cnEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    cnEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
-    cnEnable.Text:SetText("Enable Chat Notifier Module")
-    cnEnable:SetScript("OnClick", function(button)
-        local checked = button:GetChecked()
-        self.parent:SetModuleEnabled("chatNotifier", checked)
+    ---------------------------------------------------------------------------
+    -- CHAT NOTIFIER
+    ---------------------------------------------------------------------------
+    local cn = self:CreateSection(content, "Chat Notifier", "chatNotifier", true)
+    c = cn.container
+    cy = 0
+
+    cn.checkbox:SetScript("OnClick", function(button)
+        self.parent:SetModuleEnabled("chatNotifier", button:GetChecked())
+        self:RelayoutPanel()
         self:UpdateChatNotifierChildControls()
     end)
-    self.widgets.chatNotifierCheckbox = cnEnable
-    self.widgets.chatNotifierReloadIndicator = self:CreateReloadIndicator(content, cnEnable)
-    y = y - 30
+    self.widgets.chatNotifierCheckbox = cn.checkbox
+    self.widgets.chatNotifierReloadIndicator = cn.reloadIndicator
 
-    local cnDesc = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    cnDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    local cnDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    cnDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
     cnDesc:SetWidth(520)
     cnDesc:SetJustifyH("LEFT")
     cnDesc:SetText("Plays a notification sound when a new message appears in any checked channel below.")
-    y = y - 24
+    cy = cy - 24
 
-    -- Sound selector dropdown
-    local cnSoundLabel = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    cnSoundLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    local cnSoundLabel = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    cnSoundLabel:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
     cnSoundLabel:SetText("Sound:")
 
-    local cnSoundDropdown = CreateFrame("Frame", "BOLTChatNotifierSoundDropdown", content, "UIDropDownMenuTemplate")
+    local cnSoundDropdown = CreateFrame("Frame", "BOLTChatNotifierSoundDropdown", c, "UIDropDownMenuTemplate")
     self.widgets.chatNotifierSoundDropdown = cnSoundDropdown
     UIDropDownMenu_SetWidth(cnSoundDropdown, 150)
     UIDropDownMenu_Initialize(cnSoundDropdown, function(dropdown, level)
@@ -541,29 +596,24 @@ function Config:CreateInterfaceOptionsPanel()
     cnSoundDropdown:ClearAllPoints()
     cnSoundDropdown:SetPoint("LEFT", cnSoundLabel, "RIGHT", -15, -2)
 
-    -- Preview button
-    local cnPreviewBtn = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+    local cnPreviewBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
     cnPreviewBtn:SetSize(70, 22)
     cnPreviewBtn:SetPoint("LEFT", cnSoundDropdown, "RIGHT", -10, 2)
     cnPreviewBtn:SetText("Preview")
     cnPreviewBtn:SetScript("OnClick", function()
         local chatMod = self.parent.modules.chatNotifier
-        if chatMod then
-            PlaySound(chatMod:GetSoundID(), "Master")
-        end
+        if chatMod then PlaySound(chatMod:GetSoundID(), "Master") end
     end)
     self.widgets.chatNotifierPreviewBtn = cnPreviewBtn
-    y = y - 36
+    cy = cy - 36
 
-    -- Channel multi-select dropdown
-    local cnChannelsLabel = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    cnChannelsLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    local cnChannelsLabel = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    cnChannelsLabel:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
     cnChannelsLabel:SetText("Channels:")
 
     local chatMod = self.parent.modules.chatNotifier
     local channelTypes = chatMod and chatMod.CHANNEL_TYPES or {}
 
-    -- Build initial selection from saved config
     self.widgets.chatNotifierSelectedChannels = {}
     if chatMod then
         for _, ch in ipairs(channelTypes) do
@@ -585,7 +635,7 @@ function Config:CreateInterfaceOptionsPanel()
     end
     self.widgets.UpdateChatNotifierDropdownText = UpdateChatNotifierDropdownText
 
-    local cnChannelsDropdown = CreateFrame("Frame", "BOLTChatNotifierChannelsDropdown", content, "UIDropDownMenuTemplate")
+    local cnChannelsDropdown = CreateFrame("Frame", "BOLTChatNotifierChannelsDropdown", c, "UIDropDownMenuTemplate")
     cnChannelsDropdown:SetPoint("LEFT", cnChannelsLabel, "RIGHT", -15, -2)
     UIDropDownMenu_SetWidth(cnChannelsDropdown, 250)
     UIDropDownMenu_Initialize(cnChannelsDropdown, function(dropdown, level)
@@ -608,35 +658,34 @@ function Config:CreateInterfaceOptionsPanel()
     end)
     self.widgets.chatNotifierChannelsDropdown = cnChannelsDropdown
     UpdateChatNotifierDropdownText()
-    y = y - 36
+    cy = cy - 36
 
-    -- Achievement Tracker section
-    local atLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    atLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
-    atLabel:SetText("Achievement Progress Tracker")
-    y = y - 24
+    cn.optionsHeight = math.abs(cy)
+    c:SetHeight(cn.optionsHeight)
 
-    local atEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    atEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
-    atEnable.Text:SetText("Enable Achievement Progress Tracker")
-    atEnable:SetScript("OnClick", function(button)
-        local checked = button:GetChecked()
-        self.parent:SetModuleEnabled("achievementTracker", checked)
+    ---------------------------------------------------------------------------
+    -- ACHIEVEMENT TRACKER
+    ---------------------------------------------------------------------------
+    local at = self:CreateSection(content, "Achievement Progress Tracker", "achievementTracker", true)
+    c = at.container
+    cy = 0
+
+    at.checkbox:SetScript("OnClick", function(button)
+        self.parent:SetModuleEnabled("achievementTracker", button:GetChecked())
+        self:RelayoutPanel()
     end)
-    self.widgets.achievementTrackerCheckbox = atEnable
-    self.widgets.achievementTrackerReloadIndicator = self:CreateReloadIndicator(content, atEnable)
-    y = y - 30
+    self.widgets.achievementTrackerCheckbox = at.checkbox
+    self.widgets.achievementTrackerReloadIndicator = at.reloadIndicator
 
-    local atDesc = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    atDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    local atDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    atDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
     atDesc:SetWidth(520)
     atDesc:SetJustifyH("LEFT")
     atDesc:SetText("Prints a chat message whenever an action you perform advances progress on any achievement (e.g. /love a critter, completing a quest, defeating a boss).")
-    y = y - 36
+    cy = cy - 36
 
-    -- Achievement category filter dropdown
-    local atCatLabel = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    atCatLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    local atCatLabel = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    atCatLabel:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
     atCatLabel:SetText("Track Categories:")
 
     local function UpdateAchCategoryDropdownText()
@@ -664,7 +713,7 @@ function Config:CreateInterfaceOptionsPanel()
     end
     self.widgets.UpdateAchCategoryDropdownText = UpdateAchCategoryDropdownText
 
-    local atCatDropdown = CreateFrame("Frame", "BOLTAchievementCategoryDropdown", content, "UIDropDownMenuTemplate")
+    local atCatDropdown = CreateFrame("Frame", "BOLTAchievementCategoryDropdown", c, "UIDropDownMenuTemplate")
     atCatDropdown:SetPoint("LEFT", atCatLabel, "RIGHT", -15, -2)
     UIDropDownMenu_SetWidth(atCatDropdown, 280)
     UIDropDownMenu_Initialize(atCatDropdown, function(dropdown, level)
@@ -672,7 +721,6 @@ function Config:CreateInterfaceOptionsPanel()
         if not atMod then return end
         local topCats = atMod:GetTopLevelCategories()
 
-        -- "None" option to deselect all
         local noneInfo = UIDropDownMenu_CreateInfo()
         noneInfo.text = "|cff00aaff-- None --|r"
         noneInfo.isNotRadio = true
@@ -702,8 +750,7 @@ function Config:CreateInterfaceOptionsPanel()
     self.widgets.achievementCategoryDropdown = atCatDropdown
     C_Timer.After(0.1, UpdateAchCategoryDropdownText)
 
-    -- Rescan button
-    local atRescanBtn = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+    local atRescanBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
     atRescanBtn:SetSize(80, 22)
     atRescanBtn:SetPoint("LEFT", atCatDropdown, "RIGHT", -10, 2)
     atRescanBtn:SetText("Rescan")
@@ -714,63 +761,62 @@ function Config:CreateInterfaceOptionsPanel()
         end
     end)
     self.widgets.achievementRescanButton = atRescanBtn
-    y = y - 36
+    cy = cy - 36
 
-    -- Saved Instances section
-    local siLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    siLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
-    siLabel:SetText("Saved Instances")
-    y = y - 24
+    at.optionsHeight = math.abs(cy)
+    c:SetHeight(at.optionsHeight)
 
-    local siEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    siEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
-    siEnable.Text:SetText("Enable Saved Instances Module")
-    siEnable:SetScript("OnClick", function(button)
-        local checked = button:GetChecked()
-        self.parent:SetModuleEnabled("savedInstances", checked)
+    ---------------------------------------------------------------------------
+    -- SAVED INSTANCES
+    ---------------------------------------------------------------------------
+    local si = self:CreateSection(content, "Saved Instances", "savedInstances", true)
+    c = si.container
+    cy = 0
+
+    si.checkbox:SetScript("OnClick", function(button)
+        self.parent:SetModuleEnabled("savedInstances", button:GetChecked())
+        self:RelayoutPanel()
     end)
-    self.widgets.savedInstancesCheckbox = siEnable
-    self.widgets.savedInstancesReloadIndicator = self:CreateReloadIndicator(content, siEnable)
-    y = y - 30
+    self.widgets.savedInstancesCheckbox = si.checkbox
+    self.widgets.savedInstancesReloadIndicator = si.reloadIndicator
 
-    local siDesc = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    siDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    local siDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    siDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
     siDesc:SetWidth(520)
     siDesc:SetJustifyH("LEFT")
     siDesc:SetText("Lists current expansion dungeons and raids you haven't completed yet. Type /boltsaved to print the list.")
-    y = y - 36
+    cy = cy - 30
 
-    -- Sound Muter section
-    local smLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    smLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, y)
-    smLabel:SetText("Sound Muter")
-    y = y - 24
+    si.optionsHeight = math.abs(cy)
+    c:SetHeight(si.optionsHeight)
 
-    local smEnable = CreateFrame("CheckButton", nil, content, "InterfaceOptionsCheckButtonTemplate")
-    smEnable:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
-    smEnable.Text:SetText("Enable Sound Muter Module")
-    smEnable:SetScript("OnClick", function(button)
-        local checked = button:GetChecked()
-        self.parent:SetModuleEnabled("soundMuter", checked)
-        self:UpdateSoundMuterChildControls()
+    ---------------------------------------------------------------------------
+    -- SOUND MUTER
+    ---------------------------------------------------------------------------
+    local sm = self:CreateSection(content, "Sound Muter", "soundMuter", true)
+    c = sm.container
+    cy = 0
+
+    sm.checkbox:SetScript("OnClick", function(button)
+        self.parent:SetModuleEnabled("soundMuter", button:GetChecked())
+        self:RelayoutPanel()
     end)
-    self.widgets.soundMuterCheckbox = smEnable
-    self.widgets.soundMuterReloadIndicator = self:CreateReloadIndicator(content, smEnable)
-    y = y - 30
+    self.widgets.soundMuterCheckbox = sm.checkbox
+    self.widgets.soundMuterReloadIndicator = sm.reloadIndicator
 
-    local smDesc = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    smDesc:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
+    local smDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    smDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
     smDesc:SetWidth(520)
     smDesc:SetJustifyH("LEFT")
     smDesc:SetText("Mute specific sound IDs so they never play in-game. Useful for silencing ambient music or annoying repeated sounds.")
-    y = y - 36
+    cy = cy - 30
 
-    -- Input row: editbox + add button
-    local smInputLabel = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    smInputLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    -- Input row: editbox + add button + preview
+    local smInputLabel = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    smInputLabel:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
     smInputLabel:SetText("Sound ID:")
 
-    local smInput = CreateFrame("EditBox", "BOLTSoundMuterInput", content, "InputBoxTemplate")
+    local smInput = CreateFrame("EditBox", "BOLTSoundMuterInput", c, "InputBoxTemplate")
     smInput:SetSize(100, 20)
     smInput:SetPoint("LEFT", smInputLabel, "RIGHT", 8, 0)
     smInput:SetAutoFocus(false)
@@ -778,7 +824,7 @@ function Config:CreateInterfaceOptionsPanel()
     smInput:SetMaxLetters(10)
     self.widgets.soundMuterInput = smInput
 
-    local smAddBtn = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+    local smAddBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
     smAddBtn:SetSize(50, 22)
     smAddBtn:SetPoint("LEFT", smInput, "RIGHT", 6, 0)
     smAddBtn:SetText("Add")
@@ -796,7 +842,7 @@ function Config:CreateInterfaceOptionsPanel()
     end)
     self.widgets.soundMuterAddBtn = smAddBtn
 
-    local smPreviewBtn = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+    local smPreviewBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
     smPreviewBtn:SetSize(70, 22)
     smPreviewBtn:SetPoint("LEFT", smAddBtn, "RIGHT", 4, 0)
     smPreviewBtn:SetText("Preview")
@@ -808,11 +854,34 @@ function Config:CreateInterfaceOptionsPanel()
         end
     end)
     self.widgets.soundMuterPreviewBtn = smPreviewBtn
-    y = y - 30
+    cy = cy - 30
+
+    -- "Add Currently Playing Music" button
+    local smAddMusicBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
+    smAddMusicBtn:SetSize(200, 22)
+    smAddMusicBtn:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
+    smAddMusicBtn:SetText("Add Currently Playing Music")
+    smAddMusicBtn:SetScript("OnClick", function()
+        local mod = self.parent.modules.soundMuter
+        if not mod then return end
+        local musicID = mod:GetCurrentZoneMusicID()
+        if musicID then
+            if mod:AddSoundID(musicID) then
+                self.parent:Print(("Added zone music ID |cff00ff00%s|r to mute list."):format(tostring(musicID)))
+                self:RefreshSoundMuterList()
+            else
+                self.parent:Print(("Music ID |cff00ff00%s|r is already in the mute list."):format(tostring(musicID)))
+            end
+        else
+            self.parent:Print("No zone music currently playing, or the music ID could not be detected.")
+        end
+    end)
+    self.widgets.soundMuterAddMusicBtn = smAddMusicBtn
+    cy = cy - 30
 
     -- Scrollable list of muted sound IDs
-    local smListFrame = CreateFrame("Frame", nil, content, "BackdropTemplate")
-    smListFrame:SetPoint("TOPLEFT", content, "TOPLEFT", 50, y)
+    local smListFrame = CreateFrame("Frame", nil, c, "BackdropTemplate")
+    smListFrame:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
     smListFrame:SetSize(400, 120)
     smListFrame:SetBackdrop({
         bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -833,24 +902,30 @@ function Config:CreateInterfaceOptionsPanel()
     smScrollFrame:SetScrollChild(smScrollChild)
     self.widgets.soundMuterScrollChild = smScrollChild
     self.widgets.soundMuterRows = {}
+    cy = cy - 130
 
-    y = y - 130
-
-    -- Populate the list on first show
     C_Timer.After(0.1, function() self:RefreshSoundMuterList() end)
 
-    -- Reload button and version
-    local reloadBtn = CreateFrame("Button", "BOLTOptionsReloadButton", content, "UIPanelButtonTemplate")
-    reloadBtn:SetSize(120, 25); reloadBtn:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y); reloadBtn:SetText("Reload UI")
-    reloadBtn:SetScript("OnClick", ReloadUI)
-    y = y - 40
-    local versionText = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    versionText:SetPoint("TOPLEFT", content, "TOPLEFT", 30, y)
-    versionText:SetText("B.O.L.T v" .. (self.parent and self.parent.version or "?"))
-    y = y - 30
+    sm.optionsHeight = math.abs(cy)
+    c:SetHeight(sm.optionsHeight)
 
-    content:SetHeight(math.abs(y) + 100)
+    ---------------------------------------------------------------------------
+    -- FOOTER
+    ---------------------------------------------------------------------------
+    local reloadBtn = CreateFrame("Button", "BOLTOptionsReloadButton", content, "UIPanelButtonTemplate")
+    reloadBtn:SetSize(120, 25)
+    reloadBtn:SetText("Reload UI")
+    reloadBtn:SetScript("OnClick", ReloadUI)
+    self.widgets.reloadButton = reloadBtn
+
+    local versionText = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    versionText:SetText("B.O.L.T v" .. (self.parent and self.parent.version or "?"))
+    self.widgets.versionText = versionText
+
     scrollFrame:SetScript("OnSizeChanged", function(frame, w, h) content:SetWidth(w - 20) end)
+
+    -- Initial layout
+    self:RelayoutPanel()
 
     -- Register Settings category (modern API for 10.0+)
     if Settings and Settings.RegisterCanvasLayoutCategory then
@@ -858,7 +933,6 @@ function Config:CreateInterfaceOptionsPanel()
         self.settingsCategory = category
         Settings.RegisterAddOnCategory(category)
     elseif InterfaceOptions_AddCategory then
-        -- Fallback for older clients (pre-10.0)
         InterfaceOptions_AddCategory(panel)
         self.settingsCategory = panel
     else
@@ -871,13 +945,10 @@ function Config:CreateInterfaceOptionsPanel()
 end
 
 function Config:UpdateGameMenuChildControls()
-    local enabled = false
-    if self.parent and self.parent.IsModuleEnabled then
-        enabled = self.parent:IsModuleEnabled("gameMenu")
-    end
+    self:RelayoutPanel()
+    local enabled = self.parent:IsModuleEnabled("gameMenu")
     local w = self.widgets
 
-    -- Generic checkboxes
     if w and w.leaveGroupCheckbox then
         w.leaveGroupCheckbox:SetEnabled(enabled); w.leaveGroupCheckbox:SetAlpha(enabled and 1 or 0.5)
     end
@@ -894,30 +965,26 @@ function Config:UpdateGameMenuChildControls()
         w.volumeButtonCheckbox:SetEnabled(enabled); w.volumeButtonCheckbox:SetAlpha(enabled and 1 or 0.5)
     end
 
-    -- Raid marker buttons (may be a list of buttons and a clear button)
     local groupToolsEnabled = false
     if enabled and self.parent and self.parent.GetConfig then
         groupToolsEnabled = self.parent:GetConfig("gameMenu", "groupToolsEnabled")
     end
     if w and w.raidMarkerButtons then
         for _, b in ipairs(w.raidMarkerButtons) do
-            if b then
-                b:SetEnabled(groupToolsEnabled); b:SetAlpha(groupToolsEnabled and 1 or 0.5)
-            end
+            if b then b:SetEnabled(groupToolsEnabled); b:SetAlpha(groupToolsEnabled and 1 or 0.5) end
         end
         if w.raidMarkerClearButton then
-            w.raidMarkerClearButton:SetEnabled(groupToolsEnabled); w.raidMarkerClearButton:SetAlpha(groupToolsEnabled and
-                1 or 0.5)
+            w.raidMarkerClearButton:SetEnabled(groupToolsEnabled); w.raidMarkerClearButton:SetAlpha(groupToolsEnabled and 1 or 0.5)
         end
     end
 
-    -- If the GameMenu module is loaded, ask it to refresh its internal state for consistency
     if self.parent and self.parent.modules and self.parent.modules.gameMenu and self.parent.modules.gameMenu.UpdateGameMenu then
         self.parent.modules.gameMenu:UpdateGameMenu()
     end
 end
 
 function Config:UpdatePlaygroundChildControls()
+    self:RelayoutPanel()
     local enabled = self.parent:IsModuleEnabled("playground")
     local w = self.widgets
 
@@ -925,12 +992,10 @@ function Config:UpdatePlaygroundChildControls()
         w.favoriteToyCheckbox:SetEnabled(enabled)
         w.favoriteToyCheckbox:SetAlpha(enabled and 1 or 0.5)
     end
-
     if w.speedometerCheckbox then
         w.speedometerCheckbox:SetEnabled(enabled)
         w.speedometerCheckbox:SetAlpha(enabled and 1 or 0.5)
     end
-
     if w.speedometerPositionDropdown then
         local speedometerEnabled = enabled and self.parent:GetConfig("playground", "showSpeedometer")
         if speedometerEnabled then
@@ -939,7 +1004,6 @@ function Config:UpdatePlaygroundChildControls()
             UIDropDownMenu_DisableDropDown(w.speedometerPositionDropdown)
         end
     end
-
     local canChooseToy = enabled and (self.parent:GetConfig("playground", "showFavoriteToy") ~= false)
     if w.chooseToyButton then
         w.chooseToyButton:SetEnabled(canChooseToy)
@@ -949,7 +1013,6 @@ function Config:UpdatePlaygroundChildControls()
         w.currentToyRow:SetAlpha(canChooseToy and 1 or 0.5)
     end
 
-    -- Update the actual speedometer visibility if module is loaded
     if self.parent.modules and self.parent.modules.playground and self.parent.modules.playground.UpdateSpeedometerVisibility then
         self.parent.modules.playground:UpdateSpeedometerVisibility()
     end
@@ -962,8 +1025,8 @@ function Config:RefreshAll()
     self:UpdatePlaygroundChildControls()
     self:UpdateSkyridingChildControls()
     self:UpdateChatNotifierChildControls()
-    self:UpdateSoundMuterChildControls()
     self:UpdateCurrentToyDisplay()
+    self:RelayoutPanel()
 end
 
 function Config:RefreshOptionsPanel()
@@ -972,50 +1035,25 @@ function Config:RefreshOptionsPanel()
         if w.gameMenuCheckbox then w.gameMenuCheckbox:SetChecked(self.parent:IsModuleEnabled("gameMenu")) end
         if w.leaveGroupCheckbox then w.leaveGroupCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showLeaveGroup")) end
         if w.reloadCheckbox then w.reloadCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showReloadButton")) end
-        if w.groupToolsCheckbox then
-            w.groupToolsCheckbox:SetChecked(self.parent:GetConfig("gameMenu",
-                "groupToolsEnabled"))
-        end
-        if w.battleTextCheckbox then
-            w.battleTextCheckbox:SetChecked(self.parent:GetConfig("gameMenu",
-                "showBattleTextToggles"))
-        end
-        if w.volumeButtonCheckbox then
-            w.volumeButtonCheckbox:SetChecked(self.parent:GetConfig("gameMenu",
-                "showVolumeButton"))
-        end
-        -- Update raid marker visuals
+        if w.groupToolsCheckbox then w.groupToolsCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "groupToolsEnabled")) end
+        if w.battleTextCheckbox then w.battleTextCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showBattleTextToggles")) end
+        if w.volumeButtonCheckbox then w.volumeButtonCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showVolumeButton")) end
         if w.raidMarkerButtons then
             local idx = self.parent:GetConfig("gameMenu", "raidMarkerIndex") or 1
             for i, b in ipairs(w.raidMarkerButtons) do b:SetAlpha((i == idx) and 1 or 0.6) end
             if w.raidMarkerClearButton then w.raidMarkerClearButton:SetAlpha(idx == 0 and 1 or 0.6) end
         end
         if w.playgroundCheckbox then w.playgroundCheckbox:SetChecked(self.parent:IsModuleEnabled("playground")) end
-        if w.favoriteToyCheckbox then
-            w.favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground",
-                "showFavoriteToy"))
-        end
-        if w.speedometerCheckbox then
-            w.speedometerCheckbox:SetChecked(self.parent:GetConfig("playground",
-                "showSpeedometer"))
-        end
+        if w.favoriteToyCheckbox then w.favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground", "showFavoriteToy")) end
+        if w.speedometerCheckbox then w.speedometerCheckbox:SetChecked(self.parent:GetConfig("playground", "showSpeedometer")) end
         if w.speedometerPositionDropdown then
             local currentPos = self.parent:GetConfig("playground", "statsPosition") or "TOPRIGHT"
             UIDropDownMenu_SetSelectedValue(w.speedometerPositionDropdown, currentPos)
-            local posNames = {
-                TOPLEFT = "Top Left",
-                TOPRIGHT = "Top Right",
-                BOTTOMLEFT = "Bottom Left",
-                BOTTOMRIGHT =
-                "Bottom Right"
-            }
+            local posNames = { TOPLEFT = "Top Left", TOPRIGHT = "Top Right", BOTTOMLEFT = "Bottom Left", BOTTOMRIGHT = "Bottom Right" }
             UIDropDownMenu_SetText(w.speedometerPositionDropdown, posNames[currentPos] or "Top Right")
         end
         if w.skyridingCheckbox then w.skyridingCheckbox:SetChecked(self.parent:IsModuleEnabled("skyriding")) end
-        if w.pitchControlCheckbox then
-            w.pitchControlCheckbox:SetChecked(self.parent:GetConfig("skyriding",
-                "enablePitchControl"))
-        end
+        if w.pitchControlCheckbox then w.pitchControlCheckbox:SetChecked(self.parent:GetConfig("skyriding", "enablePitchControl")) end
         if w.wowheadLinkCheckbox then w.wowheadLinkCheckbox:SetChecked(self.parent:IsModuleEnabled("wowheadLink")) end
         if w.autoRepSwitchCheckbox then w.autoRepSwitchCheckbox:SetChecked(self.parent:IsModuleEnabled("autoRepSwitch")) end
         if w.smartTeleportCheckbox then w.smartTeleportCheckbox:SetChecked(self.parent:IsModuleEnabled("smartTeleport")) end
@@ -1032,9 +1070,7 @@ function Config:RefreshOptionsPanel()
                 for _, ch in ipairs(chTypes) do
                     w.chatNotifierSelectedChannels[ch.event] = chatMod:IsChannelEnabled(ch.event)
                 end
-                if w.UpdateChatNotifierDropdownText then
-                    w.UpdateChatNotifierDropdownText()
-                end
+                if w.UpdateChatNotifierDropdownText then w.UpdateChatNotifierDropdownText() end
             end
         end
         -- Chat Notifier sound dropdown
@@ -1051,10 +1087,12 @@ function Config:RefreshOptionsPanel()
                 end
             end
         end
+        self:RelayoutPanel()
     end)
 end
 
 function Config:UpdateSkyridingChildControls()
+    self:RelayoutPanel()
     local sk = self.parent:IsModuleEnabled("skyriding")
     local pitch = self.parent:GetConfig("skyriding", "enablePitchControl")
     local w = self.widgets
@@ -1062,54 +1100,27 @@ function Config:UpdateSkyridingChildControls()
         w.pitchControlCheckbox:SetEnabled(sk); w.pitchControlCheckbox:SetAlpha(sk and 1 or 0.5)
     end
     if w.invertPitchCheckbox then
-        local should = sk and pitch; w.invertPitchCheckbox:SetEnabled(should); w.invertPitchCheckbox:SetAlpha(should and
-            1 or 0.5)
+        local should = sk and pitch; w.invertPitchCheckbox:SetEnabled(should); w.invertPitchCheckbox:SetAlpha(should and 1 or 0.5)
     end
 end
 
 function Config:UpdateChatNotifierChildControls()
+    self:RelayoutPanel()
     local enabled = self.parent:IsModuleEnabled("chatNotifier")
     local w = self.widgets
 
     if w.chatNotifierSoundDropdown then
-        if enabled then
-            UIDropDownMenu_EnableDropDown(w.chatNotifierSoundDropdown)
-        else
-            UIDropDownMenu_DisableDropDown(w.chatNotifierSoundDropdown)
-        end
+        if enabled then UIDropDownMenu_EnableDropDown(w.chatNotifierSoundDropdown)
+        else UIDropDownMenu_DisableDropDown(w.chatNotifierSoundDropdown) end
     end
     if w.chatNotifierPreviewBtn then
         w.chatNotifierPreviewBtn:SetEnabled(enabled)
         w.chatNotifierPreviewBtn:SetAlpha(enabled and 1 or 0.5)
     end
     if w.chatNotifierChannelsDropdown then
-        if enabled then
-            UIDropDownMenu_EnableDropDown(w.chatNotifierChannelsDropdown)
-        else
-            UIDropDownMenu_DisableDropDown(w.chatNotifierChannelsDropdown)
-        end
+        if enabled then UIDropDownMenu_EnableDropDown(w.chatNotifierChannelsDropdown)
+        else UIDropDownMenu_DisableDropDown(w.chatNotifierChannelsDropdown) end
     end
-end
-
-function Config:UpdateSoundMuterChildControls()
-    local enabled = self.parent:IsModuleEnabled("soundMuter")
-    local w = self.widgets
-    if w.soundMuterInput then
-        w.soundMuterInput:SetEnabled(enabled)
-        w.soundMuterInput:SetAlpha(enabled and 1 or 0.5)
-    end
-    if w.soundMuterAddBtn then
-        w.soundMuterAddBtn:SetEnabled(enabled)
-        w.soundMuterAddBtn:SetAlpha(enabled and 1 or 0.5)
-    end
-    if w.soundMuterPreviewBtn then
-        w.soundMuterPreviewBtn:SetEnabled(enabled)
-        w.soundMuterPreviewBtn:SetAlpha(enabled and 1 or 0.5)
-    end
-    if w.soundMuterListFrame then
-        w.soundMuterListFrame:SetAlpha(enabled and 1 or 0.5)
-    end
-    self:RefreshSoundMuterList()
 end
 
 function Config:RefreshSoundMuterList()
