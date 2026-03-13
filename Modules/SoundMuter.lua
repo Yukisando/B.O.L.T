@@ -8,6 +8,8 @@ local MAX_RECENT_SOUNDS = 10
 
 function SoundMuter:OnInitialize()
     self.recentSounds = {}
+    self.mutedLookup = {}
+
     self:BuildSoundKitCache()
     self:InstallSoundHooks()
 end
@@ -15,39 +17,73 @@ end
 function SoundMuter:BuildSoundKitCache()
     self.soundKitNames = {}
     if not SOUNDKIT then return end
+
     for name, id in pairs(SOUNDKIT) do
         self.soundKitNames[id] = name
     end
 end
 
--- Hook PlaySound and PlaySoundFile to capture recently played sounds
+function SoundMuter:RebuildLookup()
+    wipe(self.mutedLookup)
+
+    local list = self:GetMutedSoundIDs()
+    for _, id in ipairs(list) do
+        self.mutedLookup[id] = true
+    end
+end
+
+function SoundMuter:IsMuted(id)
+    return self.mutedLookup[id] == true
+end
+
 function SoundMuter:InstallSoundHooks()
     if self.hooksInstalled then return end
     self.hooksInstalled = true
 
     local module = self
 
-    hooksecurefunc("PlaySound", function(soundKitID)
-        if type(soundKitID) ~= "number" or soundKitID <= 0 then return end
-        module:RecordRecentSound(soundKitID, "SoundKit")
-    end)
+    local OriginalPlaySound = PlaySound
+    local OriginalPlaySoundFile = PlaySoundFile
 
-    hooksecurefunc("PlaySoundFile", function(soundFile)
-        if not soundFile then return end
+    PlaySound = function(soundKitID, ...)
+        if type(soundKitID) == "number" then
+            module:RecordRecentSound(soundKitID, "SoundKit")
+
+            if module:IsMuted(soundKitID) then
+                return
+            end
+        end
+
+        return OriginalPlaySound(soundKitID, ...)
+    end
+
+    PlaySoundFile = function(soundFile, ...)
+        if not soundFile then
+            return OriginalPlaySoundFile(soundFile, ...)
+        end
+
         local id = tonumber(soundFile)
-        if id and id > 0 then
+
+        if id then
             module:RecordRecentSound(id, "FileID")
-        elseif type(soundFile) == "string" then
+
+            if module:IsMuted(id) then
+                return
+            end
+        else
             module:RecordRecentSound(soundFile, "FilePath")
         end
-    end)
+
+        return OriginalPlaySoundFile(soundFile, ...)
+    end
 end
 
 function SoundMuter:RecordRecentSound(id, sourceType)
-    -- Skip duplicate of the most recent entry to reduce spam
     if #self.recentSounds > 0 then
         local last = self.recentSounds[1]
-        if last.id == id and last.sourceType == sourceType then return end
+        if last.id == id and last.sourceType == sourceType then
+            return
+        end
     end
 
     local entry = {
@@ -72,19 +108,11 @@ function SoundMuter:GetRecentSounds()
 end
 
 function SoundMuter:OnEnable()
-    local cfg = self.parent:GetConfig("soundMuter") or {}
-    local mutedSounds = cfg.mutedSoundIDs or {}
-    for _, soundID in ipairs(mutedSounds) do
-        MuteSoundFile(soundID)
-    end
+    self:RebuildLookup()
 end
 
 function SoundMuter:OnDisable()
-    local cfg = self.parent:GetConfig("soundMuter") or {}
-    local mutedSounds = cfg.mutedSoundIDs or {}
-    for _, soundID in ipairs(mutedSounds) do
-        UnmuteSoundFile(soundID)
-    end
+    wipe(self.mutedLookup)
 end
 
 function SoundMuter:GetMutedSoundIDs()
@@ -94,27 +122,34 @@ end
 
 function SoundMuter:AddSoundID(soundID)
     local list = self:GetMutedSoundIDs()
+
     for _, id in ipairs(list) do
-        if id == soundID then return false end
+        if id == soundID then
+            return false
+        end
     end
+
     table.insert(list, soundID)
     self.parent:SetConfig(list, "soundMuter", "mutedSoundIDs")
-    if self.parent:IsModuleEnabled("soundMuter") then
-        MuteSoundFile(soundID)
-    end
+
+    self:RebuildLookup()
+
     return true
 end
 
 function SoundMuter:RemoveSoundID(soundID)
     local list = self:GetMutedSoundIDs()
+
     for i, id in ipairs(list) do
         if id == soundID then
             table.remove(list, i)
             self.parent:SetConfig(list, "soundMuter", "mutedSoundIDs")
-            UnmuteSoundFile(soundID)
+
+            self:RebuildLookup()
             return true
         end
     end
+
     return false
 end
 
