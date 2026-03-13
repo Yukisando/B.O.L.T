@@ -855,6 +855,15 @@ function Config:CreateInterfaceOptionsPanel()
         end
     end)
     self.widgets.soundMuterPreviewBtn = smPreviewBtn
+
+    local smRecentBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
+    smRecentBtn:SetSize(110, 22)
+    smRecentBtn:SetPoint("LEFT", smPreviewBtn, "RIGHT", 4, 0)
+    smRecentBtn:SetText("Recent Sounds")
+    smRecentBtn:SetScript("OnClick", function()
+        self:ShowRecentSoundsPopup()
+    end)
+    self.widgets.soundMuterRecentBtn = smRecentBtn
     cy = cy - 30
 
     -- Scrollable list of muted sound IDs
@@ -1142,6 +1151,168 @@ function Config:RefreshSoundMuterList()
 
         w.soundMuterRows[i] = row
         rowY = rowY + 22
+    end
+
+    scrollChild:SetHeight(math.max(rowY, 1))
+end
+
+-- Recent Sounds popup for Sound Muter
+function Config:ShowRecentSoundsPopup()
+    if not self.recentSoundsPopup then
+        self:CreateRecentSoundsPopup()
+    end
+    self:PopulateRecentSoundsList()
+    self.recentSoundsPopup:Show()
+end
+
+function Config:CreateRecentSoundsPopup()
+    local popup = CreateFrame("Frame", "BOLTRecentSoundsPopup", UIParent, "DialogBoxFrame")
+    popup:SetSize(520, 380)
+    popup:SetPoint("CENTER")
+    popup:SetFrameStrata("DIALOG")
+    popup:SetMovable(true)
+    popup:EnableMouse(true)
+    popup:RegisterForDrag("LeftButton")
+    popup:SetScript("OnDragStart", popup.StartMoving)
+    popup:SetScript("OnDragStop", popup.StopMovingOrSizing)
+
+    local title = popup:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("TOP", popup, "TOP", 0, -20)
+    title:SetText("Recent Sounds")
+
+    local close = CreateFrame("Button", nil, popup, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -5, -5)
+
+    local desc = popup:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    desc:SetPoint("TOPLEFT", popup, "TOPLEFT", 20, -45)
+    desc:SetWidth(480)
+    desc:SetJustifyH("LEFT")
+    desc:SetText("Sounds recently detected via PlaySound / PlaySoundFile hooks. Click |cff00ff00Mute|r to add a sound to your muted list.")
+
+    local refreshBtn = CreateFrame("Button", nil, popup, "UIPanelButtonTemplate")
+    refreshBtn:SetSize(70, 22)
+    refreshBtn:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -40, -42)
+    refreshBtn:SetText("Refresh")
+    refreshBtn:SetScript("OnClick", function() self:PopulateRecentSoundsList() end)
+
+    local listFrame = CreateFrame("Frame", nil, popup, "BackdropTemplate")
+    listFrame:SetPoint("TOPLEFT", popup, "TOPLEFT", 15, -72)
+    listFrame:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -15, 40)
+    listFrame:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 12,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    listFrame:SetBackdropColor(0, 0, 0, 0.8)
+    listFrame:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+
+    local scrollFrame = CreateFrame("ScrollFrame", "BOLTRecentSoundsScrollFrame", listFrame, "UIPanelScrollFrameTemplate")
+    scrollFrame:SetPoint("TOPLEFT", listFrame, "TOPLEFT", 4, -4)
+    scrollFrame:SetPoint("BOTTOMRIGHT", listFrame, "BOTTOMRIGHT", -24, 4)
+
+    local scrollChild = CreateFrame("Frame", nil, scrollFrame)
+    scrollChild:SetWidth(440)
+    scrollChild:SetHeight(1)
+    scrollFrame:SetScrollChild(scrollChild)
+
+    self.recentSoundsPopup = popup
+    self.recentSoundsScrollChild = scrollChild
+    self.recentSoundsRows = {}
+    popup:Hide()
+end
+
+function Config:PopulateRecentSoundsList()
+    local scrollChild = self.recentSoundsScrollChild
+    if not scrollChild then return end
+
+    for _, row in ipairs(self.recentSoundsRows or {}) do
+        row:Hide()
+        row:SetParent(nil)
+    end
+    self.recentSoundsRows = {}
+
+    local mod = self.parent.modules.soundMuter
+    if not mod then return end
+    local sounds = mod:GetRecentSounds()
+
+    if #sounds == 0 then
+        local empty = CreateFrame("Frame", nil, scrollChild)
+        empty:SetSize(440, 30)
+        empty:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, 0)
+        local label = empty:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+        label:SetPoint("CENTER", empty, "CENTER")
+        label:SetText("No sounds detected yet. Play some sounds and check back.")
+        self.recentSoundsRows[1] = empty
+        scrollChild:SetHeight(30)
+        return
+    end
+
+    local mutedList = mod:GetMutedSoundIDs()
+    local mutedSet = {}
+    for _, id in ipairs(mutedList) do mutedSet[id] = true end
+
+    local rowY = 0
+    for i, entry in ipairs(sounds) do
+        local row = CreateFrame("Frame", nil, scrollChild)
+        row:SetSize(440, 24)
+        row:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -rowY)
+
+        if i % 2 == 0 then
+            local bg = row:CreateTexture(nil, "BACKGROUND")
+            bg:SetAllPoints(row)
+            bg:SetColorTexture(1, 1, 1, 0.03)
+        end
+
+        local typeLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        typeLabel:SetPoint("LEFT", row, "LEFT", 4, 0)
+        local typeColor = entry.sourceType == "FileID" and "|cff00ff00" or "|cffffff00"
+        typeLabel:SetText(typeColor .. entry.sourceType .. "|r")
+
+        local idLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        idLabel:SetPoint("LEFT", typeLabel, "RIGHT", 8, 0)
+        idLabel:SetPoint("RIGHT", row, "RIGHT", -130, 0)
+        idLabel:SetJustifyH("LEFT")
+        local displayText = tostring(entry.id)
+        if entry.name then
+            displayText = displayText .. "  (" .. entry.name .. ")"
+        end
+        idLabel:SetText(displayText)
+
+        local previewBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+        previewBtn:SetSize(50, 20)
+        previewBtn:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+        previewBtn:SetText("Play")
+        local capturedEntry = entry
+        previewBtn:SetScript("OnClick", function()
+            if capturedEntry.sourceType == "SoundKit" then
+                PlaySound(capturedEntry.id)
+            else
+                PlaySoundFile(capturedEntry.id, "Master")
+            end
+        end)
+
+        local muteBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+        muteBtn:SetSize(55, 20)
+        muteBtn:SetPoint("RIGHT", previewBtn, "LEFT", -4, 0)
+        local isMuted = type(entry.id) == "number" and mutedSet[entry.id]
+        if isMuted then
+            muteBtn:SetText("|cff888888Muted|r")
+            muteBtn:SetEnabled(false)
+        else
+            muteBtn:SetText("Mute")
+            local capturedID = entry.id
+            muteBtn:SetScript("OnClick", function()
+                if type(capturedID) == "number" and capturedID > 0 then
+                    mod:AddSoundID(capturedID)
+                    self:RefreshSoundMuterList()
+                    self:PopulateRecentSoundsList()
+                end
+            end)
+        end
+
+        self.recentSoundsRows[i] = row
+        rowY = rowY + 26
     end
 
     scrollChild:SetHeight(math.max(rowY, 1))

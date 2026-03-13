@@ -395,6 +395,7 @@ end
 
 function SmartTeleport:RefreshDrawer()
     if not drawerFrame then return end
+    if InCombatLockdown() then return end
     if not WorldMapFrame or not WorldMapFrame:IsShown() then
         drawerFrame:Hide()
         return
