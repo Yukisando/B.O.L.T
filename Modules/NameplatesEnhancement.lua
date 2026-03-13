@@ -63,11 +63,19 @@ local function IsInterruptReady()
     return (cooldown.startTime + cooldown.duration - GetTime()) <= 0
 end
 
+-- Avoid the `not` operator on tainted booleans from UnitCastingInfo/UnitChannelInfo;
+-- negating them spreads taint into secure UI (breaks escape menu, etc.)
 local function UnitIsCastingInterruptible(unit)
     local name, _, _, _, _, _, _, notInterruptible = UnitCastingInfo(unit)
-    if name then return not notInterruptible end
+    if name then
+        if notInterruptible then return false end
+        return true
+    end
     name, _, _, _, _, _, _, notInterruptible = UnitChannelInfo(unit)
-    if name then return not notInterruptible end
+    if name then
+        if notInterruptible then return false end
+        return true
+    end
     return false
 end
 
@@ -78,16 +86,49 @@ local function ShouldShowInterruptWarning(unit)
     return not IsInterruptReady()
 end
 
--- Apply the correct health bar color for a nameplate unit
-local function ApplyNameplateColor(unit, healthBar)
+-- Guard flag to prevent recursion when we call SetStatusBarColor inside our hook
+local isApplyingColor = false
+
+-- Determine the desired color for a nameplate unit; returns r,g,b or nil if no override
+local function GetDesiredColor(unit)
     if ShouldShowInterruptWarning(unit) then
-        healthBar:SetStatusBarColor(INTERRUPT_WARN_R, INTERRUPT_WARN_G, INTERRUPT_WARN_B)
-        return
+        return INTERRUPT_WARN_R, INTERRUPT_WARN_G, INTERRUPT_WARN_B
     end
     local powerType = UnitPowerType(unit)
     if powerType == Enum.PowerType.Mana then
-        healthBar:SetStatusBarColor(MANA_R, MANA_G, MANA_B)
+        return MANA_R, MANA_G, MANA_B
     end
+    return nil
+end
+
+-- Apply the correct health bar color for a nameplate unit
+local function ApplyNameplateColor(unit, healthBar)
+    local r, g, b = GetDesiredColor(unit)
+    if not r then return end
+    isApplyingColor = true
+    healthBar:SetStatusBarColor(r, g, b)
+    isApplyingColor = false
+end
+
+-- Hook SetStatusBarColor on a health bar so we override Blizzard's color immediately.
+-- Widget-level hook — no taint, no frame delay, instant override.
+local function HookHealthBar(healthBar)
+    if healthBar._boltHooked then return end
+    healthBar._boltHooked = true
+    hooksecurefunc(healthBar, "SetStatusBarColor", function(bar)
+        if isApplyingColor then return end
+        if not ShouldApply() then return end
+        local unitFrame = bar:GetParent()
+        if not unitFrame or not unitFrame.unit then return end
+        local unit = unitFrame.unit
+        if not unit:match("^nameplate%d+$") then return end
+        if not IsEnemyUnit(unit) then return end
+        local r, g, b = GetDesiredColor(unit)
+        if not r then return end
+        isApplyingColor = true
+        bar:SetStatusBarColor(r, g, b)
+        isApplyingColor = false
+    end)
 end
 
 local function UpdateNameplateColor(unit)
@@ -96,17 +137,6 @@ local function UpdateNameplateColor(unit)
     local healthBar = GetHealthBar(unit)
     if not healthBar then return end
     ApplyNameplateColor(unit, healthBar)
-end
-
--- Post-hook for Blizzard's health color update — re-applies our color after
--- Blizzard sets its default so mana coloring persists through combat/threat changes
-local function OnHealthColorUpdated(frame)
-    if not ShouldApply() or not frame then return end
-    local unit = frame.unit
-    if not unit or not unit:match("^nameplate%d+$") then return end
-    if not IsEnemyUnit(unit) then return end
-    if not frame.healthBar then return end
-    ApplyNameplateColor(unit, frame.healthBar)
 end
 
 -- Refresh all visible nameplates (used when interrupt cooldown state changes)
@@ -124,14 +154,6 @@ local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("NAME_PLATE_UNIT_ADDED")
 eventFrame:RegisterEvent("UNIT_DISPLAYPOWER")
 eventFrame:RegisterEvent("UNIT_POWER_BAR_SHOW")
-
--- Hook Blizzard's health color function so our color survives combat/threat updates.
--- hooksecurefunc runs after the original without spreading taint, safe in combat.
-if CompactUnitFrame_UpdateHealthColor then
-    hooksecurefunc("CompactUnitFrame_UpdateHealthColor", OnHealthColorUpdated)
-elseif CompactUnitFrameMixin and CompactUnitFrameMixin.UpdateHealthColor then
-    hooksecurefunc(CompactUnitFrameMixin, "UpdateHealthColor", OnHealthColorUpdated)
-end
 
 -- ========== LIFECYCLE ==========
 
@@ -177,16 +199,13 @@ function NameplatesEnhancement:OnEnable()
             return
         end
 
-        if event == "UNIT_SPELLCAST_START" or event == "UNIT_SPELLCAST_CHANNEL_START"
-            or event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_CHANNEL_STOP"
-            or event == "UNIT_SPELLCAST_INTERRUPTED" then
-            if unit and unit:match("^nameplate%d+$") then
-                UpdateNameplateColor(unit)
-            end
-            return
+        if not unit or not unit:match("^nameplate%d+$") then return end
+
+        if event == "NAME_PLATE_UNIT_ADDED" then
+            local healthBar = GetHealthBar(unit)
+            if healthBar then HookHealthBar(healthBar) end
         end
 
-        if not unit or not unit:match("^nameplate%d+$") then return end
         UpdateNameplateColor(unit)
     end)
 
