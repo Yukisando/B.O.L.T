@@ -2,6 +2,7 @@
 local ADDON_NAME, BOLT = ...
 
 local Config = {}
+Config.alwaysInitialize = true
 
 -- Centralized keybinding capture helper
 local _bindingCaptureFrame
@@ -61,13 +62,15 @@ end
 
 function Config:OnInitialize()
     self.widgets = {}
-    self:CreateInterfaceOptionsPanel()
     self.eventFrame = CreateFrame("Frame")
     self.eventFrame:RegisterEvent("TOYS_UPDATED")
     -- Also listen for login so we can attempt an initial population when the player logs in
     self.eventFrame:RegisterEvent("PLAYER_LOGIN")
     self.toyListPopulated = false
     self.eventFrame:SetScript("OnEvent", function(_, event, ...)
+        if event == "PLAYER_LOGIN" and not self.optionsPanel then
+            self:CreateInterfaceOptionsPanel()
+        end
         if (event == "TOYS_UPDATED" or event == "PLAYER_LOGIN") and self.toyFrame then
             -- On login or when the toy API signals an update, try to populate.
             -- Delay slightly on login to allow Blizzard Collections to finish initializing.
@@ -82,6 +85,12 @@ function Config:OnInitialize()
             end)
         end
     end)
+end
+
+function Config:EnsureInterfaceOptionsPanel()
+    if not self.optionsPanel then
+        self:CreateInterfaceOptionsPanel()
+    end
 end
 
 function Config:CreateReloadIndicator(parent, anchor)

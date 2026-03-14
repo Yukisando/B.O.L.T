@@ -30,6 +30,10 @@ function BOLT:SetModuleEnabled(moduleName, enabled)
     end
 
     if enabled then
+        if mod.OnInitialize and not mod._initialized then
+            mod:OnInitialize()
+            mod._initialized = true
+        end
         if mod.OnEnable then mod:OnEnable() end
         self:Print("Module '" .. moduleName .. "' enabled.")
     else

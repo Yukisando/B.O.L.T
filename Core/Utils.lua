@@ -231,6 +231,10 @@ end
 -- Open the configuration panel
 function BOLT:OpenConfigPanel()
     -- Use modern Settings API (Retail). If Settings is not present, inform the user.
+    if self.modules.config and self.modules.config.EnsureInterfaceOptionsPanel then
+        self.modules.config:EnsureInterfaceOptionsPanel()
+    end
+
     if Settings and Settings.OpenToCategory and self.modules.config and self.modules.config.settingsCategory then
         Settings.OpenToCategory(self.modules.config.settingsCategory.ID)
     else

@@ -58,7 +58,7 @@ function Playground:OnInitialize()
 end
 
 function Playground:OnEnable()
-    -- Hook into the game menu show event
+    -- Watch the Game Menu visibility so the favorite toy button can follow it
     self:HookGameMenu()
 
     -- Create the speedometter UI
@@ -110,31 +110,60 @@ function Playground:OnDisable()
         self.toyEventFrame:SetScript("OnEvent", nil)
         self.toyEventFrame = nil
     end
+
+    if self.gameMenuWatcher then
+        self.gameMenuWatcher:SetScript("OnUpdate", nil)
+        self.gameMenuWatcher = nil
+    end
 end
 
 function Playground:HookGameMenu()
-    -- Hook the GameMenuFrame show event
-    if GameMenuFrame then
-        GameMenuFrame:HookScript("OnShow", function()
-            -- Small delay to ensure the menu is fully loaded
-            C_Timer.After(0.05, function()
-                self:UpdateGameMenu()
-            end)
-        end)
-        
-        GameMenuFrame:HookScript("OnHide", function()
-            self:HideFavoriteToyButton()
-        end)
+    if self.gameMenuWatcher or not GameMenuFrame then
+        return
     end
+
+    local watcher = CreateFrame("Frame")
+    watcher.elapsed = 0
+    watcher.lastShown = GameMenuFrame:IsShown()
+    watcher:SetScript("OnUpdate", function(frame, elapsed)
+        frame.elapsed = frame.elapsed + elapsed
+        if frame.elapsed < 0.05 then
+            return
+        end
+        frame.elapsed = 0
+
+        if not GameMenuFrame then
+            return
+        end
+
+        local isShown = GameMenuFrame:IsShown()
+        if isShown == frame.lastShown then
+            return
+        end
+
+        frame.lastShown = isShown
+        if isShown then
+            C_Timer.After(0.05, function()
+                if self and self.UpdateGameMenu then
+                    self:UpdateGameMenu()
+                end
+            end)
+        else
+            self:HideFavoriteToyButton()
+        end
+    end)
+    self.gameMenuWatcher = watcher
 end
 
 function Playground:UpdateGameMenu()
-    
+    if InCombatLockdown() then
+        return
+    end
+
     if not self.parent:IsModuleEnabled("playground") then
         return
     end
-    
-    -- Show favorite toy button if enabled or if a favorite toy is set
+
     local showFav = self.parent:GetConfig("playground", "showFavoriteToy")
     local favId = self.parent:GetConfig("playground", "favoriteToyId")
     if showFav or (favId ~= nil) then
@@ -145,15 +174,18 @@ function Playground:UpdateGameMenu()
 end
 
 function Playground:ShowFavoriteToyButton()
-    
+    if InCombatLockdown() then
+        return
+    end
+
     -- Create the button if it doesn't exist
     if not favoriteToyButton then
         self:CreateFavoriteToyButton()
     end
-    
+
     -- Update the secure button with the current toy
     self:UpdateFavoriteToyButton()
-    
+
     -- Use alpha to indicate usability (secure buttons should remain enabled)
     local toyId = self.parent:GetConfig("playground", "favoriteToyId")
     if favoriteToyButton then
@@ -179,7 +211,7 @@ function Playground:ShowFavoriteToyButton()
             self:PositionFavoriteToyButton()
         end
     end
-    
+
 end
 
 function Playground:HideFavoriteToyButton()
@@ -308,6 +340,10 @@ function Playground:UpdateFavoriteToyButton()
 end
 
 function Playground:PositionFavoriteToyButton()
+    if InCombatLockdown() then
+        return
+    end
+
     BOLT.ButtonUtils:PositionAboveGameMenuLeft(favoriteToyButton)
 end
 

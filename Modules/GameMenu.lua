@@ -108,31 +108,6 @@ function GameMenu:SafeSetRaidTarget(unit, idx)
     self:SafeCall(SetRaidTarget, unit, idx)
 end
 
-function GameMenu:DebugCheckLeftoverButtons()
-    if not self.menuContainer then return end
-    for _, child in ipairs({ self.menuContainer:GetChildren() }) do
-        if child and child:IsShown() then
-            local name = (child.GetName and child:GetName()) or tostring(child)
-            local parentName = "nil"
-            if child.GetParent and child:GetParent() then
-                local p = child:GetParent()
-                parentName = (p and p.GetName and p:GetName()) or tostring(p)
-            end
-            local anchoringSecret = false
-            local isAnchorFunc = rawget(child, "IsAnchoringSecret")
-            if type(isAnchorFunc) == "function" then
-                local ok, val = pcall(isAnchorFunc, child)
-                if ok then anchoringSecret = val end
-            end
-            if self.parent and self.parent.Print then
-                self.parent:Print("Leftover visible button: " ..
-                    tostring(name) ..
-                    " parent=" .. tostring(parentName) .. " anchoringSecret=" .. tostring(anchoringSecret))
-            end
-        end
-    end
-end
-
 function GameMenu:EnsureMenuContainer()
     if not self.menuContainer then
         local c = CreateFrame("Frame", "BOLTGameMenuContainer", UIParent)
@@ -160,7 +135,6 @@ function GameMenu:OnInitialize()
 end
 
 function GameMenu:OnEnable()
-
     -- Hook into the game menu show event
     self:HookGameMenu()
 
@@ -247,13 +221,6 @@ function GameMenu:OnDisable()
         self.cvarWatcher = nil
     end
 
-    -- Debug: check for leftover visible buttons before tearing down
-    pcall(function()
-        if self.DebugCheckLeftoverButtons then
-            self:DebugCheckLeftoverButtons()
-        end
-    end)
-
     -- Clean up our menu container if present
     if self.menuContainer then
         self.menuContainer:Hide()
@@ -265,6 +232,11 @@ function GameMenu:OnDisable()
         self.loadCheckFrame:UnregisterAllEvents()
         self.loadCheckFrame:SetScript("OnEvent", nil)
         self.loadCheckFrame = nil
+    end
+
+    if self.menuVisibilityWatcher then
+        self.menuVisibilityWatcher:SetScript("OnUpdate", nil)
+        self.menuVisibilityWatcher = nil
     end
 end
 
@@ -294,106 +266,110 @@ function GameMenu:EnsureHiddenIfMenuNotShown()
     end
 end
 
-function GameMenu:HookGameMenu()
-    -- Hook the GameMenuFrame show event
-    if GameMenuFrame then
-        GameMenuFrame:HookScript("OnShow", function()
-            -- If we're suppressing immediate OnShow behavior (e.g., settings are opening), bail out
-            if self.suppressOnShow then
-                -- Clear the suppression shortly after to avoid blocking legitimate menu opens
-                C_Timer.After(0.25, function()
-                    if self then self.suppressOnShow = nil end
-                end)
-                return
-            end
-
-            -- If the B.O.L.T settings/options panel is currently shown, don't show the Game Menu widgets
-            if self.settingsPanelOpen then
-                return
-            end
-
-            -- Bump the generation so any stale timers from a previous open are ignored
-            showGeneration = showGeneration + 1
-            local gen = showGeneration
-
-            -- Ensure container exists and is anchored to GameMenuFrame if available
-            self:EnsureMenuContainer()
-
-            -- Defer showing the container to avoid calling protected functions during Blizzard's secure ShowUIPanel execution
-            C_Timer.After(0.01, function()
-                if gen ~= showGeneration then return end
-                if InCombatLockdown() then return end
-                -- Only show the container if the game menu is still shown (avoid race conditions)
-                if self.menuContainer and GameMenuFrame and GameMenuFrame:IsShown() then
-                    -- Position the container to cover GameMenuFrame using UIParent-relative
-                    -- absolute coordinates. Using SetAllPoints(GameMenuFrame) would anchor
-                    -- the container to a forbidden frame, making its Hide() method also
-                    -- forbidden (ADDON_ACTION_BLOCKED). Reading the position as plain numbers
-                    -- and anchoring to UIParent avoids that restriction while achieving the
-                    -- same visual result.
-                    self.menuContainer:ClearAllPoints()
-                    self.menuContainer:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT",
-                        GameMenuFrame:GetLeft(), GameMenuFrame:GetBottom())
-                    self.menuContainer:SetSize(GameMenuFrame:GetWidth(), GameMenuFrame:GetHeight())
-                    self.menuContainer:Show()
-                end
-            end)
-
-            -- Small delay to ensure the menu is fully loaded
-            C_Timer.After(0.05, function()
-                if gen ~= showGeneration then return end
-                if InCombatLockdown() then return end
-                if GameMenuFrame and GameMenuFrame:IsShown() then
-                    self:UpdateGameMenu()
-                end
-            end)
-
-            -- Watch CVARs while menu is open
-            if not self.cvarWatcher then
-                local f = CreateFrame("Frame")
-                f:RegisterEvent("CVAR_UPDATE")
-                f:SetScript("OnEvent", function(_, _, name)
-                    if name == "Sound_MasterVolume" or name == "Sound_EnableMusic" then
-                        self:UpdateVolumeDisplay()
-                    elseif name == "floatingCombatTextCombatDamage_v2" or name == "floatingCombatTextCombatHealing_v2" then
-                        self:RefreshBattleTextTogglesState()
-                    end
-                end)
-                self.cvarWatcher = f
-            end
+function GameMenu:HandleMenuShown()
+    if self.suppressOnShow then
+        C_Timer.After(0.25, function()
+            if self then self.suppressOnShow = nil end
         end)
-
-        GameMenuFrame:HookScript("OnHide", function()
-            -- Invalidate any in-flight deferred timers from the OnShow that just ended
-            showGeneration = showGeneration + 1
-
-            -- Hide all widgets immediately to ensure they disappear atomically with the GameMenu
-            self:HideLeaveGroupButton()
-            self:HideReloadButton()
-            self:HideGroupTools()
-            self:HideBattleTextToggles()
-            self:HideVolumeButton()
-
-            -- Immediately hide our container so any child widgets are hidden at once
-            if self.menuContainer then
-                self.menuContainer:Hide()
-            end
-
-            -- Clean up CVAR watcher
-            if self.cvarWatcher then
-                self.cvarWatcher:UnregisterEvent("CVAR_UPDATE")
-                self.cvarWatcher:SetScript("OnEvent", nil)
-                self.cvarWatcher = nil
-            end
-
-            -- Debug: check for leftover visible buttons (helps identify orphaned widgets)
-            pcall(function()
-                if self.DebugCheckLeftoverButtons then
-                    self:DebugCheckLeftoverButtons()
-                end
-            end)
-        end)
+        return
     end
+
+    if self.settingsPanelOpen then
+        return
+    end
+
+    showGeneration = showGeneration + 1
+    local gen = showGeneration
+
+    self:EnsureMenuContainer()
+
+    C_Timer.After(0.01, function()
+        if gen ~= showGeneration then return end
+        if InCombatLockdown() then return end
+        if self.menuContainer and GameMenuFrame and GameMenuFrame:IsShown() then
+            self.menuContainer:ClearAllPoints()
+            self.menuContainer:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT",
+                GameMenuFrame:GetLeft(), GameMenuFrame:GetBottom())
+            self.menuContainer:SetSize(GameMenuFrame:GetWidth(), GameMenuFrame:GetHeight())
+            self.menuContainer:Show()
+        end
+    end)
+
+    C_Timer.After(0.05, function()
+        if gen ~= showGeneration then return end
+        if InCombatLockdown() then return end
+        if GameMenuFrame and GameMenuFrame:IsShown() then
+            self:UpdateGameMenu()
+        end
+    end)
+
+    if not self.cvarWatcher then
+        local f = CreateFrame("Frame")
+        f:RegisterEvent("CVAR_UPDATE")
+        f:SetScript("OnEvent", function(_, _, name)
+            if name == "Sound_MasterVolume" or name == "Sound_EnableMusic" then
+                self:UpdateVolumeDisplay()
+            elseif name == "floatingCombatTextCombatDamage_v2" or name == "floatingCombatTextCombatHealing_v2" then
+                self:RefreshBattleTextTogglesState()
+            end
+        end)
+        self.cvarWatcher = f
+    end
+end
+
+function GameMenu:HandleMenuHidden()
+    showGeneration = showGeneration + 1
+
+    self:HideLeaveGroupButton()
+    self:HideReloadButton()
+    self:HideGroupTools()
+    self:HideBattleTextToggles()
+    self:HideVolumeButton()
+
+    if self.menuContainer then
+        self.menuContainer:Hide()
+    end
+
+    if self.cvarWatcher then
+        self.cvarWatcher:UnregisterEvent("CVAR_UPDATE")
+        self.cvarWatcher:SetScript("OnEvent", nil)
+        self.cvarWatcher = nil
+    end
+
+end
+
+function GameMenu:HookGameMenu()
+    if self.menuVisibilityWatcher or not GameMenuFrame then
+        return
+    end
+
+    local watcher = CreateFrame("Frame")
+    watcher.elapsed = 0
+    watcher.lastShown = GameMenuFrame:IsShown()
+    watcher:SetScript("OnUpdate", function(frame, elapsed)
+        frame.elapsed = frame.elapsed + elapsed
+        if frame.elapsed < 0.05 then
+            return
+        end
+        frame.elapsed = 0
+
+        if not GameMenuFrame then
+            return
+        end
+
+        local isShown = GameMenuFrame:IsShown()
+        if isShown == frame.lastShown then
+            return
+        end
+
+        frame.lastShown = isShown
+        if isShown then
+            self:HandleMenuShown()
+        else
+            self:HandleMenuHidden()
+        end
+    end)
+    self.menuVisibilityWatcher = watcher
 end
 
 function GameMenu:UpdateGameMenu()
@@ -425,7 +401,7 @@ function GameMenu:UpdateGameMenu()
         self:HideBattleTextToggles()
     end
 
-    -- Show reload button if enabled
+    -- Show reload button if enabled and staged back on
     if self.parent:GetConfig("gameMenu", "showReloadButton") then
         self:ShowReloadButton()
     else
@@ -1063,13 +1039,6 @@ function GameMenu:OnOpenSettings()
         self.cvarWatcher:SetScript("OnEvent", nil)
         self.cvarWatcher = nil
     end
-
-    -- Debug: check for leftover visible buttons
-    pcall(function()
-        if self.DebugCheckLeftoverButtons then
-            self:DebugCheckLeftoverButtons()
-        end
-    end)
 
     -- All individual widgets above are already hidden; the container itself has no
     -- visual representation so hiding it is redundant. Calling Hide() on it would

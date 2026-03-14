@@ -351,24 +351,47 @@ function SpecialGamemode:ResumeEffects()
 end
 
 function SpecialGamemode:HookGameMenuFrame()
-    -- Use HookScript instead of replacing Show/Hide to avoid interfering with other addons
-    if GameMenuFrame and not self.hookedGameMenu then
-        GameMenuFrame:HookScript("OnShow", function()
-            if self.hardcoreModeActive then
+    if self.hookedGameMenu or not GameMenuFrame then
+        return
+    end
+
+    local watcher = CreateFrame("Frame")
+    watcher.elapsed = 0
+    watcher.lastShown = GameMenuFrame:IsShown()
+    watcher:SetScript("OnUpdate", function(frame, elapsed)
+        frame.elapsed = frame.elapsed + elapsed
+        if frame.elapsed < 0.05 then
+            return
+        end
+        frame.elapsed = 0
+
+        if not GameMenuFrame then
+            return
+        end
+
+        local isShown = GameMenuFrame:IsShown()
+        if isShown == frame.lastShown then
+            return
+        end
+
+        frame.lastShown = isShown
+        if self.hardcoreModeActive then
+            if isShown then
                 self:PauseEffects()
-            end
-        end)
-        GameMenuFrame:HookScript("OnHide", function()
-            if self.hardcoreModeActive then
+            else
                 self:ResumeEffects()
             end
-        end)
-        self.hookedGameMenu = true
-    end
+        end
+    end)
+    self.gameMenuWatcher = watcher
+    self.hookedGameMenu = true
 end
 
 function SpecialGamemode:UnhookGameMenuFrame()
-    -- We leave the hooks in place (they are harmless when not in hardcore mode)
+    if self.gameMenuWatcher then
+        self.gameMenuWatcher:SetScript("OnUpdate", nil)
+        self.gameMenuWatcher = nil
+    end
     self.hookedGameMenu = nil
 end
 

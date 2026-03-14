@@ -85,8 +85,10 @@ end
 -- Initialize all registered modules
 function BOLT:InitializeModules()
     for name, module in pairs(self.modules) do
-        if module.OnInitialize then
+        local shouldInitialize = module.alwaysInitialize or self:IsModuleEnabled(name)
+        if shouldInitialize and module.OnInitialize and not module._initialized then
             module:OnInitialize()
+            module._initialized = true
         end
     end
 end
@@ -96,6 +98,10 @@ function BOLT:EnableModules()
     local enabledModules = {}
     for name, module in pairs(self.modules) do
         if module.OnEnable and self:IsModuleEnabled(name) then
+            if module.OnInitialize and not module._initialized then
+                module:OnInitialize()
+                module._initialized = true
+            end
             module:OnEnable()
             table.insert(enabledModules, name)
         end
@@ -120,18 +126,33 @@ function BOLT:Debug(msg)
     end
 end
 
--- Event frame for handling addon events
-local eventFrame = CreateFrame("Frame")
-eventFrame:RegisterEvent("ADDON_LOADED")
-eventFrame:RegisterEvent("PLAYER_LOGIN")
-
-eventFrame:SetScript("OnEvent", function(self, event, addonName)
-    if event == "ADDON_LOADED" and addonName == ADDON_NAME then
-        BOLT:OnInitialize()
-    elseif event == "PLAYER_LOGIN" then
-        BOLT:EnableModules()
+local function BootstrapAddon()
+    if BOLT._bootstrapStarted then
+        return
     end
-end)
+    BOLT._bootstrapStarted = true
+
+    -- Run addon initialization after the file-load phase. Initializing modules
+    -- while Blizzard is still constructing secure UI can taint GameMenu button
+    -- callbacks on Midnight, which then breaks the menu in combat.
+    BOLT:OnInitialize()
+
+    if IsLoggedIn and IsLoggedIn() then
+        BOLT:EnableModules()
+        return
+    end
+
+    local eventFrame = CreateFrame("Frame")
+    eventFrame:RegisterEvent("PLAYER_LOGIN")
+    eventFrame:SetScript("OnEvent", function(frame, event)
+        if event == "PLAYER_LOGIN" then
+            frame:UnregisterEvent("PLAYER_LOGIN")
+            BOLT:EnableModules()
+        end
+    end)
+end
+
+C_Timer.After(0, BootstrapAddon)
 
 -- Make the addon globally available
 _G[ADDON_NAME] = BOLT

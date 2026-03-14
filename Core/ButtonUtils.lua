@@ -233,6 +233,10 @@ function ButtonUtils:PositionAboveGameMenuRight(button, offsetX, offsetY)
     if not button then
         return
     end
+
+    if InCombatLockdown() and button.IsProtected and button:IsProtected() then
+        return
+    end
     
     offsetX = offsetX or -12
     offsetY = offsetY or 8
@@ -250,6 +254,10 @@ end
 -- Position a button above the game menu (top-left)
 function ButtonUtils:PositionAboveGameMenuLeft(button, offsetX, offsetY)
     if not button then
+        return
+    end
+
+    if InCombatLockdown() and button.IsProtected and button:IsProtected() then
         return
     end
     
