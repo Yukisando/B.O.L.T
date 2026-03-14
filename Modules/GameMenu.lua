@@ -74,7 +74,14 @@ end
 
 function GameMenu:SafeHideUIPanel(frame)
     if not frame then return end
-    self:SafeCall(HideUIPanel, frame)
+    -- Do NOT call HideUIPanel(frame) from addon code. HideUIPanel writes to the
+    -- UIPanelWindows management table in the non-secure (addon) execution context,
+    -- tainting that table entry. The secure ESC-key binding then calls
+    -- ShowUIPanel(GameMenuFrame) in combat, reads the tainted entry, and silently
+    -- fails -- preventing the game menu from opening in combat with no error.
+    -- Calling frame:Hide() directly hides the frame without touching UIPanelWindows,
+    -- so the panel management state remains clean for secure callers.
+    self:SafeCall(frame.Hide, frame)
 end
 
 function GameMenu:SafeShowUIPanel(frame)
@@ -335,6 +342,7 @@ function GameMenu:HookGameMenu()
             -- Small delay to ensure the menu is fully loaded
             C_Timer.After(0.05, function()
                 if gen ~= showGeneration then return end
+                if InCombatLockdown() then return end
                 if GameMenuFrame and GameMenuFrame:IsShown() then
                     self:UpdateGameMenu()
                 end

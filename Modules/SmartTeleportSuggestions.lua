@@ -349,7 +349,14 @@ function SmartTeleport:CreateDrawer()
 
     local mapAnchor = WorldMapFrame.ScrollContainer or WorldMapFrame
 
-    drawerFrame = CreateFrame("Frame", "BOLTSmartTeleportDrawer", WorldMapFrame, "BackdropTemplate")
+    -- Parent to UIParent, NOT WorldMapFrame. Parenting an addon (non-secure) frame
+    -- to WorldMapFrame taints the map's child-frame table, causing
+    -- ADDON_ACTION_BLOCKED on SetPropagateMouseClicks (called by flight-point pins in
+    -- secureexecuterange) and "secret value" taint on UIWidget font-string heights.
+    -- We position the drawer over the map via SetPoint anchors (which can reference
+    -- any frame for positioning regardless of parent) and hide it manually via an
+    -- OnHide hook below.
+    drawerFrame = CreateFrame("Frame", "BOLTSmartTeleportDrawer", UIParent, "BackdropTemplate")
     drawerFrame:SetHeight(ICON_SIZE + DRAWER_PAD * 2)
     drawerFrame:SetPoint("BOTTOMLEFT", mapAnchor, "BOTTOMLEFT", 0, 0)
     drawerFrame:SetPoint("BOTTOMRIGHT", mapAnchor, "BOTTOMRIGHT", 0, 0)
@@ -532,6 +539,12 @@ function SmartTeleport:RegisterEvents()
             if not self.parent:IsModuleEnabled("smartTeleport") then return end
             self:RebuildOwnershipCache()
             self:RefreshDrawer()
+        end)
+
+        -- Hide the drawer when the map closes. Because drawerFrame is parented to
+        -- UIParent (not WorldMapFrame) it no longer auto-hides with the map.
+        WorldMapFrame:HookScript("OnHide", function()
+            if drawerFrame then drawerFrame:Hide() end
         end)
 
         self._mapHooked = true
