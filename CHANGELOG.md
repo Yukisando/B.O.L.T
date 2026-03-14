@@ -1,6 +1,11 @@
 # B.O.L.T Changelog
 **(Brittle and Occasionally Lethal Tweaks)**
 
+## [2.5.1] - 2026-01-20
+### Fixed (Midnight 12.0 compatibility audit)
+- **WowheadLink**: Fixed `C_Spell.GetSpellInfo` usage — the API returns a table in Midnight (the deprecated global `GetSpellInfo` is removed); now correctly extracts `.name` from the result table.
+- **AutoRepSwitch**: Added `issecretvalue` guard on `CHAT_MSG_COMBAT_FACTION_CHANGE` messages — in Midnight, chat messages received inside instances are Secret Values; comparing them would cause Lua errors. When the message is secret the module now falls back to the snapshot-comparison path. Also registered the new `FACTION_STANDING_CHANGED` event (added in Midnight 12.0.0) as an additional trigger alongside `UPDATE_FACTION` for more reliable reputation change detection.
+
 ## [1.5.0] - 2026-01-01
 ### Added
 - **Auto Rep Switch Module**: Automatically switches the watched reputation to the faction you just gained reputation with.

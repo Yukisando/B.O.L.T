@@ -73,17 +73,33 @@ function AutoRepSwitch:OnEnable()
         self.eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
         self.eventFrame:RegisterEvent("CHAT_MSG_COMBAT_FACTION_CHANGE")
         self.eventFrame:RegisterEvent("UPDATE_FACTION")
+        -- FACTION_STANDING_CHANGED was added in Midnight (12.0.0) as the canonical
+        -- way to detect reputation changes without parsing Secret-Value chat messages.
+        self.eventFrame:RegisterEvent("FACTION_STANDING_CHANGED")
         self.eventFrame:SetScript("OnEvent", function(_, event, ...)
             if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
                 C_Timer.After(0.7, function() self:BuildFactionSnapshot() end)
             elseif event == "CHAT_MSG_COMBAT_FACTION_CHANGE" then
                 local message = ...
+                -- In Midnight (12.0+), chat messages received inside instances arrive as
+                -- Secret Values. Comparing or operating on a Secret Value causes a Lua
+                -- error, so we guard with issecretvalue and fall back to snapshot diff.
+                if issecretvalue and issecretvalue(message) then
+                    if not self.ready then
+                        table.insert(self.queue, {type = "update"})
+                    else
+                        C_Timer.After(0.05, function()
+                            if self and self.HandleUpdateFaction then self:HandleUpdateFaction() end
+                        end)
+                    end
+                    return
+                end
                 if not self.ready then
                     table.insert(self.queue, {type = "chat", message = message})
                 else
                     self:HandleFactionChange(message)
                 end
-            elseif event == "UPDATE_FACTION" then
+            elseif event == "UPDATE_FACTION" or event == "FACTION_STANDING_CHANGED" then
                 if not self.ready then
                     table.insert(self.queue, {type = "update"})
                     C_Timer.After(0.1, function() if self and not self.ready then self:BuildFactionSnapshot() end end)

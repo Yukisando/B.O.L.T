@@ -2,7 +2,7 @@
 ## Title: B.O.L.T
 ## Notes: Brittle and Occasionally Lethal Tweaks
 ## Author: Yukisando
-## Version: 2.5
+## Version: 2.5.1
 ## SavedVariables: BOLTDB
 ## IconTexture: Interface\AddOns\BOLT\icon
 ## Category-enUS: User Interface

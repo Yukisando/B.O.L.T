@@ -400,38 +400,41 @@ function Config:CreateInterfaceOptionsPanel()
     posLabel:SetPoint("LEFT", speedometerEnable.Text, "RIGHT", 10, 0)
     posLabel:SetText("Position:")
 
-    local posDropdown = CreateFrame("Frame", "BOLTSpeedometerPositionDropdown", c, "UIDropDownMenuTemplate")
+    local posNames = { TOPLEFT = "Top Left", TOPRIGHT = "Top Right", BOTTOMLEFT = "Bottom Left", BOTTOMRIGHT = "Bottom Right" }
+    local posDropdown = CreateFrame("Button", "BOLTSpeedometerPositionDropdown", c, "UIPanelButtonTemplate")
+    posDropdown:SetSize(130, 22)
+    posDropdown:SetPoint("LEFT", posLabel, "RIGHT", 5, 0)
     self.widgets.speedometerPositionDropdown = posDropdown
-    UIDropDownMenu_SetWidth(posDropdown, 110)
-    UIDropDownMenu_Initialize(posDropdown, function(dropdown, level)
+
+    local function UpdatePosDropdownText()
+        local cur = self.parent:GetConfig("playground", "statsPosition") or "TOPRIGHT"
+        posDropdown:SetText(posNames[cur] or "Top Right")
+    end
+    UpdatePosDropdownText()
+
+    posDropdown:SetScript("OnClick", function(btn)
         local positions = {
             { text = "Top Left",     value = "TOPLEFT" },
             { text = "Top Right",    value = "TOPRIGHT" },
             { text = "Bottom Left",  value = "BOTTOMLEFT" },
             { text = "Bottom Right", value = "BOTTOMRIGHT" },
         }
-        for _, pos in ipairs(positions) do
-            local info = UIDropDownMenu_CreateInfo()
-            info.text = pos.text
-            info.value = pos.value
-            info.func = function(btn)
-                self.parent:SetConfig(btn.value, "playground", "statsPosition")
-                UIDropDownMenu_SetSelectedValue(posDropdown, btn.value)
-                if self.parent.modules.playground and self.parent.modules.playground.UpdateStatsPosition then
-                    self.parent.modules.playground:UpdateStatsPosition()
-                end
+        MenuUtil.CreateContextMenu(btn, function(_, rootDescription)
+            for _, pos in ipairs(positions) do
+                local p = pos
+                rootDescription:CreateRadio(p.text,
+                    function() return self.parent:GetConfig("playground", "statsPosition") == p.value end,
+                    function()
+                        self.parent:SetConfig(p.value, "playground", "statsPosition")
+                        UpdatePosDropdownText()
+                        if self.parent.modules.playground and self.parent.modules.playground.UpdateStatsPosition then
+                            self.parent.modules.playground:UpdateStatsPosition()
+                        end
+                    end
+                )
             end
-            info.checked = (self.parent:GetConfig("playground", "statsPosition") == pos.value)
-            UIDropDownMenu_AddButton(info, level)
-        end
+        end)
     end)
-    posDropdown:ClearAllPoints()
-    posDropdown:SetPoint("LEFT", posLabel, "RIGHT", -15, -2)
-
-    local currentPos = self.parent:GetConfig("playground", "statsPosition") or "TOPRIGHT"
-    UIDropDownMenu_SetSelectedValue(posDropdown, currentPos)
-    local posNames = { TOPLEFT = "Top Left", TOPRIGHT = "Top Right", BOTTOMLEFT = "Bottom Left", BOTTOMRIGHT = "Bottom Right" }
-    UIDropDownMenu_SetText(posDropdown, posNames[currentPos] or "Top Right")
     cy = cy - 36
 
     pg.optionsHeight = math.abs(cy)
@@ -572,29 +575,39 @@ function Config:CreateInterfaceOptionsPanel()
     cnSoundLabel:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
     cnSoundLabel:SetText("Sound:")
 
-    local cnSoundDropdown = CreateFrame("Frame", "BOLTChatNotifierSoundDropdown", c, "UIDropDownMenuTemplate")
+    local cnSoundDropdown = CreateFrame("Button", "BOLTChatNotifierSoundDropdown", c, "UIPanelButtonTemplate")
+    cnSoundDropdown:SetSize(170, 22)
+    cnSoundDropdown:SetPoint("LEFT", cnSoundLabel, "RIGHT", 5, 0)
     self.widgets.chatNotifierSoundDropdown = cnSoundDropdown
-    UIDropDownMenu_SetWidth(cnSoundDropdown, 150)
-    UIDropDownMenu_Initialize(cnSoundDropdown, function(dropdown, level)
+
+    local function UpdateSoundDropdownText()
+        local chatMod = self.parent.modules.chatNotifier
+        if not chatMod then cnSoundDropdown:SetText("(none)"); return end
+        local curID = chatMod:GetSoundID()
+        for _, snd in ipairs(chatMod.SOUND_OPTIONS) do
+            if snd.soundID == curID then cnSoundDropdown:SetText(snd.label); return end
+        end
+        cnSoundDropdown:SetText("(none)")
+    end
+    UpdateSoundDropdownText()
+
+    cnSoundDropdown:SetScript("OnClick", function(btn)
         local chatMod = self.parent.modules.chatNotifier
         if not chatMod then return end
-        local currentSoundID = chatMod:GetSoundID()
-        for _, snd in ipairs(chatMod.SOUND_OPTIONS) do
-            local info = UIDropDownMenu_CreateInfo()
-            info.text = snd.label
-            info.value = snd.soundID
-            info.func = function(btn)
-                chatMod:SetSoundID(btn.value)
-                UIDropDownMenu_SetSelectedValue(cnSoundDropdown, btn.value)
-                UIDropDownMenu_SetText(cnSoundDropdown, snd.label)
-                PlaySound(btn.value, "Master")
+        MenuUtil.CreateContextMenu(btn, function(_, rootDescription)
+            for _, snd in ipairs(chatMod.SOUND_OPTIONS) do
+                local s = snd
+                rootDescription:CreateRadio(s.label,
+                    function() return chatMod:GetSoundID() == s.soundID end,
+                    function()
+                        chatMod:SetSoundID(s.soundID)
+                        UpdateSoundDropdownText()
+                        PlaySound(s.soundID, "Master")
+                    end
+                )
             end
-            info.checked = (currentSoundID == snd.soundID)
-            UIDropDownMenu_AddButton(info, level)
-        end
+        end)
     end)
-    cnSoundDropdown:ClearAllPoints()
-    cnSoundDropdown:SetPoint("LEFT", cnSoundLabel, "RIGHT", -15, -2)
 
     local cnPreviewBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
     cnPreviewBtn:SetSize(70, 22)
@@ -631,30 +644,33 @@ function Config:CreateInterfaceOptionsPanel()
             end
         end
         local text = #selected > 0 and table.concat(selected, ", ") or "None"
-        UIDropDownMenu_SetText(self.widgets.chatNotifierChannelsDropdown, text)
+        if self.widgets.chatNotifierChannelsDropdown then
+            self.widgets.chatNotifierChannelsDropdown:SetText(text)
+        end
     end
     self.widgets.UpdateChatNotifierDropdownText = UpdateChatNotifierDropdownText
 
-    local cnChannelsDropdown = CreateFrame("Frame", "BOLTChatNotifierChannelsDropdown", c, "UIDropDownMenuTemplate")
-    cnChannelsDropdown:SetPoint("LEFT", cnChannelsLabel, "RIGHT", -15, -2)
-    UIDropDownMenu_SetWidth(cnChannelsDropdown, 250)
-    UIDropDownMenu_Initialize(cnChannelsDropdown, function(dropdown, level)
+    local cnChannelsDropdown = CreateFrame("Button", "BOLTChatNotifierChannelsDropdown", c, "UIPanelButtonTemplate")
+    cnChannelsDropdown:SetSize(270, 22)
+    cnChannelsDropdown:SetPoint("LEFT", cnChannelsLabel, "RIGHT", 5, -2)
+    cnChannelsDropdown:SetScript("OnClick", function(btn)
         local mod = self.parent.modules.chatNotifier
         if not mod then return end
-        for _, ch in ipairs(channelTypes) do
-            local info = UIDropDownMenu_CreateInfo()
-            info.text = ch.label
-            info.value = ch.event
-            info.isNotRadio = true
-            info.keepShownOnClick = true
-            info.checked = self.widgets.chatNotifierSelectedChannels[ch.event] or false
-            info.func = function(_, _, _, checked)
-                self.widgets.chatNotifierSelectedChannels[ch.event] = checked
-                mod:SetChannelEnabled(ch.event, checked)
-                UpdateChatNotifierDropdownText()
+        MenuUtil.CreateContextMenu(btn, function(_, rootDescription)
+            for _, ch in ipairs(channelTypes) do
+                local evt = ch.event
+                local lbl = ch.label
+                rootDescription:CreateCheckbox(lbl,
+                    function() return self.widgets.chatNotifierSelectedChannels[evt] or false end,
+                    function()
+                        local newVal = not (self.widgets.chatNotifierSelectedChannels[evt] or false)
+                        self.widgets.chatNotifierSelectedChannels[evt] = newVal
+                        mod:SetChannelEnabled(evt, newVal)
+                        UpdateChatNotifierDropdownText()
+                    end
+                )
             end
-            UIDropDownMenu_AddButton(info, level)
-        end
+        end)
     end)
     self.widgets.chatNotifierChannelsDropdown = cnChannelsDropdown
     UpdateChatNotifierDropdownText()
@@ -709,43 +725,36 @@ function Config:CreateInterfaceOptionsPanel()
         else
             text = selected[1] .. ", " .. selected[2] .. " + " .. (#selected - 2) .. " more"
         end
-        UIDropDownMenu_SetText(self.widgets.achievementCategoryDropdown, text)
+        if self.widgets.achievementCategoryDropdown then
+            self.widgets.achievementCategoryDropdown:SetText(text)
+        end
     end
     self.widgets.UpdateAchCategoryDropdownText = UpdateAchCategoryDropdownText
 
-    local atCatDropdown = CreateFrame("Frame", "BOLTAchievementCategoryDropdown", c, "UIDropDownMenuTemplate")
-    atCatDropdown:SetPoint("LEFT", atCatLabel, "RIGHT", -15, -2)
-    UIDropDownMenu_SetWidth(atCatDropdown, 280)
-    UIDropDownMenu_Initialize(atCatDropdown, function(dropdown, level)
+    local atCatDropdown = CreateFrame("Button", "BOLTAchievementCategoryDropdown", c, "UIPanelButtonTemplate")
+    atCatDropdown:SetSize(300, 22)
+    atCatDropdown:SetPoint("LEFT", atCatLabel, "RIGHT", 5, -2)
+    atCatDropdown:SetScript("OnClick", function(btn)
         local atMod = self.parent.modules.achievementTracker
         if not atMod then return end
         local topCats = atMod:GetTopLevelCategories()
-
-        local noneInfo = UIDropDownMenu_CreateInfo()
-        noneInfo.text = "|cff00aaff-- None --|r"
-        noneInfo.isNotRadio = true
-        noneInfo.keepShownOnClick = true
-        noneInfo.notCheckable = true
-        noneInfo.func = function()
-            self.parent:SetConfig({ ["__none"] = true }, "achievementTracker", "trackedCategories")
-            UpdateAchCategoryDropdownText()
-            CloseDropDownMenus()
-        end
-        UIDropDownMenu_AddButton(noneInfo, level)
-
-        for _, cat in ipairs(topCats) do
-            local info = UIDropDownMenu_CreateInfo()
-            info.text = cat.name
-            info.value = cat.id
-            info.isNotRadio = true
-            info.keepShownOnClick = true
-            info.checked = atMod:IsCategoryTracked(cat.id)
-            info.func = function(_, _, _, checked)
-                atMod:SetCategoryTracked(cat.id, checked)
+        MenuUtil.CreateContextMenu(btn, function(_, rootDescription)
+            rootDescription:CreateButton("|cff00aaff-- None --|r", function()
+                self.parent:SetConfig({ ["__none"] = true }, "achievementTracker", "trackedCategories")
                 UpdateAchCategoryDropdownText()
+            end)
+            rootDescription:CreateDivider()
+            for _, cat in ipairs(topCats) do
+                local catRef = cat
+                rootDescription:CreateCheckbox(catRef.name,
+                    function() return atMod:IsCategoryTracked(catRef.id) end,
+                    function()
+                        atMod:SetCategoryTracked(catRef.id, not atMod:IsCategoryTracked(catRef.id))
+                        UpdateAchCategoryDropdownText()
+                    end
+                )
             end
-            UIDropDownMenu_AddButton(info, level)
-        end
+        end)
     end)
     self.widgets.achievementCategoryDropdown = atCatDropdown
     C_Timer.After(0.1, UpdateAchCategoryDropdownText)
@@ -1160,9 +1169,9 @@ function Config:UpdatePlaygroundChildControls()
     if w.speedometerPositionDropdown then
         local speedometerEnabled = enabled and self.parent:GetConfig("playground", "showSpeedometer")
         if speedometerEnabled then
-            UIDropDownMenu_EnableDropDown(w.speedometerPositionDropdown)
+            w.speedometerPositionDropdown:Enable()
         else
-            UIDropDownMenu_DisableDropDown(w.speedometerPositionDropdown)
+            w.speedometerPositionDropdown:Disable()
         end
     end
     local canChooseToy = enabled and (self.parent:GetConfig("playground", "showFavoriteToy") ~= false)
@@ -1211,9 +1220,8 @@ function Config:RefreshOptionsPanel()
         if w.speedometerCheckbox then w.speedometerCheckbox:SetChecked(self.parent:GetConfig("playground", "showSpeedometer")) end
         if w.speedometerPositionDropdown then
             local currentPos = self.parent:GetConfig("playground", "statsPosition") or "TOPRIGHT"
-            UIDropDownMenu_SetSelectedValue(w.speedometerPositionDropdown, currentPos)
             local posNames = { TOPLEFT = "Top Left", TOPRIGHT = "Top Right", BOTTOMLEFT = "Bottom Left", BOTTOMRIGHT = "Bottom Right" }
-            UIDropDownMenu_SetText(w.speedometerPositionDropdown, posNames[currentPos] or "Top Right")
+            w.speedometerPositionDropdown:SetText(posNames[currentPos] or "Top Right")
         end
         if w.skyridingCheckbox then w.skyridingCheckbox:SetChecked(self.parent:IsModuleEnabled("skyriding")) end
         if w.pitchControlCheckbox then w.pitchControlCheckbox:SetChecked(self.parent:GetConfig("skyriding", "enablePitchControl")) end
@@ -1243,10 +1251,9 @@ function Config:RefreshOptionsPanel()
             local chatMod = self.parent.modules.chatNotifier
             if chatMod then
                 local currentSoundID = chatMod:GetSoundID()
-                UIDropDownMenu_SetSelectedValue(w.chatNotifierSoundDropdown, currentSoundID)
                 for _, snd in ipairs(chatMod.SOUND_OPTIONS) do
                     if snd.soundID == currentSoundID then
-                        UIDropDownMenu_SetText(w.chatNotifierSoundDropdown, snd.label)
+                        w.chatNotifierSoundDropdown:SetText(snd.label)
                         break
                     end
                 end
@@ -1275,16 +1282,16 @@ function Config:UpdateChatNotifierChildControls()
     local w = self.widgets
 
     if w.chatNotifierSoundDropdown then
-        if enabled then UIDropDownMenu_EnableDropDown(w.chatNotifierSoundDropdown)
-        else UIDropDownMenu_DisableDropDown(w.chatNotifierSoundDropdown) end
+        if enabled then w.chatNotifierSoundDropdown:Enable()
+        else w.chatNotifierSoundDropdown:Disable() end
     end
     if w.chatNotifierPreviewBtn then
         w.chatNotifierPreviewBtn:SetEnabled(enabled)
         w.chatNotifierPreviewBtn:SetAlpha(enabled and 1 or 0.5)
     end
     if w.chatNotifierChannelsDropdown then
-        if enabled then UIDropDownMenu_EnableDropDown(w.chatNotifierChannelsDropdown)
-        else UIDropDownMenu_DisableDropDown(w.chatNotifierChannelsDropdown) end
+        if enabled then w.chatNotifierChannelsDropdown:Enable()
+        else w.chatNotifierChannelsDropdown:Disable() end
     end
 end
 

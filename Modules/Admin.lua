@@ -8,15 +8,25 @@ local ADMIN_PASSWORD = "prout"
 
 function Admin:OnInitialize()
     self.authenticated = false
-    
-    -- Set up chat interception for password detection
-    self:SetupPasswordDetection()
-    
+
     -- Register slash command
     SLASH_BOLTADMIN1 = "/boltadmin"
     SlashCmdList["BOLTADMIN"] = function(msg)
         self:ShowPasswordPopup()
     end
+
+    -- Defer hooksecurefunc to PLAYER_LOGIN. Calling hooksecurefunc during ADDON_LOADED
+    -- runs during Blizzard's secure UI initialisation phase. In Midnight (12.0) this taints
+    -- GameMenuFrame_Setup, causing every GameMenuButton.callback to be tainted and
+    -- ADDON_ACTION_FORBIDDEN when the user clicks Log Out / Disconnect.
+    -- (See NameplatesEnhancement.lua for the same pattern and explanation.)
+    local deferFrame = CreateFrame("Frame")
+    deferFrame:RegisterEvent("PLAYER_LOGIN")
+    deferFrame:SetScript("OnEvent", function()
+        deferFrame:UnregisterAllEvents()
+        deferFrame:SetScript("OnEvent", nil)
+        self:SetupPasswordDetection()
+    end)
 end
 
 function Admin:OnEnable()
@@ -219,12 +229,12 @@ function Admin:CreateAdminPanel()
     dismountChannelLabel:SetPoint("TOPLEFT", panel, "TOPLEFT", 25, yOffset)
     dismountChannelLabel:SetText("Dismount Channels:")
     
-    local dismountChannelDropdown = CreateFrame("Frame", "BOLTAdminDismountChannelDropdown", panel, "UIDropDownMenuTemplate")
-    dismountChannelDropdown:SetPoint("LEFT", dismountChannelLabel, "RIGHT", -10, -2)
-    UIDropDownMenu_SetWidth(dismountChannelDropdown, 120)
+    local dismountChannelDropdown = CreateFrame("Button", "BOLTAdminDismountChannelDropdown", panel, "UIPanelButtonTemplate")
+    dismountChannelDropdown:SetSize(160, 22)
+    dismountChannelDropdown:SetPoint("LEFT", dismountChannelLabel, "RIGHT", 5, -2)
     panel.dismountChannelDropdown = dismountChannelDropdown
     panel.selectedDismountChannels = { yell = true }  -- Multi-select table
-    
+
     local function UpdateDismountDropdownText()
         local selected = {}
         for _, opt in ipairs(channelOptions) do
@@ -232,23 +242,23 @@ function Admin:CreateAdminPanel()
                 table.insert(selected, opt.label)
             end
         end
-        UIDropDownMenu_SetText(dismountChannelDropdown, #selected > 0 and table.concat(selected, ", ") or "None")
+        dismountChannelDropdown:SetText(#selected > 0 and table.concat(selected, ", ") or "None")
     end
-    
-    UIDropDownMenu_Initialize(dismountChannelDropdown, function(self, level)
-        for _, opt in ipairs(channelOptions) do
-            local info = UIDropDownMenu_CreateInfo()
-            info.text = opt.label
-            info.value = opt.value
-            info.isNotRadio = true
-            info.keepShownOnClick = true
-            info.checked = panel.selectedDismountChannels[opt.value] or false
-            info.func = function(_, _, _, checked)
-                panel.selectedDismountChannels[opt.value] = checked
-                UpdateDismountDropdownText()
+    UpdateDismountDropdownText()
+
+    dismountChannelDropdown:SetScript("OnClick", function(btn)
+        MenuUtil.CreateContextMenu(btn, function(_, rootDescription)
+            for _, opt in ipairs(channelOptions) do
+                local o = opt
+                rootDescription:CreateCheckbox(o.label,
+                    function() return panel.selectedDismountChannels[o.value] or false end,
+                    function()
+                        panel.selectedDismountChannels[o.value] = not (panel.selectedDismountChannels[o.value] or false)
+                        UpdateDismountDropdownText()
+                    end
+                )
             end
-            UIDropDownMenu_AddButton(info, level)
-        end
+        end)
     end)
     panel.UpdateDismountDropdownText = UpdateDismountDropdownText
     
@@ -315,12 +325,12 @@ function Admin:CreateAdminPanel()
     hardcoreChannelLabel:SetPoint("TOPLEFT", panel, "TOPLEFT", 25, yOffset)
     hardcoreChannelLabel:SetText("Hardcore Channels:")
     
-    local hardcoreChannelDropdown = CreateFrame("Frame", "BOLTAdminHardcoreChannelDropdown", panel, "UIDropDownMenuTemplate")
-    hardcoreChannelDropdown:SetPoint("LEFT", hardcoreChannelLabel, "RIGHT", -10, -2)
-    UIDropDownMenu_SetWidth(hardcoreChannelDropdown, 120)
+    local hardcoreChannelDropdown = CreateFrame("Button", "BOLTAdminHardcoreChannelDropdown", panel, "UIPanelButtonTemplate")
+    hardcoreChannelDropdown:SetSize(160, 22)
+    hardcoreChannelDropdown:SetPoint("LEFT", hardcoreChannelLabel, "RIGHT", 5, -2)
     panel.hardcoreChannelDropdown = hardcoreChannelDropdown
     panel.selectedHardcoreChannels = { yell = true }  -- Multi-select table
-    
+
     local function UpdateHardcoreDropdownText()
         local selected = {}
         for _, opt in ipairs(channelOptions) do
@@ -328,23 +338,23 @@ function Admin:CreateAdminPanel()
                 table.insert(selected, opt.label)
             end
         end
-        UIDropDownMenu_SetText(hardcoreChannelDropdown, #selected > 0 and table.concat(selected, ", ") or "None")
+        hardcoreChannelDropdown:SetText(#selected > 0 and table.concat(selected, ", ") or "None")
     end
-    
-    UIDropDownMenu_Initialize(hardcoreChannelDropdown, function(self, level)
-        for _, opt in ipairs(channelOptions) do
-            local info = UIDropDownMenu_CreateInfo()
-            info.text = opt.label
-            info.value = opt.value
-            info.isNotRadio = true
-            info.keepShownOnClick = true
-            info.checked = panel.selectedHardcoreChannels[opt.value] or false
-            info.func = function(_, _, _, checked)
-                panel.selectedHardcoreChannels[opt.value] = checked
-                UpdateHardcoreDropdownText()
+    UpdateHardcoreDropdownText()
+
+    hardcoreChannelDropdown:SetScript("OnClick", function(btn)
+        MenuUtil.CreateContextMenu(btn, function(_, rootDescription)
+            for _, opt in ipairs(channelOptions) do
+                local o = opt
+                rootDescription:CreateCheckbox(o.label,
+                    function() return panel.selectedHardcoreChannels[o.value] or false end,
+                    function()
+                        panel.selectedHardcoreChannels[o.value] = not (panel.selectedHardcoreChannels[o.value] or false)
+                        UpdateHardcoreDropdownText()
+                    end
+                )
             end
-            UIDropDownMenu_AddButton(info, level)
-        end
+        end)
     end)
     panel.UpdateHardcoreDropdownText = UpdateHardcoreDropdownText
     

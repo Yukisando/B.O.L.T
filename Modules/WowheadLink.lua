@@ -142,12 +142,12 @@ function WowheadLink:ShowLinkForItem(itemLink)
             displayName = "Item " .. id
         end
     elseif idType == "spell" then
-        -- Safely obtain spell name; some environments may not expose GetSpellInfo
+        -- Use the modern C_Spell.GetSpellInfo API (returns a table {name, rank, iconID, ...}).
+        -- GetSpellInfo (global) was removed in Midnight (12.0); C_Spell.GetSpellInfo is the replacement.
         local name
-        if type(GetSpellInfo) == "function" then
-            name = GetSpellInfo(tonumber(id))
-        elseif C_Spell and C_Spell.GetSpellInfo then
-            name = C_Spell.GetSpellInfo(tonumber(id))
+        if C_Spell and C_Spell.GetSpellInfo then
+            local spellInfo = C_Spell.GetSpellInfo(tonumber(id))
+            if spellInfo then name = spellInfo.name end
         end
 
         if name then
