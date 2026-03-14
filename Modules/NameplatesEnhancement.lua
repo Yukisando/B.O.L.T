@@ -134,15 +134,20 @@ local function GetInterruptState(unit)
     return "IMPOSSIBLE"
 end
 
+-- Tracks which castBar frames we have already hooked. Using a local Lua table
+-- instead of writing a field onto the Blizzard-owned castBar frame avoids
+-- tainting that frame from addon context.
+local hookedCastBars = {}
+
 -- Hook castbar
 local function HookCastBar(nameplate)
     local uf = nameplate.UnitFrame
     if not uf then return end
 
     local castBar = uf.castBar or uf.CastBar
-    if not castBar or castBar._boltInterruptHook then return end
+    if not castBar or hookedCastBars[castBar] then return end
 
-    castBar._boltInterruptHook = true
+    hookedCastBars[castBar] = true
 
     castBar:HookScript("OnUpdate", function(self)
         if not interruptWarningEnabled then return end
@@ -205,18 +210,13 @@ local function OnHealthColorUpdated(frame)
     end
 end
 
-local eventFrame = CreateFrame("Frame")
-
-eventFrame:RegisterEvent("NAME_PLATE_UNIT_ADDED")
-eventFrame:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
-eventFrame:RegisterEvent("UNIT_DISPLAYPOWER")
-eventFrame:RegisterEvent("UNIT_POWER_BAR_SHOW")
-
-if CompactUnitFrame_UpdateHealthColor then
-    hooksecurefunc("CompactUnitFrame_UpdateHealthColor", OnHealthColorUpdated)
-elseif CompactUnitFrameMixin and CompactUnitFrameMixin.UpdateHealthColor then
-    hooksecurefunc(CompactUnitFrameMixin, "UpdateHealthColor", OnHealthColorUpdated)
-end
+-- eventFrame is created lazily inside OnEnable rather than at module load time.
+-- Creating frames, registering events, or calling hooksecurefunc at load time runs
+-- during Blizzard's secure UI initialisation phase. Addon code in that phase can
+-- taint the execution context used by GameMenuFrame_Setup, causing all
+-- GameMenuButton.callback values to be treated as tainted — which triggers
+-- ADDON_ACTION_FORBIDDEN for every GameMenu button (Disconnect, Logout, etc.).
+local eventFrame
 
 -- LIFECYCLE
 
@@ -264,6 +264,29 @@ function NameplatesEnhancement:OnEnable()
 
     self:LoadManaColor()
     self:LoadInterruptWarningColor()
+
+    -- Lazy-create the event frame so no addon code runs at module load time.
+    if not eventFrame then
+        eventFrame = CreateFrame("Frame")
+    end
+
+    -- Register the core nameplate events (mirrored in OnDisable).
+    eventFrame:RegisterEvent("NAME_PLATE_UNIT_ADDED")
+    eventFrame:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
+    eventFrame:RegisterEvent("UNIT_DISPLAYPOWER")
+    eventFrame:RegisterEvent("UNIT_POWER_BAR_SHOW")
+
+    -- hooksecurefunc cannot be un-hooked, so only install it once per session.
+    -- The hook body re-checks isEnabled / ShouldApply() so it is safely inert
+    -- when the module is disabled.
+    if not NameplatesEnhancement._healthColorHooked then
+        if CompactUnitFrame_UpdateHealthColor then
+            hooksecurefunc("CompactUnitFrame_UpdateHealthColor", OnHealthColorUpdated)
+        elseif CompactUnitFrameMixin and CompactUnitFrameMixin.UpdateHealthColor then
+            hooksecurefunc(CompactUnitFrameMixin, "UpdateHealthColor", OnHealthColorUpdated)
+        end
+        NameplatesEnhancement._healthColorHooked = true
+    end
 
     eventFrame:SetScript("OnEvent", function(_, event, unit)
         if event == "SPELL_UPDATE_COOLDOWN" then
@@ -322,8 +345,15 @@ end
 function NameplatesEnhancement:OnDisable()
     isEnabled = false
 
+    if not eventFrame then return end
+
     eventFrame:SetScript("OnEvent", nil)
 
+    -- Unregister everything registered in OnEnable.
+    eventFrame:UnregisterEvent("NAME_PLATE_UNIT_ADDED")
+    eventFrame:UnregisterEvent("NAME_PLATE_UNIT_REMOVED")
+    eventFrame:UnregisterEvent("UNIT_DISPLAYPOWER")
+    eventFrame:UnregisterEvent("UNIT_POWER_BAR_SHOW")
     eventFrame:UnregisterEvent("SPELL_UPDATE_COOLDOWN")
     eventFrame:UnregisterEvent("UNIT_SPELLCAST_NOT_INTERRUPTIBLE")
     eventFrame:UnregisterEvent("UNIT_SPELLCAST_INTERRUPTIBLE")
@@ -332,6 +362,7 @@ function NameplatesEnhancement:OnDisable()
     eventFrame:UnregisterEvent("UNIT_SPELLCAST_FAILED")
     eventFrame:UnregisterEvent("UNIT_SPELLCAST_CHANNEL_STOP")
     wipe(notInterruptibleUnits)
+    wipe(hookedCastBars)
 end
 
 BOLT:RegisterModule("nameplatesEnhancement", NameplatesEnhancement)

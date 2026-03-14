@@ -279,7 +279,10 @@ function Playground:UpdateFavoriteToyButton()
                 toyIcon = C_Item.GetItemIconByID(itemID)
             end
             
-            -- Prefer using the toy ID when constructing the macro to avoid name-escaping problems
+            -- Prefer using the toy ID when constructing the macro to avoid name-escaping problems.
+            -- HideUIPanel(GameMenuFrame) is safe here: this button is a SecureActionButtonTemplate
+            -- whose macro executes via a hardware-event secure call chain, so protected functions
+            -- are permitted within the /run block.
             local macroText
             if C_ToyBox and C_ToyBox.UseToyByID then
                 macroText = "/run C_ToyBox.UseToyByID(" .. tostring(toyId) .. ")\n/run HideUIPanel(GameMenuFrame)"

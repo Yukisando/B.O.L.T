@@ -531,14 +531,22 @@ function SmartTeleport:RegisterEvents()
     self.eventFrame = f
 
     if WorldMapFrame and not self._mapHooked then
+        -- Defer via C_Timer.After(0) so BOLT's code never runs inline inside the
+        -- WorldMap's secure open sequence (secureexecuterange / SetMapID chain).
+        -- Running addon code mid-sequence taints the environment, causing
+        -- ADDON_ACTION_BLOCKED on SetPropagateMouseClicks for flight-point pins.
         hooksecurefunc(WorldMapFrame, "SetMapID", function()
-            if drawerFrame then self:RefreshDrawer() end
+            if drawerFrame then
+                C_Timer.After(0, function() self:RefreshDrawer() end)
+            end
         end)
 
         WorldMapFrame:HookScript("OnShow", function()
             if not self.parent:IsModuleEnabled("smartTeleport") then return end
-            self:RebuildOwnershipCache()
-            self:RefreshDrawer()
+            C_Timer.After(0, function()
+                self:RebuildOwnershipCache()
+                self:RefreshDrawer()
+            end)
         end)
 
         -- Hide the drawer when the map closes. Because drawerFrame is parented to

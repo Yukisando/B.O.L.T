@@ -242,10 +242,10 @@ function SpecialGamemode:ExitHardcoreMode()
     -- Stop the effect timer
     self:StopEffectTimer()
 
-    -- Restore interface and camera
-    local ok = pcall(function() UIParent:Show() end)
-    if not ok and self.parent and self.parent.Print then
-        self.parent:Print("B.O.L.T: UI show blocked by restrictions.")
+    -- Restore interface: hide the cover frame (replaces the old UIParent:Show() which
+    -- caused ADDON_ACTION_FORBIDDEN because UIParent is a protected frame).
+    if self.coverFrame then
+        self.coverFrame:Hide()
     end
 
     -- Restore original camera zoom
@@ -310,13 +310,28 @@ function SpecialGamemode:StopEffectTimer()
     end
 end
 
+function SpecialGamemode:GetOrCreateCoverFrame()
+    if not self.coverFrame then
+        -- Full-screen black cover drawn above all other frames. This replaces the old
+        -- UIParent:Hide() approach, which fired ADDON_ACTION_FORBIDDEN because
+        -- UIParent is a protected frame that addon code cannot manipulate.
+        local f = CreateFrame("Frame", "BOLTHardcoreCover", UIParent)
+        f:SetAllPoints(UIParent)
+        f:SetFrameStrata("FULLSCREEN_DIALOG")
+        f:SetFrameLevel(9999)
+        local bg = f:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints(f)
+        bg:SetColorTexture(0, 0, 0, 1)
+        f:Hide()
+        self.coverFrame = f
+    end
+    return self.coverFrame
+end
+
 function SpecialGamemode:ApplyHardcoreEffects()
-    -- Hide UI if it's showing (guarded)
-    pcall(function()
-        if UIParent:IsShown() then
-            UIParent:Hide()
-        end
-    end)
+    -- Cover the UI instead of hiding UIParent (UIParent:Hide is a protected call).
+    local cover = self:GetOrCreateCoverFrame()
+    cover:Show()
 
     -- Force camera to first person (guarded)
     pcall(CameraZoomIn, 50) -- Zoom in as much as possible
@@ -324,8 +339,10 @@ end
 
 function SpecialGamemode:PauseEffects()
     self.effectsPaused = true
-    -- Show UI when effects are paused (guarded)
-    pcall(function() UIParent:Show() end)
+    -- Uncover the UI when effects are paused.
+    if self.coverFrame then
+        self.coverFrame:Hide()
+    end
 end
 
 function SpecialGamemode:ResumeEffects()

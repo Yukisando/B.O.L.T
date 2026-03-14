@@ -550,7 +550,12 @@ end
 function GameMenu:CreateLeaveGroupButton()
     local mod = self
     -- Parent to our container if available to allow grouped visibility control
-    leaveGroupButton = CreateFrame("Button", nil, self:GetMenuParent(), "GameMenuButtonTemplate")
+    -- NOTE: Do NOT use GameMenuButtonTemplate here. That template uses GameMenuButtonMixin
+    -- whose OnClick calls self.callback(self) — a protected function. Setting our own
+    -- OnClick script taints that callback slot, causing ADDON_ACTION_FORBIDDEN every time
+    -- Blizzard's secure handler fires. UIPanelButtonTemplate is visually equivalent and
+    -- does not carry the GameMenuButtonMixin callback mechanism.
+    leaveGroupButton = CreateFrame("Button", nil, self:GetMenuParent(), "UIPanelButtonTemplate")
     leaveGroupButton:SetSize(144, 28)
     leaveGroupButton:SetText("Leave Group")
     leaveGroupButton:SetScript("OnClick", function() mod:OnLeaveGroupClick() end)
