@@ -23,6 +23,7 @@ local inSkyriding = false
 local overrideFrame
 local transitionPoller -- OnUpdate frame for pending-state polling
 local watchdog
+local playerClass = UnitClassBase and select(1, UnitClassBase("player")) or select(2, UnitClass("player"))
 
 local function Safe() return not InCombatLockdown() end
 
@@ -37,8 +38,21 @@ local function IsSkyridingSelected()
     return aura == nil
 end
 
+local function IsDruidFlightFormActive()
+    if playerClass ~= "DRUID" then
+        return false
+    end
+
+    local formID = GetShapeshiftFormID and GetShapeshiftFormID()
+    if formID == 27 or formID == 29 then
+        return true
+    end
+
+    return IsFlying() and GetShapeshiftForm and GetShapeshiftForm() == 3
+end
+
 local function IsSkyridingActiveNow()
-    return IsMounted()
+    return (IsMounted() or IsDruidFlightFormActive())
        and IsAdvancedFlyableArea()
        and IsOutdoors()
        and IsSkyridingSelected()
@@ -266,6 +280,8 @@ function Skyriding:CreateEventFrame()
     self.eventFrame:RegisterEvent("MOUNT_JOURNAL_USABILITY_CHANGED")
     self.eventFrame:RegisterEvent("UNIT_AURA")
     self.eventFrame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
+    self.eventFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
+    self.eventFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORMS")
 
     self.eventFrame:RegisterEvent("GLOBAL_MOUSE_DOWN")
     self.eventFrame:RegisterEvent("GLOBAL_MOUSE_UP")
@@ -312,6 +328,10 @@ function Skyriding:CreateEventFrame()
             if unit == "player" then
                 C_Timer.After(0.1, function() if Safe() then Recalc() end end)
             end
+
+        elseif event == "UPDATE_SHAPESHIFT_FORM"
+            or event == "UPDATE_SHAPESHIFT_FORMS" then
+            C_Timer.After(0, function() if Safe() then Recalc() end end)
 
         elseif event == "PLAYER_MOUNT_DISPLAY_CHANGED"
             or event == "MOUNT_JOURNAL_USABILITY_CHANGED"

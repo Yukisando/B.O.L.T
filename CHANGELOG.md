@@ -1,6 +1,10 @@
 # B.O.L.T Changelog
 **(Brittle and Occasionally Lethal Tweaks)**
 
+## [Unreleased]
+### Fixed
+- **Skyriding Module**: Druid skyriding flight form now counts as a valid skyriding state, and shapeshift changes trigger an immediate refresh.
+
 ## [2.5.1] - 2026-01-20
 ### Fixed (Midnight 12.0 compatibility audit)
 - **WowheadLink**: Fixed `C_Spell.GetSpellInfo` usage — the API returns a table in Midnight (the deprecated global `GetSpellInfo` is removed); now correctly extracts `.name` from the result table.

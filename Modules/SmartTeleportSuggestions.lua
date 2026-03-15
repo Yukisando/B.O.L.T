@@ -142,6 +142,8 @@ SmartTeleport.TeleportData = {
 local ownedCache = {}   -- rebuilt on SPELLS_CHANGED / BAG_UPDATE
 local drawerFrame = nil
 local entryButtons = {}
+local pendingDrawerHide = false
+local pendingDrawerRefresh = false
 local ICON_SIZE    = 32
 local ICON_PAD     = 4
 local DRAWER_PAD   = 6
@@ -159,8 +161,33 @@ function SmartTeleport:OnEnable()
     self:RegisterEvents()
 end
 
+function SmartTeleport:HideDrawer()
+    if not drawerFrame then return end
+    if InCombatLockdown() then
+        pendingDrawerHide = true
+        pendingDrawerRefresh = false
+        return
+    end
+
+    pendingDrawerHide = false
+    pendingDrawerRefresh = false
+    drawerFrame:Hide()
+end
+
+function SmartTeleport:RequestDrawerRefresh()
+    if InCombatLockdown() then
+        pendingDrawerHide = false
+        pendingDrawerRefresh = true
+        return
+    end
+
+    pendingDrawerHide = false
+    pendingDrawerRefresh = false
+    self:RefreshDrawer()
+end
+
 function SmartTeleport:OnDisable()
-    if drawerFrame then drawerFrame:Hide() end
+    self:HideDrawer()
     if self.eventFrame then
         self.eventFrame:UnregisterAllEvents()
     end
@@ -353,13 +380,12 @@ function SmartTeleport:CreateDrawer()
     -- to WorldMapFrame taints the map's child-frame table, causing
     -- ADDON_ACTION_BLOCKED on SetPropagateMouseClicks (called by flight-point pins in
     -- secureexecuterange) and "secret value" taint on UIWidget font-string heights.
-    -- We position the drawer over the map via SetPoint anchors (which can reference
+    -- We position the drawer below the map via SetPoint anchors (which can reference
     -- any frame for positioning regardless of parent) and hide it manually via an
     -- OnHide hook below.
     drawerFrame = CreateFrame("Frame", "BOLTSmartTeleportDrawer", UIParent, "BackdropTemplate")
     drawerFrame:SetHeight(ICON_SIZE + DRAWER_PAD * 2)
-    drawerFrame:SetPoint("BOTTOMLEFT", mapAnchor, "BOTTOMLEFT", 0, 0)
-    drawerFrame:SetPoint("BOTTOMRIGHT", mapAnchor, "BOTTOMRIGHT", 0, 0)
+    drawerFrame:SetPoint("TOP", mapAnchor, "BOTTOM", 0, -6)
     drawerFrame:SetFrameStrata("DIALOG")
     drawerFrame:SetFrameLevel(500)
 
@@ -404,13 +430,13 @@ function SmartTeleport:RefreshDrawer()
     if not drawerFrame then return end
     if InCombatLockdown() then return end
     if not WorldMapFrame or not WorldMapFrame:IsShown() then
-        drawerFrame:Hide()
+        self:HideDrawer()
         return
     end
 
     local mapID = WorldMapFrame:GetMapID()
     if not mapID then
-        drawerFrame:Hide()
+        self:HideDrawer()
         return
     end
 
@@ -421,7 +447,7 @@ function SmartTeleport:RefreshDrawer()
     end
 
     if #results == 0 then
-        drawerFrame:Hide()
+        self:HideDrawer()
         return
     end
 
@@ -475,7 +501,7 @@ function SmartTeleport:RefreshDrawer()
 
     local mapAnchor = WorldMapFrame.ScrollContainer or WorldMapFrame
     drawerFrame:ClearAllPoints()
-    drawerFrame:SetPoint("BOTTOM", mapAnchor, "BOTTOM", 0, 4)
+    drawerFrame:SetPoint("TOP", mapAnchor, "BOTTOM", 0, -6)
     drawerFrame:Show()
 end
 
@@ -520,12 +546,23 @@ function SmartTeleport:RegisterEvents()
     f:RegisterEvent("SPELLS_CHANGED")
     f:RegisterEvent("BAG_UPDATE")
     f:RegisterEvent("QUEST_LOG_UPDATE")
+    f:RegisterEvent("PLAYER_REGEN_ENABLED")
 
     f:SetScript("OnEvent", function(_, event)
         if event == "SPELLS_CHANGED" or event == "BAG_UPDATE" then
             self:RebuildOwnershipCache()
         end
-        if drawerFrame and drawerFrame:IsShown() then self:RefreshDrawer() end
+        if event == "PLAYER_REGEN_ENABLED" then
+            if pendingDrawerHide or not WorldMapFrame or not WorldMapFrame:IsShown() then
+                self:HideDrawer()
+                return
+            end
+            if pendingDrawerRefresh then
+                self:RequestDrawerRefresh()
+                return
+            end
+        end
+        if drawerFrame and drawerFrame:IsShown() then self:RequestDrawerRefresh() end
     end)
 
     self.eventFrame = f
@@ -537,7 +574,7 @@ function SmartTeleport:RegisterEvents()
         -- ADDON_ACTION_BLOCKED on SetPropagateMouseClicks for flight-point pins.
         hooksecurefunc(WorldMapFrame, "SetMapID", function()
             if drawerFrame then
-                C_Timer.After(0, function() self:RefreshDrawer() end)
+                C_Timer.After(0, function() self:RequestDrawerRefresh() end)
             end
         end)
 
@@ -545,14 +582,14 @@ function SmartTeleport:RegisterEvents()
             if not self.parent:IsModuleEnabled("smartTeleport") then return end
             C_Timer.After(0, function()
                 self:RebuildOwnershipCache()
-                self:RefreshDrawer()
+                self:RequestDrawerRefresh()
             end)
         end)
 
         -- Hide the drawer when the map closes. Because drawerFrame is parented to
         -- UIParent (not WorldMapFrame) it no longer auto-hides with the map.
         WorldMapFrame:HookScript("OnHide", function()
-            if drawerFrame then drawerFrame:Hide() end
+            self:HideDrawer()
         end)
 
         self._mapHooked = true

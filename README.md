@@ -22,6 +22,7 @@
 ### Skyriding Module
 
 - **Mouse-Activated Controls**: Hold left mouse button to activate enhanced skyriding controls
+- **Druid Support**: Detects druid skyriding flight form in addition to regular flying mounts
 - **Enhanced Movement**: While holding mouse, strafe keys (A/D) become horizontal turning
 - **Pitch Control**: Optional W/S mapping for pitch up/down movement when mouse is held (3D control)
 - **Invert Option**: Reverse pitch controls if preferred (W=dive, S=climb)
