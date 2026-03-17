@@ -59,7 +59,10 @@
         "STANDARD_TEXT_FONT",
         "ColorPickerFrame",
         "CompactUnitFrame_UpdateHealthColor",
-        "UIParentLoadAddOn"
+        "UIParentLoadAddOn",
+        "EditModeManagerFrame",
+        "CompactPartyFrame",
+        "CompactPartyFrameMixin"
     ],
     "Lua.type.weakUnionCheck": true
 }

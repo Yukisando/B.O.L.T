@@ -36,5 +36,6 @@ Modules\AchievementTracker.lua
 Modules\SavedInstances.lua
 Modules\SoundMuter.lua
 Modules\NameplatesEnhancement.lua
+Modules\PartyFramesCenterGrowth.lua
 
 Modules\SmartTeleportSuggestions.lua

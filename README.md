@@ -63,6 +63,12 @@
 - **Instance-Only Mode**: Optional toggle to limit nameplate coloring to dungeons, raids, and scenarios
 - **Customizable Mana Color**: Pick any color for mana-user nameplates from the config panel
 
+### Party Frames Center Growth Module
+
+- **Centered Raid-Style Party Growth**: Keeps raid-style party frames centered instead of visually drifting from a fixed corner as the group fills
+- **Dynamic Join/Leave Nudging**: Repositions the party anchor as members join or leave so the layout remains centered for party sizes 1-5
+- **Party-Only Scope**: Only affects party raid-style frames; raid group frames are untouched
+
 ## Installation
 
 1. Download the addon files

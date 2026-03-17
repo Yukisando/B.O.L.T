@@ -1013,6 +1013,29 @@ function Config:CreateInterfaceOptionsPanel()
     c:SetHeight(ne.optionsHeight)
 
     ---------------------------------------------------------------------------
+    -- PARTY FRAMES CENTER GROWTH
+    ---------------------------------------------------------------------------
+    local pfcg = self:CreateSection(content, "Party Frames Center Growth", "partyFramesCenterGrowth", true)
+    c = pfcg.container
+    cy = 0
+
+    pfcg.checkbox:SetScript("OnClick", function(button)
+        self.parent:SetModuleEnabled("partyFramesCenterGrowth", button:GetChecked())
+        self:RelayoutPanel()
+    end)
+    self.widgets.partyFramesCenterGrowthCheckbox = pfcg.checkbox
+
+    local pfcgDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    pfcgDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
+    pfcgDesc:SetWidth(560)
+    pfcgDesc:SetJustifyH("LEFT")
+    pfcgDesc:SetText("Keeps raid-style party frames center-aligned by nudging the party group anchor as members join or leave. Only affects party frames when Raid-Style Party Frames is enabled in Edit Mode.")
+    cy = cy - 40
+
+    pfcg.optionsHeight = math.abs(cy)
+    c:SetHeight(pfcg.optionsHeight)
+
+    ---------------------------------------------------------------------------
     -- FOOTER
     ---------------------------------------------------------------------------
     local reloadBtn = CreateFrame("Button", "BOLTOptionsReloadButton", content, "UIPanelButtonTemplate")
@@ -1167,6 +1190,7 @@ function Config:RefreshOptionsPanel()
         if w.savedInstancesCheckbox then w.savedInstancesCheckbox:SetChecked(self.parent:IsModuleEnabled("savedInstances")) end
         if w.soundMuterCheckbox then w.soundMuterCheckbox:SetChecked(self.parent:IsModuleEnabled("soundMuter")) end
         if w.nameplatesEnhancementCheckbox then w.nameplatesEnhancementCheckbox:SetChecked(self.parent:IsModuleEnabled("nameplatesEnhancement")) end
+        if w.partyFramesCenterGrowthCheckbox then w.partyFramesCenterGrowthCheckbox:SetChecked(self.parent:IsModuleEnabled("partyFramesCenterGrowth")) end
         if w.neInstanceOnly then w.neInstanceOnly:SetChecked(self.parent:GetConfig("nameplatesEnhancement", "instanceOnly") or false) end
         if w.UpdateNameplatesSwatchColor then w.UpdateNameplatesSwatchColor() end
         -- Chat Notifier channels dropdown

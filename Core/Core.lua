@@ -66,6 +66,7 @@ BOLT.defaultModuleStates = {
     savedInstances = false,
     soundMuter = false,
     nameplatesEnhancement = false,
+    partyFramesCenterGrowth = false,
 }
 
 -- Initialize the addon
