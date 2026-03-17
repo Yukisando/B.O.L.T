@@ -144,19 +144,34 @@ local function BootstrapAddon()
         BOLT:EnableModules()
     end
 
-    if IsLoggedIn and IsLoggedIn() then
+    local attempts = 0
+    local function TryInitializeAfterStartup()
+        if BOLT._initializedAfterLogin then
+            return
+        end
+
+        attempts = attempts + 1
+        if not (IsLoggedIn and IsLoggedIn()) then
+            C_Timer.After(0.2, TryInitializeAfterStartup)
+            return
+        end
+
+        -- Wait for Blizzard's startup/UI construction to settle before any
+        -- module initialization to reduce GameMenu callback taint risk.
+        if not GameMenuFrame then
+            C_Timer.After(0.2, TryInitializeAfterStartup)
+            return
+        end
+
+        if InCombatLockdown and InCombatLockdown() then
+            C_Timer.After(0.2, TryInitializeAfterStartup)
+            return
+        end
+
         InitializeAfterLoginOnce()
-        return
     end
 
-    local eventFrame = CreateFrame("Frame")
-    eventFrame:RegisterEvent("PLAYER_LOGIN")
-    eventFrame:SetScript("OnEvent", function(frame, event)
-        if event == "PLAYER_LOGIN" then
-            frame:UnregisterEvent("PLAYER_LOGIN")
-            InitializeAfterLoginOnce()
-        end
-    end)
+    C_Timer.After(0.2, TryInitializeAfterStartup)
 end
 
 C_Timer.After(0, BootstrapAddon)

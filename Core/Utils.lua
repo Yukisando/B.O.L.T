@@ -3,14 +3,6 @@
 
 local ADDON_NAME, BOLT = ...
 
--- Add trim function to string metatable (define local helper and assign only if missing)
-local function _bolt_string_trim(s)
-    return s and s:match("^%s*(.-)%s*$") or s
-end
-if not string.trim then
-    string.trim = _bolt_string_trim
-end
-
 -- Check if player is in any kind of group
 function BOLT:IsInGroup()
     -- First check if we're actually in a real group (party or raid)
@@ -230,13 +222,19 @@ end
 
 -- Open the configuration panel
 function BOLT:OpenConfigPanel()
-    -- Use modern Settings API (Retail). If Settings is not present, inform the user.
-    if self.modules.config and self.modules.config.EnsureInterfaceOptionsPanel then
-        self.modules.config:EnsureInterfaceOptionsPanel()
+    local configMod = self.modules and self.modules.config
+    if configMod and configMod.OnInitialize and not configMod._initialized then
+        configMod:OnInitialize()
+        configMod._initialized = true
     end
 
-    if Settings and Settings.OpenToCategory and self.modules.config and self.modules.config.settingsCategory then
-        Settings.OpenToCategory(self.modules.config.settingsCategory.ID)
+    -- Use modern Settings API (Retail). If Settings is not present, inform the user.
+    if configMod and configMod.EnsureInterfaceOptionsPanel then
+        configMod:EnsureInterfaceOptionsPanel()
+    end
+
+    if Settings and Settings.OpenToCategory and configMod and configMod.settingsCategory then
+        Settings.OpenToCategory(configMod.settingsCategory.ID)
     else
         self:Print("B.O.L.T settings are not available on this client.")
     end

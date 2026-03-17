@@ -2,7 +2,7 @@
 local ADDON_NAME, BOLT = ...
 
 local Config = {}
-Config.alwaysInitialize = true
+Config.alwaysInitialize = false
 
 -- Centralized keybinding capture helper
 local _bindingCaptureFrame
