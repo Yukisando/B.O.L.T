@@ -58,7 +58,8 @@
         "GuildBankFrame",
         "STANDARD_TEXT_FONT",
         "ColorPickerFrame",
-        "CompactUnitFrame_UpdateHealthColor"
+        "CompactUnitFrame_UpdateHealthColor",
+        "UIParentLoadAddOn"
     ],
     "Lua.type.weakUnionCheck": true
 }

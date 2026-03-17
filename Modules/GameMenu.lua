@@ -171,6 +171,7 @@ function GameMenu:OnEnable()
         end)
         self.loadCheckFrame = lf
     end
+
 end
 
 function GameMenu:OnDisable()
@@ -750,7 +751,6 @@ function GameMenu:CreateVolumeButton()
         local isMuted = volumePercent == 0
         GameTooltip:SetText("Master Volume", 1, 1, 1)
         GameTooltip:AddLine("Current: " .. volumePercent .. "%" .. (isMuted and " (MUTED)" or ""), 1, 1, 0, true)
-        GameTooltip:AddLine("Display: " .. (isMuted and "M" or tostring(volumePercent)), 0.7, 0.7, 0.7, true)
         GameTooltip:AddLine("Left-click: Toggle mute", 0.8, 0.8, 0.8, true)
         GameTooltip:AddLine("Right-click: Toggle music", 0.8, 0.8, 0.8, true)
         GameTooltip:AddLine("Mouse wheel: Adjust volume", 0.8, 0.8, 0.8, true)
@@ -1125,6 +1125,11 @@ end
 function GameMenu:OnDamageNumbersClick()
     local currentValue = GetCVar("floatingCombatTextCombatDamage_v2")
     local newValue = (currentValue == "1") and "0" or "1"
+
+    if newValue == "1" then
+        SetCVar("enableFloatingCombatText", "1")
+    end
+
     for _, cvar in ipairs(DAMAGE_CONSOLE_VARS) do
         ConsoleExec(cvar .. " " .. newValue)
     end
