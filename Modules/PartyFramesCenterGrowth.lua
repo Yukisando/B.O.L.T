@@ -3,7 +3,6 @@ local ADDON_NAME, BOLT = ...
 local PartyFramesCenterGrowth = {}
 
 local MAX_PARTY_UNITS = 5
-local POLL_INTERVAL = 0.1
 
 local frame
 local eventFrame
@@ -16,6 +15,7 @@ local lastExpectedPoint
 local lastExpectedRelativePoint
 local lastExpectedX
 local lastExpectedY
+local queuedReapplyToken = 0
 
 local function ApproximatelyEqual(a, b)
     return math.abs((a or 0) - (b or 0)) < 0.5
@@ -38,6 +38,22 @@ local function WasExternallyReset(point, relativePoint, xOfs, yOfs)
     end
 
     return not ApproximatelyEqual(xOfs, lastExpectedX) or not ApproximatelyEqual(yOfs, lastExpectedY)
+end
+
+function PartyFramesCenterGrowth:QueueReapplyBurst()
+    queuedReapplyToken = queuedReapplyToken + 1
+    local token = queuedReapplyToken
+    local delays = { 0, 0.05, 0.15, 0.3 }
+
+    for _, delay in ipairs(delays) do
+        C_Timer.After(delay, function()
+            if token ~= queuedReapplyToken or not isEnabled then
+                return
+            end
+
+            self:ScheduleApply()
+        end)
+    end
 end
 
 local function IsRaidStylePartyEnabled()
@@ -198,36 +214,76 @@ function PartyFramesCenterGrowth:OnInitialize()
             hookInstalled = true
         end
 
+        if CompactPartyFrameMixin and CompactPartyFrameMixin.RefreshMembers then
+            hooksecurefunc(CompactPartyFrameMixin, "RefreshMembers", function(compactPartyFrame)
+                frame = compactPartyFrame or frame or CompactPartyFrame
+                self:QueueReapplyBurst()
+            end)
+        end
+
         if PartyFrame and PartyFrame.UpdatePaddingAndLayout then
             hooksecurefunc(PartyFrame, "UpdatePaddingAndLayout", function()
-                self:ScheduleApply()
+                self:QueueReapplyBurst()
             end)
         end
 
         if UpdateRaidAndPartyFrames then
             hooksecurefunc("UpdateRaidAndPartyFrames", function()
-                self:ScheduleApply()
+                self:QueueReapplyBurst()
             end)
+        end
+
+        if EditModeUnitFrameSystemMixin then
+            if EditModeUnitFrameSystemMixin.UpdateSystemSettingUseRaidStylePartyFrames then
+                hooksecurefunc(EditModeUnitFrameSystemMixin, "UpdateSystemSettingUseRaidStylePartyFrames", function(systemFrame)
+                    if systemFrame and systemFrame.systemIndex == Enum.EditModeUnitFrameSystemIndices.Party then
+                        self:QueueReapplyBurst()
+                    end
+                end)
+            end
+
+            if EditModeUnitFrameSystemMixin.UpdateSystemSettingUseHorizontalGroups then
+                hooksecurefunc(EditModeUnitFrameSystemMixin, "UpdateSystemSettingUseHorizontalGroups", function(systemFrame)
+                    if systemFrame and systemFrame.systemIndex == Enum.EditModeUnitFrameSystemIndices.Party then
+                        self:QueueReapplyBurst()
+                    end
+                end)
+            end
+
+            if EditModeUnitFrameSystemMixin.UpdateSystemSettingFrameWidth then
+                hooksecurefunc(EditModeUnitFrameSystemMixin, "UpdateSystemSettingFrameWidth", function(systemFrame)
+                    if systemFrame and systemFrame.systemIndex == Enum.EditModeUnitFrameSystemIndices.Party then
+                        self:QueueReapplyBurst()
+                    end
+                end)
+            end
+
+            if EditModeUnitFrameSystemMixin.UpdateSystemSettingFrameHeight then
+                hooksecurefunc(EditModeUnitFrameSystemMixin, "UpdateSystemSettingFrameHeight", function(systemFrame)
+                    if systemFrame and systemFrame.systemIndex == Enum.EditModeUnitFrameSystemIndices.Party then
+                        self:QueueReapplyBurst()
+                    end
+                end)
+            end
         end
     end
 
     if EventRegistry and not self._editModeExitHandle then
         self._editModeExitHandle = function()
             if isEnabled then
-                self:ScheduleApply()
+                self:QueueReapplyBurst()
             end
         end
         EventRegistry:RegisterCallback("EditMode.Exit", self._editModeExitHandle)
         EventRegistry:RegisterCallback("EditMode.SavedLayouts", self._editModeExitHandle)
     end
 
-    eventFrame._pollElapsed = 0
     eventFrame:SetScript("OnEvent", function(_, event)
         if event == "PLAYER_REGEN_ENABLED" then
             if pendingUpdate then
                 pendingUpdate = false
                 if isEnabled then
-                    self:ScheduleApply()
+                    self:QueueReapplyBurst()
                 else
                     ClearOffset(frame or CompactPartyFrame)
                     eventFrame:UnregisterEvent("PLAYER_REGEN_ENABLED")
@@ -236,18 +292,7 @@ function PartyFramesCenterGrowth:OnInitialize()
             return
         end
 
-        self:ScheduleApply()
-    end)
-    eventFrame:SetScript("OnUpdate", function(_, elapsed)
-        if not isEnabled then
-            return
-        end
-
-        eventFrame._pollElapsed = (eventFrame._pollElapsed or 0) + elapsed
-        if eventFrame._pollElapsed >= POLL_INTERVAL then
-            eventFrame._pollElapsed = 0
-            self:ScheduleApply()
-        end
+        self:QueueReapplyBurst()
     end)
 end
 
@@ -261,14 +306,13 @@ function PartyFramesCenterGrowth:OnEnable()
     eventFrame:RegisterEvent("DISPLAY_SIZE_CHANGED")
     eventFrame:RegisterEvent("UI_SCALE_CHANGED")
 
-    self:ScheduleApply()
+    self:QueueReapplyBurst()
 end
 
 function PartyFramesCenterGrowth:OnDisable()
     isEnabled = false
 
     if eventFrame then
-        eventFrame._pollElapsed = 0
         eventFrame:UnregisterEvent("GROUP_ROSTER_UPDATE")
         eventFrame:UnregisterEvent("PLAYER_ENTERING_WORLD")
         eventFrame:UnregisterEvent("PLAYER_FLAGS_CHANGED")

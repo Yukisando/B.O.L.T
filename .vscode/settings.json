@@ -64,7 +64,8 @@
         "CompactPartyFrame",
         "CompactPartyFrameMixin",
         "UpdateRaidAndPartyFrames",
-        "PartyFrame"
+        "PartyFrame",
+        "EditModeUnitFrameSystemMixin"
     ],
     "Lua.type.weakUnionCheck": true
 }
