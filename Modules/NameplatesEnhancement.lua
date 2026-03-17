@@ -88,7 +88,6 @@ end
 
 function NameplatesEnhancement:OnEnable()
     isEnabled = true
-
     instanceOnly = self.parent:GetConfig("nameplatesEnhancement", "instanceOnly") or false
 
     self:LoadManaColor()
@@ -127,10 +126,6 @@ function NameplatesEnhancement:OnEnable()
     end)
 end
 
-function NameplatesEnhancement:RefreshInstanceOnly()
-    instanceOnly = self.parent:GetConfig("nameplatesEnhancement", "instanceOnly") or false
-end
-
 function NameplatesEnhancement:OnDisable()
     isEnabled = false
 
@@ -142,6 +137,10 @@ function NameplatesEnhancement:OnDisable()
     eventFrame:UnregisterEvent("NAME_PLATE_UNIT_ADDED")
     eventFrame:UnregisterEvent("UNIT_DISPLAYPOWER")
     eventFrame:UnregisterEvent("UNIT_POWER_BAR_SHOW")
+end
+
+function NameplatesEnhancement:RefreshInstanceOnly()
+    instanceOnly = self.parent:GetConfig("nameplatesEnhancement", "instanceOnly") or false
 end
 
 BOLT:RegisterModule("nameplatesEnhancement", NameplatesEnhancement)

@@ -19,7 +19,11 @@ function BOLT:InitializeDatabase()
             local playerKey = UnitName("player") .. " - " .. GetRealmName()
             local oldProfile = BOLTDB.profiles[playerKey]
             if oldProfile then
-                local moduleNames = {"gameMenu", "playground", "skyriding", "wowheadLink", "autoRepSwitch", "smartTeleport", "chatNotifier", "achievementTracker"}
+                local moduleNames = {
+                    "gameMenu", "playground", "skyriding", "wowheadLink", "autoRepSwitch",
+                    "smartTeleport", "chatNotifier", "achievementTracker", "savedInstances",
+                    "soundMuter", "nameplatesEnhancement"
+                }
                 for _, name in ipairs(moduleNames) do
                     if oldProfile[name] and oldProfile[name].enabled ~= nil then
                         BOLTDB.moduleStates[name] = oldProfile[name].enabled
@@ -27,11 +31,12 @@ function BOLT:InitializeDatabase()
                 end
             end
         end
-        -- Fill in any missing modules with the default (false)
-        for name, default in pairs(self.defaultModuleStates) do
-            if BOLTDB.moduleStates[name] == nil then
-                BOLTDB.moduleStates[name] = default
-            end
+    end
+
+    -- Fill in any missing modules with defaults (account-wide, persists across characters).
+    for name, default in pairs(self.defaultModuleStates) do
+        if BOLTDB.moduleStates[name] == nil then
+            BOLTDB.moduleStates[name] = default
         end
     end
 
@@ -58,12 +63,26 @@ function BOLT:InitializeDatabase()
     end
 
     -- Clean legacy "enabled" keys out of profiles (now in moduleStates)
-    local moduleNames = {"gameMenu", "playground", "skyriding", "wowheadLink", "autoRepSwitch", "smartTeleport", "chatNotifier", "achievementTracker"}
+    local moduleNames = {
+        "gameMenu", "playground", "skyriding", "wowheadLink", "autoRepSwitch",
+        "smartTeleport", "chatNotifier", "achievementTracker", "savedInstances",
+        "soundMuter", "nameplatesEnhancement"
+    }
     local cleaned = false
     for pkey, profile in pairs(BOLTDB.profiles) do
         for _, name in ipairs(moduleNames) do
             if profile[name] and profile[name].enabled ~= nil then
                 profile[name].enabled = nil
+                cleaned = true
+            end
+        end
+        if profile.nameplatesEnhancement then
+            if profile.nameplatesEnhancement.interruptWarning ~= nil then
+                profile.nameplatesEnhancement.interruptWarning = nil
+                cleaned = true
+            end
+            if profile.nameplatesEnhancement.interruptWarningColor ~= nil then
+                profile.nameplatesEnhancement.interruptWarningColor = nil
                 cleaned = true
             end
         end
@@ -77,6 +96,16 @@ function BOLT:InitializeDatabase()
         for _, name in ipairs(moduleNames) do
             if self.db.profile[name] and self.db.profile[name].enabled ~= nil then
                 self.db.profile[name].enabled = nil
+                cleaned = true
+            end
+        end
+        if self.db.profile.nameplatesEnhancement then
+            if self.db.profile.nameplatesEnhancement.interruptWarning ~= nil then
+                self.db.profile.nameplatesEnhancement.interruptWarning = nil
+                cleaned = true
+            end
+            if self.db.profile.nameplatesEnhancement.interruptWarningColor ~= nil then
+                self.db.profile.nameplatesEnhancement.interruptWarningColor = nil
                 cleaned = true
             end
         end

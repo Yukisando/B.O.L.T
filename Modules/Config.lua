@@ -578,7 +578,7 @@ function Config:CreateInterfaceOptionsPanel()
     cnDesc:SetWidth(520)
     cnDesc:SetJustifyH("LEFT")
     cnDesc:SetText("Plays a notification sound when a new message appears in any checked channel below.")
-    cy = cy - 24
+    cy = cy - math.max(cnDesc:GetStringHeight() + 10, 24)
 
     local cnSoundLabel = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     cnSoundLabel:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
@@ -620,7 +620,7 @@ function Config:CreateInterfaceOptionsPanel()
 
     local cnPreviewBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
     cnPreviewBtn:SetSize(70, 22)
-    cnPreviewBtn:SetPoint("LEFT", cnSoundDropdown, "RIGHT", -10, 2)
+    cnPreviewBtn:SetPoint("LEFT", cnSoundDropdown, "RIGHT", 6, 0)
     cnPreviewBtn:SetText("Preview")
     cnPreviewBtn:SetScript("OnClick", function()
         local chatMod = self.parent.modules.chatNotifier
@@ -660,7 +660,7 @@ function Config:CreateInterfaceOptionsPanel()
     self.widgets.UpdateChatNotifierDropdownText = UpdateChatNotifierDropdownText
 
     local cnChannelsDropdown = CreateFrame("Button", "BOLTChatNotifierChannelsDropdown", c, "UIPanelButtonTemplate")
-    cnChannelsDropdown:SetSize(270, 22)
+    cnChannelsDropdown:SetSize(300, 22)
     cnChannelsDropdown:SetPoint("LEFT", cnChannelsLabel, "RIGHT", 5, -2)
     cnChannelsDropdown:SetScript("OnClick", function(btn)
         local mod = self.parent.modules.chatNotifier
@@ -707,7 +707,7 @@ function Config:CreateInterfaceOptionsPanel()
     atDesc:SetWidth(520)
     atDesc:SetJustifyH("LEFT")
     atDesc:SetText("Prints a chat message whenever an action you perform advances progress on any achievement (e.g. /love a critter, completing a quest, defeating a boss).")
-    cy = cy - 36
+    cy = cy - math.max(atDesc:GetStringHeight() + 10, 36)
 
     local atCatLabel = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     atCatLabel:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
@@ -770,7 +770,7 @@ function Config:CreateInterfaceOptionsPanel()
 
     local atRescanBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
     atRescanBtn:SetSize(80, 22)
-    atRescanBtn:SetPoint("LEFT", atCatDropdown, "RIGHT", -10, 2)
+    atRescanBtn:SetPoint("LEFT", atCatDropdown, "RIGHT", 6, 0)
     atRescanBtn:SetText("Rescan")
     atRescanBtn:SetScript("OnClick", function()
         local atMod = self.parent.modules.achievementTracker
@@ -1009,82 +1009,6 @@ function Config:CreateInterfaceOptionsPanel()
     self.widgets.neInstanceOnly = neInstanceOnly
     cy = cy - 26
 
-    -- Interrupt Warning toggle
-    local neInterruptWarn = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
-    neInterruptWarn:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
-    neInterruptWarn.Text:SetText("Interrupt Warning (tint bar when kick is on cooldown)")
-    neInterruptWarn.Text:SetFontObject("GameFontHighlightSmall")
-    neInterruptWarn:SetChecked(self.parent:GetConfig("nameplatesEnhancement", "interruptWarning") or false)
-    neInterruptWarn:SetScript("OnClick", function(button)
-        self.parent:SetConfig(button:GetChecked(), "nameplatesEnhancement", "interruptWarning")
-        local mod = self.parent.modules.nameplatesEnhancement
-        if mod then mod:RefreshInterruptWarning() end
-        self:UpdateNameplatesChildControls()
-    end)
-    self.widgets.neInterruptWarn = neInterruptWarn
-    cy = cy - 26
-
-    -- Interrupt Warning color swatch
-    local neIWColorLabel = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    neIWColorLabel:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
-    neIWColorLabel:SetText("Warning Color:")
-
-    local neIWColorSwatch = CreateFrame("Button", nil, c, "BackdropTemplate")
-    neIWColorSwatch:SetSize(20, 20)
-    neIWColorSwatch:SetPoint("LEFT", neIWColorLabel, "RIGHT", 8, 0)
-    neIWColorSwatch:SetBackdrop({
-        bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 8,
-        insets = { left = 1, right = 1, top = 1, bottom = 1 },
-    })
-    neIWColorSwatch:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
-    self.widgets.neIWColorSwatch = neIWColorSwatch
-
-    local function UpdateIWSwatchColor()
-        local ic = self.parent:GetConfig("nameplatesEnhancement", "interruptWarningColor") or { r = 0.8, g = 0.15, b = 0.15 }
-        neIWColorSwatch:SetBackdropColor(ic.r, ic.g, ic.b, 1)
-    end
-    UpdateIWSwatchColor()
-
-    neIWColorSwatch:SetScript("OnClick", function()
-        local ic = self.parent:GetConfig("nameplatesEnhancement", "interruptWarningColor") or { r = 0.8, g = 0.15, b = 0.15 }
-        local function OnColorChanged()
-            local r, g, b = ColorPickerFrame:GetColorRGB()
-            self.parent:SetConfig({ r = r, g = g, b = b }, "nameplatesEnhancement", "interruptWarningColor")
-            UpdateIWSwatchColor()
-            local mod = self.parent.modules.nameplatesEnhancement
-            if mod and mod.LoadInterruptWarningColor then mod:LoadInterruptWarningColor() end
-        end
-        local function OnCancel(prev)
-            self.parent:SetConfig({ r = prev.r, g = prev.g, b = prev.b }, "nameplatesEnhancement", "interruptWarningColor")
-            UpdateIWSwatchColor()
-            local mod = self.parent.modules.nameplatesEnhancement
-            if mod and mod.LoadInterruptWarningColor then mod:LoadInterruptWarningColor() end
-        end
-        local info = {
-            r = ic.r, g = ic.g, b = ic.b,
-            swatchFunc = OnColorChanged,
-            cancelFunc = OnCancel,
-            previousValues = { r = ic.r, g = ic.g, b = ic.b },
-        }
-        ColorPickerFrame:SetupColorPickerAndShow(info)
-    end)
-
-    local neIWResetBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
-    neIWResetBtn:SetSize(55, 20)
-    neIWResetBtn:SetPoint("LEFT", neIWColorSwatch, "RIGHT", 6, 0)
-    neIWResetBtn:SetText("Reset")
-    neIWResetBtn:SetScript("OnClick", function()
-        self.parent:SetConfig({ r = 0.8, g = 0.15, b = 0.15 }, "nameplatesEnhancement", "interruptWarningColor")
-        UpdateIWSwatchColor()
-        local mod = self.parent.modules.nameplatesEnhancement
-        if mod and mod.LoadInterruptWarningColor then mod:LoadInterruptWarningColor() end
-    end)
-    self.widgets.neIWResetBtn = neIWResetBtn
-    self.widgets.UpdateIWSwatchColor = UpdateIWSwatchColor
-    cy = cy - 28
-
     ne.optionsHeight = math.abs(cy)
     c:SetHeight(ne.optionsHeight)
 
@@ -1243,6 +1167,7 @@ function Config:RefreshOptionsPanel()
         if w.savedInstancesCheckbox then w.savedInstancesCheckbox:SetChecked(self.parent:IsModuleEnabled("savedInstances")) end
         if w.soundMuterCheckbox then w.soundMuterCheckbox:SetChecked(self.parent:IsModuleEnabled("soundMuter")) end
         if w.nameplatesEnhancementCheckbox then w.nameplatesEnhancementCheckbox:SetChecked(self.parent:IsModuleEnabled("nameplatesEnhancement")) end
+        if w.neInstanceOnly then w.neInstanceOnly:SetChecked(self.parent:GetConfig("nameplatesEnhancement", "instanceOnly") or false) end
         if w.UpdateNameplatesSwatchColor then w.UpdateNameplatesSwatchColor() end
         -- Chat Notifier channels dropdown
         if w.chatNotifierChannelsDropdown and w.chatNotifierSelectedChannels then
@@ -1321,21 +1246,7 @@ function Config:UpdateNameplatesChildControls()
         w.neInstanceOnly:SetEnabled(enabled)
         w.neInstanceOnly:SetAlpha(enabled and 1 or 0.5)
     end
-    if w.neInterruptWarn then
-        w.neInterruptWarn:SetEnabled(enabled)
-        w.neInterruptWarn:SetAlpha(enabled and 1 or 0.5)
-    end
-    local iwEnabled = enabled and (self.parent:GetConfig("nameplatesEnhancement", "interruptWarning") or false)
-    if w.neIWColorSwatch then
-        w.neIWColorSwatch:SetEnabled(iwEnabled)
-        w.neIWColorSwatch:SetAlpha(iwEnabled and 1 or 0.5)
-    end
-    if w.neIWResetBtn then
-        w.neIWResetBtn:SetEnabled(iwEnabled)
-        w.neIWResetBtn:SetAlpha(iwEnabled and 1 or 0.5)
-    end
     if w.UpdateNameplatesSwatchColor then w.UpdateNameplatesSwatchColor() end
-    if w.UpdateIWSwatchColor then w.UpdateIWSwatchColor() end
 end
 
 function Config:RefreshSoundMuterList()
