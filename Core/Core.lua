@@ -133,13 +133,19 @@ local function BootstrapAddon()
     end
     BOLT._bootstrapStarted = true
 
-    -- Run addon initialization after the file-load phase. Initializing modules
-    -- while Blizzard is still constructing secure UI can taint GameMenu button
-    -- callbacks on Midnight, which then breaks the menu in combat.
-    BOLT:OnInitialize()
+    local function InitializeAfterLoginOnce()
+        if BOLT._initializedAfterLogin then
+            return
+        end
+        BOLT._initializedAfterLogin = true
+        -- Initialize and enable modules only after login so addon code does not
+        -- run during Blizzard secure UI bootstrap.
+        BOLT:OnInitialize()
+        BOLT:EnableModules()
+    end
 
     if IsLoggedIn and IsLoggedIn() then
-        BOLT:EnableModules()
+        InitializeAfterLoginOnce()
         return
     end
 
@@ -148,7 +154,7 @@ local function BootstrapAddon()
     eventFrame:SetScript("OnEvent", function(frame, event)
         if event == "PLAYER_LOGIN" then
             frame:UnregisterEvent("PLAYER_LOGIN")
-            BOLT:EnableModules()
+            InitializeAfterLoginOnce()
         end
     end)
 end
