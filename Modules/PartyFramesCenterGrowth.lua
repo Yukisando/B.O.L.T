@@ -3,15 +3,42 @@ local ADDON_NAME, BOLT = ...
 local PartyFramesCenterGrowth = {}
 
 local MAX_PARTY_UNITS = 5
+local POLL_INTERVAL = 0.1
 
 local frame
 local eventFrame
-local pollTicker
 local isEnabled = false
 local hookInstalled = false
 local pendingUpdate = false
 local lastAppliedX = 0
 local lastAppliedY = 0
+local lastExpectedPoint
+local lastExpectedRelativePoint
+local lastExpectedX
+local lastExpectedY
+
+local function ApproximatelyEqual(a, b)
+    return math.abs((a or 0) - (b or 0)) < 0.5
+end
+
+local function RecordExpectedAnchor(point, relativePoint, xOfs, yOfs)
+    lastExpectedPoint = point
+    lastExpectedRelativePoint = relativePoint
+    lastExpectedX = xOfs
+    lastExpectedY = yOfs
+end
+
+local function WasExternallyReset(point, relativePoint, xOfs, yOfs)
+    if not lastExpectedPoint then
+        return false
+    end
+
+    if point ~= lastExpectedPoint or relativePoint ~= lastExpectedRelativePoint then
+        return true
+    end
+
+    return not ApproximatelyEqual(xOfs, lastExpectedX) or not ApproximatelyEqual(yOfs, lastExpectedY)
+end
 
 local function IsRaidStylePartyEnabled()
     return EditModeManagerFrame
@@ -65,9 +92,12 @@ local function ClearOffset(compactPartyFrame)
     end
 
     compactPartyFrame:ClearAllPoints()
-    compactPartyFrame:SetPoint(point, relativeTo, relativePoint, xOfs - lastAppliedX, yOfs - lastAppliedY)
+    xOfs = xOfs - lastAppliedX
+    yOfs = yOfs - lastAppliedY
+    compactPartyFrame:SetPoint(point, relativeTo, relativePoint, xOfs, yOfs)
     lastAppliedX = 0
     lastAppliedY = 0
+    RecordExpectedAnchor(point, relativePoint, xOfs, yOfs)
     return true
 end
 
@@ -124,20 +154,26 @@ local function ApplyCenterOffset(compactPartyFrame)
         return
     end
 
+    if WasExternallyReset(point, relativePoint, xOfs, yOfs) then
+        lastAppliedX = 0
+        lastAppliedY = 0
+    end
+
     local baseX = xOfs - lastAppliedX
     local baseY = yOfs - lastAppliedY
+    local finalX = baseX + desiredX
+    local finalY = baseY + desiredY
 
     compactPartyFrame:ClearAllPoints()
-    compactPartyFrame:SetPoint(point, relativeTo, relativePoint, baseX + desiredX, baseY + desiredY)
+    compactPartyFrame:SetPoint(point, relativeTo, relativePoint, finalX, finalY)
 
     lastAppliedX = desiredX
     lastAppliedY = desiredY
+    RecordExpectedAnchor(point, relativePoint, finalX, finalY)
 end
 
 function PartyFramesCenterGrowth:ScheduleApply()
-    if not frame then
-        frame = CompactPartyFrame
-    end
+    frame = CompactPartyFrame or frame
 
     if not frame then
         return
@@ -161,8 +197,31 @@ function PartyFramesCenterGrowth:OnInitialize()
             end)
             hookInstalled = true
         end
+
+        if PartyFrame and PartyFrame.UpdatePaddingAndLayout then
+            hooksecurefunc(PartyFrame, "UpdatePaddingAndLayout", function()
+                self:ScheduleApply()
+            end)
+        end
+
+        if UpdateRaidAndPartyFrames then
+            hooksecurefunc("UpdateRaidAndPartyFrames", function()
+                self:ScheduleApply()
+            end)
+        end
     end
 
+    if EventRegistry and not self._editModeExitHandle then
+        self._editModeExitHandle = function()
+            if isEnabled then
+                self:ScheduleApply()
+            end
+        end
+        EventRegistry:RegisterCallback("EditMode.Exit", self._editModeExitHandle)
+        EventRegistry:RegisterCallback("EditMode.SavedLayouts", self._editModeExitHandle)
+    end
+
+    eventFrame._pollElapsed = 0
     eventFrame:SetScript("OnEvent", function(_, event)
         if event == "PLAYER_REGEN_ENABLED" then
             if pendingUpdate then
@@ -179,6 +238,17 @@ function PartyFramesCenterGrowth:OnInitialize()
 
         self:ScheduleApply()
     end)
+    eventFrame:SetScript("OnUpdate", function(_, elapsed)
+        if not isEnabled then
+            return
+        end
+
+        eventFrame._pollElapsed = (eventFrame._pollElapsed or 0) + elapsed
+        if eventFrame._pollElapsed >= POLL_INTERVAL then
+            eventFrame._pollElapsed = 0
+            self:ScheduleApply()
+        end
+    end)
 end
 
 function PartyFramesCenterGrowth:OnEnable()
@@ -188,14 +258,8 @@ function PartyFramesCenterGrowth:OnEnable()
     eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
     eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
     eventFrame:RegisterEvent("PLAYER_FLAGS_CHANGED")
-
-    if not pollTicker and C_Timer and C_Timer.NewTicker then
-        -- Lightweight polling keeps centering in sync with edit-mode/UI anchor changes
-        -- that do not always fire group roster events.
-        pollTicker = C_Timer.NewTicker(0.2, function()
-            self:ScheduleApply()
-        end)
-    end
+    eventFrame:RegisterEvent("DISPLAY_SIZE_CHANGED")
+    eventFrame:RegisterEvent("UI_SCALE_CHANGED")
 
     self:ScheduleApply()
 end
@@ -203,15 +267,13 @@ end
 function PartyFramesCenterGrowth:OnDisable()
     isEnabled = false
 
-    if pollTicker then
-        pollTicker:Cancel()
-        pollTicker = nil
-    end
-
     if eventFrame then
+        eventFrame._pollElapsed = 0
         eventFrame:UnregisterEvent("GROUP_ROSTER_UPDATE")
         eventFrame:UnregisterEvent("PLAYER_ENTERING_WORLD")
         eventFrame:UnregisterEvent("PLAYER_FLAGS_CHANGED")
+        eventFrame:UnregisterEvent("DISPLAY_SIZE_CHANGED")
+        eventFrame:UnregisterEvent("UI_SCALE_CHANGED")
     end
 
     local didClear = ClearOffset(frame or CompactPartyFrame)

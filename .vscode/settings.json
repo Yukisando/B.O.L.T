@@ -62,7 +62,9 @@
         "UIParentLoadAddOn",
         "EditModeManagerFrame",
         "CompactPartyFrame",
-        "CompactPartyFrameMixin"
+        "CompactPartyFrameMixin",
+        "UpdateRaidAndPartyFrames",
+        "PartyFrame"
     ],
     "Lua.type.weakUnionCheck": true
 }
