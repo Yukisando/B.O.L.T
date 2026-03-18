@@ -4,6 +4,7 @@
 ## [Unreleased]
 ### Fixed
 - **Skyriding Module**: Druid skyriding flight form now counts as a valid skyriding state, and shapeshift changes trigger an immediate refresh.
+- **Sound Muter**: Removed the runtime sound interception and recent-audio browser after they started tainting Blizzard UI flows.
 
 ## [2.5.1] - 2026-01-20
 ### Fixed (Midnight 12.0 compatibility audit)

@@ -47,14 +47,6 @@
 - **Slash Command**: Type `/boltsaved` to print unsaved instances to chat
 - **Color-Coded Output**: Green for unsaved, orange for in-progress, grey for completed
 
-### Sound Muter Module
-
-- **Mute Specific Sounds**: Add sound IDs to a list and they will be completely silenced in-game
-- **Persistent List**: Muted sounds are saved and automatically re-applied on login
-- **Easy Management**: Add or remove sound IDs from the config panel with a scrollable list
-- **Preview Button**: Test a sound ID before adding it to hear what it is
-- **Recent Sounds Detection**: Hooks into PlaySound/PlaySoundFile to capture the last 10 sounds played — click "Recent Sounds" to browse them and mute any entry with one click
-
 ### Nameplates Enhancement Module
 
 - **Mana User Highlighting**: Enemy nameplate health bars are colored for mana-using units (healers/casters), making them easy to spot in packs

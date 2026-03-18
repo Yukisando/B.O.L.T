@@ -22,7 +22,7 @@ function BOLT:InitializeDatabase()
                 local moduleNames = {
                     "gameMenu", "playground", "skyriding", "wowheadLink", "autoRepSwitch",
                     "smartTeleport", "chatNotifier", "achievementTracker", "savedInstances",
-                    "soundMuter", "nameplatesEnhancement", "partyFramesCenterGrowth"
+                    "nameplatesEnhancement", "partyFramesCenterGrowth"
                 }
                 for _, name in ipairs(moduleNames) do
                     if oldProfile[name] and oldProfile[name].enabled ~= nil then
@@ -66,7 +66,7 @@ function BOLT:InitializeDatabase()
     local moduleNames = {
         "gameMenu", "playground", "skyriding", "wowheadLink", "autoRepSwitch",
         "smartTeleport", "chatNotifier", "achievementTracker", "savedInstances",
-        "soundMuter", "nameplatesEnhancement", "partyFramesCenterGrowth"
+        "nameplatesEnhancement", "partyFramesCenterGrowth"
     }
     local cleaned = false
     for pkey, profile in pairs(BOLTDB.profiles) do
