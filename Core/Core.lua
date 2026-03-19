@@ -24,6 +24,7 @@ BOLT.defaults = {
         },
         playground = {
             showFavoriteToy = true,
+            closeGameMenuOnCast = false,
             favoriteToyId = nil,
             showSpeedometer = true,
             statsPosition = "TOPRIGHT",

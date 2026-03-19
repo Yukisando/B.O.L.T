@@ -396,6 +396,18 @@ function Config:CreateInterfaceOptionsPanel()
     self.widgets.currentToyText = toyText
     cy = cy - 30
 
+    local closeGameMenuOnCast = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
+    closeGameMenuOnCast:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
+    closeGameMenuOnCast.Text:SetText("Close gamemenu on cast")
+    closeGameMenuOnCast:SetScript("OnClick", function(button)
+        self.parent:SetConfig(button:GetChecked(), "playground", "closeGameMenuOnCast")
+        if self.parent.modules and self.parent.modules.playground and self.parent.modules.playground.UpdateFavoriteToyButton then
+            self.parent.modules.playground:UpdateFavoriteToyButton()
+        end
+    end)
+    self.widgets.closeGameMenuOnCastCheckbox = closeGameMenuOnCast
+    cy = cy - 30
+
     local speedometerEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
     speedometerEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
     speedometerEnable.Text:SetText("Speedometer")
@@ -1007,10 +1019,15 @@ function Config:UpdatePlaygroundChildControls()
     self:RelayoutPanel()
     local enabled = self.parent:IsModuleEnabled("playground")
     local w = self.widgets
+    local canChooseToy = enabled and (self.parent:GetConfig("playground", "showFavoriteToy") ~= false)
 
     if w.favoriteToyCheckbox then
         w.favoriteToyCheckbox:SetEnabled(enabled)
         w.favoriteToyCheckbox:SetAlpha(enabled and 1 or 0.5)
+    end
+    if w.closeGameMenuOnCastCheckbox then
+        w.closeGameMenuOnCastCheckbox:SetEnabled(canChooseToy)
+        w.closeGameMenuOnCastCheckbox:SetAlpha(canChooseToy and 1 or 0.5)
     end
     if w.speedometerCheckbox then
         w.speedometerCheckbox:SetEnabled(enabled)
@@ -1024,7 +1041,6 @@ function Config:UpdatePlaygroundChildControls()
             w.speedometerPositionDropdown:Disable()
         end
     end
-    local canChooseToy = enabled and (self.parent:GetConfig("playground", "showFavoriteToy") ~= false)
     if w.chooseToyButton then
         w.chooseToyButton:SetEnabled(canChooseToy)
         w.chooseToyButton:SetAlpha(canChooseToy and 1 or 0.5)
@@ -1066,6 +1082,7 @@ function Config:RefreshOptionsPanel()
         end
         if w.playgroundCheckbox then w.playgroundCheckbox:SetChecked(self.parent:IsModuleEnabled("playground")) end
         if w.favoriteToyCheckbox then w.favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground", "showFavoriteToy")) end
+        if w.closeGameMenuOnCastCheckbox then w.closeGameMenuOnCastCheckbox:SetChecked(self.parent:GetConfig("playground", "closeGameMenuOnCast")) end
         if w.speedometerCheckbox then w.speedometerCheckbox:SetChecked(self.parent:GetConfig("playground", "showSpeedometer")) end
         if w.speedometerPositionDropdown then
             local currentPos = self.parent:GetConfig("playground", "statsPosition") or "TOPRIGHT"

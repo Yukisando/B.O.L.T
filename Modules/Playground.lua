@@ -312,13 +312,15 @@ function Playground:UpdateFavoriteToyButton()
             end
             
             -- Prefer using the toy ID when constructing the macro to avoid name-escaping problems.
-            -- Do not call HideUIPanel from macro text: that can taint UIPanelWindows state
-            -- and break secure GameMenu actions (Logout/Exit) later in combat.
+            -- Avoid HideUIPanel in macro text because it can taint UIPanelWindows state.
             local macroText
             if C_ToyBox and C_ToyBox.UseToyByID then
                 macroText = "/run C_ToyBox.UseToyByID(" .. tostring(toyId) .. ")"
             else
                 macroText = "/usetoy " .. toyName
+            end
+            if self.parent:GetConfig("playground", "closeGameMenuOnCast") then
+                macroText = "/run if GameMenuFrame and GameMenuFrame:IsShown() then GameMenuFrame:Hide() end\n" .. macroText
             end
             favoriteToyButton:SetAttribute("macrotext", macroText)
             BOLT.ButtonUtils:UpdateButtonIcon(favoriteToyButton, toyIcon or "Interface\\Icons\\INV_Misc_Toy_10")
