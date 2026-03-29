@@ -216,7 +216,6 @@ function AchievementTracker:BuildTrackedCategoryIDs()
 end
 
 function AchievementTracker:OnInitialize()
-    self:HookMinimapTrackingMenu()
 end
 
 function AchievementTracker:OnEnable()
@@ -416,34 +415,6 @@ function AchievementTracker:ScanForChanges()
         if rescanPending then
             rescanPending = false
             self:OnCriteriaUpdate()
-        end
-    end)
-end
-
--- Inject toggles into the native minimap tracking dropdown menu
-function AchievementTracker:HookMinimapTrackingMenu()
-    if not Menu or not Menu.ModifyMenu then return end
-
-    local bolt = self.parent
-    Menu.ModifyMenu("MENU_MINIMAP_TRACKING", function(owner, rootDescription, contextData)
-        rootDescription:CreateDivider()
-        rootDescription:CreateTitle("|cff00aaffB.O.L.T|r")
-
-        local modules = {
-            { key = "achievementTracker", label = "Achievement Progress" },
-            { key = "chatNotifier",       label = "Chat Notifier" },
-            { key = "autoRepSwitch",      label = "Auto Rep Switch" },
-        }
-
-        for _, mod in ipairs(modules) do
-            local key = mod.key
-            rootDescription:CreateCheckbox(
-                mod.label,
-                function() return bolt:IsModuleEnabled(key) end,
-                function()
-                    bolt:SetModuleEnabled(key, not bolt:IsModuleEnabled(key))
-                end
-            )
         end
     end)
 end

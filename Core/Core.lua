@@ -42,7 +42,7 @@ BOLT.defaults = {
             soundID = 8959,
         },
         achievementTracker = {
-            trackedCategories = {},  -- empty = track all; otherwise catID → true
+            trackedCategories = { [97] = true },  -- 97 = Exploration; empty = track all
         },
         nameplatesEnhancement = {
             manaColor = { r = 0.2, g = 0.4, b = 1.0 },
@@ -76,10 +76,45 @@ function BOLT:OnInitialize()
     -- Initialize database
     self:InitializeDatabase()
 
+    -- Register Bolt section in the minimap tracking dropdown
+    self:HookMinimapTrackingMenu()
+
     -- Initialize modules
     self:InitializeModules()
 
     self:Print("B.O.L.T v" .. self.version .. " loaded successfully!")
+end
+
+-- Inject Bolt module toggles into the native minimap tracking dropdown
+function BOLT:HookMinimapTrackingMenu()
+    if not Menu or not Menu.ModifyMenu then return end
+
+    Menu.ModifyMenu("MENU_MINIMAP_TRACKING", function(owner, rootDescription, contextData)
+        rootDescription:CreateDivider()
+        rootDescription:CreateTitle("|cff00aaffB.O.L.T|r")
+
+        local modules = {
+            { key = "achievementTracker",      label = "Achievement Tracker" },
+            { key = "chatNotifier",             label = "Chat Notifier" },
+            { key = "autoRepSwitch",            label = "Auto Rep Switch" },
+            { key = "smartTeleport",            label = "Smart Teleport" },
+            { key = "nameplatesEnhancement",    label = "Nameplates" },
+            { key = "skyriding",                label = "Skyriding Controls" },
+            { key = "keyShare",                 label = "Key Share" },
+            { key = "wowheadLink",              label = "Wowhead Links" },
+        }
+
+        for _, mod in ipairs(modules) do
+            local key = mod.key
+            rootDescription:CreateCheckbox(
+                mod.label,
+                function() return self:IsModuleEnabled(key) end,
+                function()
+                    self:SetModuleEnabled(key, not self:IsModuleEnabled(key))
+                end
+            )
+        end
+    end)
 end
 
 -- Initialize all registered modules
