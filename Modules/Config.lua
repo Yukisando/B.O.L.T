@@ -102,9 +102,11 @@ function Config:CreateReloadIndicator(parent, anchor)
 end
 
 -- Reusable: create a section frame with header + collapsible options container.
+-- panelData must have a .scrollChild frame and a .sections table.
 -- Returns { section, header, container, headerHeight }
 -- The container auto-hides when the module is disabled.
-function Config:CreateSection(parent, labelText, moduleName, hasOptions)
+function Config:CreateSection(panelData, labelText, moduleName, hasOptions)
+    local parent = panelData.scrollChild
     local section = CreateFrame("Frame", nil, parent)
     section:SetPoint("LEFT", parent, "LEFT", 0, 0)
     section:SetPoint("RIGHT", parent, "RIGHT", 0, 0)
@@ -143,20 +145,44 @@ function Config:CreateSection(parent, labelText, moduleName, hasOptions)
         optionsHeight = 0,
     }
 
-    if not self.sections then self.sections = {} end
-    table.insert(self.sections, data)
-
+    table.insert(panelData.sections, data)
     return data
 end
 
--- Relayout all sections vertically, collapsing options when module is disabled
+-- Creates a panel frame with a scroll frame and returns a panelData table:
+-- { panel, scrollChild, sections={} }
+function Config:CreatePanelWithScroll(frameName, titleText)
+    local panel = CreateFrame("Frame", frameName)
+    local scrollFrame = CreateFrame("ScrollFrame", frameName .. "Scroll", panel, "UIPanelScrollFrameTemplate")
+    scrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 4, -4)
+    scrollFrame:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -26, 4)
+    local content = CreateFrame("Frame", frameName .. "Content", scrollFrame)
+    scrollFrame:SetScrollChild(content)
+    content:SetWidth(700)
+    scrollFrame:SetScript("OnSizeChanged", function(_, w) content:SetWidth(w - 20) end)
+    if titleText then
+        local title = content:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        title:SetPoint("TOPLEFT", content, "TOPLEFT", 16, -16)
+        title:SetText(titleText)
+    end
+    return { panel = panel, scrollChild = content, sections = {} }
+end
+
+-- Relayout all category panels, collapsing options when a module is disabled.
 function Config:RelayoutPanel()
-    if not self.sections then return end
-    local y = -60 -- below title
-    for _, sec in ipairs(self.sections) do
+    if not self.panelData then return end
+    for _, pd in pairs(self.panelData) do
+        self:_RelayoutSinglePanel(pd)
+    end
+end
+
+function Config:_RelayoutSinglePanel(pd)
+    if not pd or not pd.sections then return end
+    local y = -60 -- below the panel title
+    for _, sec in ipairs(pd.sections) do
         sec.section:ClearAllPoints()
-        sec.section:SetPoint("TOPLEFT", self.optionsScrollChild, "TOPLEFT", 0, y)
-        sec.section:SetPoint("RIGHT", self.optionsScrollChild, "RIGHT", 0, 0)
+        sec.section:SetPoint("TOPLEFT", pd.scrollChild, "TOPLEFT", 0, y)
+        sec.section:SetPoint("RIGHT", pd.scrollChild, "RIGHT", 0, 0)
 
         local enabled = self.parent:IsModuleEnabled(sec.moduleName)
         local showOptions = enabled and sec.container and sec.optionsHeight > 0
@@ -172,59 +198,63 @@ function Config:RelayoutPanel()
         sec.section:SetHeight(sectionHeight)
         y = y - sectionHeight - 10
     end
-
-    -- Footer: Reload button + version
-    if self.widgets.reloadButton then
-        self.widgets.reloadButton:ClearAllPoints()
-        self.widgets.reloadButton:SetPoint("TOPLEFT", self.optionsScrollChild, "TOPLEFT", 30, y)
-        y = y - 40
-    end
-    if self.widgets.versionText then
-        self.widgets.versionText:ClearAllPoints()
-        self.widgets.versionText:SetPoint("TOPLEFT", self.optionsScrollChild, "TOPLEFT", 30, y)
-        y = y - 30
-    end
-
-    self.optionsScrollChild:SetHeight(math.abs(y) + 100)
+    pd.scrollChild:SetHeight(math.abs(y) + 100)
 end
 
 function Config:CreateInterfaceOptionsPanel()
-    local panel = CreateFrame("Frame", "BOLTOptionsPanel")
-    panel.name = "B.O.L.T"
-    panel:SetScript("OnShow", function()
-        self:RefreshAll()
-        if self.parent and self.parent.modules and self.parent.modules.gameMenu then
-            self.parent.modules.gameMenu.settingsPanelOpen = true
-            self.parent.modules.gameMenu:EnsureHiddenIfMenuNotShown()
-        end
-    end)
-    panel:SetScript("OnHide", function()
-        if self.parent and self.parent.modules and self.parent.modules.gameMenu then
-            self.parent.modules.gameMenu.settingsPanelOpen = nil
-        end
-    end)
-
-    local scrollFrame = CreateFrame("ScrollFrame", "BOLTScrollFrame", panel, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 4, -4)
-    scrollFrame:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -26, 4)
-    local content = CreateFrame("Frame", "BOLTScrollChild", scrollFrame)
-    scrollFrame:SetScrollChild(content)
-    content:SetWidth(700)
-
-    self.optionsScrollFrame = scrollFrame
-    self.optionsScrollChild = content
-
-    -- Title
-    local title = content:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOPLEFT", content, "TOPLEFT", 16, -16)
-    title:SetText("B.O.L.T")
-
-    self.sections = {}
+    -- Shared OnShow/OnHide for all category panels
+    local function SetPanelCallbacks(panel)
+        panel:SetScript("OnShow", function()
+            self:RefreshAll()
+            if self.parent and self.parent.modules and self.parent.modules.gameMenu then
+                self.parent.modules.gameMenu.settingsPanelOpen = true
+                self.parent.modules.gameMenu:EnsureHiddenIfMenuNotShown()
+            end
+        end)
+        panel:SetScript("OnHide", function()
+            if self.parent and self.parent.modules and self.parent.modules.gameMenu then
+                self.parent.modules.gameMenu.settingsPanelOpen = nil
+            end
+        end)
+    end
 
     ---------------------------------------------------------------------------
-    -- GAME MENU
+    -- MAIN / OVERVIEW PANEL
     ---------------------------------------------------------------------------
-    local gm = self:CreateSection(content, "Game Menu", "gameMenu", true)
+    local mainPD = self:CreatePanelWithScroll("BOLTOptionsPanel", "B.O.L.T")
+    mainPD.panel.name = "B.O.L.T"
+    SetPanelCallbacks(mainPD.panel)
+
+    local mainDesc = mainPD.scrollChild:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    mainDesc:SetPoint("TOPLEFT", mainPD.scrollChild, "TOPLEFT", 16, -50)
+    mainDesc:SetWidth(560)
+    mainDesc:SetJustifyH("LEFT")
+    mainDesc:SetText("Use the categories in the sidebar to configure each module.")
+
+    local reloadBtn = CreateFrame("Button", "BOLTOptionsReloadButton", mainPD.scrollChild, "UIPanelButtonTemplate")
+    reloadBtn:SetSize(120, 25)
+    reloadBtn:SetText("Reload UI")
+    reloadBtn:SetPoint("TOPLEFT", mainPD.scrollChild, "TOPLEFT", 16, -90)
+    reloadBtn:SetScript("OnClick", ReloadUI)
+    self.widgets.reloadButton = reloadBtn
+
+    local versionText = mainPD.scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    versionText:SetPoint("TOPLEFT", mainPD.scrollChild, "TOPLEFT", 16, -130)
+    versionText:SetText("B.O.L.T v" .. (self.parent and self.parent.version or "?"))
+    self.widgets.versionText = versionText
+
+    mainPD.scrollChild:SetHeight(200)
+
+    ---------------------------------------------------------------------------
+    -- INTERFACE PANEL  (Game Menu · Nameplates Enhancement · Party Frames)
+    ---------------------------------------------------------------------------
+    local ifPD = self:CreatePanelWithScroll("BOLTInterfacePanel", "Interface")
+    SetPanelCallbacks(ifPD.panel)
+
+    ---------------------------------------------------------------------------
+    -- GAME MENU  (Interface)
+    ---------------------------------------------------------------------------
+    local gm = self:CreateSection(ifPD, "Game Menu", "gameMenu", true)
     local c = gm.container
     local cy = 0
 
@@ -349,122 +379,136 @@ function Config:CreateInterfaceOptionsPanel()
     c:SetHeight(gm.optionsHeight)
 
     ---------------------------------------------------------------------------
-    -- PLAYGROUND
+    -- NAMEPLATES ENHANCEMENT  (Interface)
     ---------------------------------------------------------------------------
-    local pg = self:CreateSection(content, "Playground", "playground", true)
-    c = pg.container
+    local ne = self:CreateSection(ifPD, "Nameplates Enhancement", "nameplatesEnhancement", true)
+    c = ne.container
     cy = 0
 
-    pg.checkbox:SetScript("OnClick", function(button)
-        self.parent:SetModuleEnabled("playground", button:GetChecked())
+    ne.checkbox:SetScript("OnClick", function(button)
+        self.parent:SetModuleEnabled("nameplatesEnhancement", button:GetChecked())
         self:RelayoutPanel()
-        self:UpdatePlaygroundChildControls()
+        self:UpdateNameplatesChildControls()
     end)
-    self.widgets.playgroundCheckbox = pg.checkbox
-    self.widgets.playgroundReloadIndicator = pg.reloadIndicator
+    self.widgets.nameplatesEnhancementCheckbox = ne.checkbox
+    self.widgets.nameplatesEnhancementReloadIndicator = ne.reloadIndicator
 
-    local favToyEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
-    favToyEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
-    favToyEnable.Text:SetText("Favorite Toy Button")
-    favToyEnable:SetScript("OnClick", function(button)
-        self.parent:SetConfig(button:GetChecked(), "playground", "showFavoriteToy")
-        self:UpdatePlaygroundChildControls()
-    end)
-    self.widgets.favoriteToyCheckbox = favToyEnable
-
-    local chooseToyBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
-    chooseToyBtn:SetSize(120, 24)
-    chooseToyBtn:SetText("Choose Toy")
-    chooseToyBtn:SetScript("OnClick", function() self:ShowToySelectionPopup() end)
-    chooseToyBtn:SetPoint("LEFT", favToyEnable.Text, "RIGHT", 10, 0)
-    self.widgets.chooseToyButton = chooseToyBtn
-
-    local toyRow = CreateFrame("Frame", nil, c)
-    toyRow:SetSize(360, 24)
-    toyRow:SetPoint("LEFT", chooseToyBtn, "RIGHT", 12, 0)
-    self.widgets.currentToyRow = toyRow
-
-    local toyIcon = toyRow:CreateTexture(nil, "ARTWORK")
-    toyIcon:SetPoint("LEFT", toyRow, "LEFT", 0, 0)
-    toyIcon:SetSize(20, 20)
-    self.widgets.currentToyIcon = toyIcon
-
-    local toyText = toyRow:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    toyText:SetPoint("LEFT", toyIcon, "RIGHT", 8, 0)
-    toyText:SetJustifyH("LEFT")
-    toyText:SetText("None selected")
-    self.widgets.currentToyText = toyText
+    local neDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    neDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
+    neDesc:SetWidth(520)
+    neDesc:SetJustifyH("LEFT")
+    neDesc:SetText("Colors enemy nameplate health bars for mana users (healers/casters). Persists through combat and threat changes.")
     cy = cy - 30
 
-    local closeGameMenuOnCast = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
-    closeGameMenuOnCast:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
-    closeGameMenuOnCast.Text:SetText("Close gamemenu on cast")
-    closeGameMenuOnCast:SetScript("OnClick", function(button)
-        self.parent:SetConfig(button:GetChecked(), "playground", "closeGameMenuOnCast")
-        if self.parent.modules and self.parent.modules.playground and self.parent.modules.playground.UpdateFavoriteToyButton then
-            self.parent.modules.playground:UpdateFavoriteToyButton()
-        end
-    end)
-    self.widgets.closeGameMenuOnCastCheckbox = closeGameMenuOnCast
-    cy = cy - 30
+    local neColorLabel = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    neColorLabel:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
+    neColorLabel:SetText("Mana Color:")
 
-    local speedometerEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
-    speedometerEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
-    speedometerEnable.Text:SetText("Speedometer")
-    speedometerEnable:SetScript("OnClick", function(button)
-        self.parent:SetConfig(button:GetChecked(), "playground", "showSpeedometer")
-        self:UpdatePlaygroundChildControls()
-    end)
-    self.widgets.speedometerCheckbox = speedometerEnable
+    local neColorSwatch = CreateFrame("Button", nil, c, "BackdropTemplate")
+    neColorSwatch:SetSize(20, 20)
+    neColorSwatch:SetPoint("LEFT", neColorLabel, "RIGHT", 8, 0)
+    neColorSwatch:SetBackdrop({
+        bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 8,
+        insets = { left = 1, right = 1, top = 1, bottom = 1 },
+    })
+    neColorSwatch:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
+    self.widgets.neColorSwatch = neColorSwatch
 
-    local posLabel = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    posLabel:SetPoint("LEFT", speedometerEnable.Text, "RIGHT", 10, 0)
-    posLabel:SetText("Position:")
-
-    local posNames = { TOPLEFT = "Top Left", TOPRIGHT = "Top Right", BOTTOMLEFT = "Bottom Left", BOTTOMRIGHT = "Bottom Right" }
-    local posDropdown = CreateFrame("Button", "BOLTSpeedometerPositionDropdown", c, "UIPanelButtonTemplate")
-    posDropdown:SetSize(130, 22)
-    posDropdown:SetPoint("LEFT", posLabel, "RIGHT", 5, 0)
-    self.widgets.speedometerPositionDropdown = posDropdown
-
-    local function UpdatePosDropdownText()
-        local cur = self.parent:GetConfig("playground", "statsPosition") or "TOPRIGHT"
-        posDropdown:SetText(posNames[cur] or "Top Right")
+    local function UpdateSwatchColor()
+        local mc = self.parent:GetConfig("nameplatesEnhancement", "manaColor") or { r = 0.2, g = 0.4, b = 1.0 }
+        neColorSwatch:SetBackdropColor(mc.r, mc.g, mc.b, 1)
     end
-    UpdatePosDropdownText()
+    UpdateSwatchColor()
 
-    posDropdown:SetScript("OnClick", function(btn)
-        local positions = {
-            { text = "Top Left",     value = "TOPLEFT" },
-            { text = "Top Right",    value = "TOPRIGHT" },
-            { text = "Bottom Left",  value = "BOTTOMLEFT" },
-            { text = "Bottom Right", value = "BOTTOMRIGHT" },
+    neColorSwatch:SetScript("OnClick", function()
+        local mc = self.parent:GetConfig("nameplatesEnhancement", "manaColor") or { r = 0.2, g = 0.4, b = 1.0 }
+        local function OnColorChanged()
+            local r, g, b = ColorPickerFrame:GetColorRGB()
+            self.parent:SetConfig({ r = r, g = g, b = b }, "nameplatesEnhancement", "manaColor")
+            UpdateSwatchColor()
+            local mod = self.parent.modules.nameplatesEnhancement
+            if mod and mod.LoadManaColor then mod:LoadManaColor() end
+        end
+        local function OnCancel(prev)
+            self.parent:SetConfig({ r = prev.r, g = prev.g, b = prev.b }, "nameplatesEnhancement", "manaColor")
+            UpdateSwatchColor()
+            local mod = self.parent.modules.nameplatesEnhancement
+            if mod and mod.LoadManaColor then mod:LoadManaColor() end
+        end
+        local info = {
+            r = mc.r, g = mc.g, b = mc.b,
+            swatchFunc = OnColorChanged,
+            cancelFunc = OnCancel,
+            previousValues = { r = mc.r, g = mc.g, b = mc.b },
         }
-        MenuUtil.CreateContextMenu(btn, function(_, rootDescription)
-            for _, pos in ipairs(positions) do
-                local p = pos
-                rootDescription:CreateRadio(p.text,
-                    function() return self.parent:GetConfig("playground", "statsPosition") == p.value end,
-                    function()
-                        self.parent:SetConfig(p.value, "playground", "statsPosition")
-                        UpdatePosDropdownText()
-                        if self.parent.modules.playground and self.parent.modules.playground.UpdateStatsPosition then
-                            self.parent.modules.playground:UpdateStatsPosition()
-                        end
-                    end
-                )
-            end
-        end)
+        ColorPickerFrame:SetupColorPickerAndShow(info)
     end)
-    cy = cy - 36
 
-    pg.optionsHeight = math.abs(cy)
-    c:SetHeight(pg.optionsHeight)
+    local neResetBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
+    neResetBtn:SetSize(55, 20)
+    neResetBtn:SetPoint("LEFT", neColorSwatch, "RIGHT", 6, 0)
+    neResetBtn:SetText("Reset")
+    neResetBtn:SetScript("OnClick", function()
+        self.parent:SetConfig({ r = 0.2, g = 0.4, b = 1.0 }, "nameplatesEnhancement", "manaColor")
+        UpdateSwatchColor()
+        local mod = self.parent.modules.nameplatesEnhancement
+        if mod and mod.LoadManaColor then mod:LoadManaColor() end
+    end)
+    self.widgets.neResetBtn = neResetBtn
+    self.widgets.UpdateNameplatesSwatchColor = UpdateSwatchColor
+    cy = cy - 28
+
+    local neInstanceOnly = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
+    neInstanceOnly:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
+    neInstanceOnly.Text:SetText("Only in instances (dungeons, raids, scenarios)")
+    neInstanceOnly.Text:SetFontObject("GameFontHighlightSmall")
+    neInstanceOnly:SetChecked(self.parent:GetConfig("nameplatesEnhancement", "instanceOnly") or false)
+    neInstanceOnly:SetScript("OnClick", function(button)
+        self.parent:SetConfig(button:GetChecked(), "nameplatesEnhancement", "instanceOnly")
+        local mod = self.parent.modules.nameplatesEnhancement
+        if mod then mod:RefreshInstanceOnly() end
+    end)
+    self.widgets.neInstanceOnly = neInstanceOnly
+    cy = cy - 26
+
+    ne.optionsHeight = math.abs(cy)
+    c:SetHeight(ne.optionsHeight)
 
     ---------------------------------------------------------------------------
-    -- SKYRIDING
+    -- PARTY FRAMES CENTER GROWTH  (Interface)
     ---------------------------------------------------------------------------
-    local sk = self:CreateSection(content, "Skyriding", "skyriding", true)
+    local pfcg = self:CreateSection(ifPD, "Party Frames Center Growth", "partyFramesCenterGrowth", true)
+    c = pfcg.container
+    cy = 0
+
+    pfcg.checkbox:SetScript("OnClick", function(button)
+        self.parent:SetModuleEnabled("partyFramesCenterGrowth", button:GetChecked())
+        self:RelayoutPanel()
+    end)
+    self.widgets.partyFramesCenterGrowthCheckbox = pfcg.checkbox
+
+    local pfcgDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    pfcgDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
+    pfcgDesc:SetWidth(560)
+    pfcgDesc:SetJustifyH("LEFT")
+    pfcgDesc:SetText("Keeps raid-style party frames center-aligned by nudging the party group anchor as members join or leave. Only affects party frames when Raid-Style Party Frames is enabled in Edit Mode.")
+    cy = cy - 40
+
+    pfcg.optionsHeight = math.abs(cy)
+    c:SetHeight(pfcg.optionsHeight)
+
+    ---------------------------------------------------------------------------
+    -- GAMEPLAY PANEL  (Skyriding · Auto Rep Switch · Smart Teleport · Saved Instances)
+    ---------------------------------------------------------------------------
+    local gpPD = self:CreatePanelWithScroll("BOLTGameplayPanel", "Gameplay")
+    SetPanelCallbacks(gpPD.panel)
+
+    ---------------------------------------------------------------------------
+    -- SKYRIDING  (Gameplay)
+    ---------------------------------------------------------------------------
+    local sk = self:CreateSection(gpPD, "Skyriding", "skyriding", true)
     c = sk.container
     cy = 0
 
@@ -499,33 +543,9 @@ function Config:CreateInterfaceOptionsPanel()
     c:SetHeight(sk.optionsHeight)
 
     ---------------------------------------------------------------------------
-    -- WOWHEAD LINK (description only, no child options beyond desc)
+    -- AUTO REP SWITCH  (Gameplay)
     ---------------------------------------------------------------------------
-    local wl = self:CreateSection(content, "Wowhead Link", "wowheadLink", true)
-    c = wl.container
-    cy = 0
-
-    wl.checkbox:SetScript("OnClick", function(button)
-        self.parent:SetModuleEnabled("wowheadLink", button:GetChecked())
-        self:RelayoutPanel()
-    end)
-    self.widgets.wowheadLinkCheckbox = wl.checkbox
-    self.widgets.wowheadLinkReloadIndicator = wl.reloadIndicator
-
-    local wlDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    wlDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
-    wlDesc:SetWidth(520)
-    wlDesc:SetJustifyH("LEFT")
-    wlDesc:SetText("Press Ctrl+C while hovering over an item to copy its Wowhead link. Default keybind is Ctrl+C.")
-    cy = cy - 30
-
-    wl.optionsHeight = math.abs(cy)
-    c:SetHeight(wl.optionsHeight)
-
-    ---------------------------------------------------------------------------
-    -- AUTO REP SWITCH
-    ---------------------------------------------------------------------------
-    local ars = self:CreateSection(content, "Auto Rep Switch", "autoRepSwitch", true)
+    local ars = self:CreateSection(gpPD, "Auto Rep Switch", "autoRepSwitch", true)
     c = ars.container
     cy = 0
 
@@ -547,9 +567,9 @@ function Config:CreateInterfaceOptionsPanel()
     c:SetHeight(ars.optionsHeight)
 
     ---------------------------------------------------------------------------
-    -- SMART TELEPORT SUGGESTIONS
+    -- SMART TELEPORT SUGGESTIONS  (Gameplay)
     ---------------------------------------------------------------------------
-    local st = self:CreateSection(content, "Smart Teleport Suggestions", "smartTeleport", true)
+    local st = self:CreateSection(gpPD, "Smart Teleport Suggestions", "smartTeleport", true)
     c = st.container
     cy = 0
 
@@ -571,9 +591,39 @@ function Config:CreateInterfaceOptionsPanel()
     c:SetHeight(st.optionsHeight)
 
     ---------------------------------------------------------------------------
-    -- CHAT NOTIFIER
+    -- SAVED INSTANCES  (Gameplay)
     ---------------------------------------------------------------------------
-    local cn = self:CreateSection(content, "Chat Notifier", "chatNotifier", true)
+    local si = self:CreateSection(gpPD, "Saved Instances", "savedInstances", true)
+    c = si.container
+    cy = 0
+
+    si.checkbox:SetScript("OnClick", function(button)
+        self.parent:SetModuleEnabled("savedInstances", button:GetChecked())
+        self:RelayoutPanel()
+    end)
+    self.widgets.savedInstancesCheckbox = si.checkbox
+    self.widgets.savedInstancesReloadIndicator = si.reloadIndicator
+
+    local siDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    siDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
+    siDesc:SetWidth(520)
+    siDesc:SetJustifyH("LEFT")
+    siDesc:SetText("Lists current expansion dungeons and raids you haven't completed yet. Type /boltsaved to print the list.")
+    cy = cy - 30
+
+    si.optionsHeight = math.abs(cy)
+    c:SetHeight(si.optionsHeight)
+
+    ---------------------------------------------------------------------------
+    -- SOCIAL PANEL  (Chat Notifier · Wowhead Link)
+    ---------------------------------------------------------------------------
+    local soPD = self:CreatePanelWithScroll("BOLTSocialPanel", "Social")
+    SetPanelCallbacks(soPD.panel)
+
+    ---------------------------------------------------------------------------
+    -- CHAT NOTIFIER  (Social)
+    ---------------------------------------------------------------------------
+    local cn = self:CreateSection(soPD, "Chat Notifier", "chatNotifier", true)
     c = cn.container
     cy = 0
 
@@ -701,9 +751,39 @@ function Config:CreateInterfaceOptionsPanel()
     c:SetHeight(cn.optionsHeight)
 
     ---------------------------------------------------------------------------
-    -- ACHIEVEMENT TRACKER
+    -- WOWHEAD LINK  (Social)
     ---------------------------------------------------------------------------
-    local at = self:CreateSection(content, "Achievement Progress Tracker", "achievementTracker", true)
+    local wl = self:CreateSection(soPD, "Wowhead Link", "wowheadLink", true)
+    c = wl.container
+    cy = 0
+
+    wl.checkbox:SetScript("OnClick", function(button)
+        self.parent:SetModuleEnabled("wowheadLink", button:GetChecked())
+        self:RelayoutPanel()
+    end)
+    self.widgets.wowheadLinkCheckbox = wl.checkbox
+    self.widgets.wowheadLinkReloadIndicator = wl.reloadIndicator
+
+    local wlDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    wlDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
+    wlDesc:SetWidth(520)
+    wlDesc:SetJustifyH("LEFT")
+    wlDesc:SetText("Press Ctrl+C while hovering over an item to copy its Wowhead link. Default keybind is Ctrl+C.")
+    cy = cy - 30
+
+    wl.optionsHeight = math.abs(cy)
+    c:SetHeight(wl.optionsHeight)
+
+    ---------------------------------------------------------------------------
+    -- TRACKING PANEL  (Achievement Tracker)
+    ---------------------------------------------------------------------------
+    local trPD = self:CreatePanelWithScroll("BOLTTrackingPanel", "Tracking")
+    SetPanelCallbacks(trPD.panel)
+
+    ---------------------------------------------------------------------------
+    -- ACHIEVEMENT TRACKER  (Tracking)
+    ---------------------------------------------------------------------------
+    local at = self:CreateSection(trPD, "Achievement Progress Tracker", "achievementTracker", true)
     c = at.container
     cy = 0
 
@@ -797,183 +877,166 @@ function Config:CreateInterfaceOptionsPanel()
     c:SetHeight(at.optionsHeight)
 
     ---------------------------------------------------------------------------
-    -- SAVED INSTANCES
+    -- EXTRAS PANEL  (Playground)
     ---------------------------------------------------------------------------
-    local si = self:CreateSection(content, "Saved Instances", "savedInstances", true)
-    c = si.container
+    local exPD = self:CreatePanelWithScroll("BOLTExtrasPanel", "Extras")
+    SetPanelCallbacks(exPD.panel)
+
+    ---------------------------------------------------------------------------
+    -- PLAYGROUND  (Extras)
+    ---------------------------------------------------------------------------
+    local pg = self:CreateSection(exPD, "Playground", "playground", true)
+    c = pg.container
     cy = 0
 
-    si.checkbox:SetScript("OnClick", function(button)
-        self.parent:SetModuleEnabled("savedInstances", button:GetChecked())
+    pg.checkbox:SetScript("OnClick", function(button)
+        self.parent:SetModuleEnabled("playground", button:GetChecked())
         self:RelayoutPanel()
+        self:UpdatePlaygroundChildControls()
     end)
-    self.widgets.savedInstancesCheckbox = si.checkbox
-    self.widgets.savedInstancesReloadIndicator = si.reloadIndicator
+    self.widgets.playgroundCheckbox = pg.checkbox
+    self.widgets.playgroundReloadIndicator = pg.reloadIndicator
 
-    local siDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    siDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
-    siDesc:SetWidth(520)
-    siDesc:SetJustifyH("LEFT")
-    siDesc:SetText("Lists current expansion dungeons and raids you haven't completed yet. Type /boltsaved to print the list.")
+    local favToyEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
+    favToyEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
+    favToyEnable.Text:SetText("Favorite Toy Button")
+    favToyEnable:SetScript("OnClick", function(button)
+        self.parent:SetConfig(button:GetChecked(), "playground", "showFavoriteToy")
+        self:UpdatePlaygroundChildControls()
+    end)
+    self.widgets.favoriteToyCheckbox = favToyEnable
+
+    local chooseToyBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
+    chooseToyBtn:SetSize(120, 24)
+    chooseToyBtn:SetText("Choose Toy")
+    chooseToyBtn:SetScript("OnClick", function() self:ShowToySelectionPopup() end)
+    chooseToyBtn:SetPoint("LEFT", favToyEnable.Text, "RIGHT", 10, 0)
+    self.widgets.chooseToyButton = chooseToyBtn
+
+    local toyRow = CreateFrame("Frame", nil, c)
+    toyRow:SetSize(360, 24)
+    toyRow:SetPoint("LEFT", chooseToyBtn, "RIGHT", 12, 0)
+    self.widgets.currentToyRow = toyRow
+
+    local toyIcon = toyRow:CreateTexture(nil, "ARTWORK")
+    toyIcon:SetPoint("LEFT", toyRow, "LEFT", 0, 0)
+    toyIcon:SetSize(20, 20)
+    self.widgets.currentToyIcon = toyIcon
+
+    local toyText = toyRow:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    toyText:SetPoint("LEFT", toyIcon, "RIGHT", 8, 0)
+    toyText:SetJustifyH("LEFT")
+    toyText:SetText("None selected")
+    self.widgets.currentToyText = toyText
     cy = cy - 30
 
-    si.optionsHeight = math.abs(cy)
-    c:SetHeight(si.optionsHeight)
-
-    ---------------------------------------------------------------------------
-    -- NAMEPLATES ENHANCEMENT
-    ---------------------------------------------------------------------------
-    local ne = self:CreateSection(content, "Nameplates Enhancement", "nameplatesEnhancement", true)
-    c = ne.container
-    cy = 0
-
-    ne.checkbox:SetScript("OnClick", function(button)
-        self.parent:SetModuleEnabled("nameplatesEnhancement", button:GetChecked())
-        self:RelayoutPanel()
-        self:UpdateNameplatesChildControls()
+    local closeGameMenuOnCast = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
+    closeGameMenuOnCast:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
+    closeGameMenuOnCast.Text:SetText("Close gamemenu on cast")
+    closeGameMenuOnCast:SetScript("OnClick", function(button)
+        self.parent:SetConfig(button:GetChecked(), "playground", "closeGameMenuOnCast")
+        if self.parent.modules and self.parent.modules.playground and self.parent.modules.playground.UpdateFavoriteToyButton then
+            self.parent.modules.playground:UpdateFavoriteToyButton()
+        end
     end)
-    self.widgets.nameplatesEnhancementCheckbox = ne.checkbox
-    self.widgets.nameplatesEnhancementReloadIndicator = ne.reloadIndicator
-
-    local neDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    neDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
-    neDesc:SetWidth(520)
-    neDesc:SetJustifyH("LEFT")
-    neDesc:SetText("Colors enemy nameplate health bars for mana users (healers/casters). Persists through combat and threat changes.")
+    self.widgets.closeGameMenuOnCastCheckbox = closeGameMenuOnCast
     cy = cy - 30
 
-    local neColorLabel = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    neColorLabel:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
-    neColorLabel:SetText("Mana Color:")
+    local speedometerEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
+    speedometerEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
+    speedometerEnable.Text:SetText("Speedometer")
+    speedometerEnable:SetScript("OnClick", function(button)
+        self.parent:SetConfig(button:GetChecked(), "playground", "showSpeedometer")
+        self:UpdatePlaygroundChildControls()
+    end)
+    self.widgets.speedometerCheckbox = speedometerEnable
 
-    local neColorSwatch = CreateFrame("Button", nil, c, "BackdropTemplate")
-    neColorSwatch:SetSize(20, 20)
-    neColorSwatch:SetPoint("LEFT", neColorLabel, "RIGHT", 8, 0)
-    neColorSwatch:SetBackdrop({
-        bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 8,
-        insets = { left = 1, right = 1, top = 1, bottom = 1 },
-    })
-    neColorSwatch:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
-    self.widgets.neColorSwatch = neColorSwatch
+    local posLabel = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    posLabel:SetPoint("LEFT", speedometerEnable.Text, "RIGHT", 10, 0)
+    posLabel:SetText("Position:")
 
-    local function UpdateSwatchColor()
-        local mc = self.parent:GetConfig("nameplatesEnhancement", "manaColor") or { r = 0.2, g = 0.4, b = 1.0 }
-        neColorSwatch:SetBackdropColor(mc.r, mc.g, mc.b, 1)
+    local posNames = { TOPLEFT = "Top Left", TOPRIGHT = "Top Right", BOTTOMLEFT = "Bottom Left", BOTTOMRIGHT = "Bottom Right" }
+    local posDropdown = CreateFrame("Button", "BOLTSpeedometerPositionDropdown", c, "UIPanelButtonTemplate")
+    posDropdown:SetSize(130, 22)
+    posDropdown:SetPoint("LEFT", posLabel, "RIGHT", 5, 0)
+    self.widgets.speedometerPositionDropdown = posDropdown
+
+    local function UpdatePosDropdownText()
+        local cur = self.parent:GetConfig("playground", "statsPosition") or "TOPRIGHT"
+        posDropdown:SetText(posNames[cur] or "Top Right")
     end
-    UpdateSwatchColor()
+    UpdatePosDropdownText()
 
-    neColorSwatch:SetScript("OnClick", function()
-        local mc = self.parent:GetConfig("nameplatesEnhancement", "manaColor") or { r = 0.2, g = 0.4, b = 1.0 }
-        local function OnColorChanged()
-            local r, g, b = ColorPickerFrame:GetColorRGB()
-            self.parent:SetConfig({ r = r, g = g, b = b }, "nameplatesEnhancement", "manaColor")
-            UpdateSwatchColor()
-            local mod = self.parent.modules.nameplatesEnhancement
-            if mod and mod.LoadManaColor then mod:LoadManaColor() end
-        end
-        local function OnCancel(prev)
-            self.parent:SetConfig({ r = prev.r, g = prev.g, b = prev.b }, "nameplatesEnhancement", "manaColor")
-            UpdateSwatchColor()
-            local mod = self.parent.modules.nameplatesEnhancement
-            if mod and mod.LoadManaColor then mod:LoadManaColor() end
-        end
-        local info = {
-            r = mc.r, g = mc.g, b = mc.b,
-            swatchFunc = OnColorChanged,
-            cancelFunc = OnCancel,
-            previousValues = { r = mc.r, g = mc.g, b = mc.b },
+    posDropdown:SetScript("OnClick", function(btn)
+        local positions = {
+            { text = "Top Left",     value = "TOPLEFT" },
+            { text = "Top Right",    value = "TOPRIGHT" },
+            { text = "Bottom Left",  value = "BOTTOMLEFT" },
+            { text = "Bottom Right", value = "BOTTOMRIGHT" },
         }
-        ColorPickerFrame:SetupColorPickerAndShow(info)
+        MenuUtil.CreateContextMenu(btn, function(_, rootDescription)
+            for _, pos in ipairs(positions) do
+                local p = pos
+                rootDescription:CreateRadio(p.text,
+                    function() return self.parent:GetConfig("playground", "statsPosition") == p.value end,
+                    function()
+                        self.parent:SetConfig(p.value, "playground", "statsPosition")
+                        UpdatePosDropdownText()
+                        if self.parent.modules.playground and self.parent.modules.playground.UpdateStatsPosition then
+                            self.parent.modules.playground:UpdateStatsPosition()
+                        end
+                    end
+                )
+            end
+        end)
     end)
+    cy = cy - 36
 
-    local neResetBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
-    neResetBtn:SetSize(55, 20)
-    neResetBtn:SetPoint("LEFT", neColorSwatch, "RIGHT", 6, 0)
-    neResetBtn:SetText("Reset")
-    neResetBtn:SetScript("OnClick", function()
-        self.parent:SetConfig({ r = 0.2, g = 0.4, b = 1.0 }, "nameplatesEnhancement", "manaColor")
-        UpdateSwatchColor()
-        local mod = self.parent.modules.nameplatesEnhancement
-        if mod and mod.LoadManaColor then mod:LoadManaColor() end
-    end)
-    self.widgets.neResetBtn = neResetBtn
-    self.widgets.UpdateNameplatesSwatchColor = UpdateSwatchColor
-    cy = cy - 28
-
-    local neInstanceOnly = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
-    neInstanceOnly:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
-    neInstanceOnly.Text:SetText("Only in instances (dungeons, raids, scenarios)")
-    neInstanceOnly.Text:SetFontObject("GameFontHighlightSmall")
-    neInstanceOnly:SetChecked(self.parent:GetConfig("nameplatesEnhancement", "instanceOnly") or false)
-    neInstanceOnly:SetScript("OnClick", function(button)
-        self.parent:SetConfig(button:GetChecked(), "nameplatesEnhancement", "instanceOnly")
-        local mod = self.parent.modules.nameplatesEnhancement
-        if mod then mod:RefreshInstanceOnly() end
-    end)
-    self.widgets.neInstanceOnly = neInstanceOnly
-    cy = cy - 26
-
-    ne.optionsHeight = math.abs(cy)
-    c:SetHeight(ne.optionsHeight)
+    pg.optionsHeight = math.abs(cy)
+    c:SetHeight(pg.optionsHeight)
 
     ---------------------------------------------------------------------------
-    -- PARTY FRAMES CENTER GROWTH
+    -- STORE ALL PANEL DATA & REGISTER WITH SETTINGS
     ---------------------------------------------------------------------------
-    local pfcg = self:CreateSection(content, "Party Frames Center Growth", "partyFramesCenterGrowth", true)
-    c = pfcg.container
-    cy = 0
+    self.panelData = {
+        interface = ifPD,
+        gameplay  = gpPD,
+        social    = soPD,
+        tracking  = trPD,
+        extras    = exPD,
+    }
 
-    pfcg.checkbox:SetScript("OnClick", function(button)
-        self.parent:SetModuleEnabled("partyFramesCenterGrowth", button:GetChecked())
-        self:RelayoutPanel()
-    end)
-    self.widgets.partyFramesCenterGrowthCheckbox = pfcg.checkbox
-
-    local pfcgDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    pfcgDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
-    pfcgDesc:SetWidth(560)
-    pfcgDesc:SetJustifyH("LEFT")
-    pfcgDesc:SetText("Keeps raid-style party frames center-aligned by nudging the party group anchor as members join or leave. Only affects party frames when Raid-Style Party Frames is enabled in Edit Mode.")
-    cy = cy - 40
-
-    pfcg.optionsHeight = math.abs(cy)
-    c:SetHeight(pfcg.optionsHeight)
-
-    ---------------------------------------------------------------------------
-    -- FOOTER
-    ---------------------------------------------------------------------------
-    local reloadBtn = CreateFrame("Button", "BOLTOptionsReloadButton", content, "UIPanelButtonTemplate")
-    reloadBtn:SetSize(120, 25)
-    reloadBtn:SetText("Reload UI")
-    reloadBtn:SetScript("OnClick", ReloadUI)
-    self.widgets.reloadButton = reloadBtn
-
-    local versionText = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    versionText:SetText("B.O.L.T v" .. (self.parent and self.parent.version or "?"))
-    self.widgets.versionText = versionText
-
-    scrollFrame:SetScript("OnSizeChanged", function(frame, w, h) content:SetWidth(w - 20) end)
-
-    -- Initial layout
-    self:RelayoutPanel()
-
-    -- Register Settings category (modern API for 10.0+)
     if Settings and Settings.RegisterCanvasLayoutCategory then
-        local category = Settings.RegisterCanvasLayoutCategory(panel, "B.O.L.T")
-        self.settingsCategory = category
-        Settings.RegisterAddOnCategory(category)
+        local mainCat = Settings.RegisterCanvasLayoutCategory(mainPD.panel, "B.O.L.T")
+        Settings.RegisterCanvasLayoutSubcategory(mainCat, ifPD.panel, "Interface")
+        Settings.RegisterCanvasLayoutSubcategory(mainCat, gpPD.panel, "Gameplay")
+        Settings.RegisterCanvasLayoutSubcategory(mainCat, soPD.panel, "Social")
+        Settings.RegisterCanvasLayoutSubcategory(mainCat, trPD.panel, "Tracking")
+        Settings.RegisterCanvasLayoutSubcategory(mainCat, exPD.panel, "Extras")
+        self.settingsCategory = mainCat
+        Settings.RegisterAddOnCategory(mainCat)
     elseif InterfaceOptions_AddCategory then
-        InterfaceOptions_AddCategory(panel)
-        self.settingsCategory = panel
+        mainPD.panel.name = "B.O.L.T"
+        ifPD.panel.name  = "Interface";  ifPD.panel.parent  = "B.O.L.T"
+        gpPD.panel.name  = "Gameplay";   gpPD.panel.parent  = "B.O.L.T"
+        soPD.panel.name  = "Social";     soPD.panel.parent  = "B.O.L.T"
+        trPD.panel.name  = "Tracking";   trPD.panel.parent  = "B.O.L.T"
+        exPD.panel.name  = "Extras";     exPD.panel.parent  = "B.O.L.T"
+        InterfaceOptions_AddCategory(mainPD.panel)
+        InterfaceOptions_AddCategory(ifPD.panel)
+        InterfaceOptions_AddCategory(gpPD.panel)
+        InterfaceOptions_AddCategory(soPD.panel)
+        InterfaceOptions_AddCategory(trPD.panel)
+        InterfaceOptions_AddCategory(exPD.panel)
+        self.settingsCategory = mainPD.panel
     else
         if self.parent and self.parent.Print then
             self.parent:Print("B.O.L.T: Settings API not available on this client version.")
         end
     end
 
-    self.optionsPanel = panel
+    self.optionsPanel = mainPD.panel
+    self:RelayoutPanel()
 end
 
 function Config:UpdateGameMenuChildControls()
