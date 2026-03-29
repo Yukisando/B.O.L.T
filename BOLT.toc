@@ -38,3 +38,4 @@ Modules\NameplatesEnhancement.lua
 Modules\PartyFramesCenterGrowth.lua
 
 Modules\SmartTeleportSuggestions.lua
+Modules\KeyShare.lua

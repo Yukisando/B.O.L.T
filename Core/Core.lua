@@ -48,6 +48,7 @@ BOLT.defaults = {
             manaColor = { r = 0.2, g = 0.4, b = 1.0 },
             instanceOnly = false,
         },
+        keyShare = {},
     }
 }
 
@@ -64,6 +65,7 @@ BOLT.defaultModuleStates = {
     savedInstances = false,
     nameplatesEnhancement = false,
     partyFramesCenterGrowth = false,
+    keyShare = false,
 }
 
 -- Initialize the addon

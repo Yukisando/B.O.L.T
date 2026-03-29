@@ -65,7 +65,8 @@
         "CompactPartyFrameMixin",
         "UpdateRaidAndPartyFrames",
         "PartyFrame",
-        "EditModeUnitFrameSystemMixin"
+        "EditModeUnitFrameSystemMixin",
+        "NUM_BAG_SLOTS"
     ],
     "Lua.type.weakUnionCheck": true
 }

@@ -996,6 +996,29 @@ function Config:CreateInterfaceOptionsPanel()
     c:SetHeight(pg.optionsHeight)
 
     ---------------------------------------------------------------------------
+    -- KEYSHARE  (Extras)
+    ---------------------------------------------------------------------------
+    local ks = self:CreateSection(exPD, "Key Share", "keyShare", true)
+    c = ks.container
+    cy = 0
+
+    ks.checkbox:SetScript("OnClick", function(button)
+        self.parent:SetModuleEnabled("keyShare", button:GetChecked())
+        self:RelayoutPanel()
+    end)
+    self.widgets.keyShareCheckbox = ks.checkbox
+
+    local ksDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    ksDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
+    ksDesc:SetWidth(520)
+    ksDesc:SetJustifyH("LEFT")
+    ksDesc:SetText("When someone types \"!keys\" in Party, Raid, or Guild chat, links your current Mythic+ keystone in the same channel.")
+    cy = cy - 40
+
+    ks.optionsHeight = math.abs(cy)
+    c:SetHeight(ks.optionsHeight)
+
+    ---------------------------------------------------------------------------
     -- STORE ALL PANEL DATA & REGISTER WITH SETTINGS
     ---------------------------------------------------------------------------
     self.panelData = {
@@ -1163,6 +1186,7 @@ function Config:RefreshOptionsPanel()
         if w.savedInstancesCheckbox then w.savedInstancesCheckbox:SetChecked(self.parent:IsModuleEnabled("savedInstances")) end
         if w.nameplatesEnhancementCheckbox then w.nameplatesEnhancementCheckbox:SetChecked(self.parent:IsModuleEnabled("nameplatesEnhancement")) end
         if w.partyFramesCenterGrowthCheckbox then w.partyFramesCenterGrowthCheckbox:SetChecked(self.parent:IsModuleEnabled("partyFramesCenterGrowth")) end
+        if w.keyShareCheckbox then w.keyShareCheckbox:SetChecked(self.parent:IsModuleEnabled("keyShare")) end
         if w.neInstanceOnly then w.neInstanceOnly:SetChecked(self.parent:GetConfig("nameplatesEnhancement", "instanceOnly") or false) end
         if w.UpdateNameplatesSwatchColor then w.UpdateNameplatesSwatchColor() end
         -- Chat Notifier channels dropdown
