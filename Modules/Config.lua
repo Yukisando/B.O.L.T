@@ -184,7 +184,7 @@ function Config:_RelayoutSinglePanel(pd)
         sec.section:SetPoint("TOPLEFT", pd.scrollChild, "TOPLEFT", 0, y)
         sec.section:SetPoint("RIGHT", pd.scrollChild, "RIGHT", 0, 0)
 
-        local enabled = self.parent:IsModuleEnabled(sec.moduleName)
+        local enabled = sec.moduleName == nil or self.parent:IsModuleEnabled(sec.moduleName)
         local showOptions = enabled and sec.container and sec.optionsHeight > 0
         if sec.container then
             if showOptions then
@@ -1017,6 +1017,29 @@ function Config:CreateInterfaceOptionsPanel()
 
     ks.optionsHeight = math.abs(cy)
     c:SetHeight(ks.optionsHeight)
+
+    ---------------------------------------------------------------------------
+    -- ADMIN  (Extras)
+    ---------------------------------------------------------------------------
+    local adminSection = self:CreateSection(exPD, "Admin", nil, true)
+    adminSection.checkbox:Hide()
+    adminSection.headerHeight = 30  -- just the label, no checkbox row
+    local adminContainer = adminSection.container
+    local admincy = 0
+
+    local adminBtn = CreateFrame("Button", nil, adminContainer, "UIPanelButtonTemplate")
+    adminBtn:SetSize(140, 26)
+    adminBtn:SetText("Admin Settings")
+    adminBtn:SetPoint("TOPLEFT", adminContainer, "TOPLEFT", 16, admincy)
+    adminBtn:SetScript("OnClick", function()
+        if self.parent and self.parent.modules and self.parent.modules.admin then
+            self.parent.modules.admin:ShowPasswordPopup()
+        end
+    end)
+    admincy = admincy - 34
+
+    adminSection.optionsHeight = math.abs(admincy)
+    adminContainer:SetHeight(adminSection.optionsHeight)
 
     ---------------------------------------------------------------------------
     -- STORE ALL PANEL DATA & REGISTER WITH SETTINGS
