@@ -1012,7 +1012,7 @@ function Config:CreateInterfaceOptionsPanel()
     ksDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
     ksDesc:SetWidth(520)
     ksDesc:SetJustifyH("LEFT")
-    ksDesc:SetText("When someone types \"!keys\" in Party, Raid, or Guild chat, links your current Mythic+ keystone in the same channel.")
+    ksDesc:SetText("When anyone types \"!keys\" in Party, Raid, or Guild chat, links your current Mythic+ keystone in the same channel, including your own message.")
     cy = cy - 40
 
     ks.optionsHeight = math.abs(cy)
