@@ -314,6 +314,16 @@ function Config:CreateInterfaceOptionsPanel()
         self:UpdateGameMenuChildControls()
     end)
     self.widgets.volumeButtonCheckbox = volumeEnable
+    cy = cy - 30
+
+    local lootSpecEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
+    lootSpecEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
+    lootSpecEnable.Text:SetText("Show Loot Spec Button")
+    lootSpecEnable:SetScript("OnClick", function(button)
+        self.parent:SetConfig(button:GetChecked(), "gameMenu", "showLootSpecButton")
+        self:UpdateGameMenuChildControls()
+    end)
+    self.widgets.lootSpecButtonCheckbox = lootSpecEnable
     cy = cy - 36
 
     -- Raid marker selector
@@ -877,6 +887,29 @@ function Config:CreateInterfaceOptionsPanel()
     c:SetHeight(at.optionsHeight)
 
     ---------------------------------------------------------------------------
+    -- BATTLEREZ  (Tracking)
+    ---------------------------------------------------------------------------
+    local br = self:CreateSection(trPD, "Battle Rez Counter", "battleRez", true)
+    c = br.container
+    cy = 0
+
+    br.checkbox:SetScript("OnClick", function(button)
+        self.parent:SetModuleEnabled("battleRez", button:GetChecked())
+        self:RelayoutPanel()
+    end)
+    self.widgets.battleRezCheckbox = br.checkbox
+
+    local brDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    brDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
+    brDesc:SetWidth(520)
+    brDesc:SetJustifyH("LEFT")
+    brDesc:SetText("Shows a small battle resurrection counter next to the Mythic+ tracker by the objective list. Tracks available charges from the active run timer and observed combat res casts.")
+    cy = cy - 40
+
+    br.optionsHeight = math.abs(cy)
+    c:SetHeight(br.optionsHeight)
+
+    ---------------------------------------------------------------------------
     -- EXTRAS PANEL  (Playground)
     ---------------------------------------------------------------------------
     local exPD = self:CreatePanelWithScroll("BOLTExtrasPanel", "Extras")
@@ -1105,6 +1138,9 @@ function Config:UpdateGameMenuChildControls()
     if w and w.volumeButtonCheckbox then
         w.volumeButtonCheckbox:SetEnabled(enabled); w.volumeButtonCheckbox:SetAlpha(enabled and 1 or 0.5)
     end
+    if w and w.lootSpecButtonCheckbox then
+        w.lootSpecButtonCheckbox:SetEnabled(enabled); w.lootSpecButtonCheckbox:SetAlpha(enabled and 1 or 0.5)
+    end
 
     local groupToolsEnabled = false
     if enabled and self.parent and self.parent.GetConfig then
@@ -1184,6 +1220,7 @@ function Config:RefreshOptionsPanel()
         if w.groupToolsCheckbox then w.groupToolsCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "groupToolsEnabled")) end
         if w.battleTextCheckbox then w.battleTextCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showBattleTextToggles")) end
         if w.volumeButtonCheckbox then w.volumeButtonCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showVolumeButton")) end
+        if w.lootSpecButtonCheckbox then w.lootSpecButtonCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showLootSpecButton")) end
         if w.raidMarkerButtons then
             local idx = self.parent:GetConfig("gameMenu", "raidMarkerIndex") or 1
             for i, b in ipairs(w.raidMarkerButtons) do b:SetAlpha((i == idx) and 1 or 0.6) end
@@ -1205,6 +1242,7 @@ function Config:RefreshOptionsPanel()
         if w.smartTeleportCheckbox then w.smartTeleportCheckbox:SetChecked(self.parent:IsModuleEnabled("smartTeleport")) end
         if w.chatNotifierCheckbox then w.chatNotifierCheckbox:SetChecked(self.parent:IsModuleEnabled("chatNotifier")) end
         if w.achievementTrackerCheckbox then w.achievementTrackerCheckbox:SetChecked(self.parent:IsModuleEnabled("achievementTracker")) end
+        if w.battleRezCheckbox then w.battleRezCheckbox:SetChecked(self.parent:IsModuleEnabled("battleRez")) end
         if w.UpdateAchCategoryDropdownText then w.UpdateAchCategoryDropdownText() end
         if w.savedInstancesCheckbox then w.savedInstancesCheckbox:SetChecked(self.parent:IsModuleEnabled("savedInstances")) end
         if w.nameplatesEnhancementCheckbox then w.nameplatesEnhancementCheckbox:SetChecked(self.parent:IsModuleEnabled("nameplatesEnhancement")) end

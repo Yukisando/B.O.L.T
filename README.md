@@ -12,6 +12,10 @@
   - Ready Check: Start a ready check for your group (leader/assistant only)
   - Countdown: Start a 5-second pull timer (leader/assistant only)
   - Raid Marker: Set or clear your own raid marker (configurable icon, right-click to clear) — visible even when you're not in a group, as long as Group Tools are enabled
+- **Loot Spec Button**: Quick loot specialization switching from the Game Menu
+  - Left-click: Cycle through current spec plus all available loot specs for your class
+  - Right-click: Pick the exact loot specialization from a menu
+  - Gold border: A loot spec override is active instead of following your current specialization
 - **Battle Text Toggles**: Quick toggles for damage and healing numbers in scrolling combat text
 - **Volume Control Button**: Master volume and music control with visual feedback
   - Shows current volume percentage (or "M" when muted) directly on the button
@@ -46,6 +50,12 @@
 - **Instance Lockout Overview**: Lists all current expansion dungeons and raids alongside your lockout status
 - **Slash Command**: Type `/boltsaved` to print unsaved instances to chat
 - **Color-Coded Output**: Green for unsaved, orange for in-progress, grey for completed
+
+### Battle Rez Counter Module
+
+- **Mythic+ Battle Rez Counter**: Shows a small combat resurrection counter beside the built-in Mythic+ tracker near the objective list
+- **Run-Based Tracking**: Uses the active Mythic+ timer plus tracked battle rez casts to estimate currently available charges during the run
+- **Always Nearby**: Anchors beside the default Mythic+ block so the counter stays close to the timer and death count
 
 ### Nameplates Enhancement Module
 

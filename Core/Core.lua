@@ -20,7 +20,8 @@ BOLT.defaults = {
             groupToolsEnabled = true,
             raidMarkerIndex = 1, -- 1=Star, 2=Circle, ... 8=Skull; set 0 to clear
             showBattleTextToggles = true,
-            showVolumeButton = true
+            showVolumeButton = true,
+            showLootSpecButton = true,
         },
         playground = {
             showFavoriteToy = true,
@@ -44,6 +45,7 @@ BOLT.defaults = {
         achievementTracker = {
             trackedCategories = { [97] = true },  -- 97 = Exploration; empty = track all
         },
+        battleRez = {},
         nameplatesEnhancement = {
             manaColor = { r = 0.2, g = 0.4, b = 1.0 },
             instanceOnly = false,
@@ -62,6 +64,7 @@ BOLT.defaultModuleStates = {
     smartTeleport = false,
     chatNotifier = false,
     achievementTracker = false,
+    battleRez = false,
     savedInstances = false,
     nameplatesEnhancement = false,
     partyFramesCenterGrowth = false,
@@ -95,6 +98,7 @@ function BOLT:HookMinimapTrackingMenu()
 
         local modules = {
             { key = "achievementTracker",      label = "Achievement Tracker" },
+            { key = "battleRez",               label = "Battle Rez Counter" },
             { key = "chatNotifier",             label = "Chat Notifier" },
             { key = "autoRepSwitch",            label = "Auto Rep Switch" },
             { key = "smartTeleport",            label = "Smart Teleport" },

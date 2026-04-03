@@ -44,6 +44,8 @@ local damageNumbersButton = nil
 local healingNumbersButton = nil
 -- Volume control button
 local volumeButton = nil
+-- Loot specialization button
+local lootSpecButton = nil
 
 -- Battle text console variable names (v2 API)
 local DAMAGE_CONSOLE_VARS = {
@@ -55,6 +57,9 @@ local DAMAGE_CONSOLE_VARS = {
 local HEALING_CONSOLE_VARS = {
     "floatingCombatTextCombatHealing_v2",
 }
+local DEFAULT_LOOT_SPEC_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
+local GetLootSpec = GetLootSpecialization or (C_SpecializationInfo and C_SpecializationInfo.GetLootSpecialization)
+local SetLootSpec = SetLootSpecialization or (C_SpecializationInfo and C_SpecializationInfo.SetLootSpecialization)
 
 -- Generation counter: incremented on each OnShow, checked by deferred callbacks
 -- to prevent stale timers from re-showing widgets after the menu has closed.
@@ -122,7 +127,7 @@ function GameMenu:EnsureMenuContainer()
 
     -- Reparent existing buttons so they follow the container visibility and anchoring
     local _buttons = { leaveGroupButton, reloadButton, readyCheckButton, countdownButton, raidMarkerButton,
-        damageNumbersButton, healingNumbersButton, volumeButton }
+        damageNumbersButton, healingNumbersButton, volumeButton, lootSpecButton }
     for _, btn in ipairs(_buttons) do
         if btn and btn:GetParent() ~= self.menuContainer then
             btn:SetParent(self.menuContainer)
@@ -148,9 +153,12 @@ function GameMenu:OnEnable()
         f:RegisterEvent("PLAYER_ROLES_ASSIGNED")
         f:RegisterEvent("PARTY_LEADER_CHANGED")
         f:RegisterEvent("PLAYER_ENTERING_WORLD")
+        f:RegisterEvent("PLAYER_LOOT_SPEC_UPDATED")
+        f:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
         f:SetScript("OnEvent", function()
             if GameMenuFrame and GameMenuFrame:IsShown() then
                 self:RefreshGroupToolsState()
+                self:UpdateLootSpecButtonDisplay()
             end
         end)
         self.groupUpdateFrame = f
@@ -208,6 +216,10 @@ function GameMenu:OnDisable()
         volumeButton:Hide()
         volumeButton = nil
     end
+    if lootSpecButton then
+        lootSpecButton:Hide()
+        lootSpecButton = nil
+    end
 
     -- Clean up group update frame
     if self.groupUpdateFrame then
@@ -253,6 +265,7 @@ function GameMenu:EnsureHiddenIfMenuNotShown()
     self:HideGroupTools()
     self:HideBattleTextToggles()
     self:HideVolumeButton()
+    self:HideLootSpecButton()
 
     -- Clean up CVAR watcher if present
     if self.cvarWatcher then
@@ -326,6 +339,7 @@ function GameMenu:HandleMenuHidden()
     self:HideGroupTools()
     self:HideBattleTextToggles()
     self:HideVolumeButton()
+    self:HideLootSpecButton()
 
     if self.menuContainer then
         self.menuContainer:Hide()
@@ -414,6 +428,12 @@ function GameMenu:UpdateGameMenu()
         self:ShowLeaveGroupButton()
     else
         self:HideLeaveGroupButton()
+    end
+
+    if self.parent:GetConfig("gameMenu", "showLootSpecButton") and self:CanShowLootSpecButton() then
+        self:ShowLootSpecButton()
+    else
+        self:HideLootSpecButton()
     end
 
     -- Group tools (ready check, countdown, raid marker)
@@ -522,6 +542,216 @@ function GameMenu:HideVolumeButton()
     if volumeButton then
         volumeButton:Hide()
     end
+end
+
+function GameMenu:CanShowLootSpecButton()
+    return GetNumSpecializations and GetNumSpecializations() > 0
+end
+
+function GameMenu:GetLootSpecOptions()
+    local options = {}
+    local currentSpecName, currentSpecIcon
+    local currentSpecIndex = GetSpecialization and GetSpecialization()
+
+    if currentSpecIndex then
+        local _, name, _, icon = GetSpecializationInfo(currentSpecIndex)
+        currentSpecName = name
+        currentSpecIcon = icon
+    end
+
+    table.insert(options, {
+        specID = 0,
+        name = currentSpecName and ("Current Specialization (" .. currentSpecName .. ")") or "Current Specialization",
+        icon = currentSpecIcon or DEFAULT_LOOT_SPEC_ICON,
+    })
+
+    local numSpecs = GetNumSpecializations and GetNumSpecializations() or 0
+    for index = 1, numSpecs do
+        local specID, name, _, icon = GetSpecializationInfo(index)
+        if specID and name then
+            table.insert(options, {
+                specID = specID,
+                name = name,
+                icon = icon or DEFAULT_LOOT_SPEC_ICON,
+            })
+        end
+    end
+
+    return options
+end
+
+function GameMenu:GetLootSpecInfo(specID)
+    local resolvedSpecID = specID or 0
+    for _, option in ipairs(self:GetLootSpecOptions()) do
+        if option.specID == resolvedSpecID then
+            return option.name, option.icon, resolvedSpecID == 0
+        end
+    end
+
+    return "Loot Specialization", DEFAULT_LOOT_SPEC_ICON, resolvedSpecID == 0
+end
+
+function GameMenu:UpdateLootSpecButtonDisplay()
+    if not lootSpecButton then
+        return
+    end
+
+    local specID = GetLootSpec and GetLootSpec() or 0
+    local label, icon, isCurrentSpec = self:GetLootSpecInfo(specID)
+
+    if lootSpecButton.icon then
+        lootSpecButton.icon:SetTexture(icon or DEFAULT_LOOT_SPEC_ICON)
+    end
+    if lootSpecButton.border then
+        if isCurrentSpec then
+            lootSpecButton.border:SetColorTexture(0.3, 0.28, 0.24, 1.0)
+        else
+            lootSpecButton.border:SetColorTexture(0.95, 0.76, 0.18, 1.0)
+        end
+    end
+
+    lootSpecButton.currentLabel = label
+    lootSpecButton.currentSpecID = specID
+end
+
+function GameMenu:CreateLootSpecButton()
+    local mod = self
+    lootSpecButton = BOLT.ButtonUtils:CreateIconButton(nil, self:GetMenuParent(), DEFAULT_LOOT_SPEC_ICON)
+    lootSpecButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    lootSpecButton:SetScript("OnClick", function(_, button)
+        if button == "RightButton" then
+            mod:ShowLootSpecMenu()
+        else
+            mod:CycleLootSpec()
+        end
+    end)
+    lootSpecButton:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(lootSpecButton, "ANCHOR_LEFT")
+        local specID = GetLootSpec and GetLootSpec() or 0
+        local label, _, isCurrentSpec = mod:GetLootSpecInfo(specID)
+        GameTooltip:SetText("Loot Specialization", 1, 1, 1)
+        GameTooltip:AddLine("Current: " .. label, 1, 1, 0, true)
+        GameTooltip:AddLine("Left-click: Cycle to the next loot spec", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("Right-click: Choose a loot spec", 0.8, 0.8, 0.8, true)
+        if isCurrentSpec then
+            GameTooltip:AddLine("Following your current specialization", 0.65, 0.82, 1, true)
+        else
+            GameTooltip:AddLine("Loot specialization override active", 1, 0.82, 0.2, true)
+        end
+        GameTooltip:Show()
+        if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
+            PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
+        end
+    end)
+    lootSpecButton:SetScript("OnLeave", function()
+        if GameTooltip then
+            GameTooltip:Hide()
+        end
+    end)
+
+    self:UpdateLootSpecButtonDisplay()
+end
+
+function GameMenu:PositionLootSpecButton()
+    if not lootSpecButton then
+        return
+    end
+
+    lootSpecButton:ClearAllPoints()
+    local anchor = self:GetMenuAnchor()
+    if anchor and anchor.IsAnchoringSecret and anchor:IsAnchoringSecret() then
+        return
+    end
+    if anchor then
+        lootSpecButton:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 8, 12)
+        lootSpecButton:SetFrameLevel((anchor.GetFrameLevel and anchor:GetFrameLevel() or 0) + 2)
+    end
+end
+
+function GameMenu:ShowLootSpecButton()
+    if not self:CanShowLootSpecButton() then
+        self:HideLootSpecButton()
+        return
+    end
+
+    if not lootSpecButton then
+        self:CreateLootSpecButton()
+    end
+
+    if lootSpecButton then
+        lootSpecButton:Show()
+        self:UpdateLootSpecButtonDisplay()
+        self:PositionLootSpecButton()
+    end
+end
+
+function GameMenu:HideLootSpecButton()
+    if lootSpecButton then
+        lootSpecButton:Hide()
+    end
+end
+
+function GameMenu:ApplyLootSpec(specID)
+    if not SetLootSpec then
+        self.parent:Print("Loot specialization is not available on this character.")
+        return
+    end
+
+    local ok, err = pcall(SetLootSpec, specID or 0)
+    if not ok then
+        self.parent:Print("Could not change loot specialization: " .. tostring(err))
+        return
+    end
+
+    self:UpdateLootSpecButtonDisplay()
+    local label = self:GetLootSpecInfo(specID)
+    self.parent:Print("Loot specialization: " .. label)
+end
+
+function GameMenu:CycleLootSpec()
+    local options = self:GetLootSpecOptions()
+    if #options <= 1 then
+        self.parent:Print("No loot specialization choices are available yet.")
+        return
+    end
+
+    local activeSpecID = GetLootSpec and GetLootSpec() or 0
+    local activeIndex = 1
+    for index, option in ipairs(options) do
+        if option.specID == activeSpecID then
+            activeIndex = index
+            break
+        end
+    end
+
+    local nextOption = options[(activeIndex % #options) + 1]
+    self:ApplyLootSpec(nextOption.specID)
+end
+
+function GameMenu:ShowLootSpecMenu()
+    if not lootSpecButton then
+        return
+    end
+    if not (MenuUtil and MenuUtil.CreateContextMenu) then
+        self:CycleLootSpec()
+        return
+    end
+
+    local mod = self
+    MenuUtil.CreateContextMenu(lootSpecButton, function(_, rootDescription)
+        rootDescription:CreateTitle("Loot Specialization")
+        for _, option in ipairs(mod:GetLootSpecOptions()) do
+            local entry = option
+            rootDescription:CreateRadio(entry.name,
+                function()
+                    return (GetLootSpec and GetLootSpec() or 0) == entry.specID
+                end,
+                function()
+                    mod:ApplyLootSpec(entry.specID)
+                end
+            )
+        end
+    end)
 end
 
 function GameMenu:CreateLeaveGroupButton()
@@ -814,8 +1044,10 @@ function GameMenu:PositionGroupTools()
     if raidMarkerButton:IsShown() and
         (not countdownButton or not countdownButton:IsShown()) and
         (not readyCheckButton or not readyCheckButton:IsShown()) then
-        local anchor = self:GetMenuAnchor()
-        if anchor then
+        if lootSpecButton and lootSpecButton:IsShown() then
+            raidMarkerButton:SetPoint("BOTTOMLEFT", lootSpecButton, "TOPLEFT", 0, 6)
+            raidMarkerButton:SetFrameLevel((lootSpecButton.GetFrameLevel and lootSpecButton:GetFrameLevel() or level) + 2)
+        elseif anchor then
             raidMarkerButton:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 8, 12)
             raidMarkerButton:SetFrameLevel((anchor.GetFrameLevel and anchor:GetFrameLevel() or 0) + 2)
         end
@@ -826,8 +1058,12 @@ function GameMenu:PositionGroupTools()
     if countdownButton and countdownButton:IsShown() and
         (not readyCheckButton or not readyCheckButton:IsShown()) then
         -- countdown is bottom, raid marker above it
-        local anchor = self:GetMenuAnchor()
-        if anchor then
+        if lootSpecButton and lootSpecButton:IsShown() then
+            countdownButton:SetPoint("BOTTOMLEFT", lootSpecButton, "TOPLEFT", 0, 6)
+            raidMarkerButton:SetPoint("BOTTOMLEFT", countdownButton, "TOPLEFT", 0, 6)
+            countdownButton:SetFrameLevel((lootSpecButton.GetFrameLevel and lootSpecButton:GetFrameLevel() or level) + 2)
+            raidMarkerButton:SetFrameLevel((countdownButton.GetFrameLevel and countdownButton:GetFrameLevel() or level) + 2)
+        elseif anchor then
             countdownButton:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 8, 12)
             raidMarkerButton:SetPoint("BOTTOMLEFT", countdownButton, "TOPLEFT", 0, 6)
             countdownButton:SetFrameLevel((anchor.GetFrameLevel and anchor:GetFrameLevel() or 0) + 2)
@@ -838,12 +1074,12 @@ function GameMenu:PositionGroupTools()
 
     -- Otherwise, if readyCheck is visible (and possibly others), stack: ready -> countdown -> raid
     if readyCheckButton and readyCheckButton:IsShown() then
-        do
-            local anchor = self:GetMenuAnchor()
-            if anchor then
-                readyCheckButton:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 8, 12)
-                readyCheckButton:SetFrameLevel((anchor.GetFrameLevel and anchor:GetFrameLevel() or 0) + 2)
-            end
+        if lootSpecButton and lootSpecButton:IsShown() then
+            readyCheckButton:SetPoint("BOTTOMLEFT", lootSpecButton, "TOPLEFT", 0, 6)
+            readyCheckButton:SetFrameLevel((lootSpecButton.GetFrameLevel and lootSpecButton:GetFrameLevel() or level) + 2)
+        elseif anchor then
+            readyCheckButton:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 8, 12)
+            readyCheckButton:SetFrameLevel((anchor.GetFrameLevel and anchor:GetFrameLevel() or 0) + 2)
         end
         if countdownButton and countdownButton:IsShown() then
             countdownButton:SetPoint("BOTTOMLEFT", readyCheckButton, "TOPLEFT", 0, 6)
@@ -858,12 +1094,12 @@ function GameMenu:PositionGroupTools()
     end
 
     -- If none of the above matched, ensure raid marker has a fallback anchor
-    do
-        local anchor = self:GetMenuAnchor()
-        if anchor then
-            raidMarkerButton:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 8, 12)
-            raidMarkerButton:SetFrameLevel((anchor.GetFrameLevel and anchor:GetFrameLevel() or 0) + 2)
-        end
+    if lootSpecButton and lootSpecButton:IsShown() then
+        raidMarkerButton:SetPoint("BOTTOMLEFT", lootSpecButton, "TOPLEFT", 0, 6)
+        raidMarkerButton:SetFrameLevel((lootSpecButton.GetFrameLevel and lootSpecButton:GetFrameLevel() or level) + 2)
+    elseif anchor then
+        raidMarkerButton:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 8, 12)
+        raidMarkerButton:SetFrameLevel((anchor.GetFrameLevel and anchor:GetFrameLevel() or 0) + 2)
     end
 end
 
@@ -1032,6 +1268,7 @@ function GameMenu:OnOpenSettings()
     self:HideGroupTools()
     self:HideBattleTextToggles()
     self:HideVolumeButton()
+    self:HideLootSpecButton()
 
     -- Clean up CVAR watcher if present (mirror OnHide cleanup)
     if self.cvarWatcher then

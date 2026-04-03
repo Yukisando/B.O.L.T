@@ -33,6 +33,7 @@ Modules\WowheadLink.lua
 Modules\AutoRepSwitch.lua
 Modules\ChatNotifier.lua
 Modules\AchievementTracker.lua
+Modules\BattleRez.lua
 Modules\SavedInstances.lua
 Modules\NameplatesEnhancement.lua
 Modules\PartyFramesCenterGrowth.lua

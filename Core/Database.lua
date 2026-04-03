@@ -19,12 +19,7 @@ function BOLT:InitializeDatabase()
             local playerKey = UnitName("player") .. " - " .. GetRealmName()
             local oldProfile = BOLTDB.profiles[playerKey]
             if oldProfile then
-                local moduleNames = {
-                    "gameMenu", "playground", "skyriding", "wowheadLink", "autoRepSwitch",
-                    "smartTeleport", "chatNotifier", "achievementTracker", "savedInstances",
-                    "nameplatesEnhancement", "partyFramesCenterGrowth"
-                }
-                for _, name in ipairs(moduleNames) do
+                for name in pairs(self.defaultModuleStates or {}) do
                     if oldProfile[name] and oldProfile[name].enabled ~= nil then
                         BOLTDB.moduleStates[name] = oldProfile[name].enabled
                     end
@@ -63,14 +58,9 @@ function BOLT:InitializeDatabase()
     end
 
     -- Clean legacy "enabled" keys out of profiles (now in moduleStates)
-    local moduleNames = {
-        "gameMenu", "playground", "skyriding", "wowheadLink", "autoRepSwitch",
-        "smartTeleport", "chatNotifier", "achievementTracker", "savedInstances",
-        "nameplatesEnhancement", "partyFramesCenterGrowth"
-    }
     local cleaned = false
     for pkey, profile in pairs(BOLTDB.profiles) do
-        for _, name in ipairs(moduleNames) do
+        for name in pairs(self.defaultModuleStates or {}) do
             if profile[name] and profile[name].enabled ~= nil then
                 profile[name].enabled = nil
                 cleaned = true
@@ -93,7 +83,7 @@ function BOLT:InitializeDatabase()
         end
     end
     if self.db.profile then
-        for _, name in ipairs(moduleNames) do
+        for name in pairs(self.defaultModuleStates or {}) do
             if self.db.profile[name] and self.db.profile[name].enabled ~= nil then
                 self.db.profile[name].enabled = nil
                 cleaned = true
