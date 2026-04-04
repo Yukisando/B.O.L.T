@@ -903,7 +903,7 @@ function Config:CreateInterfaceOptionsPanel()
     brDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
     brDesc:SetWidth(520)
     brDesc:SetJustifyH("LEFT")
-    brDesc:SetText("Shows a small battle resurrection counter next to the Mythic+ tracker by the objective list. Tracks available charges from the active run timer and observed combat res casts.")
+    brDesc:SetText("Shows a small battle resurrection counter on the left side of the Mythic+ tracker by the objective list. Tracks available charges from the active run timer and observed combat res casts.")
     cy = cy - 40
 
     br.optionsHeight = math.abs(cy)
@@ -1050,6 +1050,41 @@ function Config:CreateInterfaceOptionsPanel()
 
     ks.optionsHeight = math.abs(cy)
     c:SetHeight(ks.optionsHeight)
+
+    ---------------------------------------------------------------------------
+    -- SOUNDMUTER  (Extras)
+    ---------------------------------------------------------------------------
+    local sm = self:CreateSection(exPD, "Sound Muter", "soundMuter", true)
+    sm.checkbox:SetScript("OnClick", function(button)
+        self.parent:SetModuleEnabled("soundMuter", button:GetChecked())
+        self:RelayoutPanel()
+    end)
+    self.widgets.soundMuterCheckbox = sm.checkbox
+
+    local manageSoundsBtn = CreateFrame("Button", nil, sm.section, "UIPanelButtonTemplate")
+    manageSoundsBtn:SetSize(150, 22)
+    manageSoundsBtn:SetPoint("LEFT", sm.checkbox.Text, "RIGHT", 14, 0)
+    manageSoundsBtn:SetText("Manage Sounds")
+    manageSoundsBtn:SetScript("OnClick", function()
+        local soundMuter = self.parent.modules and self.parent.modules.soundMuter
+        if soundMuter and soundMuter.ShowManagementPopup then
+            soundMuter:ShowManagementPopup()
+        end
+    end)
+    self.widgets.soundMuterManageButton = manageSoundsBtn
+
+    c = sm.container
+    cy = 0
+
+    local smDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    smDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
+    smDesc:SetWidth(520)
+    smDesc:SetJustifyH("LEFT")
+    smDesc:SetText("Mute specific numeric sound file IDs with a management popup. Add IDs to the list to mute them immediately while the module is enabled, or remove them to unmute them again.")
+    cy = cy - 40
+
+    sm.optionsHeight = math.abs(cy)
+    c:SetHeight(sm.optionsHeight)
 
     ---------------------------------------------------------------------------
     -- ADMIN  (Extras)
@@ -1245,6 +1280,7 @@ function Config:RefreshOptionsPanel()
         if w.battleRezCheckbox then w.battleRezCheckbox:SetChecked(self.parent:IsModuleEnabled("battleRez")) end
         if w.UpdateAchCategoryDropdownText then w.UpdateAchCategoryDropdownText() end
         if w.savedInstancesCheckbox then w.savedInstancesCheckbox:SetChecked(self.parent:IsModuleEnabled("savedInstances")) end
+        if w.soundMuterCheckbox then w.soundMuterCheckbox:SetChecked(self.parent:IsModuleEnabled("soundMuter")) end
         if w.nameplatesEnhancementCheckbox then w.nameplatesEnhancementCheckbox:SetChecked(self.parent:IsModuleEnabled("nameplatesEnhancement")) end
         if w.partyFramesCenterGrowthCheckbox then w.partyFramesCenterGrowthCheckbox:SetChecked(self.parent:IsModuleEnabled("partyFramesCenterGrowth")) end
         if w.keyShareCheckbox then w.keyShareCheckbox:SetChecked(self.parent:IsModuleEnabled("keyShare")) end

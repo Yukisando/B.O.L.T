@@ -4,12 +4,26 @@ local BattleRez = {}
 
 local MAX_BATTLE_REZ_CHARGES = 5
 local BATTLE_REZ_RECHARGE_SECONDS = 600
+local MISSING_TIMER_RESET_GRACE_SECONDS = 3
+local TRACKER_REFRESH_DELAY_SECONDS = 0.5
 local GetCombatLogEventInfo = C_CombatLog and C_CombatLog.GetCurrentEventInfo
 local COMBAT_RES_SPELL_IDS = {
     [20484] = true,
     [20707] = true,
     [61999] = true,
     [391054] = true,
+}
+
+local TRACKED_EVENTS = {
+    "PLAYER_ENTERING_WORLD",
+    "ZONE_CHANGED_NEW_AREA",
+    "SCENARIO_UPDATE",
+    "WORLD_STATE_TIMER_START",
+    "WORLD_STATE_TIMER_STOP",
+    "CHALLENGE_MODE_START",
+    "CHALLENGE_MODE_RESET",
+    "CHALLENGE_MODE_COMPLETED",
+    "COMBAT_LOG_EVENT_UNFILTERED",
 }
 
 local function FindChallengeTimer()
@@ -49,43 +63,68 @@ local function GetTrackedUnitByGUID(guid)
     return nil
 end
 
+local function EnsureEventFrame(self)
+    if self.eventFrame then
+        return self.eventFrame
+    end
+
+    local frame = CreateFrame("Frame")
+    for _, eventName in ipairs(TRACKED_EVENTS) do
+        frame:RegisterEvent(eventName)
+    end
+
+    frame:SetScript("OnEvent", function(_, event, ...)
+        self:OnEvent(event, ...)
+    end)
+    frame:SetScript("OnUpdate", function(_, elapsed)
+        self:OnUpdate(elapsed)
+    end)
+
+    self.eventFrame = frame
+    return frame
+end
+
 function BattleRez:OnInitialize()
     self.usedCharges = 0
     self.elapsedTime = 0
     self.activeTimerID = nil
+    self.timerMissingSince = nil
     self.recentResurrections = {}
     self.updateThrottle = 0
+    self.isEnabled = false
+    self.refreshRevision = 0
+end
+
+function BattleRez:QueueRefresh(resetUsage)
+    if not self.isEnabled or not (C_Timer and C_Timer.After) then
+        return
+    end
+
+    self.refreshRevision = (self.refreshRevision or 0) + 1
+    local refreshRevision = self.refreshRevision
+    C_Timer.After(TRACKER_REFRESH_DELAY_SECONDS, function()
+        if not self.isEnabled or self.refreshRevision ~= refreshRevision then
+            return
+        end
+
+        self:RefreshTimerState(resetUsage)
+    end)
 end
 
 function BattleRez:OnEnable()
-    if not self.eventFrame then
-        self.eventFrame = CreateFrame("Frame")
-    end
-
-    self.eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    self.eventFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
-    self.eventFrame:RegisterEvent("SCENARIO_UPDATE")
-    self.eventFrame:RegisterEvent("WORLD_STATE_TIMER_START")
-    self.eventFrame:RegisterEvent("WORLD_STATE_TIMER_STOP")
-    self.eventFrame:RegisterEvent("CHALLENGE_MODE_START")
-    self.eventFrame:RegisterEvent("CHALLENGE_MODE_RESET")
-    self.eventFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
-    self.eventFrame:SetScript("OnEvent", function(_, event, ...)
-        self:OnEvent(event, ...)
-    end)
-    self.eventFrame:SetScript("OnUpdate", function(_, elapsed)
-        self:OnUpdate(elapsed)
-    end)
+    self.isEnabled = true
+    self.refreshRevision = (self.refreshRevision or 0) + 1
+    self.timerMissingSince = nil
+    self.updateThrottle = 0
 
     self:RefreshTimerState(true)
+    self:QueueRefresh(true)
 end
 
 function BattleRez:OnDisable()
-    if self.eventFrame then
-        self.eventFrame:UnregisterAllEvents()
-        self.eventFrame:SetScript("OnEvent", nil)
-        self.eventFrame:SetScript("OnUpdate", nil)
-    end
+    self.isEnabled = false
+    self.refreshRevision = (self.refreshRevision or 0) + 1
+    self.timerMissingSince = nil
 
     self.activeTimerID = nil
     self.usedCharges = 0
@@ -94,16 +133,25 @@ function BattleRez:OnDisable()
 end
 
 function BattleRez:OnEvent(event, ...)
+    if not self.isEnabled then
+        return
+    end
+
     if event == "COMBAT_LOG_EVENT_UNFILTERED" then
         self:HandleCombatLogEvent()
         return
     end
 
-    local resetUsage = event == "CHALLENGE_MODE_START"
+    local resetUsage = event == "CHALLENGE_MODE_START" or event == "CHALLENGE_MODE_RESET" or event == "CHALLENGE_MODE_COMPLETED"
     self:RefreshTimerState(resetUsage)
+    self:QueueRefresh(resetUsage)
 end
 
 function BattleRez:OnUpdate(elapsed)
+    if not self.isEnabled then
+        return
+    end
+
     self.updateThrottle = self.updateThrottle + elapsed
     if self.updateThrottle < 0.2 then
         return
@@ -115,16 +163,43 @@ end
 
 function BattleRez:RefreshTimerState(resetUsage)
     local timerID, elapsedTime = FindChallengeTimer()
-    if timerID ~= self.activeTimerID then
-        self.activeTimerID = timerID
+
+    if timerID then
+        self.timerMissingSince = nil
+
+        if timerID ~= self.activeTimerID then
+            self.activeTimerID = timerID
+            self.usedCharges = 0
+            wipe(self.recentResurrections)
+        elseif resetUsage then
+            self.usedCharges = 0
+            wipe(self.recentResurrections)
+        end
+
+        self.elapsedTime = elapsedTime or 0
+        self:UpdateDisplay()
+        return
+    end
+
+    self.elapsedTime = 0
+    if self.activeTimerID then
+        self.timerMissingSince = self.timerMissingSince or GetTime()
+        self:HideDisplay()
+
+        if (GetTime() - self.timerMissingSince) < MISSING_TIMER_RESET_GRACE_SECONDS then
+            return
+        end
+    end
+
+    self.timerMissingSince = nil
+    if self.activeTimerID ~= nil then
+        self.activeTimerID = nil
         self.usedCharges = 0
         wipe(self.recentResurrections)
     elseif resetUsage then
         self.usedCharges = 0
         wipe(self.recentResurrections)
     end
-
-    self.elapsedTime = elapsedTime or 0
 
     if not self.activeTimerID then
         self:HideDisplay()
@@ -247,14 +322,14 @@ function BattleRez:UpdateAnchor(frame)
     frame:SetFrameLevel(challengeBlock:GetFrameLevel() + 5)
     frame:ClearAllPoints()
 
-    if challengeBlock.DeathCount and challengeBlock.DeathCount:IsShown() then
-        frame:SetPoint("LEFT", challengeBlock.DeathCount, "RIGHT", 10, 0)
-    elseif challengeBlock.Level and challengeBlock.Level:IsShown() then
-        frame:SetPoint("LEFT", challengeBlock.Level, "RIGHT", 10, 0)
+    if challengeBlock.Level and challengeBlock.Level:IsShown() then
+        frame:SetPoint("RIGHT", challengeBlock.Level, "LEFT", -10, 0)
+    elseif challengeBlock.DeathCount and challengeBlock.DeathCount:IsShown() then
+        frame:SetPoint("RIGHT", challengeBlock.DeathCount, "LEFT", -10, 0)
     elseif challengeBlock.StatusBar then
         frame:SetPoint("TOPRIGHT", challengeBlock.StatusBar, "TOPLEFT", -8, 0)
     else
-        frame:SetPoint("TOPRIGHT", challengeBlock, "TOPRIGHT", -8, -16)
+        frame:SetPoint("TOPRIGHT", challengeBlock, "TOPLEFT", -8, -16)
     end
 
     return true
@@ -287,5 +362,7 @@ function BattleRez:HideDisplay()
         GameTooltip_Hide()
     end
 end
+
+EnsureEventFrame(BattleRez)
 
 BOLT:RegisterModule("battleRez", BattleRez)

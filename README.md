@@ -37,6 +37,12 @@
 - **Favorite Toy Button**: Quick access to your favorite toy from the ESC menu
 - **Speedometer**: Display your movement speed in yards/second
 
+### Sound Muter Module
+
+- **Popup-Managed Muting**: Open a management popup from Extras to add or remove muted sound IDs
+- **Immediate Apply/Remove**: Added sound IDs are muted immediately while the module is enabled, and removing an ID unmutes it again
+- **Persistent List**: Your muted sound ID list is saved in the addon settings so it survives reloads and relogs
+
 ### Chat Notifier Module
 
 - **Channel Sound Alerts**: Plays a notification sound when a new message appears in monitored chat channels
@@ -53,7 +59,7 @@
 
 ### Battle Rez Counter Module
 
-- **Mythic+ Battle Rez Counter**: Shows a small combat resurrection counter beside the built-in Mythic+ tracker near the objective list
+- **Mythic+ Battle Rez Counter**: Shows a small combat resurrection counter on the left side of the built-in Mythic+ tracker near the objective list
 - **Run-Based Tracking**: Uses the active Mythic+ timer plus tracked battle rez casts to estimate currently available charges during the run
 - **Always Nearby**: Anchors beside the default Mythic+ block so the counter stays close to the timer and death count
 

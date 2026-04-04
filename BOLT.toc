@@ -35,6 +35,7 @@ Modules\ChatNotifier.lua
 Modules\AchievementTracker.lua
 Modules\BattleRez.lua
 Modules\SavedInstances.lua
+Modules\SoundMuter.lua
 Modules\NameplatesEnhancement.lua
 Modules\PartyFramesCenterGrowth.lua
 

@@ -46,6 +46,9 @@ BOLT.defaults = {
             trackedCategories = { [97] = true },  -- 97 = Exploration; empty = track all
         },
         battleRez = {},
+        soundMuter = {
+            mutedSoundIDs = {},
+        },
         nameplatesEnhancement = {
             manaColor = { r = 0.2, g = 0.4, b = 1.0 },
             instanceOnly = false,
@@ -66,6 +69,7 @@ BOLT.defaultModuleStates = {
     achievementTracker = false,
     battleRez = false,
     savedInstances = false,
+    soundMuter = false,
     nameplatesEnhancement = false,
     partyFramesCenterGrowth = false,
     keyShare = false,
