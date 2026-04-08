@@ -148,6 +148,8 @@ local ICON_SIZE    = 32
 local ICON_PAD     = 4
 local DRAWER_PAD   = 6
 local MAX_ICONS    = 8
+local GetItemCooldown = C_Item and C_Item.GetItemCooldown
+local GetItemSpellInfo = (C_Item and rawget(C_Item, "GetItemSpell")) or rawget(_G, "GetItemSpell")
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- Lifecycle
@@ -414,6 +416,28 @@ local function GetEntryIcon(entry)
     return 136235 -- default hearthstone icon
 end
 
+local function GetSpellIDFromLink(spellLink)
+    if type(spellLink) ~= "string" then
+        return nil
+    end
+
+    local spellID = string.match(spellLink, "spell:(%d+)")
+    return spellID and tonumber(spellID) or nil
+end
+
+local function GetAssociatedSpellID(itemID)
+    if not itemID or not GetItemSpellInfo then
+        return nil
+    end
+
+    local ok, _, spellLink = pcall(GetItemSpellInfo, itemID)
+    if not ok or not spellLink then
+        return nil
+    end
+
+    return GetSpellIDFromLink(spellLink)
+end
+
 -- Resolve the first usable spellID or itemID
 local function GetUsableAction(entry)
     for _, sid in ipairs(entry.spellIDs) do
@@ -424,6 +448,42 @@ local function GetUsableAction(entry)
         if C_Item.GetItemCount(iid) > 0 then return "item", iid end
     end
     return nil, nil
+end
+
+local function GetPreferredTooltipAction(actionType, actionID)
+    if actionType == "spell" then
+        return "spell", actionID
+    end
+
+    if actionType == "toy" or actionType == "item" then
+        local spellID = GetAssociatedSpellID(actionID)
+        if spellID and C_SpellBook.IsSpellKnown(spellID) then
+            return "spell", spellID
+        end
+
+        return "item", actionID
+    end
+
+    return nil, nil
+end
+
+local function GetActionCooldownInfo(actionType, actionID, tooltipType, tooltipID)
+    if (actionType == "toy" or actionType == "item") and GetItemCooldown then
+        local startTime, duration, enableCooldownTimer = GetItemCooldown(actionID)
+        if startTime and duration and duration > 0 then
+            return startTime, duration, enableCooldownTimer, 1
+        end
+    end
+
+    if (actionType == "spell" or tooltipType == "spell") and C_Spell and C_Spell.GetSpellCooldown then
+        local spellID = actionType == "spell" and actionID or tooltipID
+        local info = spellID and C_Spell.GetSpellCooldown(spellID)
+        if info then
+            return info.startTime, info.duration, info.isEnabled, info.modRate
+        end
+    end
+
+    return nil, nil, nil, nil
 end
 
 function SmartTeleport:RefreshDrawer()
@@ -471,6 +531,7 @@ function SmartTeleport:RefreshDrawer()
         local actionType, actionID = GetUsableAction(entry)
         btn.actionType = actionType
         btn.actionID   = actionID
+        btn.tooltipType, btn.tooltipID = GetPreferredTooltipAction(actionType, actionID)
         if not InCombatLockdown() then
             if actionType == "spell" then
                 btn:SetAttribute("type", "spell")
@@ -492,6 +553,7 @@ function SmartTeleport:RefreshDrawer()
         btn:SetSize(ICON_SIZE, ICON_SIZE)
         btn:ClearAllPoints()
         btn:SetPoint("LEFT", drawerFrame, "LEFT", DRAWER_PAD + (i - 1) * (ICON_SIZE + ICON_PAD), 0)
+        self:UpdateButtonCooldown(btn)
         btn:Show()
     end
 
@@ -503,6 +565,31 @@ function SmartTeleport:RefreshDrawer()
     drawerFrame:ClearAllPoints()
     drawerFrame:SetPoint("TOP", mapAnchor, "BOTTOM", 0, -6)
     drawerFrame:Show()
+end
+
+function SmartTeleport:UpdateButtonCooldown(button)
+    if not button then
+        return
+    end
+
+    local startTime, duration, isEnabled, modRate = GetActionCooldownInfo(
+        button.actionType,
+        button.actionID,
+        button.tooltipType,
+        button.tooltipID
+    )
+
+    BOLT.ButtonUtils:SetButtonCooldown(button, startTime, duration, isEnabled, modRate)
+end
+
+function SmartTeleport:UpdateVisibleButtonCooldowns()
+    for _, button in ipairs(entryButtons) do
+        if button and button:IsShown() then
+            self:UpdateButtonCooldown(button)
+        elseif button then
+            BOLT.ButtonUtils:ClearButtonCooldown(button)
+        end
+    end
 end
 
 function SmartTeleport:CreateIconButton(parent, index)
@@ -521,10 +608,10 @@ function SmartTeleport:CreateIconButton(parent, index)
 
     btn:HookScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        if self.actionType == "spell" then
-            GameTooltip:SetSpellByID(self.actionID)
-        elseif self.actionType == "toy" or self.actionType == "item" then
-            GameTooltip:SetItemByID(self.actionID)
+        if self.tooltipType == "spell" then
+            GameTooltip:SetSpellByID(self.tooltipID)
+        elseif self.tooltipType == "item" then
+            GameTooltip:SetItemByID(self.tooltipID)
         else
             GameTooltip:SetText(self.entryName or "Teleport", 1, 1, 1)
         end
@@ -545,11 +632,21 @@ function SmartTeleport:RegisterEvents()
     local f = CreateFrame("Frame")
     f:RegisterEvent("SPELLS_CHANGED")
     f:RegisterEvent("BAG_UPDATE")
+    f:RegisterEvent("TOYS_UPDATED")
     f:RegisterEvent("QUEST_LOG_UPDATE")
     f:RegisterEvent("PLAYER_REGEN_ENABLED")
+    f:RegisterEvent("SPELL_UPDATE_COOLDOWN")
+    f:RegisterEvent("BAG_UPDATE_COOLDOWN")
 
     f:SetScript("OnEvent", function(_, event)
-        if event == "SPELLS_CHANGED" or event == "BAG_UPDATE" then
+        if event == "SPELL_UPDATE_COOLDOWN" or event == "BAG_UPDATE_COOLDOWN" then
+            if drawerFrame and drawerFrame:IsShown() then
+                self:UpdateVisibleButtonCooldowns()
+            end
+            return
+        end
+
+        if event == "SPELLS_CHANGED" or event == "BAG_UPDATE" or event == "TOYS_UPDATED" then
             self:RebuildOwnershipCache()
         end
         if event == "PLAYER_REGEN_ENABLED" then

@@ -14,10 +14,19 @@ local speedometerFrame = nil
 
 -- Optional HereBeDragons library for precise world position
 local HBD = LibStub and LibStub("HereBeDragons-2.0", true)
+local GetItemCooldown = C_Item and C_Item.GetItemCooldown
 
 -- Position-based speed fallback (yards per second)
 local lastX, lastY, lastT
 local speedYPS = 0
+
+local function GetToyCooldownInfo(toyID)
+    if not toyID or not GetItemCooldown then
+        return nil, nil, nil
+    end
+
+    return GetItemCooldown(toyID)
+end
 
 local function GetPlayerSpeedYPS()
     -- 1) Try the simple API first (works for ground/steady flight)
@@ -75,7 +84,16 @@ function Playground:OnEnable()
         local f = CreateFrame("Frame")
         f:RegisterEvent("TOYS_UPDATED")
         f:RegisterEvent("PLAYER_LOGIN")
+        f:RegisterEvent("SPELL_UPDATE_COOLDOWN")
+        f:RegisterEvent("BAG_UPDATE_COOLDOWN")
         f:SetScript("OnEvent", function(_, event)
+            if event == "SPELL_UPDATE_COOLDOWN" or event == "BAG_UPDATE_COOLDOWN" then
+                if self and self.UpdateFavoriteToyCooldown then
+                    self:UpdateFavoriteToyCooldown()
+                end
+                return
+            end
+
             if event == "TOYS_UPDATED" or event == "PLAYER_LOGIN" then
                 -- Defer slightly to avoid race conditions during load
                 C_Timer.After(0.05, function()
@@ -330,6 +348,7 @@ function Playground:UpdateFavoriteToyButton()
             else
                 favoriteToyButton:SetAlpha(1.0)
             end
+            self:UpdateFavoriteToyCooldown()
             return
         end
     end
@@ -338,6 +357,22 @@ function Playground:UpdateFavoriteToyButton()
     favoriteToyButton:SetAttribute("macrotext", "")
     BOLT.ButtonUtils:UpdateButtonIcon(favoriteToyButton, "Interface\\Icons\\INV_Misc_Toy_10")
     favoriteToyButton:SetAlpha(0.5)
+    BOLT.ButtonUtils:ClearButtonCooldown(favoriteToyButton)
+end
+
+function Playground:UpdateFavoriteToyCooldown()
+    if not favoriteToyButton then
+        return
+    end
+
+    local toyId = self.parent:GetConfig("playground", "favoriteToyId")
+    if not toyId or not PlayerHasToy(toyId) then
+        BOLT.ButtonUtils:ClearButtonCooldown(favoriteToyButton)
+        return
+    end
+
+    local startTime, duration, enableCooldownTimer = GetToyCooldownInfo(toyId)
+    BOLT.ButtonUtils:SetButtonCooldown(favoriteToyButton, startTime, duration, enableCooldownTimer)
 end
 
 function Playground:PositionFavoriteToyButton()

@@ -12,6 +12,58 @@ local currentItemLink = nil
 local currentWowheadURL = nil
 
 
+local function GetHoveredFrame()
+    local getMouseFoci = rawget(_G, "GetMouseFoci")
+    if type(getMouseFoci) == "function" then
+        local ok, focus = pcall(getMouseFoci)
+        if ok and focus then
+            if type(focus) == "table" then
+                return focus[1]
+            end
+            return focus
+        end
+    end
+
+    local getMouseFocus = rawget(_G, "GetMouseFocus")
+    if type(getMouseFocus) == "function" then
+        return getMouseFocus()
+    end
+
+    return nil
+end
+
+local function GetTooltipHyperlink(tooltip)
+    if not tooltip or not tooltip:IsShown() then
+        return nil
+    end
+
+    local _, itemLink = tooltip:GetItem()
+    if itemLink and itemLink ~= "" then
+        return itemLink
+    end
+
+    if type(tooltip.GetSpell) == "function" then
+        local spellResult = { pcall(tooltip.GetSpell, tooltip) }
+        if spellResult[1] then
+            local spellID = spellResult[#spellResult]
+            if type(spellID) == "number" then
+                return "spell:" .. tostring(spellID)
+            end
+        end
+    end
+
+    local tooltipUtil = rawget(_G, "TooltipUtil")
+    if tooltipUtil and type(tooltipUtil.GetDisplayedHyperlink) == "function" then
+        local ok, hyperlink = pcall(tooltipUtil.GetDisplayedHyperlink, tooltip)
+        if ok and hyperlink and hyperlink ~= "" then
+            return hyperlink
+        end
+    end
+
+    return nil
+end
+
+
 function WowheadLink:OnInitialize()
     -- Module initialization
 end
@@ -176,34 +228,6 @@ function WowheadLink:ShowLinkForItem(itemLink)
     linkFrame.editBox:SetFocus()
 end
 
--- Helper function to extract item ID from various sources
-local function GetItemIDFromTooltipData(tooltipData)
-    if not tooltipData then return nil end
-    
-    -- Check for ID directly in tooltip data (item, toy, or spell)
-    if tooltipData.id and tooltipData.type then
-        if tooltipData.type == Enum.TooltipDataType.Item then
-            return tooltipData.id, "item"
-        end
-        if tooltipData.type == Enum.TooltipDataType.Toy then
-            return tooltipData.id, "toy"
-        end
-        if tooltipData.type == Enum.TooltipDataType.Spell then
-            return tooltipData.id, "spell"
-        end
-    end
-    
-    -- Check hyperlink in tooltip data (item or spell)
-    if tooltipData.hyperlink then
-        local itemID = string.match(tooltipData.hyperlink, "item:(%d+)")
-        if itemID then return tonumber(itemID), "item" end
-        local spellID = string.match(tooltipData.hyperlink, "spell:(%d+)")
-        if spellID then return tonumber(spellID), "spell" end
-    end
-    
-    return nil
-end
-
 -- Try to get item from various tooltip frames
 local function GetItemFromTooltips()
     local tooltipsToCheck = {
@@ -216,38 +240,9 @@ local function GetItemFromTooltips()
     }
     
     for _, tooltip in ipairs(tooltipsToCheck) do
-        if tooltip and tooltip:IsShown() then
-            -- Try the standard GetItem method
-            local _, itemLink = tooltip:GetItem()
-            if itemLink then
-                return itemLink
-            end
-            
-            -- Try the modern tooltip data API
-            if tooltip.GetTooltipData then
-                local ok2, tooltipData = pcall(tooltip.GetTooltipData, tooltip)
-                if ok2 and tooltipData then
-                    local id, idType = GetItemIDFromTooltipData(tooltipData)
-                    if id then
-                        if idType == "spell" then
-                            -- Try to get a localized spell link
-                            if GetSpellLink then
-                                local spellLink = GetSpellLink(id)
-                                if spellLink then return spellLink end
-                            end
-                            return "spell:" .. id
-                        elseif idType == "mount" then
-                            return "mount:" .. id
-                        else
-                            local _, link = C_Item.GetItemInfo(id)
-                            if link then return link end
-                            -- Fallback: create a basic item link
-                            return "item:" .. id
-                        end
-                    end
-                end
-            end
-
+        local hyperlink = GetTooltipHyperlink(tooltip)
+        if hyperlink then
+            return hyperlink
         end
     end
     
@@ -256,10 +251,7 @@ end
 
 -- Try to get item from the focused frame (bags, equipment, etc.)
 local function GetItemFromFocusedFrame()
-    local getMouseFocus = rawget(_G, "GetMouseFocus")
-    if not getMouseFocus then return nil end
-    
-    local frame = getMouseFocus()
+    local frame = GetHoveredFrame()
     if not frame then return nil end
     
     -- Check if it's a container item via ItemLocation
@@ -285,12 +277,8 @@ end
 -- Try to get item from ToyBox
 local function GetItemFromToyBox()
     if not ToyBox or not ToyBox:IsShown() then return nil end
-    
-    -- Check if we have a toy button hovered
-    local getMouseFocus = rawget(_G, "GetMouseFocus")
-    if not getMouseFocus then return nil end
-    
-    local frame = getMouseFocus()
+
+    local frame = GetHoveredFrame()
     if frame and frame.itemID then
         local _, link = C_Item.GetItemInfo(frame.itemID)
         if link then return link end
@@ -313,11 +301,8 @@ end
 -- Try to get item from vendor frame
 local function GetItemFromMerchant()
     if not MerchantFrame or not MerchantFrame:IsShown() then return nil end
-    
-    local getMouseFocus = rawget(_G, "GetMouseFocus")
-    if not getMouseFocus then return nil end
-    
-    local frame = getMouseFocus()
+
+    local frame = GetHoveredFrame()
     
     -- Check for merchant item buttons
     if frame then
@@ -346,11 +331,8 @@ end
 -- Try to get item from quest reward frame
 local function GetItemFromQuestReward()
     if not QuestInfoFrame or not QuestInfoFrame:IsShown() then return nil end
-    
-    local getMouseFocus = rawget(_G, "GetMouseFocus")
-    if not getMouseFocus then return nil end
-    
-    local frame = getMouseFocus()
+
+    local frame = GetHoveredFrame()
     if not frame then return nil end
     
     local buttonName = frame:GetName()
@@ -373,11 +355,8 @@ end
 -- Try to get item from collections/appearances
 local function GetItemFromCollections()
     if not WardrobeCollectionFrame or not WardrobeCollectionFrame:IsShown() then return nil end
-    
-    local getMouseFocus = rawget(_G, "GetMouseFocus")
-    if not getMouseFocus then return nil end
-    
-    local frame = getMouseFocus()
+
+    local frame = GetHoveredFrame()
     if frame and frame.visualInfo and frame.visualInfo.visualID then
         local sources = C_TransmogCollection.GetAppearanceSources(frame.visualInfo.visualID)
         if sources and sources[1] and sources[1].itemID then
@@ -401,11 +380,8 @@ end
 -- Try to get item from guild bank
 local function GetItemFromGuildBank()
     if not GuildBankFrame or not GuildBankFrame:IsShown() then return nil end
-    
-    local getMouseFocus = rawget(_G, "GetMouseFocus")
-    if not getMouseFocus then return nil end
-    
-    local frame = getMouseFocus()
+
+    local frame = GetHoveredFrame()
     if not frame then return nil end
     
     local buttonName = frame:GetName()
@@ -416,7 +392,9 @@ local function GetItemFromGuildBank()
             slot = tonumber(slot)
             local trueSlot = (tab - 1) * 14 + slot
             local currentTab = GetCurrentGuildBankTab()
-            return GetGuildBankItemLink(currentTab, trueSlot)
+            if currentTab then
+                return GetGuildBankItemLink(currentTab, trueSlot)
+            end
         end
     end
     
@@ -485,57 +463,28 @@ function BOLT_ShowWowheadLink()
                 if tt and tt:IsShown() then
                     local name = tt:GetName() or "<unnamed>"
                     BOLT:Print(" Tooltip: " .. name)
-                    local ok, itemLinkFromGetItem = pcall(function() return tt:GetItem() end)
-                    if ok and itemLinkFromGetItem and itemLinkFromGetItem ~= "" then
-                        BOLT:Print("  GetItem() -> " .. tostring(itemLinkFromGetItem))
-                    end
-
-                    if tt.GetTooltipData then
-                        local ok2, tooltipData = pcall(tt.GetTooltipData, tt)
-                        if ok2 and tooltipData then
-                            if tooltipData.hyperlink then
-                                BOLT:Print("  hyperlink -> " .. tostring(tooltipData.hyperlink))
-                            end
-                            if tooltipData.id and tooltipData.type then
-                                BOLT:Print("  id -> " .. tostring(tooltipData.id) .. " type -> " .. tostring(tooltipData.type))
-                            end
-                        end
-                    end
-
-                    -- Also dump tooltip text lines for easier diagnosis
-                    local regions = { tt:GetRegions() }
-                    for i, region in ipairs(regions) do
-                        if region and type(region.GetText) == "function" then
-                            local okText, txt = pcall(region.GetText, region)
-                            if okText and txt and txt ~= "" then
-                                -- limit line length to avoid flooding
-                                local short = txt
-                                if #short > 200 then short = string.sub(short, 1, 200) .. "..." end
-                                BOLT:Print("  text[" .. tostring(i) .. "] -> " .. tostring(short))
-                            end
-                        end
+                    local tooltipLink = GetTooltipHyperlink(tt)
+                    if tooltipLink then
+                        BOLT:Print("  hyperlink -> " .. tostring(tooltipLink))
                     end
                 end
             end
 
             -- Also print mouse focus/frame details
-            local getMouseFocus = rawget(_G, "GetMouseFocus")
-            if getMouseFocus then
-                local mf = getMouseFocus()
-                if mf then
-                    local mfName = "<unnamed>"
-                    pcall(function() mfName = mf:GetName() end)
-                    local mfType = "<unknown>"
-                    pcall(function() mfType = mf:GetObjectType() end)
-                    BOLT:Print("MouseFocus: " .. tostring(mfName) .. " (" .. tostring(mfType) .. ")")
-                    if mf.itemID then BOLT:Print("  itemID -> " .. tostring(mf.itemID)) end
-                    if mf.spellID then BOLT:Print("  spellID -> " .. tostring(mf.spellID)) end
-                    if mf.visualInfo and mf.visualInfo.visualID then BOLT:Print("  visualID -> " .. tostring(mf.visualInfo.visualID)) end
-                    if mf.GetBagID and mf.GetID then
-                        local ok3, bag, slot = pcall(function() return mf:GetBagID(), mf:GetID() end)
-                        if ok3 and bag and slot then
-                            BOLT:Print("  bag,slot -> " .. tostring(bag) .. "," .. tostring(slot))
-                        end
+            local mf = GetHoveredFrame()
+            if mf then
+                local mfName = "<unnamed>"
+                pcall(function() mfName = mf:GetName() end)
+                local mfType = "<unknown>"
+                pcall(function() mfType = mf:GetObjectType() end)
+                BOLT:Print("MouseFocus: " .. tostring(mfName) .. " (" .. tostring(mfType) .. ")")
+                if mf.itemID then BOLT:Print("  itemID -> " .. tostring(mf.itemID)) end
+                if mf.spellID then BOLT:Print("  spellID -> " .. tostring(mf.spellID)) end
+                if mf.visualInfo and mf.visualInfo.visualID then BOLT:Print("  visualID -> " .. tostring(mf.visualInfo.visualID)) end
+                if mf.GetBagID and mf.GetID then
+                    local ok3, bag, slot = pcall(function() return mf:GetBagID(), mf:GetID() end)
+                    if ok3 and bag and slot then
+                        BOLT:Print("  bag,slot -> " .. tostring(bag) .. "," .. tostring(slot))
                     end
                 end
             end

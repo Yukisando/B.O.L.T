@@ -1,6 +1,7 @@
 local ADDON_NAME, BOLT = ...
 
 local BattleRez = {}
+BattleRez.alwaysInitialize = true
 
 local MAX_BATTLE_REZ_CHARGES = 5
 local BATTLE_REZ_RECHARGE_SECONDS = 600
@@ -85,6 +86,7 @@ local function EnsureEventFrame(self)
 end
 
 function BattleRez:OnInitialize()
+    EnsureEventFrame(self)
     self.usedCharges = 0
     self.elapsedTime = 0
     self.activeTimerID = nil
@@ -362,7 +364,5 @@ function BattleRez:HideDisplay()
         GameTooltip_Hide()
     end
 end
-
-EnsureEventFrame(BattleRez)
 
 BOLT:RegisterModule("battleRez", BattleRez)

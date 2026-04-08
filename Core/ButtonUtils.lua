@@ -33,6 +33,30 @@ local function AddCircularBorder(btn, iconSize)
     btn.borderMask = borderMask
 end
 
+local function EnsureCooldownFrame(btn)
+    if not btn then
+        return nil
+    end
+
+    if btn.cooldown then
+        return btn.cooldown
+    end
+
+    local cooldown = CreateFrame("Cooldown", nil, btn, "CooldownFrameTemplate")
+    cooldown:SetAllPoints(btn)
+    cooldown:SetFrameLevel(btn:GetFrameLevel() + 3)
+    if cooldown.SetDrawEdge then
+        cooldown:SetDrawEdge(false)
+    end
+    if cooldown.SetDrawBling then
+        cooldown:SetDrawBling(false)
+    end
+    cooldown:Hide()
+
+    btn.cooldown = cooldown
+    return cooldown
+end
+
 -- Create a simple square icon button using clean approach
 function ButtonUtils:CreateIconButton(name, parent, iconPath, options)
     options = options or {}
@@ -111,6 +135,8 @@ function ButtonUtils:CreateIconButton(name, parent, iconPath, options)
     end)
     
     btn:EnableMouse(true)
+
+    EnsureCooldownFrame(btn)
     
     return btn
 end
@@ -214,6 +240,8 @@ function ButtonUtils:CreateSecureActionButton(name, parent, iconPath, options)
     end
     
     btn:EnableMouse(true)
+
+    EnsureCooldownFrame(btn)
     
     return btn
 end
@@ -226,6 +254,37 @@ function ButtonUtils:UpdateButtonIcon(button, iconPath)
     
     button.icon:SetTexture(iconPath)
     button.iconPath = iconPath
+end
+
+function ButtonUtils:ClearButtonCooldown(button)
+    if not button or not button.cooldown then
+        return
+    end
+
+    if button.cooldown.Clear then
+        button.cooldown:Clear()
+    elseif button.cooldown.SetCooldown then
+        button.cooldown:SetCooldown(0, 0, 1)
+    end
+
+    button.cooldown:Hide()
+end
+
+function ButtonUtils:SetButtonCooldown(button, startTime, duration, isEnabled, modRate)
+    local cooldown = EnsureCooldownFrame(button)
+    if not cooldown then
+        return
+    end
+
+    if not startTime or not duration or startTime <= 0 or duration <= 1.5 or isEnabled == false or isEnabled == 0 then
+        self:ClearButtonCooldown(button)
+        return
+    end
+
+    cooldown:Show()
+    if cooldown.SetCooldown then
+        cooldown:SetCooldown(startTime, duration, modRate or 1)
+    end
 end
 
 -- Position a button above the game menu (top-right)
