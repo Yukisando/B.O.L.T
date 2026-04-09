@@ -68,7 +68,9 @@
         "EditModeUnitFrameSystemMixin",
         "NUM_BAG_SLOTS",
         "ScenarioObjectiveTracker",
-        "GameTooltip_Hide"
+        "GameTooltip_Hide",
+        "ScenarioObjectiveTrackerChallengeModeMixin",
+        "ScenarioTimerMixin"
     ],
     "Lua.type.weakUnionCheck": true
 }

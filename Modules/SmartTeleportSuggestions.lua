@@ -430,12 +430,16 @@ local function GetAssociatedSpellID(itemID)
         return nil
     end
 
-    local ok, _, spellLink = pcall(GetItemSpellInfo, itemID)
-    if not ok or not spellLink then
+    local ok, _, spellID = pcall(GetItemSpellInfo, itemID)
+    if not ok or not spellID then
         return nil
     end
 
-    return GetSpellIDFromLink(spellLink)
+    if type(spellID) == "number" then
+        return spellID
+    end
+
+    return GetSpellIDFromLink(spellID)
 end
 
 -- Resolve the first usable spellID or itemID
@@ -455,9 +459,13 @@ local function GetPreferredTooltipAction(actionType, actionID)
         return "spell", actionID
     end
 
-    if actionType == "toy" or actionType == "item" then
+    if actionType == "toy" then
+        return "toy", actionID
+    end
+
+    if actionType == "item" then
         local spellID = GetAssociatedSpellID(actionID)
-        if spellID and C_SpellBook.IsSpellKnown(spellID) then
+        if spellID then
             return "spell", spellID
         end
 
@@ -610,6 +618,12 @@ function SmartTeleport:CreateIconButton(parent, index)
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
         if self.tooltipType == "spell" then
             GameTooltip:SetSpellByID(self.tooltipID)
+        elseif self.tooltipType == "toy" then
+            if GameTooltip.SetToyByItemID then
+                GameTooltip:SetToyByItemID(self.tooltipID)
+            else
+                GameTooltip:SetItemByID(self.tooltipID)
+            end
         elseif self.tooltipType == "item" then
             GameTooltip:SetItemByID(self.tooltipID)
         else

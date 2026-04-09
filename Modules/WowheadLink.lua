@@ -11,6 +11,20 @@ local linkFrame = nil
 local currentItemLink = nil
 local currentWowheadURL = nil
 
+local function EnsureBinding(action, defaultKey)
+    local key1, key2 = GetBindingKey(action)
+    if key1 or key2 then
+        return true
+    end
+
+    if SetBinding(defaultKey, action) then
+        SaveBindings(GetCurrentBindingSet())
+        return true
+    end
+
+    return false
+end
+
 
 local function GetHoveredFrame()
     local getMouseFoci = rawget(_G, "GetMouseFoci")
@@ -70,10 +84,8 @@ end
 
 function WowheadLink:OnEnable()
     -- Set default keybinding if none exists
-    local key1, key2 = GetBindingKey("BOLT_SHOW_WOWHEAD_LINK")
-    if not key1 and not key2 then
-        SetBinding("CTRL-C", "BOLT_SHOW_WOWHEAD_LINK")
-        SaveBindings(GetCurrentBindingSet())
+    if not EnsureBinding("BOLT_SHOW_WOWHEAD_LINK", "CTRL-C") then
+        self.parent:Print("Wowhead Link could not bind CTRL-C automatically. Set a keybind manually in Key Bindings.")
     end
 
     -- Create the link display frame if it doesn't exist
@@ -153,21 +165,23 @@ function WowheadLink:CreateLinkFrame()
 end
 
 function WowheadLink:ShowLinkForItem(itemLink)
-    if not itemLink or not linkFrame then
+    if not itemLink then
         return
+    end
+
+    if not linkFrame then
+        self:CreateLinkFrame()
     end
 
     -- Try to parse item or spell IDs from the link
     local id, idType
 
-    local itemString = string.match(itemLink, "item[%-?%d:]+")
-    if itemString then
-        id = string.match(itemString, "item:(%d+)")
+    id = string.match(itemLink, "item:(%d+)")
+    if id then
         idType = "item"
     else
-        local spellString = string.match(itemLink, "spell[%-?%d:]+")
-        if spellString then
-            id = string.match(spellString, "spell:(%d+)")
+        id = string.match(itemLink, "spell:(%d+)")
+        if id then
             idType = "spell"
         end
     end
@@ -222,10 +236,15 @@ function WowheadLink:ShowLinkForItem(itemLink)
     currentWowheadURL = wowheadURL
 
     -- Show the frame
-    linkFrame:Show()
-    linkFrame.editBox:SetText(wowheadURL)
-    linkFrame.editBox:HighlightText()
-    linkFrame.editBox:SetFocus()
+    local frame = linkFrame
+    if not frame or not frame.editBox then
+        return
+    end
+
+    frame:Show()
+    frame.editBox:SetText(wowheadURL)
+    frame.editBox:HighlightText()
+    frame.editBox:SetFocus()
 end
 
 -- Try to get item from various tooltip frames
@@ -403,13 +422,29 @@ end
 
 -- Global function for keybinding
 function BOLT_ShowWowheadLink()
-    local BOLT = _G["BOLT"]
+    local addon = BOLT or _G[ADDON_NAME] or _G["BOLT"] or _G["Bolt"]
 
-    if BOLT and BOLT.modules and BOLT.modules.wowheadLink then
+    if addon and addon.modules and addon.modules.wowheadLink then
+        local module = addon.modules.wowheadLink
+
+        if not addon:IsModuleEnabled("wowheadLink") then
+            addon:Print("Wowhead Link is disabled. Enable it in B.O.L.T settings first.")
+            return
+        end
+
+        if module.OnInitialize and not module._initialized then
+            module:OnInitialize()
+            module._initialized = true
+        end
+
+        if not linkFrame then
+            module:CreateLinkFrame()
+        end
+
         -- Check if the window is already open - if so, close it
         if linkFrame and linkFrame:IsShown() then
             linkFrame:Hide()
-            BOLT:Print("Wowhead link copied to clipboard!")
+            addon:Print("Wowhead link copied to clipboard!")
             return
         end
 
@@ -444,9 +479,9 @@ function BOLT_ShowWowheadLink()
         end
 
         if itemLink then
-            BOLT.modules.wowheadLink:ShowLinkForItem(itemLink)
+            module:ShowLinkForItem(itemLink)
         else
-            BOLT:Print("No item found. Hover over an item and try again. (debug info below)")
+            addon:Print("No item found. Hover over an item and try again. (debug info below)")
 
             -- Debugging info: list visible tooltips and mouse focus details to help identify the hovered object
             local tooltipsToCheck = {
@@ -458,14 +493,14 @@ function BOLT_ShowWowheadLink()
                 ItemRefShoppingTooltip2,
             }
 
-            BOLT:Print("Debug: checking visible tooltips and their data:")
+            addon:Print("Debug: checking visible tooltips and their data:")
             for _, tt in ipairs(tooltipsToCheck) do
                 if tt and tt:IsShown() then
                     local name = tt:GetName() or "<unnamed>"
-                    BOLT:Print(" Tooltip: " .. name)
+                    addon:Print(" Tooltip: " .. name)
                     local tooltipLink = GetTooltipHyperlink(tt)
                     if tooltipLink then
-                        BOLT:Print("  hyperlink -> " .. tostring(tooltipLink))
+                        addon:Print("  hyperlink -> " .. tostring(tooltipLink))
                     end
                 end
             end
@@ -477,14 +512,14 @@ function BOLT_ShowWowheadLink()
                 pcall(function() mfName = mf:GetName() end)
                 local mfType = "<unknown>"
                 pcall(function() mfType = mf:GetObjectType() end)
-                BOLT:Print("MouseFocus: " .. tostring(mfName) .. " (" .. tostring(mfType) .. ")")
-                if mf.itemID then BOLT:Print("  itemID -> " .. tostring(mf.itemID)) end
-                if mf.spellID then BOLT:Print("  spellID -> " .. tostring(mf.spellID)) end
-                if mf.visualInfo and mf.visualInfo.visualID then BOLT:Print("  visualID -> " .. tostring(mf.visualInfo.visualID)) end
+                addon:Print("MouseFocus: " .. tostring(mfName) .. " (" .. tostring(mfType) .. ")")
+                if mf.itemID then addon:Print("  itemID -> " .. tostring(mf.itemID)) end
+                if mf.spellID then addon:Print("  spellID -> " .. tostring(mf.spellID)) end
+                if mf.visualInfo and mf.visualInfo.visualID then addon:Print("  visualID -> " .. tostring(mf.visualInfo.visualID)) end
                 if mf.GetBagID and mf.GetID then
                     local ok3, bag, slot = pcall(function() return mf:GetBagID(), mf:GetID() end)
                     if ok3 and bag and slot then
-                        BOLT:Print("  bag,slot -> " .. tostring(bag) .. "," .. tostring(slot))
+                        addon:Print("  bag,slot -> " .. tostring(bag) .. "," .. tostring(slot))
                     end
                 end
             end
