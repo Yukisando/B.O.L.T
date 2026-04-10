@@ -896,17 +896,64 @@ function Config:CreateInterfaceOptionsPanel()
     br.checkbox:SetScript("OnClick", function(button)
         self.parent:SetModuleEnabled("battleRez", button:GetChecked())
         self:RelayoutPanel()
+        self:UpdateBattleRezChildControls()
     end)
     self.widgets.battleRezCheckbox = br.checkbox
+    self.widgets.battleRezSection = br
 
     local brDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     brDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
     brDesc:SetWidth(520)
     brDesc:SetJustifyH("LEFT")
     brDesc:SetText("Shows a small battle resurrection counter on the left side of the Mythic+ tracker by the objective list. Tracks available charges from the active run timer and observed combat res casts.")
-    cy = cy - 40
+    cy = cy - 38
 
-    br.optionsHeight = math.abs(cy)
+    local brPreview = CreateFrame("Frame", nil, c, "BackdropTemplate")
+    brPreview:SetSize(220, 58)
+    brPreview:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
+    brPreview:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+    })
+    brPreview:SetBackdropColor(0.05, 0.07, 0.09, 0.9)
+    brPreview:SetBackdropBorderColor(0.22, 0.27, 0.32, 1)
+    self.widgets.battleRezPreviewFrame = brPreview
+
+    local brPreviewTitle = brPreview:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    brPreviewTitle:SetPoint("TOPLEFT", brPreview, "TOPLEFT", 10, -8)
+    brPreviewTitle:SetText("Mythic+ Tracker Mockup")
+
+    local brPreviewBar = brPreview:CreateTexture(nil, "ARTWORK")
+    brPreviewBar:SetTexture("Interface\\Buttons\\WHITE8X8")
+    brPreviewBar:SetVertexColor(0.18, 0.51, 0.86, 0.95)
+    brPreviewBar:SetSize(130, 8)
+    brPreviewBar:SetPoint("TOPLEFT", brPreview, "TOPLEFT", 34, -24)
+
+    local brPreviewLevel = brPreview:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    brPreviewLevel:SetPoint("LEFT", brPreviewBar, "RIGHT", 8, 0)
+    brPreviewLevel:SetText("+10")
+
+    local brPreviewDeaths = brPreview:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    brPreviewDeaths:SetPoint("TOPLEFT", brPreview, "TOPLEFT", 34, -38)
+    brPreviewDeaths:SetText("Deaths: 3")
+
+    local brPreviewIcon = brPreview:CreateTexture(nil, "ARTWORK")
+    brPreviewIcon:SetSize(18, 18)
+    brPreviewIcon:SetAtlas("RaidFrame-Icon-Rez", true)
+    brPreviewIcon:SetPoint("RIGHT", brPreviewBar, "LEFT", -10, 0)
+
+    local brPreviewCount = brPreview:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    brPreviewCount:SetPoint("CENTER", brPreviewIcon, "CENTER", 0, 0)
+    brPreviewCount:SetText("2")
+    brPreviewCount:SetTextColor(1, 0.96, 0.55)
+    brPreviewCount:SetShadowColor(0, 0, 0, 1)
+    brPreviewCount:SetShadowOffset(1, -1)
+
+    br.baseOptionsHeight = 132
+    cy = cy - 68
+
+    br.optionsHeight = br.baseOptionsHeight
     c:SetHeight(br.optionsHeight)
 
     ---------------------------------------------------------------------------
@@ -1238,6 +1285,7 @@ end
 function Config:RefreshAll()
     self:RefreshOptionsPanel()
     self:UpdateGameMenuChildControls()
+    self:UpdateBattleRezChildControls()
     self:UpdatePlaygroundChildControls()
     self:UpdateSkyridingChildControls()
     self:UpdateChatNotifierChildControls()
@@ -1278,6 +1326,7 @@ function Config:RefreshOptionsPanel()
         if w.chatNotifierCheckbox then w.chatNotifierCheckbox:SetChecked(self.parent:IsModuleEnabled("chatNotifier")) end
         if w.achievementTrackerCheckbox then w.achievementTrackerCheckbox:SetChecked(self.parent:IsModuleEnabled("achievementTracker")) end
         if w.battleRezCheckbox then w.battleRezCheckbox:SetChecked(self.parent:IsModuleEnabled("battleRez")) end
+        self:UpdateBattleRezChildControls()
         if w.UpdateAchCategoryDropdownText then w.UpdateAchCategoryDropdownText() end
         if w.savedInstancesCheckbox then w.savedInstancesCheckbox:SetChecked(self.parent:IsModuleEnabled("savedInstances")) end
         if w.soundMuterCheckbox then w.soundMuterCheckbox:SetChecked(self.parent:IsModuleEnabled("soundMuter")) end
@@ -1312,6 +1361,31 @@ function Config:RefreshOptionsPanel()
         end
         self:RelayoutPanel()
     end)
+end
+
+function Config:UpdateBattleRezChildControls()
+    local w = self.widgets
+    if not w then
+        return
+    end
+
+    local brPreviewFrame = w.battleRezPreviewFrame
+    local brSection = w.battleRezSection
+    if not brPreviewFrame or not brSection then
+        return
+    end
+
+    local enabled = self.parent:IsModuleEnabled("battleRez")
+
+    if enabled then
+        brPreviewFrame:Show()
+    else
+        brPreviewFrame:Hide()
+    end
+
+    brSection.optionsHeight = brSection.baseOptionsHeight
+    brSection.container:SetHeight(brSection.optionsHeight)
+    self:RelayoutPanel()
 end
 
 function Config:UpdateSkyridingChildControls()

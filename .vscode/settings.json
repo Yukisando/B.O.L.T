@@ -70,7 +70,17 @@
         "ScenarioObjectiveTracker",
         "GameTooltip_Hide",
         "ScenarioObjectiveTrackerChallengeModeMixin",
-        "ScenarioTimerMixin"
+        "ScenarioTimerMixin",
+        "ScenarioTrackerProgressBarMixin",
+        "BACKPACK_CONTAINER",
+        "NUM_TOTAL_EQUIPPED_BAG_SLOTS",
+        "ChallengesKeystoneFrame",
+        "NONE",
+        "EMBLEM_BORDER_COLOR",
+        "CloseAllBags",
+        "UNKNOWN",
+        "WEEKLY_REWARDS_MYTHIC_TOP_RUNS",
+        "ObjectiveTrackerFrame"
     ],
     "Lua.type.weakUnionCheck": true
 }

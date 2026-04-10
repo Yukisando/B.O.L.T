@@ -5,6 +5,7 @@ BattleRez.alwaysInitialize = true
 
 local MAX_BATTLE_REZ_CHARGES = 5
 local BATTLE_REZ_RECHARGE_SECONDS = 600
+local TRACKER_STATE_GRACE_SECONDS = 2
 local GetCombatLogEventInfo = C_CombatLog and C_CombatLog.GetCurrentEventInfo
 local COMBAT_RES_SPELL_IDS = {
     [20484] = true,
@@ -56,6 +57,20 @@ function BattleRez:OnInitialize()
     self.recentResurrections = {}
     self.isEnabled = false
     self.hooksInstalled = false
+    self.pendingStopToken = nil
+    self.pendingSyncToken = nil
+    self.testState = nil
+
+    self.eventFrame = self.eventFrame or CreateFrame("Frame")
+    self.eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    self.eventFrame:RegisterEvent("SCENARIO_UPDATE")
+    self.eventFrame:RegisterEvent("SCENARIO_CRITERIA_UPDATE")
+    self.eventFrame:RegisterEvent("CHALLENGE_MODE_START")
+    self.eventFrame:RegisterEvent("CHALLENGE_MODE_COMPLETED")
+    self.eventFrame:RegisterEvent("CHALLENGE_MODE_RESET")
+    self.eventFrame:SetScript("OnEvent", function(_, event)
+        self:HandleEvent(event)
+    end)
 
     self:InstallHooks()
 end
@@ -81,6 +96,8 @@ function BattleRez:InstallHooks()
         end)
     end
 
+    self:InstallBlockHooks(GetChallengeBlock())
+
     if type(ScenarioTimerMixin) == "table" then
         hooksecurefunc(ScenarioTimerMixin, "StopTimer", function()
             self:HandleTrackerStopped()
@@ -95,8 +112,109 @@ function BattleRez:InstallHooks()
     end
 end
 
+function BattleRez:InstallBlockHooks(block)
+    if not block or block._boltBattleRezHooksInstalled then
+        return
+    end
+
+    block._boltBattleRezHooksInstalled = true
+
+    if type(block.Activate) == "function" then
+        hooksecurefunc(block, "Activate", function(hookedBlock, timerID, elapsedTime)
+            self:HandleTrackerActivated(hookedBlock, timerID, elapsedTime)
+        end)
+    end
+
+    if type(block.UpdateTime) == "function" then
+        hooksecurefunc(block, "UpdateTime", function(hookedBlock, elapsedTime)
+            self:HandleTrackerTimeUpdated(hookedBlock, elapsedTime)
+        end)
+    end
+
+    if type(block.UpdateDeathCount) == "function" then
+        hooksecurefunc(block, "UpdateDeathCount", function(hookedBlock)
+            self:HandleTrackerLayoutChanged(hookedBlock)
+        end)
+    end
+end
+
+function BattleRez:HandleEvent(event)
+    self:InstallBlockHooks(GetChallengeBlock())
+
+    if event == "CHALLENGE_MODE_COMPLETED" or event == "CHALLENGE_MODE_RESET" then
+        self:HandleTrackerStopped(true)
+        return
+    end
+
+    local delay = 0.1
+    local resetUsage = false
+    if event == "PLAYER_ENTERING_WORLD" then
+        delay = 0.5
+    elseif event == "CHALLENGE_MODE_START" then
+        delay = 0.2
+        resetUsage = true
+    end
+
+    self:ScheduleTrackerSync(delay, resetUsage)
+end
+
+function BattleRez:ScheduleTrackerSync(delaySeconds, resetUsage)
+    self.pendingSyncToken = (self.pendingSyncToken or 0) + 1
+    local token = self.pendingSyncToken
+
+    C_Timer.After(delaySeconds or 0, function()
+        if not self or self.pendingSyncToken ~= token then
+            return
+        end
+
+        self.pendingSyncToken = nil
+        self:SyncFromActiveTracker(resetUsage)
+    end)
+end
+
+function BattleRez:ScheduleStateClear()
+    self.pendingStopToken = (self.pendingStopToken or 0) + 1
+    local token = self.pendingStopToken
+
+    if self.isEnabled and not self.testState then
+        self:HideDisplay()
+    end
+
+    C_Timer.After(TRACKER_STATE_GRACE_SECONDS, function()
+        if not self or self.pendingStopToken ~= token or self.testState then
+            return
+        end
+
+        self.pendingStopToken = nil
+
+        local block = GetChallengeBlock()
+        if block and block.timerID then
+            self:HandleTrackerActivated(block, block.timerID, GetBlockElapsedTime(block))
+            return
+        end
+
+        self:ClearRunState()
+        if self.isEnabled then
+            self:HideDisplay()
+        end
+    end)
+end
+
+function BattleRez:ClearRunState()
+    self.activeTimerID = nil
+    self.elapsedTime = 0
+    self.usedCharges = 0
+    wipe(self.recentResurrections)
+end
+
 function BattleRez:SyncFromActiveTracker(resetUsage)
     local block = GetChallengeBlock()
+    self:InstallBlockHooks(block)
+
+    if self.testState and block and block.timerID then
+        self:StopTestDisplay(true)
+    end
+
     if not block or not block.timerID then
         self:HandleTrackerStopped()
         return
@@ -112,11 +230,11 @@ end
 
 function BattleRez:OnDisable()
     self.isEnabled = false
+    self.pendingStopToken = nil
+    self.pendingSyncToken = nil
+    self.testState = nil
 
-    self.activeTimerID = nil
-    self.usedCharges = 0
-    self.elapsedTime = 0
-    wipe(self.recentResurrections)
+    self:ClearRunState()
     self:HideDisplay()
 end
 
@@ -124,6 +242,9 @@ function BattleRez:HandleTrackerActivated(block, timerID, elapsedTime, resetUsag
     if not block or not timerID then
         return
     end
+
+    self.pendingStopToken = nil
+    self:InstallBlockHooks(block)
 
     if timerID ~= self.activeTimerID or resetUsage then
         self.usedCharges = 0
@@ -158,15 +279,68 @@ function BattleRez:HandleTrackerLayoutChanged(block)
     end
 end
 
-function BattleRez:HandleTrackerStopped()
-    self.activeTimerID = nil
-    self.elapsedTime = 0
-    self.usedCharges = 0
-    wipe(self.recentResurrections)
+function BattleRez:HandleTrackerStopped(forceImmediate)
+    self.pendingSyncToken = nil
 
-    if self.isEnabled then
+    if self.testState then
+        return
+    end
+
+    if forceImmediate then
+        self.pendingStopToken = nil
+        self:ClearRunState()
+
+        if self.isEnabled then
+            self:HideDisplay()
+        end
+        return
+    end
+
+    if not self.activeTimerID then
+        if self.isEnabled then
+            self:HideDisplay()
+        end
+        return
+    end
+
+    self:ScheduleStateClear()
+end
+
+function BattleRez:IsTesting()
+    return self.testState ~= nil
+end
+
+function BattleRez:StartTestDisplay()
+    self.pendingStopToken = nil
+    self.pendingSyncToken = nil
+    self.testState = {
+        availableCharges = 2,
+        generatedCharges = 3,
+        usedCharges = 1,
+        nextChargeTime = 275,
+    }
+
+    self:UpdateDisplay()
+end
+
+function BattleRez:StopTestDisplay(skipRefresh)
+    self.testState = nil
+
+    if not skipRefresh and self.activeTimerID and self.isEnabled then
+        self:UpdateDisplay()
+    elseif not self.activeTimerID then
         self:HideDisplay()
     end
+end
+
+function BattleRez:ToggleTestDisplay()
+    if self.testState then
+        self:StopTestDisplay()
+        return false
+    end
+
+    self:StartTestDisplay()
+    return true
 end
 
 function BattleRez:HandleCombatLogEvent()
@@ -197,6 +371,10 @@ function BattleRez:HandleCombatLogEvent()
 end
 
 function BattleRez:GetAvailableCharges()
+    if self.testState then
+        return self.testState.availableCharges, self.testState.generatedCharges
+    end
+
     if not self.activeTimerID then
         return 0, 0
     end
@@ -206,6 +384,10 @@ function BattleRez:GetAvailableCharges()
 end
 
 function BattleRez:GetNextChargeTime()
+    if self.testState then
+        return self.testState.nextChargeTime
+    end
+
     local _, generatedCharges = self:GetAvailableCharges()
     if generatedCharges >= MAX_BATTLE_REZ_CHARGES then
         return nil
@@ -259,12 +441,16 @@ function BattleRez:ShowTooltip(widget)
 
     local availableCharges, generatedCharges = self:GetAvailableCharges()
     local nextChargeTime = self:GetNextChargeTime()
+    local trackedResCasts = self.testState and self.testState.usedCharges or (self.usedCharges or 0)
 
     GameTooltip:SetOwner(widget, "ANCHOR_LEFT")
     GameTooltip:AddLine("Battle Resurrection")
+    if self.testState then
+        GameTooltip:AddLine("Test mode preview", 0.65, 0.82, 1)
+    end
     GameTooltip:AddLine(("Available charges: %d/%d"):format(availableCharges, MAX_BATTLE_REZ_CHARGES), 1, 1, 1)
     GameTooltip:AddLine(("Generated this run: %d"):format(generatedCharges), 0.85, 0.85, 0.85)
-    GameTooltip:AddLine(("Tracked res casts: %d"):format(self.usedCharges or 0), 0.85, 0.85, 0.85)
+    GameTooltip:AddLine(("Tracked res casts: %d"):format(trackedResCasts), 0.85, 0.85, 0.85)
     if nextChargeTime and nextChargeTime > 0 then
         GameTooltip:AddLine(("Next charge in %s"):format(SecondsToClock(nextChargeTime, false)), 0.65, 0.82, 1)
     end
@@ -275,6 +461,28 @@ end
 function BattleRez:UpdateAnchor(frame)
     local challengeBlock = ScenarioObjectiveTracker and ScenarioObjectiveTracker.ChallengeModeBlock
     if not challengeBlock then
+        if self.testState then
+            local anchorParent = ObjectiveTrackerFrame or UIParent
+            local frameStrata = anchorParent.GetFrameStrata and anchorParent:GetFrameStrata() or "MEDIUM"
+            if frame:GetParent() ~= anchorParent then
+                frame:SetParent(anchorParent)
+            end
+
+            frame:SetFrameStrata(frameStrata)
+            if anchorParent.GetFrameLevel then
+                frame:SetFrameLevel(anchorParent:GetFrameLevel() + 5)
+            end
+            frame:ClearAllPoints()
+
+            if anchorParent == ObjectiveTrackerFrame then
+                frame:SetPoint("TOPRIGHT", anchorParent, "TOPLEFT", -8, -24)
+            else
+                frame:SetPoint("TOPRIGHT", anchorParent, "TOPRIGHT", -280, -240)
+            end
+
+            return true
+        end
+
         frame:Hide()
         return false
     end
@@ -301,7 +509,7 @@ function BattleRez:UpdateAnchor(frame)
 end
 
 function BattleRez:UpdateDisplay()
-    if not self.activeTimerID then
+    if not self.activeTimerID and not self.testState then
         self:HideDisplay()
         return
     end
