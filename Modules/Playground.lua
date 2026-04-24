@@ -32,8 +32,13 @@ local function GetPlayerSpeedYPS()
     -- 1) Try the simple API first (works for ground/steady flight)
     if GetUnitSpeed then
         local cur = GetUnitSpeed("player")
-        if cur and cur > 0 then
-            return cur -- already in yards/second
+        -- Guard with pcall: under some conditions (e.g., Skyriding) the API
+        -- can return a "secret number" that throws on direct comparison.
+        if cur then
+            local ok, isPositive = pcall(function() return cur > 0 end)
+            if ok and isPositive then
+                return cur -- already in yards/second
+            end
         end
     end
 
