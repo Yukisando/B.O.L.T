@@ -1134,6 +1134,35 @@ function Config:CreateInterfaceOptionsPanel()
     c:SetHeight(sm.optionsHeight)
 
     ---------------------------------------------------------------------------
+    -- CHARACTER SNAPSHOT  (Extras)
+    ---------------------------------------------------------------------------
+    local snapSection = self:CreateSection(exPD, "Character Snapshot", nil, true)
+    snapSection.checkbox:Hide()
+    local snapContainer = snapSection.container
+    local snapcy = -6
+
+    local snapDesc = snapContainer:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    snapDesc:SetPoint("TOPLEFT", snapContainer, "TOPLEFT", 30, snapcy)
+    snapDesc:SetWidth(520)
+    snapDesc:SetJustifyH("LEFT")
+    snapDesc:SetText("Export a JSON time-capsule of this character (level, money, /played, collections counts, achievement points, and the full Statistics tab) for use on your website.")
+    snapcy = snapcy - 36
+
+    local snapBtn = CreateFrame("Button", nil, snapContainer, "UIPanelButtonTemplate")
+    snapBtn:SetSize(180, 26)
+    snapBtn:SetText("Export Snapshot (JSON)")
+    snapBtn:SetPoint("TOPLEFT", snapContainer, "TOPLEFT", 16, snapcy)
+    snapBtn:SetScript("OnClick", function()
+        if self.parent and self.parent.modules and self.parent.modules.characterSnapshot then
+            self.parent.modules.characterSnapshot:ShowExportPopup()
+        end
+    end)
+    snapcy = snapcy - 36
+
+    snapSection.optionsHeight = math.abs(snapcy)
+    snapContainer:SetHeight(snapSection.optionsHeight)
+
+    ---------------------------------------------------------------------------
     -- ADMIN  (Extras)
     ---------------------------------------------------------------------------
     local adminSection = self:CreateSection(exPD, "Admin", nil, true)

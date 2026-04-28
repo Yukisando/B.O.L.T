@@ -2,6 +2,9 @@
 **(Brittle and Occasionally Lethal Tweaks)**
 
 ## [Unreleased]
+### Added
+- **Character Snapshot (Extras)**: New "Export Snapshot (JSON)" button in the Extras tab opens a copy-friendly popup containing a JSON time-capsule of the character — identity, money, /played, collection counts (mounts/pets/toys), achievement points and the full Statistics tab.
+
 ### Fixed
 - **Skyriding Module**: Druid skyriding flight form now counts as a valid skyriding state, and shapeshift changes trigger an immediate refresh.
 - **Sound Muter**: Removed the runtime sound interception and recent-audio browser after they started tainting Blizzard UI flows.

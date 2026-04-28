@@ -43,6 +43,12 @@
 - **Immediate Apply/Remove**: Added sound IDs are muted immediately while the module is enabled, and removing an ID unmutes it again
 - **Persistent List**: Your muted sound ID list is saved in the addon settings so it survives reloads and relogs
 
+### Character Snapshot
+
+- **JSON Time Capsule**: One-click export of your character's identity, money, /played, collection counts, achievement points and the full Statistics tab as pretty-printed JSON
+- **Copy-Friendly Popup**: Opens a read-only multi-line text box from Extras with the JSON pre-selected so Ctrl+C just works
+- **Refresh On Demand**: Refresh the popup to re-pull the latest values (e.g. after gaining gold, dying, or logging more /played)
+
 ### Chat Notifier Module
 
 - **Channel Sound Alerts**: Plays a notification sound when a new message appears in monitored chat channels

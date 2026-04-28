@@ -80,7 +80,8 @@
         "CloseAllBags",
         "UNKNOWN",
         "WEEKLY_REWARDS_MYTHIC_TOP_RUNS",
-        "ObjectiveTrackerFrame"
+        "ObjectiveTrackerFrame",
+        "ChatFrame_DisplayTimePlayed"
     ],
     "Lua.type.weakUnionCheck": true
 }
