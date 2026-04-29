@@ -321,7 +321,7 @@ function GameMenu:HandleMenuShown()
         local f = CreateFrame("Frame")
         f:RegisterEvent("CVAR_UPDATE")
         f:SetScript("OnEvent", function(_, _, name)
-            if name == "Sound_MasterVolume" or name == "Sound_EnableMusic" then
+            if name == "Sound_MasterVolume" or name == "Sound_EnableMusic" or name == "Sound_EnableDialog" then
                 self:UpdateVolumeDisplay()
             elseif name == "floatingCombatTextCombatDamage_v2" or name == "floatingCombatTextCombatHealing_v2" then
                 self:RefreshBattleTextTogglesState()
@@ -962,17 +962,19 @@ function GameMenu:CreateVolumeButton()
     volumeButton.volumeText:SetWidth(28) -- Match button width
     volumeButton.volumeText:SetScale(1)  -- Smaller scale to fit nicely
 
-    -- Left click for mute/unmute, right click for music toggle
+    -- Left click for mute/unmute, right click for music toggle, middle click for dialog toggle
     volumeButton:SetScript("OnClick", function(_, button)
         if button == "LeftButton" then
             mod:OnVolumeButtonLeftClick()
         elseif button == "RightButton" then
             mod:OnVolumeButtonRightClick()
+        elseif button == "MiddleButton" then
+            mod:OnVolumeButtonMiddleClick()
         end
     end)
 
-    -- Enable both left and right-click
-    volumeButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    -- Enable left, right, and middle-click
+    volumeButton:RegisterForClicks("LeftButtonUp", "RightButtonUp", "MiddleButtonUp")
 
     volumeButton:SetScript("OnEnter", function()
         GameTooltip:SetOwner(volumeButton, "ANCHOR_RIGHT")
@@ -981,8 +983,11 @@ function GameMenu:CreateVolumeButton()
         local isMuted = volumePercent == 0
         GameTooltip:SetText("Master Volume", 1, 1, 1)
         GameTooltip:AddLine("Current: " .. volumePercent .. "%" .. (isMuted and " (MUTED)" or ""), 1, 1, 0, true)
+        local dialogEnabled = GetCVar("Sound_EnableDialog") ~= "0"
+        GameTooltip:AddLine("Dialog: " .. (dialogEnabled and "ON" or "OFF"), dialogEnabled and 0.0 or 1.0, dialogEnabled and 1.0 or 0.0, 0.0, true)
         GameTooltip:AddLine("Left-click: Toggle mute", 0.8, 0.8, 0.8, true)
         GameTooltip:AddLine("Right-click: Toggle music", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("Middle-click: Toggle dialog audio", 0.8, 0.8, 0.8, true)
         GameTooltip:AddLine("Mouse wheel: Adjust volume", 0.8, 0.8, 0.8, true)
         GameTooltip:Show()
     end)
@@ -1418,6 +1423,16 @@ function GameMenu:OnVolumeButtonRightClick()
 
     local state = (newValue == "1") and "ON" or "OFF"
     self.parent:Print("Music: " .. state)
+end
+
+function GameMenu:OnVolumeButtonMiddleClick()
+    -- Toggle dialog audio on/off
+    local currentDialog = GetCVar("Sound_EnableDialog")
+    local newValue = (currentDialog == "1") and "0" or "1"
+    self:SafeCall(SetCVar, "Sound_EnableDialog", newValue)
+
+    local state = (newValue == "1") and "ON" or "OFF"
+    self.parent:Print("Dialog audio: " .. state)
 end
 
 function GameMenu:UpdateVolumeDisplay()
