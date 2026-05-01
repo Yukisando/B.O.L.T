@@ -299,7 +299,6 @@ function GameMenu:HandleMenuShown()
 
     C_Timer.After(0.01, function()
         if gen ~= showGeneration then return end
-        if InCombatLockdown() then return end
         if self.menuContainer and GameMenuFrame and GameMenuFrame:IsShown() then
             self.menuContainer:ClearAllPoints()
             self.menuContainer:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT",
@@ -311,7 +310,6 @@ function GameMenu:HandleMenuShown()
 
     C_Timer.After(0.05, function()
         if gen ~= showGeneration then return end
-        if InCombatLockdown() then return end
         if GameMenuFrame and GameMenuFrame:IsShown() then
             self:UpdateGameMenu()
         end
@@ -774,9 +772,6 @@ function GameMenu:CreateLeaveGroupButton()
         if UnitIsGroupLeader("player") then
             GameTooltip:AddLine("Leadership will be transferred automatically", 0.8, 0.8, 0.8, true)
         end
-        if InCombatLockdown() then
-            GameTooltip:AddLine("|cFFFF6B6BNot available during combat|r", 1, 0.42, 0.42, true)
-        end
         GameTooltip:Show()
         if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
             PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
@@ -812,10 +807,6 @@ function GameMenu:CreateReadyCheckButton()
     readyCheckButton = BOLT.ButtonUtils:CreateIconButton(nil, self:GetMenuParent(),
         "Interface\\RaidFrame\\ReadyCheck-Ready")
     readyCheckButton:SetScript("OnClick", function()
-        if InCombatLockdown() then
-            mod.parent:Print("Ready check not available in combat.")
-            return
-        end
         mod:OnReadyCheckClick()
     end)
     readyCheckButton:SetScript("OnEnter", function()
@@ -824,9 +815,6 @@ function GameMenu:CreateReadyCheckButton()
         GameTooltip:AddLine("Start a ready check for your group", 0.8, 0.8, 0.8, true)
         if not (UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")) then
             GameTooltip:AddLine("Requires group leader or assistant", 1, 0.2, 0.2, true)
-        end
-        if InCombatLockdown() then
-            GameTooltip:AddLine("|cFFFF6B6BNot available during combat|r", 1, 0.42, 0.42, true)
         end
         GameTooltip:Show()
         if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
@@ -842,10 +830,6 @@ function GameMenu:CreateCountdownButton()
         "Interface\\Icons\\Spell_Holy_BorrowedTime")
     countdownButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
     countdownButton:SetScript("OnClick", function()
-        if InCombatLockdown() then
-            mod.parent:Print("Countdown not available in combat.")
-            return
-        end
         mod:OnCountdownClick()
     end)
     countdownButton:SetScript("OnEnter", function()
@@ -854,9 +838,6 @@ function GameMenu:CreateCountdownButton()
         GameTooltip:AddLine("Start a 5-second pull timer", 0.8, 0.8, 0.8, true)
         if not (UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")) then
             GameTooltip:AddLine("Requires group leader or assistant", 1, 0.2, 0.2, true)
-        end
-        if InCombatLockdown() then
-            GameTooltip:AddLine("|cFFFF6B6BNot available during combat|r", 1, 0.42, 0.42, true)
         end
         GameTooltip:Show()
         if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
@@ -873,10 +854,6 @@ function GameMenu:CreateRaidMarkerButton()
     -- We'll adjust tex coords based on selected marker in RefreshGroupToolsState
     raidMarkerButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     raidMarkerButton:SetScript("OnClick", function(_, button)
-        if InCombatLockdown() then
-            mod.parent:Print("Cannot change raid marker during combat.")
-            return
-        end
         mod:OnRaidMarkerClick(button)
     end)
     raidMarkerButton:SetScript("OnEnter", function()
@@ -887,12 +864,6 @@ function GameMenu:CreateRaidMarkerButton()
         GameTooltip:AddLine("Left-click: Set your own marker (" .. (names[idx] or "Unknown") .. ")", 0.8, 0.8, 0.8, true)
         GameTooltip:AddLine("Right-click: Clear your marker", 0.8, 0.8, 0.8, true)
         -- Inform the user when they are in a group but are not leader/assist; solo players can set their own marker
-        if IsInGroup() and not (UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")) then
-            GameTooltip:AddLine("Requires group leader or assistant", 1, 0.2, 0.2, true)
-        end
-        if InCombatLockdown() then
-            GameTooltip:AddLine("|cFFFF6B6BNot available during combat|r", 1, 0.42, 0.42, true)
-        end
         GameTooltip:Show()
         if SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
             PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
@@ -1148,10 +1119,8 @@ function GameMenu:RefreshBattleTextTogglesState()
 end
 
 function GameMenu:RefreshGroupToolsState()
-    -- Enable state: Ready/Countdown require leader or assist; Raid marker does too in group,
-    -- but is allowed for solo players (so they can set their own marker while not in a group)
+    -- Enable state: Ready/Countdown require leader or assist; Raid marker can always be set by anyone
     local canCommand = UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")
-    local canChangeRaidMarker = canCommand or (not IsInGroup())
     if readyCheckButton then
         if canCommand then
             readyCheckButton:Enable()
@@ -1173,11 +1142,7 @@ function GameMenu:RefreshGroupToolsState()
 
     -- Update raid marker icon tex coords to reflect chosen marker
     if raidMarkerButton and raidMarkerButton.icon then
-        if canChangeRaidMarker then
-            raidMarkerButton:Enable(); raidMarkerButton:SetAlpha(1)
-        else
-            raidMarkerButton:Disable(); raidMarkerButton:SetAlpha(0.4)
-        end
+        raidMarkerButton:Enable(); raidMarkerButton:SetAlpha(1)
         local idx = self.parent:GetConfig("gameMenu", "raidMarkerIndex") or 1
         raidMarkerButton.icon:SetTexture("Interface\\TARGETINGFRAME\\UI-RaidTargetingIcons")
         raidMarkerButton.icon:SetTexCoord(GetMarkerTexCoords(idx))
@@ -1235,9 +1200,6 @@ function GameMenu:CreateReloadButton()
             GameTooltip:AddLine("Left-click: Reload the user interface", 0.8, 0.8, 0.8, true)
             GameTooltip:AddLine("Right-click: Open B.O.L.T settings", 0.8, 0.8, 0.8, true)
             GameTooltip:AddLine("Middle-click: Show saved instances", 0.8, 0.8, 0.8, true)
-            if InCombatLockdown() then
-                GameTooltip:AddLine("|cFFFF6B6BNot available during combat|r", 1, 0.42, 0.42, true)
-            end
             GameTooltip:Show()
         end
         -- Play hover sound
@@ -1346,11 +1308,6 @@ end
 function GameMenu:OnRaidMarkerClick(button)
     if not SetRaidTarget then
         self.parent:Print("Raid markers not available.")
-        return
-    end
-    -- Only require leader/assistant when in a group; solo players may still set/clear their marker
-    if IsInGroup() and not (UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")) then
-        self.parent:Print("You must be the group leader or an assistant to change raid markers.")
         return
     end
     if button == "RightButton" then
