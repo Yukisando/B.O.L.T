@@ -8,4 +8,7 @@
 	<Binding name="BOLT_SHOW_WOWHEAD_LINK" category="B.O.L.T">
 		BOLT_ShowWowheadLink()
 	</Binding>
+	<Binding name="BOLT_SMART_MOUNT" category="B.O.L.T">
+		BOLT_SmartGroundMount()
+	</Binding>
 </Bindings>

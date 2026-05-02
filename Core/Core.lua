@@ -45,7 +45,6 @@ BOLT.defaults = {
         achievementTracker = {
             trackedCategories = { [97] = true },  -- 97 = Exploration; empty = track all
         },
-        battleRez = {},
         soundMuter = {
             mutedSoundIDs = {},
         },
@@ -67,12 +66,12 @@ BOLT.defaultModuleStates = {
     smartTeleport = false,
     chatNotifier = false,
     achievementTracker = false,
-    battleRez = false,
     savedInstances = false,
     soundMuter = false,
     nameplatesEnhancement = false,
     partyFramesCenterGrowth = false,
     keyShare = false,
+    smartGroundMount = false,
 }
 
 -- Initialize the addon
@@ -102,7 +101,6 @@ function BOLT:HookMinimapTrackingMenu()
 
         local modules = {
             { key = "achievementTracker",      label = "Achievement Tracker" },
-            { key = "battleRez",               label = "Battle Rez Counter" },
             { key = "chatNotifier",             label = "Chat Notifier" },
             { key = "autoRepSwitch",            label = "Auto Rep Switch" },
             { key = "smartTeleport",            label = "Smart Teleport" },
@@ -110,6 +108,7 @@ function BOLT:HookMinimapTrackingMenu()
             { key = "skyriding",                label = "Skyriding Controls" },
             { key = "keyShare",                 label = "Key Share" },
             { key = "wowheadLink",              label = "Wowhead Links" },
+            { key = "smartGroundMount",          label = "Smart Ground Mount" },
         }
 
         for _, mod in ipairs(modules) do
