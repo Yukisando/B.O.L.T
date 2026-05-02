@@ -63,12 +63,6 @@
 - **Slash Command**: Type `/boltsaved` to print unsaved instances to chat
 - **Color-Coded Output**: Green for unsaved, orange for in-progress, grey for completed
 
-### Battle Rez Counter Module
-
-- **Mythic+ Battle Rez Counter**: Shows a small combat resurrection counter on the left side of the built-in Mythic+ tracker near the objective list
-- **Run-Based Tracking**: Uses the active Mythic+ timer plus tracked battle rez casts to estimate currently available charges during the run
-- **Always Nearby**: Anchors beside the default Mythic+ block so the counter stays close to the timer and death count
-
 ### Nameplates Enhancement Module
 
 - **Mana User Highlighting**: Enemy nameplate health bars are colored for mana-using units (healers/casters), making them easy to spot in packs

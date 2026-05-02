@@ -157,7 +157,8 @@ local function DoActivate()
             and (BOLT:GetConfig("skyriding", "invertPitch")
                  and " W=dive S=climb" or " W=climb S=dive")
             or ""
-        BOLT:Print(("Skyriding overrides ON (hold LMB)%s"):format(pitch))
+        local mouseStr = BOLT:GetConfig("skyriding", "requireMouseButton") and " (hold LMB)" or ""
+        BOLT:Print(("Skyriding overrides ON%s%s"):format(mouseStr, pitch))
     end
 end
 
@@ -176,7 +177,10 @@ end
 local Recalc -- forward declaration (used in TransitionTo before definition)
 
 local function ShouldBeActive()
-    return inSkyriding and leftDown and not rightDown
+    if BOLT:GetConfig("skyriding", "requireMouseButton") then
+        return inSkyriding and leftDown and not rightDown
+    end
+    return inSkyriding
 end
 
 local function TransitionTo(desired)

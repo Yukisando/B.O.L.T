@@ -33,7 +33,8 @@ BOLT.defaults = {
         },
         skyriding = {
             enablePitchControl = true,
-            invertPitch = true
+            invertPitch = true,
+            requireMouseButton = true,
         },
         wowheadLink = {},
         autoRepSwitch = {},
