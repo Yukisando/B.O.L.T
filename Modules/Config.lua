@@ -1095,6 +1095,17 @@ function Config:CreateInterfaceOptionsPanel()
     ksDesc:SetText("When anyone types \"!keys\" in Party, Raid, or Guild chat, links your current Mythic+ keystone in the same channel, including your own message.")
     cy = cy - 40
 
+    local ksRoulette = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
+    ksRoulette:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
+    ksRoulette.Text:SetText("Auto-roulette: after !keys, pick a random key from all responses and announce it")
+    ksRoulette.Text:SetFontObject("GameFontHighlightSmall")
+    ksRoulette:SetChecked(self.parent:GetConfig("keyShare", "rouletteEnabled") ~= false)
+    ksRoulette:SetScript("OnClick", function(button)
+        self.parent:SetConfig(button:GetChecked(), "keyShare", "rouletteEnabled")
+    end)
+    self.widgets.ksRoulette = ksRoulette
+    cy = cy - 26
+
     ks.optionsHeight = math.abs(cy)
     c:SetHeight(ks.optionsHeight)
 
@@ -1362,6 +1373,7 @@ function Config:RefreshOptionsPanel()
         if w.nameplatesEnhancementCheckbox then w.nameplatesEnhancementCheckbox:SetChecked(self.parent:IsModuleEnabled("nameplatesEnhancement")) end
         if w.partyFramesCenterGrowthCheckbox then w.partyFramesCenterGrowthCheckbox:SetChecked(self.parent:IsModuleEnabled("partyFramesCenterGrowth")) end
         if w.keyShareCheckbox then w.keyShareCheckbox:SetChecked(self.parent:IsModuleEnabled("keyShare")) end
+        if w.ksRoulette then w.ksRoulette:SetChecked(self.parent:GetConfig("keyShare", "rouletteEnabled") ~= false) end
         if w.neInstanceOnly then w.neInstanceOnly:SetChecked(self.parent:GetConfig("nameplatesEnhancement", "instanceOnly") or false) end
         if w.UpdateNameplatesSwatchColor then w.UpdateNameplatesSwatchColor() end
         -- Chat Notifier channels dropdown

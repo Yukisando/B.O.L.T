@@ -30,6 +30,12 @@ for _, row in ipairs(RESPOND_CHANNELS) do
     suffixMap[row.suffix] = row
 end
 
+-- Extract the first keystone hyperlink found inside a raw chat message string.
+local function ExtractKeystoneLink(message)
+    return message:match("(|c%x+|Hkeystone:[^|]+|h%[[^%]]+%]|h|r)")
+        or message:match("(|Hkeystone:[^|]+|h%[[^%]]+%]|h)")
+end
+
 function KeyShare:OnInitialize() end
 
 function KeyShare:OnEnable()
@@ -141,6 +147,26 @@ function KeyShare:SendChat(text, chatType)
     return pcall(C_ChatInfo.SendChatMessage, text, chatType)
 end
 
+-- Open a 2-second window to collect everyone's keys, then announce the winner in chat.
+function KeyShare:StartRoulette(sendType)
+    if self.parent:GetConfig("keyShare", "rouletteEnabled") == false then return end
+    if self._rouletteActive then return end
+    self._rouletteKeys = {}
+    self._rouletteActive = true
+    self._rouletteSendType = sendType
+    C_Timer.After(2, function()
+        self:RunRoulette()
+    end)
+end
+
+function KeyShare:RunRoulette()
+    self._rouletteActive = false
+    local keys = self._rouletteKeys
+    if not keys or #keys == 0 then return end
+    local winner = keys[math.random(#keys)]
+    self:SendChat("Roulette picks: " .. winner, self._rouletteSendType)
+end
+
 function KeyShare:RegisterEvents()
     if not self.eventFrame then
         self.eventFrame = CreateFrame("Frame")
@@ -154,6 +180,15 @@ function KeyShare:RegisterEvents()
 
     f:SetScript("OnEvent", function(_, event, ...)
         local message, sender = ...
+
+        -- Collect keystone links that arrive during the roulette window.
+        if self._rouletteActive and type(message) == "string" then
+            local kLink = ExtractKeystoneLink(message)
+            if kLink then
+                table.insert(self._rouletteKeys, kLink)
+            end
+        end
+
         if not self:ShouldRespondToMessage(message, sender) then return end
 
         local suffix = event:match("^CHAT_MSG_(.+)$")
@@ -169,6 +204,9 @@ function KeyShare:RegisterEvents()
         local now = GetTime()
         if self._lastRespond and (now - self._lastRespond) < 5 then return end
         self._lastRespond = now
+
+        -- Open the roulette window before sending so our own chat echo is captured.
+        self:StartRoulette(row.sendType)
 
         self:SendChat(text, row.sendType)
     end)
