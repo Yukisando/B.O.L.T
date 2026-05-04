@@ -25,12 +25,13 @@
 
 ### Skyriding Module
 
-- **Mouse-Activated Controls**: Hold left mouse button to activate enhanced skyriding controls
+- **Always-On Controls**: Override bindings activate automatically whenever you are Skyriding in a valid area — no button-holding required by default
+- **Optional Mouse-Button Mode**: Configurable option to only apply controls while holding the left mouse button
 - **Druid Support**: Detects druid skyriding flight form in addition to regular flying mounts
-- **Enhanced Movement**: While holding mouse, strafe keys (A/D) become horizontal turning
-- **Pitch Control**: Optional W/S mapping for pitch up/down movement when mouse is held (3D control)
+- **Enhanced Movement**: Strafe keys (A/D) become horizontal turning while Skyriding
+- **Pitch Control**: Optional W/S mapping for pitch up/down (3D control)
 - **Invert Option**: Reverse pitch controls if preferred (W=dive, S=climb)
-- **Safe Operation**: Controls only active while mouse button is held - no permanent key changes
+- **Safe Operation**: Override bindings are cleared instantly on dismount or when leaving a Skyriding-eligible area — no permanent key changes
 
 ### Playground Module (Fun Features)
 
@@ -39,14 +40,14 @@
 
 ### Sound Muter Module
 
-- **Popup-Managed Muting**: Open a management popup from Extras to add or remove muted sound IDs
+- **Popup-Managed Muting**: Open a management popup from the config panel to add or remove muted sound IDs
 - **Immediate Apply/Remove**: Added sound IDs are muted immediately while the module is enabled, and removing an ID unmutes it again
 - **Persistent List**: Your muted sound ID list is saved in the addon settings so it survives reloads and relogs
 
 ### Character Snapshot
 
 - **JSON Time Capsule**: One-click export of your character's identity, money, /played, collection counts, achievement points and the full Statistics tab as pretty-printed JSON
-- **Copy-Friendly Popup**: Opens a read-only multi-line text box from Extras with the JSON pre-selected so Ctrl+C just works
+- **Copy-Friendly Popup**: Opens a read-only text box from the config panel with the JSON pre-selected so Ctrl+C just works
 - **Refresh On Demand**: Refresh the popup to re-pull the latest values (e.g. after gaining gold, dying, or logging more /played)
 
 ### Chat Notifier Module
@@ -76,6 +77,43 @@
 - **Centered Raid-Style Party Growth**: Keeps raid-style party frames centered instead of visually drifting from a fixed corner as the group fills
 - **Dynamic Join/Leave Nudging**: Repositions the party anchor as members join or leave so the layout remains centered for party sizes 1-5
 - **Party-Only Scope**: Only affects party raid-style frames; raid group frames are untouched
+
+### Achievement Tracker Module
+
+- **Progress Alerts**: Shows a raid-warning style on-screen alert whenever you make progress on any tracked achievement
+- **Incremental Scanning**: Scans achievement criteria in small time-budgeted chunks to avoid frame drops, with a minimap spinner while the scan is running
+- **Completion Detection**: Recognises when an achievement is fully completed and prunes it from further scanning
+- **Throttled Updates**: Rapid criterion changes are debounced so you don't get flooded with alerts
+
+### Auto Rep Switch Module
+
+- **Automatic Watched Faction**: Automatically switches the "watched" reputation bar to whichever faction you just gained reputation with
+- **All Factions Supported**: Works across all reputation sources including the modern Renown system
+- **Secret Value Safe**: Handles Midnight (12.0) secret-value chat messages gracefully by falling back to snapshot-diff detection
+
+### Smart Ground Mount Module
+
+- **No-Fly Zone Awareness**: When you are in an area where flying is not allowed, summons a random ground-only mount from your favorites instead of a flying mount that would walk awkwardly
+- **Favorite Mounts Only**: Only considers mounts you have marked as favorites in the Mount Journal
+- **Custom Keybinding**: Bind `BOLT Smart Mount` (under B.O.L.T in Key Bindings) in place of your normal "Summon Random Favorite Mount" key
+- **Fallback Behavior**: Falls back to the default random-favorite summon when flying is allowed or the module is disabled
+
+### Smart Teleport Suggestions Module
+
+- **World Map Drawer**: When you open the World Map, a small icon drawer appears showing every teleport destination you can currently reach
+- **Broad Coverage**: Covers capital cities, expansion hubs, class-specific portals (Mage, Druid, Death Knight, Monk), engineering wormholes, Hero's Path portal spells earned from Keystone Hero achievements, and your Hearthstone
+- **Spell & Item Detection**: Checks both spells and bag items, so engineering gadgets and trinkets are included automatically
+- **One-Click Cast**: Click any icon to cast the corresponding teleport spell or use the item
+
+### KeyShare Module
+
+- **Auto Key Link**: Responds to `!keys` in party, raid, or guild chat by posting your current Mythic+ keystone link in the same channel
+- **Keystone Roulette**: After you post your key in response to `!keys`, opens a 2-second window to collect keystone links from other players who respond, then randomly announces a winner — useful for deciding which key to run
+
+### Wowhead Link Module
+
+- **Quick Wowhead URL**: Press the configured key (default: Ctrl+C) while hovering over an item, spell, or other linkable object to generate its Wowhead URL
+- **Copy Popup**: Displays the URL in a small dialog with the text pre-selected so a second Ctrl+C copies it to the clipboard
 
 ## Installation
 
