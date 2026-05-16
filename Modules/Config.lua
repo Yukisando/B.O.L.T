@@ -1137,6 +1137,12 @@ function Config:CreateInterfaceOptionsPanel()
     adminContainer:SetHeight(adminSection.optionsHeight)
 
     ---------------------------------------------------------------------------
+    -- ROLEPLAY PANEL  (Smart Ground Mount · …)
+    ---------------------------------------------------------------------------
+    local rpPD = self:CreatePanelWithScroll("BOLTRoleplayPanel", "Roleplay")
+    SetPanelCallbacks(rpPD.panel)
+
+    ---------------------------------------------------------------------------
     -- STORE ALL PANEL DATA & REGISTER WITH SETTINGS
     ---------------------------------------------------------------------------
     self.panelData = {
@@ -1145,6 +1151,7 @@ function Config:CreateInterfaceOptionsPanel()
         social    = soPD,
         tracking  = trPD,
         extras    = exPD,
+        roleplay  = rpPD,
     }
 
     if Settings and Settings.RegisterCanvasLayoutCategory then
@@ -1154,6 +1161,7 @@ function Config:CreateInterfaceOptionsPanel()
         Settings.RegisterCanvasLayoutSubcategory(mainCat, soPD.panel, "Social")
         Settings.RegisterCanvasLayoutSubcategory(mainCat, trPD.panel, "Tracking")
         Settings.RegisterCanvasLayoutSubcategory(mainCat, exPD.panel, "Extras")
+        Settings.RegisterCanvasLayoutSubcategory(mainCat, rpPD.panel, "Roleplay")
         self.settingsCategory = mainCat
         Settings.RegisterAddOnCategory(mainCat)
     elseif InterfaceOptions_AddCategory then
@@ -1163,12 +1171,14 @@ function Config:CreateInterfaceOptionsPanel()
         soPD.panel.name  = "Social";     soPD.panel.parent  = "B.O.L.T"
         trPD.panel.name  = "Tracking";   trPD.panel.parent  = "B.O.L.T"
         exPD.panel.name  = "Extras";     exPD.panel.parent  = "B.O.L.T"
+        rpPD.panel.name  = "Roleplay";   rpPD.panel.parent  = "B.O.L.T"
         InterfaceOptions_AddCategory(mainPD.panel)
         InterfaceOptions_AddCategory(ifPD.panel)
         InterfaceOptions_AddCategory(gpPD.panel)
         InterfaceOptions_AddCategory(soPD.panel)
         InterfaceOptions_AddCategory(trPD.panel)
         InterfaceOptions_AddCategory(exPD.panel)
+        InterfaceOptions_AddCategory(rpPD.panel)
         self.settingsCategory = mainPD.panel
     else
         if self.parent and self.parent.Print then

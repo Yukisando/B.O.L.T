@@ -74,7 +74,6 @@ BOLT.defaultModuleStates = {
     nameplatesEnhancement = false,
     partyFramesCenterGrowth = false,
     keyShare = false,
-    smartGroundMount = false,
 }
 
 -- Initialize the addon
@@ -111,7 +110,6 @@ function BOLT:HookMinimapTrackingMenu()
             { key = "skyriding",                label = "Skyriding Controls" },
             { key = "keyShare",                 label = "Key Share" },
             { key = "wowheadLink",              label = "Wowhead Links" },
-            { key = "smartGroundMount",          label = "Smart Ground Mount" },
         }
 
         for _, mod in ipairs(modules) do

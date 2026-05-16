@@ -46,11 +46,13 @@ local function IsDruidFlightFormActive()
 end
 
 local function IsSkyridingActiveNow()
-    return (IsMounted() or IsDruidFlightFormActive())
-       and IsAdvancedFlyableArea()
-       and IsOutdoors()
-       and IsSkyridingSelected()
-       and IsFlying()
+    -- Check IsFlying() FIRST to fail-fast on landing and prevent stuck keys
+    if not IsFlying() then return false end
+    if not (IsMounted() or IsDruidFlightFormActive()) then return false end
+    if not IsAdvancedFlyableArea() then return false end
+    if not IsOutdoors() then return false end
+    if not IsSkyridingSelected() then return false end
+    return true
 end
 
 -- =========================
@@ -126,14 +128,18 @@ local function Recalc()
     end
 end
 
--- Watchdog: catches rare desyncs (eaten mouse-up, etc.)
+-- Watchdog: catches desyncs, mouse-up events, and landing transitions.
+-- Checks frequently when overrides are active to prevent stuck keys on landing.
 local function StartWatchdog()
     if watchdog then return end
     watchdog = CreateFrame("Frame")
     local t = 0
     watchdog:SetScript("OnUpdate", function(_, dt)
         t = t + dt
-        if t >= 1 then
+        -- When overrides active, check every 50ms to catch landing immediately.
+        -- When inactive, check every 500ms to reduce overhead.
+        local interval = isActive and 0.05 or 0.5
+        if t >= interval then
             t = 0
             if Safe() then Recalc() end
         end
@@ -219,7 +225,13 @@ function Skyriding:CreateEventFrame()
             or event == "ZONE_CHANGED"
             or event == "ZONE_CHANGED_NEW_AREA"
             or event == "PLAYER_ENTERING_WORLD" then
-            C_Timer.After(0.2, function() if Safe() then Recalc() end end)
+            -- Immediate check to catch landing, then delayed recheck
+            if Safe() then
+                if not IsFlying() and isActive then
+                    Deactivate()
+                end
+                C_Timer.After(0.2, function() if Safe() then Recalc() end end)
+            end
         end
     end)
 end
