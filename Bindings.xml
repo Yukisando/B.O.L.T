@@ -8,7 +8,7 @@
 	<Binding name="BOLT_SHOW_WOWHEAD_LINK" category="B.O.L.T">
 		BOLT_ShowWowheadLink()
 	</Binding>
-	<Binding name="BOLT_SMART_MOUNT" category="B.O.L.T">
-		CLICK BOLT_SmartMountButton:LeftButton
+	<Binding name="BOLT_TOGGLE_TRP3_STATUS" category="B.O.L.T">
+		BOLT_ToggleTRP3Status()
 	</Binding>
 </Bindings>

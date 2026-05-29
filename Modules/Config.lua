@@ -48,7 +48,6 @@ local function StartKeybindingCapture(button, bindingAction, updateFunc)
         f:SetScript("OnKeyDown", nil)
     end)
     f:Show()
-    f:SetFocus()
 end
 
 local function TrimWhitespace(text)
@@ -1137,10 +1136,49 @@ function Config:CreateInterfaceOptionsPanel()
     adminContainer:SetHeight(adminSection.optionsHeight)
 
     ---------------------------------------------------------------------------
-    -- ROLEPLAY PANEL  (Smart Ground Mount · …)
+    -- ROLEPLAY PANEL  (Total RP 3 · …)
     ---------------------------------------------------------------------------
     local rpPD = self:CreatePanelWithScroll("BOLTRoleplayPanel", "Roleplay")
     SetPanelCallbacks(rpPD.panel)
+
+    ---------------------------------------------------------------------------
+    -- TOTAL RP 3  (Roleplay)
+    ---------------------------------------------------------------------------
+    local trp3Sec = self:CreateSection(rpPD, "Total RP 3", nil, true)
+    trp3Sec.checkbox:Hide()
+    trp3Sec.headerHeight = 30
+    local trp3C = trp3Sec.container
+    local trp3Cy = 0
+
+    local trp3Desc = trp3C:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    trp3Desc:SetPoint("TOPLEFT", trp3C, "TOPLEFT", 16, trp3Cy)
+    trp3Desc:SetWidth(520)
+    trp3Desc:SetJustifyH("LEFT")
+    trp3Desc:SetText("Requires Total RP 3. The features below hook into TRP3's API.")
+    trp3Cy = trp3Cy - 24
+
+    local trp3BindLabel = trp3C:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    trp3BindLabel:SetPoint("TOPLEFT", trp3C, "TOPLEFT", 16, trp3Cy)
+    trp3BindLabel:SetText("Toggle RP Status (IC / OOC):")
+
+    local trp3StatusBindBtn = CreateFrame("Button", nil, trp3C, "UIPanelButtonTemplate")
+    trp3StatusBindBtn:SetSize(110, 22)
+    trp3StatusBindBtn:SetPoint("LEFT", trp3BindLabel, "RIGHT", 8, 0)
+
+    local function UpdateTRP3StatusBindBtn()
+        local k1 = GetBindingKey("BOLT_TOGGLE_TRP3_STATUS")
+        trp3StatusBindBtn:SetText(k1 and k1 or "Unbound")
+    end
+    trp3StatusBindBtn:SetScript("OnClick", function(btn)
+        StartKeybindingCapture(btn, "BOLT_TOGGLE_TRP3_STATUS", UpdateTRP3StatusBindBtn)
+    end)
+    UpdateTRP3StatusBindBtn()
+    self.widgets.trp3StatusBindBtn = trp3StatusBindBtn
+    self.widgets.UpdateTRP3StatusBindBtn = UpdateTRP3StatusBindBtn
+    trp3Cy = trp3Cy - 30
+
+    trp3Sec.optionsHeight = math.abs(trp3Cy)
+    trp3C:SetHeight(trp3Sec.optionsHeight)
 
     ---------------------------------------------------------------------------
     -- STORE ALL PANEL DATA & REGISTER WITH SETTINGS
@@ -1322,6 +1360,7 @@ function Config:RefreshOptionsPanel()
         if w.partyFramesCenterGrowthCheckbox then w.partyFramesCenterGrowthCheckbox:SetChecked(self.parent:IsModuleEnabled("partyFramesCenterGrowth")) end
         if w.keyShareCheckbox then w.keyShareCheckbox:SetChecked(self.parent:IsModuleEnabled("keyShare")) end
         if w.ksRoulette then w.ksRoulette:SetChecked(self.parent:GetConfig("keyShare", "rouletteEnabled") ~= false) end
+        if w.UpdateTRP3StatusBindBtn then w.UpdateTRP3StatusBindBtn() end
         if w.neInstanceOnly then w.neInstanceOnly:SetChecked(self.parent:GetConfig("nameplatesEnhancement", "instanceOnly") or false) end
         if w.UpdateNameplatesSwatchColor then w.UpdateNameplatesSwatchColor() end
         -- Chat Notifier channels dropdown
@@ -1777,3 +1816,38 @@ function Config:UpdateToySelection()
 end
 
 BOLT:RegisterModule("config", Config)
+
+-- ── Global binding handler ─────────────────────────────────────────────────
+-- Toggle the player's TRP3 IC/OOC status.
+-- Status values: 1 = In Character, 2 = Out of Character.
+-- Any other current value is treated as IC so the first press goes to OOC.
+function BOLT_ToggleTRP3Status()
+    if not (TRP3_API and TRP3_API.profile and TRP3_API.profile.getData) then
+        BOLT:Print("|cFFFF6B6BTotal RP 3 is not installed or loaded.|r")
+        return
+    end
+    local ok, err = pcall(function()
+        local char = TRP3_API.profile.getData("player/character")
+        if not char then
+            BOLT:Print("|cFFFF6B6BTRP3: No character data found.|r")
+            return
+        end
+        -- ST = status field; 1 = IC, 2 = OOC. Anything else treated as IC.
+        local newStatus = (char.ST == 2) and 1 or 2
+        char.ST = newStatus
+        -- Ask TRP3 to broadcast the updated profile to nearby players.
+        if TRP3_API.Events and TRP3_API.Events.fireEvent then
+            TRP3_API.Events.fireEvent(
+                "REGISTER_DATA_UPDATED",
+                TRP3_API.globals and TRP3_API.globals.player_id or UnitName("player"),
+                TRP3_API.profile.getPlayerCurrentProfileID and TRP3_API.profile.getPlayerCurrentProfileID() or nil,
+                "character"
+            )
+        end
+        local label = newStatus == 1 and "|cFF55FF55In Character|r" or "|cFFFFAAAAOut of Character|r"
+        BOLT:Print("TRP3 status: " .. label)
+    end)
+    if not ok then
+        BOLT:Print("|cFFFF6B6BTRP3 status toggle failed.|r")
+    end
+end
