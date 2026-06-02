@@ -1177,6 +1177,80 @@ function Config:CreateInterfaceOptionsPanel()
     self.widgets.UpdateTRP3StatusBindBtn = UpdateTRP3StatusBindBtn
     trp3Cy = trp3Cy - 30
 
+    -- Toolbar visibility toggle
+    local trp3ToolbarChk = CreateFrame("CheckButton", nil, trp3C, "InterfaceOptionsCheckButtonTemplate")
+    trp3ToolbarChk:SetPoint("TOPLEFT", trp3C, "TOPLEFT", 16, trp3Cy)
+    trp3ToolbarChk.Text:SetText("Show TRP toolbar when In Character, hide when Out of Character")
+    trp3ToolbarChk.Text:SetFontObject("GameFontHighlightSmall")
+    trp3ToolbarChk:SetChecked(self.parent:GetConfig("roleplay", "toggleTrpToolbar") or false)
+    trp3ToolbarChk:SetScript("OnClick", function(button)
+        self.parent:SetConfig(button:GetChecked(), "roleplay", "toggleTrpToolbar")
+    end)
+    self.widgets.trp3ToolbarChk = trp3ToolbarChk
+    trp3Cy = trp3Cy - 26
+
+    -- Edit Mode profile dropdown
+    local emLabel = trp3C:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    emLabel:SetPoint("TOPLEFT", trp3C, "TOPLEFT", 16, trp3Cy)
+    emLabel:SetText("Edit Mode profile when IC:")
+
+    local emDropdown = CreateFrame("Button", "BOLTEditModeProfileDropdown", trp3C, "UIPanelButtonTemplate")
+    emDropdown:SetSize(150, 22)
+    emDropdown:SetPoint("LEFT", emLabel, "RIGHT", 8, 0)
+    self.widgets.emProfileDropdown = emDropdown
+
+    local function UpdateEmDropdownText()
+        local idx = self.parent:GetConfig("roleplay", "editModeProfileIndex")
+        if not idx or idx <= 0 then
+            emDropdown:SetText("Disabled")
+            return
+        end
+        if C_EditMode then
+            local layoutInfo = C_EditMode.GetLayouts()
+            if layoutInfo and layoutInfo.layouts and layoutInfo.layouts[idx] then
+                emDropdown:SetText(layoutInfo.layouts[idx].layoutName)
+                return
+            end
+        end
+        emDropdown:SetText("Layout " .. idx)
+    end
+    UpdateEmDropdownText()
+    self.widgets.UpdateEmDropdownText = UpdateEmDropdownText
+
+    emDropdown:SetScript("OnClick", function(btn)
+        MenuUtil.CreateContextMenu(btn, function(_, rootDescription)
+            rootDescription:CreateRadio("Disabled",
+                function()
+                    local idx = self.parent:GetConfig("roleplay", "editModeProfileIndex")
+                    return not idx or idx < 0
+                end,
+                function()
+                    self.parent:SetConfig(-1, "roleplay", "editModeProfileIndex")
+                    UpdateEmDropdownText()
+                end
+            )
+            if C_EditMode then
+                local layoutInfo = C_EditMode.GetLayouts()
+                if layoutInfo and layoutInfo.layouts then
+                    for i, layout in ipairs(layoutInfo.layouts) do
+                        local layoutIndex = i  -- 1-based, matching C_EditMode's activeLayout field
+                        local layoutName = layout.layoutName or ("Layout " .. layoutIndex)
+                        rootDescription:CreateRadio(layoutName,
+                            function()
+                                return self.parent:GetConfig("roleplay", "editModeProfileIndex") == layoutIndex
+                            end,
+                            function()
+                                self.parent:SetConfig(layoutIndex, "roleplay", "editModeProfileIndex")
+                                UpdateEmDropdownText()
+                            end
+                        )
+                    end
+                end
+            end
+        end)
+    end)
+    trp3Cy = trp3Cy - 30
+
     trp3Sec.optionsHeight = math.abs(trp3Cy)
     trp3C:SetHeight(trp3Sec.optionsHeight)
 
@@ -1361,6 +1435,8 @@ function Config:RefreshOptionsPanel()
         if w.keyShareCheckbox then w.keyShareCheckbox:SetChecked(self.parent:IsModuleEnabled("keyShare")) end
         if w.ksRoulette then w.ksRoulette:SetChecked(self.parent:GetConfig("keyShare", "rouletteEnabled") ~= false) end
         if w.UpdateTRP3StatusBindBtn then w.UpdateTRP3StatusBindBtn() end
+        if w.trp3ToolbarChk then w.trp3ToolbarChk:SetChecked(self.parent:GetConfig("roleplay", "toggleTrpToolbar") or false) end
+        if w.UpdateEmDropdownText then w.UpdateEmDropdownText() end
         if w.neInstanceOnly then w.neInstanceOnly:SetChecked(self.parent:GetConfig("nameplatesEnhancement", "instanceOnly") or false) end
         if w.UpdateNameplatesSwatchColor then w.UpdateNameplatesSwatchColor() end
         -- Chat Notifier channels dropdown
@@ -1818,36 +1894,51 @@ end
 BOLT:RegisterModule("config", Config)
 
 -- ── Global binding handler ─────────────────────────────────────────────────
--- Toggle the player's TRP3 IC/OOC status.
--- Status values: 1 = In Character, 2 = Out of Character.
--- Any other current value is treated as IC so the first press goes to OOC.
+-- Tracks the pre-RP Edit Mode layout index so we can restore it on OOC.
+local _rpPreEditModeLayout = nil
+
+-- Toggle the player's TRP3 IC/OOC status and apply any BOLT-configured extras
+-- (TRP toolbar visibility, Edit Mode profile switch).
 function BOLT_ToggleTRP3Status()
-    if not (TRP3_API and TRP3_API.profile and TRP3_API.profile.getData) then
+    if not (AddOn_TotalRP3 and AddOn_TotalRP3.Player and AddOn_TotalRP3.Enums) then
         BOLT:Print("|cFFFF6B6BTotal RP 3 is not installed or loaded.|r")
         return
     end
     local ok, err = pcall(function()
-        local char = TRP3_API.profile.getData("player/character")
-        if not char then
-            BOLT:Print("|cFFFF6B6BTRP3: No character data found.|r")
-            return
+        local currentUser = AddOn_TotalRP3.Player.GetCurrentUser()
+        local enums = AddOn_TotalRP3.Enums.ROLEPLAY_STATUS
+        local currentStatus = currentUser:GetRoleplayStatus()
+        -- Treat unset/unknown status as OOC so the first press always enters IC.
+        local isCurrentlyIC = (currentStatus == enums.IN_CHARACTER)
+        local newStatus = isCurrentlyIC and enums.OUT_OF_CHARACTER or enums.IN_CHARACTER
+        currentUser:SetRoleplayStatus(newStatus)
+
+        local goingIC = (newStatus == enums.IN_CHARACTER)
+
+        -- Toggle TRP toolbar visibility if configured.
+        if BOLT:GetConfig("roleplay", "toggleTrpToolbar") and TRP3_ToolbarFrame then
+            TRP3_ToolbarFrame:SetShown(goingIC)
         end
-        -- ST = status field; 1 = IC, 2 = OOC. Anything else treated as IC.
-        local newStatus = (char.ST == 2) and 1 or 2
-        char.ST = newStatus
-        -- Ask TRP3 to broadcast the updated profile to nearby players.
-        if TRP3_API.Events and TRP3_API.Events.fireEvent then
-            TRP3_API.Events.fireEvent(
-                "REGISTER_DATA_UPDATED",
-                TRP3_API.globals and TRP3_API.globals.player_id or UnitName("player"),
-                TRP3_API.profile.getPlayerCurrentProfileID and TRP3_API.profile.getPlayerCurrentProfileID() or nil,
-                "character"
-            )
+
+        -- Switch Edit Mode profile if configured.
+        local rpLayoutIdx = BOLT:GetConfig("roleplay", "editModeProfileIndex")
+        if rpLayoutIdx and rpLayoutIdx > 0
+                and EditModeManagerFrame and EditModeManagerFrame.SelectLayout then
+            if goingIC then
+                -- Save the current layout so we can restore it on OOC.
+                local layoutInfo = C_EditMode and C_EditMode.GetLayouts()
+                _rpPreEditModeLayout = layoutInfo and layoutInfo.activeLayout
+                EditModeManagerFrame:SelectLayout(rpLayoutIdx)
+            elseif _rpPreEditModeLayout ~= nil then
+                EditModeManagerFrame:SelectLayout(_rpPreEditModeLayout)
+                _rpPreEditModeLayout = nil
+            end
         end
-        local label = newStatus == 1 and "|cFF55FF55In Character|r" or "|cFFFFAAAAOut of Character|r"
+
+        local label = goingIC and "|cFF55FF55In Character|r" or "|cFFFFAAAAOut of Character|r"
         BOLT:Print("TRP3 status: " .. label)
     end)
     if not ok then
-        BOLT:Print("|cFFFF6B6BTRP3 status toggle failed.|r")
+        BOLT:Print("|cFFFF6B6BTRP3 status toggle failed: " .. tostring(err) .. "|r")
     end
 end

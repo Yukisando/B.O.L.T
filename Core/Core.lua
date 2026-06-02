@@ -56,6 +56,10 @@ BOLT.defaults = {
         keyShare = {
             rouletteEnabled = true,
         },
+        roleplay = {
+            editModeProfileIndex = -1,  -- -1 = disabled; 1-based index into C_EditMode.GetLayouts().layouts
+            toggleTrpToolbar = false,
+        },
     }
 }
 
