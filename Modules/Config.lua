@@ -1251,6 +1251,68 @@ function Config:CreateInterfaceOptionsPanel()
     end)
     trp3Cy = trp3Cy - 30
 
+    -- OOC Edit Mode profile dropdown
+    local emOOCLabel = trp3C:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    emOOCLabel:SetPoint("TOPLEFT", trp3C, "TOPLEFT", 16, trp3Cy)
+    emOOCLabel:SetText("Edit Mode profile when OOC:")
+
+    local emOOCDropdown = CreateFrame("Button", "BOLTEditModeOOCProfileDropdown", trp3C, "UIPanelButtonTemplate")
+    emOOCDropdown:SetSize(150, 22)
+    emOOCDropdown:SetPoint("LEFT", emOOCLabel, "RIGHT", 8, 0)
+    self.widgets.emOOCProfileDropdown = emOOCDropdown
+
+    local function UpdateEmOOCDropdownText()
+        local idx = self.parent:GetConfig("roleplay", "editModeOOCProfileIndex")
+        if not idx or idx <= 0 then
+            emOOCDropdown:SetText("Disabled")
+            return
+        end
+        if C_EditMode then
+            local layoutInfo = C_EditMode.GetLayouts()
+            if layoutInfo and layoutInfo.layouts and layoutInfo.layouts[idx] then
+                emOOCDropdown:SetText(layoutInfo.layouts[idx].layoutName)
+                return
+            end
+        end
+        emOOCDropdown:SetText("Layout " .. idx)
+    end
+    UpdateEmOOCDropdownText()
+    self.widgets.UpdateEmOOCDropdownText = UpdateEmOOCDropdownText
+
+    emOOCDropdown:SetScript("OnClick", function(btn)
+        MenuUtil.CreateContextMenu(btn, function(_, rootDescription)
+            rootDescription:CreateRadio("Disabled",
+                function()
+                    local idx = self.parent:GetConfig("roleplay", "editModeOOCProfileIndex")
+                    return not idx or idx < 0
+                end,
+                function()
+                    self.parent:SetConfig(-1, "roleplay", "editModeOOCProfileIndex")
+                    UpdateEmOOCDropdownText()
+                end
+            )
+            if C_EditMode then
+                local layoutInfo = C_EditMode.GetLayouts()
+                if layoutInfo and layoutInfo.layouts then
+                    for i, layout in ipairs(layoutInfo.layouts) do
+                        local layoutIndex = i
+                        local layoutName = layout.layoutName or ("Layout " .. layoutIndex)
+                        rootDescription:CreateRadio(layoutName,
+                            function()
+                                return self.parent:GetConfig("roleplay", "editModeOOCProfileIndex") == layoutIndex
+                            end,
+                            function()
+                                self.parent:SetConfig(layoutIndex, "roleplay", "editModeOOCProfileIndex")
+                                UpdateEmOOCDropdownText()
+                            end
+                        )
+                    end
+                end
+            end
+        end)
+    end)
+    trp3Cy = trp3Cy - 30
+
     trp3Sec.optionsHeight = math.abs(trp3Cy)
     trp3C:SetHeight(trp3Sec.optionsHeight)
 
@@ -1437,6 +1499,7 @@ function Config:RefreshOptionsPanel()
         if w.UpdateTRP3StatusBindBtn then w.UpdateTRP3StatusBindBtn() end
         if w.trp3ToolbarChk then w.trp3ToolbarChk:SetChecked(self.parent:GetConfig("roleplay", "toggleTrpToolbar") or false) end
         if w.UpdateEmDropdownText then w.UpdateEmDropdownText() end
+        if w.UpdateEmOOCDropdownText then w.UpdateEmOOCDropdownText() end
         if w.neInstanceOnly then w.neInstanceOnly:SetChecked(self.parent:GetConfig("nameplatesEnhancement", "instanceOnly") or false) end
         if w.UpdateNameplatesSwatchColor then w.UpdateNameplatesSwatchColor() end
         -- Chat Notifier channels dropdown
@@ -1894,8 +1957,6 @@ end
 BOLT:RegisterModule("config", Config)
 
 -- ── Global binding handler ─────────────────────────────────────────────────
--- Tracks the pre-RP Edit Mode layout index so we can restore it on OOC.
-local _rpPreEditModeLayout = nil
 
 -- Toggle the player's TRP3 IC/OOC status and apply any BOLT-configured extras
 -- (TRP toolbar visibility, Edit Mode profile switch).
@@ -1921,17 +1982,17 @@ function BOLT_ToggleTRP3Status()
         end
 
         -- Switch Edit Mode profile if configured.
-        local rpLayoutIdx = BOLT:GetConfig("roleplay", "editModeProfileIndex")
-        if rpLayoutIdx and rpLayoutIdx > 0
-                and EditModeManagerFrame and EditModeManagerFrame.SelectLayout then
+        if EditModeManagerFrame and EditModeManagerFrame.SelectLayout then
+            local targetIdx
             if goingIC then
-                -- Save the current layout so we can restore it on OOC.
-                local layoutInfo = C_EditMode and C_EditMode.GetLayouts()
-                _rpPreEditModeLayout = layoutInfo and layoutInfo.activeLayout
-                EditModeManagerFrame:SelectLayout(rpLayoutIdx)
-            elseif _rpPreEditModeLayout ~= nil then
-                EditModeManagerFrame:SelectLayout(_rpPreEditModeLayout)
-                _rpPreEditModeLayout = nil
+                targetIdx = BOLT:GetConfig("roleplay", "editModeProfileIndex")
+            else
+                targetIdx = BOLT:GetConfig("roleplay", "editModeOOCProfileIndex")
+            end
+            if targetIdx and targetIdx > 0 then
+                -- C_EditMode.GetLayouts().layouts only contains custom layouts; indices 1+2
+                -- are reserved for the built-in Modern/Classic presets, so offset by 2.
+                EditModeManagerFrame:SelectLayout(targetIdx + 2)
             end
         end
 

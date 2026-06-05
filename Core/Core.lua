@@ -57,7 +57,8 @@ BOLT.defaults = {
             rouletteEnabled = true,
         },
         roleplay = {
-            editModeProfileIndex = -1,  -- -1 = disabled; 1-based index into C_EditMode.GetLayouts().layouts
+            editModeProfileIndex = -1,     -- -1 = disabled; 1-based index into C_EditMode.GetLayouts().layouts (IC); add 2 for SelectLayout (built-ins occupy slots 1+2)
+            editModeOOCProfileIndex = -1,  -- -1 = disabled; 1-based index into C_EditMode.GetLayouts().layouts (OOC)
             toggleTrpToolbar = false,
         },
     }
