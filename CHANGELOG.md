@@ -6,6 +6,11 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v7-29 (2026-06-12)
+
+- chore: test automated release pipeline (changelog + CurseForge upload)
+- Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
 ## v7-28 (2026-06-05)
 
 - feat: Add OOC Edit Mode profile selection and update roleplay configuration
