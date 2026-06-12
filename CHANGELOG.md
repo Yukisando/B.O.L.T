@@ -6,6 +6,15 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v7-30 (2026-06-12)
+
+- fix: dispatch package workflow from release so CurseForge upload isn't skipped
+- The packager skips branch-push builds whose HEAD commit is tagged
+- ('Found future tag'), so packaging in the same push-triggered run never
+- uploaded. The release workflow now triggers the package workflow via
+- workflow_dispatch, which the packager accepts.
+- Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
 ## v7-29 (2026-06-12)
 
 - chore: test automated release pipeline (changelog + CurseForge upload)
