@@ -199,8 +199,12 @@ function SpecialGamemode:OnChatMessage(event, message, sender, ...)
             end
         end
 
-        -- If channel is allowed and trigger word is found, execute the action
-        if channelAllowed and string.find(lowerMessage, triggerData.trigger) then
+        -- If channel is allowed and trigger word is found, execute the action.
+        -- Lowercase the trigger (the message is already lowercased) and use a
+        -- plain-text find so configured triggers with pattern characters
+        -- (e.g. "(", "%", "-") match literally instead of as Lua patterns.
+        local trigger = string.lower(triggerData.trigger or "")
+        if channelAllowed and trigger ~= "" and string.find(lowerMessage, trigger, 1, true) then
             triggerData.action()
         end
     end
@@ -396,37 +400,46 @@ function SpecialGamemode:UnhookGameMenuFrame()
 end
 
 function SpecialGamemode:ShowModeMessage(text, duration)
-    -- Create a temporary message frame
-    local messageFrame = CreateFrame("Frame", nil, UIParent)
-    messageFrame:SetSize(400, 100)
-    messageFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 100)
+    -- Reuse a single message frame instead of creating a new (uncollectable)
+    -- frame and animation group on every activation/deactivation.
+    local messageFrame = self.messageFrame
+    if not messageFrame then
+        messageFrame = CreateFrame("Frame", nil, UIParent)
+        messageFrame:SetSize(400, 100)
+        messageFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 100)
 
-    local messageText = messageFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
-    messageText:SetPoint("CENTER")
-    messageText:SetText(text)
-    messageText:SetTextColor(1, 0, 0, 1) -- Red text
+        local messageText = messageFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
+        messageText:SetPoint("CENTER")
+        messageText:SetTextColor(1, 0, 0, 1) -- Red text
+        messageFrame.text = messageText
 
-    -- Create glow effect
-    local glow = messageFrame:CreateTexture(nil, "BACKGROUND")
-    glow:SetTexture("Interface\\Spellbook\\SpellBook-Parts")
-    glow:SetTexCoord(0.49, 0.74, 0.74, 0.95)
-    glow:SetPoint("CENTER")
-    glow:SetSize(450, 120)
-    glow:SetVertexColor(1, 0, 0, 0.5)
+        -- Create glow effect
+        local glow = messageFrame:CreateTexture(nil, "BACKGROUND")
+        glow:SetTexture("Interface\\Spellbook\\SpellBook-Parts")
+        glow:SetTexCoord(0.49, 0.74, 0.74, 0.95)
+        glow:SetPoint("CENTER")
+        glow:SetSize(450, 120)
+        glow:SetVertexColor(1, 0, 0, 0.5)
 
-    -- Fade out animation
-    local fadeOut = messageFrame:CreateAnimationGroup()
-    local alpha = fadeOut:CreateAnimation("Alpha")
-    alpha:SetFromAlpha(1)
-    alpha:SetToAlpha(0)
-    alpha:SetDuration(duration or 2.0)
-    alpha:SetScript("OnFinished", function()
-        if messageFrame then
+        -- Fade out animation
+        local fadeOut = messageFrame:CreateAnimationGroup()
+        local alpha = fadeOut:CreateAnimation("Alpha")
+        alpha:SetFromAlpha(1)
+        alpha:SetToAlpha(0)
+        fadeOut:SetScript("OnFinished", function()
             messageFrame:Hide()
-        end
-    end)
+        end)
+        messageFrame.fadeOut = fadeOut
+        messageFrame.alphaAnim = alpha
 
-    fadeOut:Play()
+        self.messageFrame = messageFrame
+    end
+
+    messageFrame.text:SetText(text)
+    messageFrame.alphaAnim:SetDuration(duration or 2.0)
+    messageFrame:Show()
+    messageFrame.fadeOut:Stop()
+    messageFrame.fadeOut:Play()
 end
 
 -- Public interface for other modules
