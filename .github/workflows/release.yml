@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
     outputs:
       version: ${{ steps.version.outputs.version }}
 
@@ -96,18 +97,12 @@ jobs:
           name: ${{ steps.version.outputs.version }}
           body: ${{ github.event.head_commit.message }}
 
-  package:
-    needs: release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ needs.release.outputs.version }}
-
-      - name: Package and upload to CurseForge
-        uses: BigWigsMods/packager@v2
+      # Dispatch the package workflow instead of packaging here: the packager
+      # refuses to run on branch-push events whose HEAD is tagged ("Found
+      # future tag"), and workflow_dispatch is one of the two event types
+      # GITHUB_TOKEN is allowed to trigger. The package workflow checks out
+      # the latest tag, which is the one created above.
+      - name: Trigger CurseForge upload
         env:
-          CF_API_KEY: ${{ secrets.CF_API_KEY }}
-          GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
-          CF_RELEASE_TYPE: release
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run package.yml --ref main -f release_type=release

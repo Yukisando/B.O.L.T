@@ -1,8 +1,8 @@
-name: Package and Upload to CurseForge (manual)
+name: Package and Upload to CurseForge
 
-# Manual fallback: the release workflow uploads to CurseForge automatically on
-# every push to main. Use this only to re-run a failed upload or push a
-# beta/alpha build of the latest tag.
+# Packages the latest tag and uploads it to CurseForge. Dispatched
+# automatically by the release workflow after each new tag; can also be run
+# manually to retry a failed upload or push a beta/alpha build.
 on:
   workflow_dispatch:
     inputs:
