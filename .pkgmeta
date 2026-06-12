@@ -6,9 +6,14 @@ ignore:
   - .github
   - .gitignore
   - README.md
-  - CHANGELOG.md
   - .release
   - "*.zip"
+
+# Upload CHANGELOG.md as the CurseForge changelog (maintained automatically
+# by the release workflow from commit messages).
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
 
 # Enable creation of multiple TOC files for different game versions
 enable-toc-creation: no

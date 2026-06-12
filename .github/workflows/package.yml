@@ -1,5 +1,8 @@
-name: Package and Upload to CurseForge
+name: Package and Upload to CurseForge (manual)
 
+# Manual fallback: the release workflow uploads to CurseForge automatically on
+# every push to main. Use this only to re-run a failed upload or push a
+# beta/alpha build of the latest tag.
 on:
   workflow_dispatch:
     inputs:
@@ -28,7 +31,7 @@ jobs:
         id: latesttag
         run: |
           git fetch --tags
-          latest=$(git tag --list 'v*-*' --sort=-v:refname | head -n 1)
+          latest=$(git tag --list 'v[0-9]*-*' --sort=-v:refname | head -n 1)
           if [ -z "$latest" ]; then
             echo "No tags found!"
             exit 1

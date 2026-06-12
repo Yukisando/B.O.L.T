@@ -1,12 +1,16 @@
-name: Create Release Tag
+name: Release and Upload to CurseForge
 
 on:
   push:
     branches:
       - main
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
-  tag:
+  release:
     if: "!contains(github.event.head_commit.message, '[skip release]')"
     runs-on: ubuntu-latest
     permissions:
@@ -25,7 +29,7 @@ jobs:
           COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
           git fetch --tags
-          latest=$(git tag --list 'v*-*' --sort=-v:refname | head -n 1)
+          latest=$(git tag --list 'v[0-9]*-*' --sort=-v:refname | head -n 1)
 
           if [ -z "$latest" ]; then
             # No tags yet, start with v1-0
@@ -45,14 +49,65 @@ jobs:
             echo "version=v$major-$minor" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create and push tag
+      # Prepend the pushed commit's message to CHANGELOG.md under the new
+      # version. This file is what the packager uploads to CurseForge as the
+      # changelog (see manual-changelog in .pkgmeta).
+      - name: Update CHANGELOG.md
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          git tag ${{ steps.version.outputs.version }}
-          git push origin ${{ steps.version.outputs.version }}
+          {
+            echo "## $VERSION ($(date -u +%Y-%m-%d))"
+            echo ""
+            echo "$COMMIT_MSG" | sed '/^[[:space:]]*$/d; s/^/- /'
+          } > /tmp/entry.md
+
+          marker=$(grep -n '^<!-- AUTO-CHANGELOG -->$' CHANGELOG.md | head -n 1 | cut -d: -f1)
+          if [ -z "$marker" ]; then
+            echo "CHANGELOG.md is missing the <!-- AUTO-CHANGELOG --> marker!"
+            exit 1
+          fi
+
+          head -n "$marker" CHANGELOG.md > /tmp/changelog.md
+          echo "" >> /tmp/changelog.md
+          cat /tmp/entry.md >> /tmp/changelog.md
+          tail -n +"$((marker + 1))" CHANGELOG.md >> /tmp/changelog.md
+          mv /tmp/changelog.md CHANGELOG.md
+
+      # The changelog commit carries [skip release] so it never triggers
+      # another release; the tag points at it so the packaged zip and the
+      # GitHub release both include the updated changelog.
+      - name: Commit changelog, tag and push
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -m "chore: update changelog for $VERSION [skip release]"
+          git tag "$VERSION"
+          git push origin HEAD:main "$VERSION"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: ${{ steps.version.outputs.version }}
-          generate_release_notes: true
+          body: ${{ github.event.head_commit.message }}
+
+  package:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.release.outputs.version }}
+
+      - name: Package and upload to CurseForge
+        uses: BigWigsMods/packager@v2
+        env:
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+          GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+          CF_RELEASE_TYPE: release
