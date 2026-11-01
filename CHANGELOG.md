@@ -6,6 +6,14 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-1 (2026-11-01)
+
+- fix: Skyriding keys no longer get stuck turning after landing mid-turn
+- - While A/D (or W/S with pitch control) is held, the key overrides now wait until you release it before switching, so the release reaches Turn/Pitch and the movement stops. Taking off while holding a key no longer leaves you strafing either
+- - Landing in combat can't be handled that way (addons can't change bindings in combat); a stuck key there is detected and fixed by tapping it once after combat
+- - Fixed the remap never applying in v8-0: the secure snippet couldn't read the key list because its attribute names started with "_"
+- Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
 ## v8-0 (2026-11-01)
 
 - refactor: overhaul for Midnight 12.1.5 and WoW: Forever [major]
