@@ -6,6 +6,23 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-0 (2026-11-01)
+
+- refactor: overhaul for Midnight 12.1.5 and WoW: Forever [major]
+- - Supports Midnight 12.1.5 (120105) and WoW: Forever (16001) from one TOC; modules that need modern-only systems (Skyriding, Key Share, Smart Teleport, Achievement Tracker) hide themselves on Forever
+- - Skyriding now switches key overrides through a secure state driver, so A/D and W/S return to normal the moment you land, even in combat
+- - Settings rebuilt from declarative tables on non-deprecated templates; the settings page now appears in Options without typing /bolt first
+- - Admin panel and hardcore/dismount chat triggers work again; settings are saved account-wide and the password typed in chat is no longer sent to the channel
+- - Transmog Presets ported to Midnight's outfit API: presets are staged in the transmog window and confirmed with Blizzard's Apply button
+- - Auto Rep Switch uses FACTION_STANDING_CHANGED, so it also works in instances and detects every gain (not only rank-ups)
+- - Achievement Tracker no longer hitches (time budget was 500 ms per frame instead of ~2 ms) and can't get stuck after a scan error; un-ticking Exploration now persists
+- - Toy picker restores your Toy Box filters after scanning instead of changing them
+- - Wowhead links cover toys, mounts, auras, currencies, NPCs, quests and achievements, use the Forever database on Forever, and only claim Ctrl+C if it is unbound
+- - Smart Teleport works again after being disabled and re-enabled
+- - Fixed: settings that defaulted to true could not be turned off; Copy Target Mount wrongly reported uncollected mounts; Edit Mode switching no longer taints Edit Mode; missing TRP3 keybinding name
+- - Shared helpers for dialogs, chat sending and the game menu watcher; removed dead code
+- Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
 ## v7-30 (2026-06-12)
 
 - fix: dispatch package workflow from release so CurseForge upload isn't skipped
