@@ -1,176 +1,114 @@
 -- B.O.L.T Database Management (Brittle and Occasionally Lethal Tweaks)
--- Handles saved variables and configuration
+-- Saved variables layout (BOLTDB, account-wide):
+--   moduleStates[module]   = bool   account-wide on/off toggles
+--   profiles[playerKey]    = table  per-character options (see BOLT.defaults.profile)
+--   admin, transmogPresets, preMuteVolume   account-wide data owned by modules
 
 local ADDON_NAME, BOLT = ...
 
--- Initialize database
-function BOLT:InitializeDatabase()
-    -- Initialize global (account-wide) saved variables
-    if not BOLTDB then
-        BOLTDB = {}
-    end
+-- Keys that older versions stored in profiles and that are now dead.
+local LEGACY_PROFILE_KEYS = {
+    { "nameplatesEnhancement", "interruptWarning" },
+    { "nameplatesEnhancement", "interruptWarningColor" },
+    { "skyriding", "toggleMode" },
+    { "playground", "allowSpecialGamemode" },
+}
 
-    -- Initialize account-wide module enabled states
-    -- Migrate from old per-profile system if needed
+function BOLT:GetPlayerKey()
+    return UnitName("player") .. " - " .. GetRealmName()
+end
+
+local function MergeDefaults(target, defaults)
+    for key, value in pairs(defaults) do
+        if target[key] == nil then
+            target[key] = type(value) == "table" and CopyTable(value) or value
+        elseif type(value) == "table" and type(target[key]) == "table" then
+            MergeDefaults(target[key], value)
+        end
+    end
+end
+
+local function CleanProfile(profile, moduleNames)
+    -- Module enabled flags moved from profiles to moduleStates.
+    for name in pairs(moduleNames) do
+        if type(profile[name]) == "table" then
+            profile[name].enabled = nil
+        end
+    end
+    for _, path in ipairs(LEGACY_PROFILE_KEYS) do
+        local section = profile[path[1]]
+        if type(section) == "table" then
+            section[path[2]] = nil
+        end
+    end
+end
+
+function BOLT:InitializeDatabase()
+    BOLTDB = BOLTDB or {}
+    BOLTDB.profiles = BOLTDB.profiles or {}
+
+    local playerKey = self:GetPlayerKey()
+
+    -- Migrate module toggles out of the old per-character profiles.
     if not BOLTDB.moduleStates then
         BOLTDB.moduleStates = {}
-        -- Migrate: pull enabled states from the current character's old profile
-        if BOLTDB.profiles then
-            local playerKey = UnitName("player") .. " - " .. GetRealmName()
-            local oldProfile = BOLTDB.profiles[playerKey]
-            if oldProfile then
-                for name in pairs(self.defaultModuleStates or {}) do
-                    if oldProfile[name] and oldProfile[name].enabled ~= nil then
-                        BOLTDB.moduleStates[name] = oldProfile[name].enabled
-                    end
+        local oldProfile = BOLTDB.profiles[playerKey]
+        if oldProfile then
+            for name in pairs(self.defaultModuleStates) do
+                if type(oldProfile[name]) == "table" and oldProfile[name].enabled ~= nil then
+                    BOLTDB.moduleStates[name] = oldProfile[name].enabled
                 end
             end
         end
     end
-
-    -- Fill in any missing modules with defaults (account-wide, persists across characters).
     for name, default in pairs(self.defaultModuleStates) do
         if BOLTDB.moduleStates[name] == nil then
             BOLTDB.moduleStates[name] = default
         end
     end
 
-    -- Set up database structure
-    self.db = {
-        global = BOLTDB,
-        profile = {}
-    }
-
-    -- Merge defaults with saved settings
-    self:MergeDefaults(self.db.profile, self.defaults.profile)
-
-    -- Store profile settings in global DB if they don't exist
-    if not BOLTDB.profiles then
-        BOLTDB.profiles = {}
+    for _, profile in pairs(BOLTDB.profiles) do
+        CleanProfile(profile, self.defaultModuleStates)
     end
 
-    local playerKey = UnitName("player") .. " - " .. GetRealmName()
-    if not BOLTDB.profiles[playerKey] then
-        BOLTDB.profiles[playerKey] = CopyTable(self.db.profile)
-    else
-        self.db.profile = BOLTDB.profiles[playerKey]
-        self:MergeDefaults(self.db.profile, self.defaults.profile)
-    end
+    -- The profile table is the saved table itself, so every write persists.
+    local profile = BOLTDB.profiles[playerKey] or {}
+    BOLTDB.profiles[playerKey] = profile
+    MergeDefaults(profile, self.defaults.profile)
 
-    -- Clean legacy "enabled" keys out of profiles (now in moduleStates)
-    local cleaned = false
-    for pkey, profile in pairs(BOLTDB.profiles) do
-        for name in pairs(self.defaultModuleStates or {}) do
-            if profile[name] and profile[name].enabled ~= nil then
-                profile[name].enabled = nil
-                cleaned = true
-            end
-        end
-        if profile.nameplatesEnhancement then
-            if profile.nameplatesEnhancement.interruptWarning ~= nil then
-                profile.nameplatesEnhancement.interruptWarning = nil
-                cleaned = true
-            end
-            if profile.nameplatesEnhancement.interruptWarningColor ~= nil then
-                profile.nameplatesEnhancement.interruptWarningColor = nil
-                cleaned = true
-            end
-        end
-        -- Remove deprecated skyriding.toggleMode
-        if profile.skyriding and profile.skyriding.toggleMode ~= nil then
-            profile.skyriding.toggleMode = nil
-            cleaned = true
-        end
-    end
-    if self.db.profile then
-        for name in pairs(self.defaultModuleStates or {}) do
-            if self.db.profile[name] and self.db.profile[name].enabled ~= nil then
-                self.db.profile[name].enabled = nil
-                cleaned = true
-            end
-        end
-        if self.db.profile.nameplatesEnhancement then
-            if self.db.profile.nameplatesEnhancement.interruptWarning ~= nil then
-                self.db.profile.nameplatesEnhancement.interruptWarning = nil
-                cleaned = true
-            end
-            if self.db.profile.nameplatesEnhancement.interruptWarningColor ~= nil then
-                self.db.profile.nameplatesEnhancement.interruptWarningColor = nil
-                cleaned = true
-            end
-        end
-        if self.db.profile.skyriding and self.db.profile.skyriding.toggleMode ~= nil then
-            self.db.profile.skyriding.toggleMode = nil
-            cleaned = true
-        end
-    end
-    if cleaned then
-        self:SaveProfile()
-    end
+    self.db = { global = BOLTDB, profile = profile }
 end
 
--- Merge default values into existing table
-function BOLT:MergeDefaults(target, defaults)
-    for key, value in pairs(defaults) do
-        if target[key] == nil then
-            if type(value) == "table" then
-                target[key] = {}
-                self:MergeDefaults(target[key], value)
-            else
-                target[key] = value
-            end
-        elseif type(value) == "table" and type(target[key]) == "table" then
-            self:MergeDefaults(target[key], value)
-        end
-    end
-end
-
--- Save current profile
-function BOLT:SaveProfile()
-    local playerKey = UnitName("player") .. " - " .. GetRealmName()
-    BOLTDB.profiles[playerKey] = CopyTable(self.db.profile)
-end
-
--- Get a configuration value
+-- GetConfig("section", "key"[, default]) — string keys walk the profile; a trailing
+-- non-string argument is the value returned when the setting is missing.
 function BOLT:GetConfig(...)
-    local args = {...}
-    local defaultValue = nil
-    
-    -- Check if the last argument is a default value (non-string or last arg when length > expected keys)
-    local numArgs = select("#", ...)
-    if numArgs > 0 then
-        local lastArg = args[numArgs]
-        -- If last argument looks like a default value (boolean, number, or nil)
-        if type(lastArg) == "boolean" or type(lastArg) == "number" or lastArg == nil then
-            defaultValue = lastArg
-            numArgs = numArgs - 1
-        end
+    local count = select("#", ...)
+    local default
+    if count > 0 and type((select(count, ...))) ~= "string" then
+        default = select(count, ...)
+        count = count - 1
     end
-    
-    local current = self.db.profile
-    for i = 1, numArgs do
-        local key = args[i]
-        if current[key] == nil then
-            return defaultValue
-        end
-        current = current[key]
+
+    local node = self.db and self.db.profile
+    for i = 1, count do
+        if type(node) ~= "table" then return default end
+        node = node[(select(i, ...))]
     end
-    return current ~= nil and current or defaultValue
+
+    if node == nil then return default end
+    return node
 end
 
--- Set a configuration value
+-- SetConfig(value, "section", "key") — creates intermediate tables as needed.
 function BOLT:SetConfig(value, ...)
-    local keys = {...}
-    local current = self.db.profile
-    
-    for i = 1, #keys - 1 do
-        local key = keys[i]
-        if current[key] == nil then
-            current[key] = {}
+    local count = select("#", ...)
+    local node = self.db.profile
+    for i = 1, count - 1 do
+        local key = select(i, ...)
+        if type(node[key]) ~= "table" then
+            node[key] = {}
         end
-        current = current[key]
+        node = node[key]
     end
-    
-    current[keys[#keys]] = value
-    self:SaveProfile()
+    node[(select(count, ...))] = value
 end

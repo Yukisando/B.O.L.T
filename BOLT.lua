@@ -1,129 +1,132 @@
 -- B.O.L.T Main File (Brittle and Occasionally Lethal Tweaks)
--- Entry point for the addon
+-- Slash commands. Loaded last so every module is registered.
 
 local ADDON_NAME, BOLT = ...
 
--- Initialize the BOLT object if not already created
-BOLT = BOLT or {}
-BOLT.modules = BOLT.modules or {}
+local MODULE_ALIASES = {
+    menu = "gameMenu",
+    gamemenu = "gameMenu",
+    toy = "playground",
+    toys = "playground",
+    fun = "playground",
+}
 
--- Register a module (called by module files at load time)
-function BOLT:RegisterModule(name, module)
-    if not self.modules[name] then
-        self.modules[name] = module
-        module.name = name
-        module.parent = self
+local function ResolveModuleName(input)
+    if MODULE_ALIASES[input] then
+        return MODULE_ALIASES[input]
+    end
+    for name in pairs(BOLT.defaultModuleStates) do
+        if name:lower() == input then
+            return name
+        end
+    end
+    return input
+end
+
+local function PrintHelp()
+    BOLT:Print("B.O.L.T v" .. BOLT.version .. " - Brittle and Occasionally Lethal Tweaks")
+    local lines = {
+        { "/bolt, /b", "Open settings" },
+        { "/bolt status", "Show module status" },
+        { "/bolt toggle <module>", "Toggle a module" },
+        { "/bolt toggle debug", "Toggle debug mode" },
+        { "/bolt debug config", "Show configuration debug info" },
+        { "/bolt transmog", "Open Transmog Presets" },
+        { "/bolt reset", "Clear any stuck Skyriding key overrides" },
+        { "/bolt reload", "Reload the UI" },
+    }
+    for _, line in ipairs(lines) do
+        print(("  |cffffffff%s|r - %s"):format(line[1], line[2]))
     end
 end
 
--- Enable or disable a module immediately and persist account-wide
-function BOLT:SetModuleEnabled(moduleName, enabled)
-    -- Persist in account-wide storage
-    if not BOLTDB then BOLTDB = {} end
-    if not BOLTDB.moduleStates then BOLTDB.moduleStates = {} end
-    BOLTDB.moduleStates[moduleName] = enabled
+local commands = {}
 
-    local mod = self.modules[moduleName]
-    if not mod then
-        self:Print("Module setting for '" .. tostring(moduleName) .. "' saved; it will be applied after /reload.")
+commands.help = PrintHelp
+commands.config = function() BOLT:OpenConfigPanel() end
+commands.reload = function() ReloadUI() end
+
+commands.status = function()
+    BOLT:Print("Module status:")
+    for _, mod in ipairs(BOLT:GetToggleableModules()) do
+        local enabled = BOLT:IsModuleEnabled(mod.name)
+        print(("  %s: %s"):format(mod.displayName or mod.name,
+            enabled and "|cff00ff00Enabled|r" or "|cffff0000Disabled|r"))
+    end
+end
+
+commands.toggle = function(target)
+    if not target then
+        BOLT:Print("Usage: /bolt toggle <module>")
+        return
+    end
+    if target == "debug" then
+        local enabled = not BOLT:GetConfig("debug")
+        BOLT:SetConfig(enabled, "debug")
+        BOLT:Print("Debug mode " .. (enabled and "enabled" or "disabled") .. ".")
         return
     end
 
-    if enabled then
-        if mod.OnInitialize and not mod._initialized then
-            mod:OnInitialize()
-            mod._initialized = true
-        end
-        if mod.OnEnable then mod:OnEnable() end
-        self:Print("Module '" .. moduleName .. "' enabled.")
+    local name = ResolveModuleName(target)
+    if BOLT.defaultModuleStates[name] == nil then
+        BOLT:Print("Unknown module '" .. target .. "'. Type /bolt status for the list.")
+        return
+    end
+    BOLT:SetModuleEnabled(name, not BOLT:IsModuleEnabled(name))
+end
+
+commands.reset = function()
+    local skyriding = BOLT.modules.skyriding
+    if skyriding then
+        skyriding:EmergencyReset()
     else
-        if mod.OnDisable then mod:OnDisable() end
-        self:Print("Module '" .. moduleName .. "' disabled.")
+        BOLT:Print("Skyriding is not available on this client.")
     end
 end
 
--- The core framework and modules are loaded via the .toc file
--- This file serves as the main entry point and can contain
--- any additional initialization or global commands
+commands.transmog = function(arg)
+    local mod = BOLT.modules.transmogPresets
+    if not mod then
+        BOLT:Print("Transmog Presets is not available.")
+    elseif arg == "debug" then
+        mod:PrintDebug()
+    else
+        mod:ShowUI()
+    end
+end
 
--- Slash command handler
+commands.debug = function(arg)
+    if arg ~= "config" then
+        BOLT:Print("Usage: /bolt debug config")
+        return
+    end
+    BOLT:Print("=== B.O.L.T configuration ===")
+    for name, enabled in pairs(BOLTDB.moduleStates) do
+        print(("  %s = %s"):format(name, tostring(enabled)))
+    end
+    print("  debug = " .. tostring(BOLT:GetConfig("debug")))
+    print("  player key = " .. BOLT:GetPlayerKey())
+    print("  client = " .. (BOLT.isForever and "WoW: Forever" or "Midnight"))
+end
+
 SLASH_BOLT1 = "/bolt"
 SLASH_BOLT2 = "/b"
-
-SlashCmdList["BOLT"] = function(msg)
-    local args = {}
-    for word in msg:gmatch("%S+") do
-        table.insert(args, word:lower())
+SlashCmdList.BOLT = function(msg)
+    if not BOLT._started then
+        BOLT:Print("Still loading, try again in a moment.")
+        return
     end
-    
-    if #args == 0 then
-        -- Open the Interface Options to B.O.L.T panel
+
+    local command, arg = msg:lower():match("^%s*(%S*)%s*(%S*)")
+    if command == "" then
         BOLT:OpenConfigPanel()
-    elseif args[1] == "help" then
-        BOLT:Print("B.O.L.T v" .. BOLT.version .. " - Brittle and Occasionally Lethal Tweaks")
-        print("  |cffFFFFFF/bolt or /b|r - Open settings in Interface Options")
-        print("  |cffFFFFFF/bolt help|r - Show this help")
-        print("  |cffFFFFFF/bolt config|r - Open settings in Interface Options")
-        print("  |cffFFFFFF/bolt status|r - Show module status")
-        print("  |cffFFFFFF/bolt toggle <module>|r - Toggle a module")
-        print("  |cffFFFFFF/bolt toggle debug|r - Toggle debug mode")
-        print("  |cffFFFFFF/bolt debug config|r - Show configuration debug info")
-        print("  |cffFFFFFF/bolt reload|r - Reload the addon")
-        print("  |cffFFFFFF/bolt reset|r - Emergency reset of skyriding bindings")
-    elseif args[1] == "status" then
-        BOLT:Print("Module Status:")
-        for name, module in pairs(BOLT.modules) do
-            local enabled = BOLT:IsModuleEnabled(name)
-            local status = enabled and "|cff00ff00Enabled|r" or "|cffff0000Disabled|r"
-            print("  " .. name .. ": " .. status)
-        end
-    elseif args[1] == "toggle" and args[2] then
-        local moduleName = args[2]
-        -- Convert common names
-        if moduleName == "menu" or moduleName == "gamemenu" then
-            moduleName = "gameMenu"
-        elseif moduleName == "toy" or moduleName == "toys" or moduleName == "fun" then
-            moduleName = "playground"
-        end
-        
-        -- Special handling for debug toggle
-        if moduleName == "debug" then
-            local currentValue = BOLT:GetConfig("debug")
-            local newValue = not currentValue
-            BOLT:SetConfig(newValue, "debug")
-            
-            local status = newValue and "enabled" or "disabled"
-            BOLT:Print("Debug mode " .. status .. ".")
-            return
-        end
-        
-        local currentValue = BOLT:IsModuleEnabled(moduleName)
-        local newValue = not currentValue
-        BOLT:SetModuleEnabled(moduleName, newValue)
-    elseif args[1] == "reload" then
-        ReloadUI()
-    elseif args[1] == "reset" then
-        -- Emergency reset for skyriding bindings
-        if BOLT.modules.skyriding and BOLT.modules.skyriding.EmergencyReset then
-            BOLT.modules.skyriding:EmergencyReset()
-        else
-            BOLT:Print("Skyriding module not available for reset.")
-        end
-    elseif args[1] == "config" then
-        -- Open the Interface Options to B.O.L.T panel
-        BOLT:OpenConfigPanel()
-    elseif args[1] == "debug" and args[2] == "config" then
-        BOLT:Print("=== B.O.L.T Debug Configuration ===")
-        BOLT:Print("Module states (account-wide):")
-        if BOLTDB and BOLTDB.moduleStates then
-            for name, enabled in pairs(BOLTDB.moduleStates) do
-                BOLT:Print(("  %s = %s"):format(name, tostring(enabled)))
-            end
-        end
-        BOLT:Print("Debug mode: " .. tostring(BOLT:GetConfig("debug")))
-        local playerKey = UnitName("player") .. " - " .. GetRealmName()
-        BOLT:Print("Player key: " .. playerKey)
+        return
+    end
+
+    local handler = commands[command]
+    if handler then
+        handler(arg ~= "" and arg or nil)
     else
-        BOLT:Print("Unknown command. Type '/bolt help' for available commands.")
+        BOLT:Print("Unknown command. Type /bolt help for the list.")
     end
 end

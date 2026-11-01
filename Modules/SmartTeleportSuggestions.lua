@@ -3,7 +3,9 @@
 
 local ADDON_NAME, BOLT = ...
 
-local SmartTeleport = {}
+local SmartTeleport = {
+    displayName = "Smart Teleport",
+}
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- Static teleport dataset
@@ -136,578 +138,340 @@ SmartTeleport.TeleportData = {
     { name = "Hearthstone", mapID = 0, x = 0, y = 0, spellIDs = {8690}, itemIDs = {6948}, isHearthstone = true },
 }
 
--- ────────────────────────────────────────────────────────────────────────────
--- Caches
--- ────────────────────────────────────────────────────────────────────────────
-local ownedCache = {}   -- rebuilt on SPELLS_CHANGED / BAG_UPDATE
-local drawerFrame = nil
-local entryButtons = {}
-local pendingDrawerHide = false
-local pendingDrawerRefresh = false
-local ICON_SIZE    = 32
-local ICON_PAD     = 4
-local DRAWER_PAD   = 6
-local MAX_ICONS    = 8
-local GetItemCooldown = C_Item and C_Item.GetItemCooldown
-local GetItemSpellInfo = (C_Item and rawget(C_Item, "GetItemSpell")) or rawget(_G, "GetItemSpell")
-
--- ────────────────────────────────────────────────────────────────────────────
--- Lifecycle
--- ────────────────────────────────────────────────────────────────────────────
-
-function SmartTeleport:OnInitialize() end
-
-function SmartTeleport:OnEnable()
-    self:RebuildOwnershipCache()
-    self:CreateDrawer()
-    self:RegisterEvents()
-end
-
-function SmartTeleport:HideDrawer()
-    if not drawerFrame then return end
-    if InCombatLockdown() then
-        pendingDrawerHide = true
-        pendingDrawerRefresh = false
-        return
-    end
-
-    pendingDrawerHide = false
-    pendingDrawerRefresh = false
-    drawerFrame:Hide()
-end
-
-function SmartTeleport:RequestDrawerRefresh()
-    if InCombatLockdown() then
-        pendingDrawerHide = false
-        pendingDrawerRefresh = true
-        return
-    end
-
-    pendingDrawerHide = false
-    pendingDrawerRefresh = false
-    self:RefreshDrawer()
-end
-
-function SmartTeleport:OnDisable()
-    self:HideDrawer()
-    if self.eventFrame then
-        self.eventFrame:UnregisterAllEvents()
-    end
-    if self._mapHooked then
-        self._mapHooked = false
-    end
+function SmartTeleport:IsSupported()
+    -- The dataset is modern-WoW destinations; WoW: Forever uses different maps.
+    return not BOLT.isForever
 end
 
 -- ────────────────────────────────────────────────────────────────────────────
--- Ownership detection
+-- Ownership
 -- ────────────────────────────────────────────────────────────────────────────
 
-function SmartTeleport:RebuildOwnershipCache()
-    wipe(ownedCache)
-    for i, entry in ipairs(self.TeleportData) do
-        local owned = false
-        for _, sid in ipairs(entry.spellIDs) do
-            if C_SpellBook.IsSpellKnown(sid) then owned = true; break end
-        end
-        if not owned then
-            for _, iid in ipairs(entry.itemIDs) do
-                if C_Item.GetItemCount(iid) > 0 or PlayerHasToy(iid) then owned = true; break end
-            end
-        end
-        ownedCache[i] = owned
-    end
-end
+local ICON_SIZE = 32
+local ICON_PAD = 4
+local DRAWER_PAD = 6
+local MAX_ICONS = 8
+local DEFAULT_ICON = 136235
 
--- ────────────────────────────────────────────────────────────────────────────
--- Hearthstone location helper
--- ────────────────────────────────────────────────────────────────────────────
-
-local function GetHearthstoneInfo()
-    local bindLoc = GetBindLocation()
-    -- We can't reliably get map coords of the hearth location from the API,
-    -- so we just return the name for display.  Hearthstone always gets lowest
-    -- priority ("Alphabetical fallback") because its mapID won't match.
-    return bindLoc or "Hearthstone"
-end
-
--- ────────────────────────────────────────────────────────────────────────────
--- Context relevance scoring
--- ────────────────────────────────────────────────────────────────────────────
-
-local PRIORITY_SAME_MAP    = 1000
-local PRIORITY_CHILD_MAP   = 800
+local PRIORITY_SAME_MAP = 1000
+local PRIORITY_CHILD_MAP = 800
 local PRIORITY_SAME_PARENT = 500
 local PRIORITY_SAME_CONTINENT = 200
-local PRIORITY_QUEST_BASE  = 250
+local PRIORITY_QUEST_BASE = 250
 
--- Walk up the map hierarchy to find the continent-level mapID.
--- Continent maps have mapType == 2 (Enum.UIMapType.Continent).
+local ownedCache = {}
+local drawer
+local entryButtons = {}
+local pendingRefresh = false
+
+-- Returns the secure action for the first owned spell/toy/item of an entry.
+local function GetUsableAction(entry)
+    for _, spellID in ipairs(entry.spellIDs) do
+        if C_SpellBook.IsSpellKnown(spellID) then return "spell", spellID end
+    end
+    for _, itemID in ipairs(entry.itemIDs) do
+        if PlayerHasToy(itemID) then return "toy", itemID end
+        if C_Item.GetItemCount(itemID) > 0 then return "item", itemID end
+    end
+    return nil
+end
+
+function SmartTeleport:RebuildOwnershipCache()
+    for index, entry in ipairs(self.TeleportData) do
+        ownedCache[index] = GetUsableAction(entry) ~= nil
+    end
+end
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- Scoring
+-- ────────────────────────────────────────────────────────────────────────────
+
 local continentCache = {}
 local function GetContinentMapID(mapID)
     if not mapID or mapID == 0 then return nil end
-    if continentCache[mapID] then return continentCache[mapID] end
+    if continentCache[mapID] ~= nil then return continentCache[mapID] or nil end
 
-    local current = mapID
-    for _ = 1, 10 do -- safety limit
+    local current, continent = mapID, false
+    for _ = 1, 10 do
         local info = C_Map.GetMapInfo(current)
         if not info then break end
-        if info.mapType == 2 then -- Enum.UIMapType.Continent
-            continentCache[mapID] = current
-            return current
+        if info.mapType == Enum.UIMapType.Continent then
+            continent = current
+            break
         end
         if not info.parentMapID or info.parentMapID == 0 then break end
         current = info.parentMapID
     end
-    continentCache[mapID] = nil
-    return nil
+    continentCache[mapID] = continent
+    return continent or nil
 end
 
--- Check if childMapID is a descendant of ancestorMapID in the map hierarchy.
 local function IsDescendantMap(childMapID, ancestorMapID)
-    if not childMapID or not ancestorMapID or childMapID == 0 or ancestorMapID == 0 then
-        return false
-    end
     local current = childMapID
     for _ = 1, 10 do
-        local info = C_Map.GetMapInfo(current)
+        local info = current and current ~= 0 and C_Map.GetMapInfo(current)
         if not info then return false end
         if info.parentMapID == ancestorMapID then return true end
-        if not info.parentMapID or info.parentMapID == 0 then return false end
         current = info.parentMapID
     end
     return false
 end
 
-function SmartTeleport:ScoreEntries(viewedMapID)
-    if not viewedMapID then return {} end
+local function QuestProximityBonus(entry, quests)
+    local best = math.huge
+    for _, quest in ipairs(quests) do
+        if quest.x and quest.y and quest.x > 0 and quest.y > 0 then
+            local dx, dy = quest.x - entry.x, quest.y - entry.y
+            best = math.min(best, math.sqrt(dx * dx + dy * dy))
+        end
+    end
+    if best == math.huge then return 0 end
+    return math.max(0, PRIORITY_QUEST_BASE - best * 500)
+end
 
-    local viewedInfo      = C_Map.GetMapInfo(viewedMapID)
-    local viewedParent    = viewedInfo and viewedInfo.parentMapID
+function SmartTeleport:ScoreEntries(viewedMapID)
+    local viewedInfo = C_Map.GetMapInfo(viewedMapID)
+    local viewedParent = viewedInfo and viewedInfo.parentMapID
     local viewedContinent = GetContinentMapID(viewedMapID)
 
-    -- Only allow sibling matching when the parent is continent-level or lower
-    -- (mapType >= 2). This prevents all continent-level entries (e.g. wormholes)
-    -- from matching each other just because they share the World map as parent.
+    -- Sibling matching only below continent level, so every continent-level entry
+    -- (wormholes) doesn't match every other one through the shared World parent.
     local parentInfo = viewedParent and viewedParent > 0 and C_Map.GetMapInfo(viewedParent)
-    local parentIsZoneLevel = parentInfo and parentInfo.mapType and parentInfo.mapType >= 2
+    local siblingsCount = parentInfo and parentInfo.mapType >= Enum.UIMapType.Continent
 
-    -- Quests on the currently viewed map (only useful for same-map proximity)
     local quests = C_QuestLog.GetQuestsOnMap(viewedMapID) or {}
 
     local scored = {}
-    for i, entry in ipairs(self.TeleportData) do
-        if ownedCache[i] then
+    for index, entry in ipairs(self.TeleportData) do
+        if ownedCache[index] then
             local score = 0
-
-            -- Hearthstone: always include but lowest priority
             if entry.isHearthstone then
-                score = 1
+                score = 1 -- always offered, lowest priority
+            elseif entry.mapID == viewedMapID then
+                score = PRIORITY_SAME_MAP + QuestProximityBonus(entry, quests)
             else
-                local isSameMap = (entry.mapID == viewedMapID)
-
-                -- Same map (exact match)
-                if isSameMap then
-                    score = score + PRIORITY_SAME_MAP
-                end
-
-                -- Entry is a child/descendant of the viewed map
-                -- (e.g. viewing a continent, entry is in a zone within it)
-                if not isSameMap and IsDescendantMap(entry.mapID, viewedMapID) then
+                if IsDescendantMap(entry.mapID, viewedMapID) then
                     score = score + PRIORITY_CHILD_MAP
                 end
-
-                -- Same direct parent (sibling zones) — only at zone level or below
-                if viewedParent and viewedParent > 0 and parentIsZoneLevel then
+                if siblingsCount then
                     local entryInfo = C_Map.GetMapInfo(entry.mapID)
                     if entryInfo and entryInfo.parentMapID == viewedParent then
                         score = score + PRIORITY_SAME_PARENT
                     end
                 end
-
-                -- Same continent (but not already matched above)
-                if score == 0 and viewedContinent then
-                    local entryContinent = GetContinentMapID(entry.mapID)
-                    if entryContinent and entryContinent == viewedContinent then
-                        score = score + PRIORITY_SAME_CONTINENT
-                    end
-                end
-
-                -- Quest proximity bonus — only when teleport is on the SAME map
-                if isSameMap and #quests > 0 then
-                    local bestDist = math.huge
-                    for _, q in ipairs(quests) do
-                        if q.x and q.y and q.x > 0 and q.y > 0 then
-                            local dx = q.x - entry.x
-                            local dy = q.y - entry.y
-                            local dist = math.sqrt(dx * dx + dy * dy)
-                            if dist < bestDist then bestDist = dist end
-                        end
-                    end
-                    if bestDist < math.huge then
-                        score = score + math.max(0, PRIORITY_QUEST_BASE - bestDist * 500)
-                    end
+                if score == 0 and viewedContinent and GetContinentMapID(entry.mapID) == viewedContinent then
+                    score = PRIORITY_SAME_CONTINENT
                 end
             end
 
             if score > 0 then
-                table.insert(scored, {
-                    index = i,
-                    entry = entry,
-                    score = score,
-                })
+                table.insert(scored, { entry = entry, score = score })
             end
         end
     end
 
-    -- Sort: score desc, then alphabetical asc
     table.sort(scored, function(a, b)
         if a.score ~= b.score then return a.score > b.score end
         return a.entry.name < b.entry.name
     end)
-
     return scored
 end
 
 -- ────────────────────────────────────────────────────────────────────────────
--- UI
+-- Drawer UI
 -- ────────────────────────────────────────────────────────────────────────────
 
-function SmartTeleport:CreateDrawer()
-    if drawerFrame then return end
-    if not WorldMapFrame then return end
-
-    local mapAnchor = WorldMapFrame.ScrollContainer or WorldMapFrame
-
-    -- Parent to UIParent, NOT WorldMapFrame. Parenting an addon (non-secure) frame
-    -- to WorldMapFrame taints the map's child-frame table, causing
-    -- ADDON_ACTION_BLOCKED on SetPropagateMouseClicks (called by flight-point pins in
-    -- secureexecuterange) and "secret value" taint on UIWidget font-string heights.
-    -- We position the drawer below the map via SetPoint anchors (which can reference
-    -- any frame for positioning regardless of parent) and hide it manually via an
-    -- OnHide hook below.
-    drawerFrame = CreateFrame("Frame", "BOLTSmartTeleportDrawer", UIParent, "BackdropTemplate")
-    drawerFrame:SetHeight(ICON_SIZE + DRAWER_PAD * 2)
-    drawerFrame:SetPoint("TOP", mapAnchor, "BOTTOM", 0, -6)
-    drawerFrame:SetFrameStrata("DIALOG")
-    drawerFrame:SetFrameLevel(500)
-
-    drawerFrame:SetBackdrop({
-        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 12,
-        insets = { left = 2, right = 2, top = 2, bottom = 2 },
-    })
-    drawerFrame:SetBackdropColor(0.05, 0.05, 0.05, 0.88)
-    drawerFrame:SetBackdropBorderColor(0.4, 0.4, 0.4, 0.9)
-
-    drawerFrame:Hide()
-end
-
--- Resolve icon for an entry
 local function GetEntryIcon(entry)
-    for _, sid in ipairs(entry.spellIDs) do
-        local info = C_Spell.GetSpellInfo(sid)
-        if info and info.iconID then return info.iconID end
-    end
-    for _, iid in ipairs(entry.itemIDs) do
-        local _, _, _, _, icon = C_Item.GetItemInfoInstant(iid)
+    for _, spellID in ipairs(entry.spellIDs) do
+        local icon = C_Spell.GetSpellTexture(spellID)
         if icon then return icon end
     end
-    return 136235 -- default hearthstone icon
+    for _, itemID in ipairs(entry.itemIDs) do
+        local icon = C_Item.GetItemIconByID(itemID)
+        if icon then return icon end
+    end
+    return DEFAULT_ICON
 end
 
-local function GetSpellIDFromLink(spellLink)
-    if type(spellLink) ~= "string" then
-        return nil
-    end
-
-    local spellID = string.match(spellLink, "spell:(%d+)")
-    return spellID and tonumber(spellID) or nil
-end
-
-local function GetAssociatedSpellID(itemID)
-    if not itemID or not GetItemSpellInfo then
-        return nil
-    end
-
-    local ok, _, spellID = pcall(GetItemSpellInfo, itemID)
-    if not ok or not spellID then
-        return nil
-    end
-
-    if type(spellID) == "number" then
-        return spellID
-    end
-
-    return GetSpellIDFromLink(spellID)
-end
-
--- Resolve the first usable spellID or itemID
-local function GetUsableAction(entry)
-    for _, sid in ipairs(entry.spellIDs) do
-        if C_SpellBook.IsSpellKnown(sid) then return "spell", sid end
-    end
-    for _, iid in ipairs(entry.itemIDs) do
-        if PlayerHasToy(iid) then return "toy", iid end
-        if C_Item.GetItemCount(iid) > 0 then return "item", iid end
-    end
-    return nil, nil
-end
-
-local function GetPreferredTooltipAction(actionType, actionID)
-    if actionType == "spell" then
-        return "spell", actionID
-    end
-
-    if actionType == "toy" then
-        return "toy", actionID
-    end
-
-    if actionType == "item" then
-        local spellID = GetAssociatedSpellID(actionID)
-        if spellID then
-            return "spell", spellID
-        end
-
-        return "item", actionID
-    end
-
-    return nil, nil
-end
-
-local function GetActionCooldownInfo(actionType, actionID, tooltipType, tooltipID)
-    if (actionType == "toy" or actionType == "item") and GetItemCooldown then
-        local startTime, duration, enableCooldownTimer = GetItemCooldown(actionID)
-        if startTime and duration and duration > 0 then
-            return startTime, duration, enableCooldownTimer, 1
-        end
-    end
-
-    if (actionType == "spell" or tooltipType == "spell") and C_Spell and C_Spell.GetSpellCooldown then
-        local spellID = actionType == "spell" and actionID or tooltipID
-        local info = spellID and C_Spell.GetSpellCooldown(spellID)
+local function UpdateButtonCooldown(button)
+    local startTime, duration, enabled, modRate
+    if button.actionType == "spell" then
+        local info = C_Spell.GetSpellCooldown(button.actionID)
         if info then
-            return info.startTime, info.duration, info.isEnabled, info.modRate
+            startTime, duration, enabled, modRate = info.startTime, info.duration, info.isEnabled, info.modRate
         end
+    elseif button.actionType then
+        startTime, duration, enabled = C_Item.GetItemCooldown(button.actionID)
     end
-
-    return nil, nil, nil, nil
+    BOLT.ButtonUtils:SetButtonCooldown(button, startTime, duration, enabled, modRate)
 end
 
-function SmartTeleport:RefreshDrawer()
-    if not drawerFrame then return end
-    if InCombatLockdown() then return end
-    if not WorldMapFrame or not WorldMapFrame:IsShown() then
-        self:HideDrawer()
-        return
-    end
+local function CreateEntryButton(index)
+    local button = CreateFrame("Button", "BOLTSmartTP_Entry" .. index, drawer, "SecureActionButtonTemplate")
+    button:SetSize(ICON_SIZE, ICON_SIZE)
+    button:SetPoint("LEFT", drawer, "LEFT", DRAWER_PAD + (index - 1) * (ICON_SIZE + ICON_PAD), 0)
+    button:RegisterForClicks("AnyUp", "AnyDown")
 
-    local mapID = WorldMapFrame:GetMapID()
-    if not mapID then
-        self:HideDrawer()
-        return
-    end
+    button.icon = button:CreateTexture(nil, "ARTWORK")
+    button.icon:SetAllPoints()
+    button.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
 
-    local results = self:ScoreEntries(mapID)
+    local highlight = button:CreateTexture(nil, "HIGHLIGHT")
+    highlight:SetAllPoints()
+    highlight:SetColorTexture(1, 1, 1, 0.15)
 
-    for i = 1, #entryButtons do
-        entryButtons[i]:Hide()
-    end
+    button.cooldown = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
+    button.cooldown:SetAllPoints()
+    button.cooldown:SetDrawEdge(false)
+    button.cooldown:SetDrawBling(false)
 
-    if #results == 0 then
-        self:HideDrawer()
-        return
-    end
-
-    local displayCount = math.min(#results, MAX_ICONS)
-    for i = 1, displayCount do
-        local result = results[i]
-        local btn = entryButtons[i]
-        if not btn then
-            btn = self:CreateIconButton(drawerFrame, i)
-            entryButtons[i] = btn
-        end
-
-        local entry = result.entry
-        btn.entryName = entry.isHearthstone
-            and ("Hearthstone (" .. GetHearthstoneInfo() .. ")")
-            or entry.name
-
-        btn.icon:SetTexture(GetEntryIcon(entry))
-        btn.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-
-        local actionType, actionID = GetUsableAction(entry)
-        btn.actionType = actionType
-        btn.actionID   = actionID
-        btn.tooltipType, btn.tooltipID = GetPreferredTooltipAction(actionType, actionID)
-        if not InCombatLockdown() then
-            if actionType == "spell" then
-                btn:SetAttribute("type", "spell")
-                btn:SetAttribute("spell", actionID)
-                btn:SetAttribute("macrotext", nil)
-            elseif actionType == "toy" then
-                btn:SetAttribute("type", "macro")
-                btn:SetAttribute("macrotext", "/use item:" .. actionID)
-                btn:SetAttribute("spell", nil)
-            elseif actionType == "item" then
-                btn:SetAttribute("type", "macro")
-                btn:SetAttribute("macrotext", "/use item:" .. actionID)
-                btn:SetAttribute("spell", nil)
-            else
-                btn:SetAttribute("type", nil)
-            end
-        end
-
-        btn:SetSize(ICON_SIZE, ICON_SIZE)
-        btn:ClearAllPoints()
-        btn:SetPoint("LEFT", drawerFrame, "LEFT", DRAWER_PAD + (i - 1) * (ICON_SIZE + ICON_PAD), 0)
-        self:UpdateButtonCooldown(btn)
-        btn:Show()
-    end
-
-    -- Size drawer to fit icons, centered at bottom of map
-    local totalWidth = DRAWER_PAD * 2 + displayCount * ICON_SIZE + (displayCount - 1) * ICON_PAD
-    drawerFrame:SetWidth(totalWidth)
-
-    local mapAnchor = WorldMapFrame.ScrollContainer or WorldMapFrame
-    drawerFrame:ClearAllPoints()
-    drawerFrame:SetPoint("TOP", mapAnchor, "BOTTOM", 0, -6)
-    drawerFrame:Show()
-end
-
-function SmartTeleport:UpdateButtonCooldown(button)
-    if not button then
-        return
-    end
-
-    local startTime, duration, isEnabled, modRate = GetActionCooldownInfo(
-        button.actionType,
-        button.actionID,
-        button.tooltipType,
-        button.tooltipID
-    )
-
-    BOLT.ButtonUtils:SetButtonCooldown(button, startTime, duration, isEnabled, modRate)
-end
-
-function SmartTeleport:UpdateVisibleButtonCooldowns()
-    for _, button in ipairs(entryButtons) do
-        if button and button:IsShown() then
-            self:UpdateButtonCooldown(button)
-        elseif button then
-            BOLT.ButtonUtils:ClearButtonCooldown(button)
-        end
-    end
-end
-
-function SmartTeleport:CreateIconButton(parent, index)
-    local btn = CreateFrame("Button", "BOLTSmartTP_Entry" .. index, parent, "SecureActionButtonTemplate")
-    btn:SetSize(ICON_SIZE, ICON_SIZE)
-    btn:RegisterForClicks("AnyUp", "AnyDown")
-
-    local icon = btn:CreateTexture(nil, "ARTWORK")
-    icon:SetAllPoints()
-    btn.icon = icon
-
-    -- Highlight border on hover
-    local hl = btn:CreateTexture(nil, "HIGHLIGHT")
-    hl:SetAllPoints()
-    hl:SetColorTexture(1, 1, 1, 0.15)
-
-    btn:HookScript("OnEnter", function(self)
+    button:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        if self.tooltipType == "spell" then
-            GameTooltip:SetSpellByID(self.tooltipID)
-        elseif self.tooltipType == "toy" then
-            if GameTooltip.SetToyByItemID then
-                GameTooltip:SetToyByItemID(self.tooltipID)
-            else
-                GameTooltip:SetItemByID(self.tooltipID)
-            end
-        elseif self.tooltipType == "item" then
-            GameTooltip:SetItemByID(self.tooltipID)
+        if self.actionType == "spell" then
+            GameTooltip:SetSpellByID(self.actionID)
+        elseif self.actionType == "toy" then
+            GameTooltip:SetToyByItemID(self.actionID)
+        elseif self.actionType == "item" then
+            GameTooltip:SetItemByID(self.actionID)
         else
             GameTooltip:SetText(self.entryName or "Teleport", 1, 1, 1)
         end
         GameTooltip:Show()
     end)
-    btn:HookScript("OnLeave", function() GameTooltip:Hide() end)
+    button:SetScript("OnLeave", GameTooltip_Hide)
+    return button
+end
 
-    return btn
+local function CreateDrawer()
+    -- Parented to UIParent, not WorldMapFrame: addon children of the map taint its
+    -- pin frames (ADDON_ACTION_BLOCKED on SetPropagateMouseClicks for flight points).
+    -- The drawer is only anchored to the map and hidden manually with it.
+    drawer = CreateFrame("Frame", "BOLTSmartTeleportDrawer", UIParent, "BackdropTemplate")
+    drawer:SetHeight(ICON_SIZE + DRAWER_PAD * 2)
+    drawer:SetFrameStrata("DIALOG")
+    drawer:SetFrameLevel(500)
+    drawer:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 12,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 },
+    })
+    drawer:SetBackdropColor(0.05, 0.05, 0.05, 0.88)
+    drawer:SetBackdropBorderColor(0.4, 0.4, 0.4, 0.9)
+    drawer:Hide()
+end
+
+-- The drawer holds secure buttons, so showing, hiding and changing it waits for
+-- the end of combat.
+function SmartTeleport:HideDrawer()
+    if InCombatLockdown() then
+        pendingRefresh = true
+        return
+    end
+    drawer:Hide()
+end
+
+function SmartTeleport:RefreshDrawer()
+    if InCombatLockdown() then
+        pendingRefresh = true
+        return
+    end
+    pendingRefresh = false
+
+    local mapID = WorldMapFrame:IsShown() and WorldMapFrame:GetMapID()
+    if not (self.active and mapID) then
+        drawer:Hide()
+        return
+    end
+
+    local results = self:ScoreEntries(mapID)
+    local count = math.min(#results, MAX_ICONS)
+    for index = 1, math.max(count, #entryButtons) do
+        local button = entryButtons[index]
+        if index <= count then
+            button = button or CreateEntryButton(index)
+            entryButtons[index] = button
+
+            local entry = results[index].entry
+            local actionType, actionID = GetUsableAction(entry)
+            button.entryName = entry.isHearthstone and ("Hearthstone (" .. GetBindLocation() .. ")") or entry.name
+            button.actionType, button.actionID = actionType, actionID
+            button.icon:SetTexture(GetEntryIcon(entry))
+            button:SetAttribute("type", actionType)
+            button:SetAttribute("spell", actionType == "spell" and actionID or nil)
+            button:SetAttribute("toy", actionType == "toy" and actionID or nil)
+            button:SetAttribute("item", actionType == "item" and ("item:" .. actionID) or nil)
+            UpdateButtonCooldown(button)
+            button:Show()
+        elseif button then
+            button:Hide()
+        end
+    end
+
+    if count == 0 then
+        drawer:Hide()
+        return
+    end
+
+    drawer:SetWidth(DRAWER_PAD * 2 + count * ICON_SIZE + (count - 1) * ICON_PAD)
+    drawer:ClearAllPoints()
+    drawer:SetPoint("TOP", WorldMapFrame.ScrollContainer or WorldMapFrame, "BOTTOM", 0, -6)
+    drawer:Show()
 end
 
 -- ────────────────────────────────────────────────────────────────────────────
--- Events
+-- Lifecycle
 -- ────────────────────────────────────────────────────────────────────────────
 
-function SmartTeleport:RegisterEvents()
-    if self.eventFrame then return end
+function SmartTeleport:OnInitialize()
+    CreateDrawer()
 
-    local f = CreateFrame("Frame")
-    f:RegisterEvent("SPELLS_CHANGED")
-    f:RegisterEvent("BAG_UPDATE")
-    f:RegisterEvent("TOYS_UPDATED")
-    f:RegisterEvent("QUEST_LOG_UPDATE")
-    f:RegisterEvent("PLAYER_REGEN_ENABLED")
-    f:RegisterEvent("SPELL_UPDATE_COOLDOWN")
-    f:RegisterEvent("BAG_UPDATE_COOLDOWN")
-
-    f:SetScript("OnEvent", function(_, event)
+    self.eventFrame = CreateFrame("Frame")
+    self.eventFrame:SetScript("OnEvent", function(_, event)
         if event == "SPELL_UPDATE_COOLDOWN" or event == "BAG_UPDATE_COOLDOWN" then
-            if drawerFrame and drawerFrame:IsShown() then
-                self:UpdateVisibleButtonCooldowns()
+            for _, button in ipairs(entryButtons) do
+                if button:IsShown() then UpdateButtonCooldown(button) end
             end
             return
         end
-
-        if event == "SPELLS_CHANGED" or event == "BAG_UPDATE" or event == "TOYS_UPDATED" then
-            self:RebuildOwnershipCache()
-        end
         if event == "PLAYER_REGEN_ENABLED" then
-            if pendingDrawerHide or not WorldMapFrame or not WorldMapFrame:IsShown() then
-                self:HideDrawer()
-                return
-            end
-            if pendingDrawerRefresh then
-                self:RequestDrawerRefresh()
-                return
-            end
+            if pendingRefresh then self:RefreshDrawer() end
+            return
         end
-        if drawerFrame and drawerFrame:IsShown() then self:RequestDrawerRefresh() end
+        self:RebuildOwnershipCache()
+        if drawer:IsShown() then self:RefreshDrawer() end
     end)
 
-    self.eventFrame = f
+    -- Deferred so addon code never runs inside the map's secure open sequence
+    -- (secureexecuterange / SetMapID), which would taint the flight-point pins.
+    local function DeferredRefresh()
+        if self.active then
+            C_Timer.After(0, function() self:RefreshDrawer() end)
+        end
+    end
+    hooksecurefunc(WorldMapFrame, "SetMapID", DeferredRefresh)
+    WorldMapFrame:HookScript("OnShow", DeferredRefresh)
+    WorldMapFrame:HookScript("OnHide", function()
+        if self.active then self:HideDrawer() end
+    end)
+end
 
-    if WorldMapFrame and not self._mapHooked then
-        -- Defer via C_Timer.After(0) so BOLT's code never runs inline inside the
-        -- WorldMap's secure open sequence (secureexecuterange / SetMapID chain).
-        -- Running addon code mid-sequence taints the environment, causing
-        -- ADDON_ACTION_BLOCKED on SetPropagateMouseClicks for flight-point pins.
-        hooksecurefunc(WorldMapFrame, "SetMapID", function()
-            if drawerFrame then
-                C_Timer.After(0, function() self:RequestDrawerRefresh() end)
-            end
-        end)
+function SmartTeleport:OnEnable()
+    for _, event in ipairs({ "SPELLS_CHANGED", "BAG_UPDATE_DELAYED", "TOYS_UPDATED",
+        "PLAYER_REGEN_ENABLED", "SPELL_UPDATE_COOLDOWN", "BAG_UPDATE_COOLDOWN" }) do
+        self.eventFrame:RegisterEvent(event)
+    end
+    self:RebuildOwnershipCache()
+    self:RefreshDrawer()
+end
 
-        WorldMapFrame:HookScript("OnShow", function()
-            if not self.parent:IsModuleEnabled("smartTeleport") then return end
-            C_Timer.After(0, function()
-                self:RebuildOwnershipCache()
-                self:RequestDrawerRefresh()
-            end)
-        end)
-
-        -- Hide the drawer when the map closes. Because drawerFrame is parented to
-        -- UIParent (not WorldMapFrame) it no longer auto-hides with the map.
-        WorldMapFrame:HookScript("OnHide", function()
-            self:HideDrawer()
-        end)
-
-        self._mapHooked = true
+function SmartTeleport:OnDisable()
+    self.eventFrame:UnregisterAllEvents()
+    self:HideDrawer()
+    if pendingRefresh then
+        -- Still need the end-of-combat event to hide the drawer.
+        self.eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
     end
 end
 
--- ────────────────────────────────────────────────────────────────────────────
--- Register
--- ────────────────────────────────────────────────────────────────────────────
 BOLT:RegisterModule("smartTeleport", SmartTeleport)

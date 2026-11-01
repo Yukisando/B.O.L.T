@@ -1,4 +1,4 @@
-## Interface: 120005
+## Interface: 120105, 16001
 ## Title: B.O.L.T
 ## Notes: Brittle and Occasionally Lethal Tweaks
 ## Author: Yukisando
@@ -7,36 +7,37 @@
 ## IconTexture: Interface\AddOns\BOLT\icon
 ## Category-enUS: User Interface
 ## Category-frFR: Interface utilisateur
-## X-Website: https://github.com/Yukisando/BOLT
+## X-Website: https://github.com/Yukisando/B.O.L.T
 ## X-Curse-Project-ID: 1335396
 
-# Localization
+# One TOC serves Midnight (120105) and WoW: Forever (16001): both are Mainline-family
+# clients. Modules that need modern-only systems skip themselves on Forever at runtime.
+
 Locales.lua
 
-## Bindings: Bindings.xml
-
-# Core files
-BOLT.lua
 Core\Core.lua
 Core\Database.lua
 Core\Utils.lua
 Core\ButtonUtils.lua
 
-# Modules
-Modules\Config.lua
 Modules\GameMenu.lua
-Modules\Skyriding.lua
 Modules\Playground.lua
-Modules\SpecialGamemode.lua
-Modules\Admin.lua
-Modules\WowheadLink.lua
+Modules\Skyriding.lua
 Modules\AutoRepSwitch.lua
-Modules\ChatNotifier.lua
-Modules\AchievementTracker.lua
+Modules\SmartTeleportSuggestions.lua
 Modules\SavedInstances.lua
-Modules\SoundMuter.lua
 Modules\NameplatesEnhancement.lua
 Modules\PartyFramesCenterGrowth.lua
-Modules\SmartTeleportSuggestions.lua
+Modules\ChatNotifier.lua
+Modules\WowheadLink.lua
 Modules\KeyShare.lua
+Modules\AchievementTracker.lua
+Modules\SoundMuter.lua
 Modules\CharacterSnapshot.lua
+Modules\SpecialGamemode.lua
+Modules\Admin.lua
+Modules\Roleplay.lua
+Modules\TransmogPresets.lua
+Modules\Config.lua
+
+BOLT.lua

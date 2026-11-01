@@ -1,16 +1,17 @@
 -- B.O.L.T Core Framework (Brittle and Occasionally Lethal Tweaks)
--- Main addon initialization and management
+-- Addon object, module registry and startup.
 local ADDON_NAME, BOLT = ...
 
--- Create the main addon object
-BOLT = BOLT or {}
 BOLT.name = ADDON_NAME
-BOLT.version = "dev" -- Will be set from TOC after ADDON_LOADED
+BOLT.version = "dev" -- replaced from the TOC metadata at startup
 BOLT.modules = {}
+BOLT.moduleOrder = {}
 
--- Default configuration
--- Module enabled states live in BOLTDB.moduleStates (account-wide).
--- These profile defaults only cover per-module *options*, not the enabled toggle.
+-- WoW: Forever runs on the modern (Mainline) client. Only that game type exposes
+-- C_GameRules.GetForeverExperiencePreset, so it doubles as a reliable runtime check.
+BOLT.isForever = C_GameRules ~= nil and C_GameRules.GetForeverExperiencePreset ~= nil
+
+-- Per-character options. Module enabled states live account-wide in BOLTDB.moduleStates.
 BOLT.defaults = {
     profile = {
         debug = false,
@@ -18,7 +19,7 @@ BOLT.defaults = {
             showLeaveGroup = true,
             showReloadButton = true,
             groupToolsEnabled = true,
-            raidMarkerIndex = 1, -- 1=Star, 2=Circle, ... 8=Skull; set 0 to clear
+            raidMarkerIndex = 1, -- 1=Star ... 8=Skull, 0 = none
             showBattleTextToggles = true,
             showVolumeButton = true,
             showLootSpecButton = true,
@@ -26,25 +27,19 @@ BOLT.defaults = {
         playground = {
             showFavoriteToy = true,
             closeGameMenuOnCast = false,
-            favoriteToyId = nil,
             showSpeedometer = true,
+            showFPS = false,
             statsPosition = "TOPRIGHT",
-            copyTargetMount = true
+            copyTargetMount = true,
         },
         skyriding = {
             enablePitchControl = true,
             invertPitch = true,
             requireMouseButton = true,
         },
-        wowheadLink = {},
-        autoRepSwitch = {},
-        smartTeleport = {},
         chatNotifier = {
             channels = {},
             soundID = 8959,
-        },
-        achievementTracker = {
-            trackedCategories = { [97] = true },  -- 97 = Exploration; empty = track all
         },
         soundMuter = {
             mutedSoundIDs = {},
@@ -57,14 +52,15 @@ BOLT.defaults = {
             rouletteEnabled = true,
         },
         roleplay = {
-            editModeProfileIndex = -1,     -- -1 = disabled; 1-based index into C_EditMode.GetLayouts().layouts (IC); add 2 for SelectLayout (built-ins occupy slots 1+2)
-            editModeOOCProfileIndex = -1,  -- -1 = disabled; 1-based index into C_EditMode.GetLayouts().layouts (OOC)
+            -- -1 = disabled; otherwise a 1-based index into C_EditMode.GetLayouts().layouts
+            editModeProfileIndex = -1,
+            editModeOOCProfileIndex = -1,
             toggleTrpToolbar = false,
         },
-    }
+    },
 }
 
--- Default module enabled states for NEW users (all off)
+-- Modules with an on/off toggle; all start disabled for new users.
 BOLT.defaultModuleStates = {
     gameMenu = false,
     playground = false,
@@ -81,147 +77,158 @@ BOLT.defaultModuleStates = {
     keyShare = false,
 }
 
--- Initialize the addon
-function BOLT:OnInitialize()
-    -- Set version from TOC file (synced with git tags)
-    self.version = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version") or "dev"
+---------------------------------------------------------------------------
+-- Module registry
+---------------------------------------------------------------------------
 
-    -- Initialize database
-    self:InitializeDatabase()
+-- Modules may define:
+--   displayName       label used in menus and chat
+--   alwaysOn          enabled on every login, no user toggle (Config, Admin, ...)
+--   IsSupported()     return false to skip the module on this client (e.g. Forever)
+--   OnInitialize()    runs once, before the first OnEnable
+--   OnEnable() / OnDisable()
+function BOLT:RegisterModule(name, module)
+    if self.modules[name] then return end
+    if module.IsSupported and not module:IsSupported() then return end
 
-    -- Register Bolt section in the minimap tracking dropdown
-    self:HookMinimapTrackingMenu()
-
-    -- Initialize modules
-    self:InitializeModules()
-
-    self:Print("B.O.L.T v" .. self.version .. " loaded successfully!")
+    module.name = name
+    module.parent = self
+    self.modules[name] = module
+    table.insert(self.moduleOrder, name)
 end
 
--- Inject Bolt module toggles into the native minimap tracking dropdown
-function BOLT:HookMinimapTrackingMenu()
-    if not Menu or not Menu.ModifyMenu then return end
-
-    Menu.ModifyMenu("MENU_MINIMAP_TRACKING", function(owner, rootDescription, contextData)
-        rootDescription:CreateDivider()
-        rootDescription:CreateTitle("|cff00aaffB.O.L.T|r")
-
-        local modules = {
-            { key = "achievementTracker",      label = "Achievement Tracker" },
-            { key = "chatNotifier",             label = "Chat Notifier" },
-            { key = "autoRepSwitch",            label = "Auto Rep Switch" },
-            { key = "smartTeleport",            label = "Smart Teleport" },
-            { key = "nameplatesEnhancement",    label = "Nameplates" },
-            { key = "skyriding",                label = "Skyriding Controls" },
-            { key = "keyShare",                 label = "Key Share" },
-            { key = "wowheadLink",              label = "Wowhead Links" },
-        }
-
-        for _, mod in ipairs(modules) do
-            local key = mod.key
-            rootDescription:CreateCheckbox(
-                mod.label,
-                function() return self:IsModuleEnabled(key) end,
-                function()
-                    self:SetModuleEnabled(key, not self:IsModuleEnabled(key))
-                end
-            )
-        end
-    end)
+function BOLT:GetModule(name)
+    return self.modules[name]
 end
 
--- Initialize all registered modules
-function BOLT:InitializeModules()
-    for name, module in pairs(self.modules) do
-        local shouldInitialize = module.alwaysInitialize or self:IsModuleEnabled(name)
-        if shouldInitialize and module.OnInitialize and not module._initialized then
-            module:OnInitialize()
-            module._initialized = true
-        end
-    end
+function BOLT:IsModuleEnabled(name)
+    local mod = self.modules[name]
+    if mod and mod.alwaysOn then return true end
+    return BOLTDB ~= nil and BOLTDB.moduleStates ~= nil and BOLTDB.moduleStates[name] == true
 end
 
--- Enable modules based on saved config
-function BOLT:EnableModules()
-    local enabledModules = {}
-    for name, module in pairs(self.modules) do
-        if module.OnEnable and self:IsModuleEnabled(name) then
-            if module.OnInitialize and not module._initialized then
-                module:OnInitialize()
-                module._initialized = true
-            end
-            module:OnEnable()
-            table.insert(enabledModules, name)
-        end
+function BOLT:InitializeModule(mod)
+    if mod._initialized then return end
+    mod._initialized = true
+    if mod.OnInitialize then mod:OnInitialize() end
+end
+
+function BOLT:ActivateModule(mod)
+    self:InitializeModule(mod)
+    if mod.active then return end
+    mod.active = true
+    if mod.OnEnable then mod:OnEnable() end
+end
+
+function BOLT:DeactivateModule(mod)
+    if not mod.active then return end
+    mod.active = false
+    if mod.OnDisable then mod:OnDisable() end
+end
+
+-- Enable or disable a toggleable module immediately and persist the choice account-wide.
+function BOLT:SetModuleEnabled(name, enabled)
+    enabled = enabled and true or false
+    BOLTDB.moduleStates[name] = enabled
+
+    local mod = self.modules[name]
+    if not mod then
+        self:Print(("Module '%s' is not available on this client."):format(tostring(name)))
+        return
     end
 
-    -- Print summary of enabled modules on startup
-    if self and self.Print then
-        self:Print("Enabled modules on startup: " ..
-            (next(enabledModules) and table.concat(enabledModules, ", ") or "(none)"))
+    if enabled then
+        self:ActivateModule(mod)
+    else
+        self:DeactivateModule(mod)
     end
+    self:Print(("%s %s."):format(mod.displayName or name, enabled and "enabled" or "disabled"))
 end
 
--- Print function with addon prefix
+-- Toggleable modules in registration order, for menus and status output.
+function BOLT:GetToggleableModules()
+    local list = {}
+    for _, name in ipairs(self.moduleOrder) do
+        local mod = self.modules[name]
+        if not mod.alwaysOn and self.defaultModuleStates[name] ~= nil then
+            table.insert(list, mod)
+        end
+    end
+    return list
+end
+
+---------------------------------------------------------------------------
+-- Output
+---------------------------------------------------------------------------
+
 function BOLT:Print(msg)
     print("|cff00aaff[B.O.L.T]|r " .. tostring(msg))
 end
 
--- Debug print function
 function BOLT:Debug(msg)
     if self.db and self.db.profile.debug then
         self:Print("|cffff0000[DEBUG]|r " .. tostring(msg))
     end
 end
 
-local function BootstrapAddon()
-    if BOLT._bootstrapStarted then
-        return
-    end
-    BOLT._bootstrapStarted = true
+---------------------------------------------------------------------------
+-- Startup
+---------------------------------------------------------------------------
 
-    local function InitializeAfterLoginOnce()
-        if BOLT._initializedAfterLogin then
-            return
+-- Inject module toggles into the minimap tracking dropdown.
+function BOLT:HookMinimapTrackingMenu()
+    if not (Menu and Menu.ModifyMenu) then return end
+
+    Menu.ModifyMenu("MENU_MINIMAP_TRACKING", function(_, rootDescription)
+        rootDescription:CreateDivider()
+        rootDescription:CreateTitle("|cff00aaffB.O.L.T|r")
+        for _, mod in ipairs(self:GetToggleableModules()) do
+            local name = mod.name
+            rootDescription:CreateCheckbox(mod.displayName or name,
+                function() return self:IsModuleEnabled(name) end,
+                function() self:SetModuleEnabled(name, not self:IsModuleEnabled(name)) end)
         end
-        BOLT._initializedAfterLogin = true
-        -- Initialize and enable modules only after login so addon code does not
-        -- run during Blizzard secure UI bootstrap.
-        BOLT:OnInitialize()
-        BOLT:EnableModules()
-    end
-
-    local attempts = 0
-    local function TryInitializeAfterStartup()
-        if BOLT._initializedAfterLogin then
-            return
-        end
-
-        attempts = attempts + 1
-        if not (IsLoggedIn and IsLoggedIn()) then
-            C_Timer.After(0.2, TryInitializeAfterStartup)
-            return
-        end
-
-        -- Wait for Blizzard's startup/UI construction to settle before any
-        -- module initialization to reduce GameMenu callback taint risk.
-        if not GameMenuFrame then
-            C_Timer.After(0.2, TryInitializeAfterStartup)
-            return
-        end
-
-        if InCombatLockdown and InCombatLockdown() then
-            C_Timer.After(0.2, TryInitializeAfterStartup)
-            return
-        end
-
-        InitializeAfterLoginOnce()
-    end
-
-    C_Timer.After(0.2, TryInitializeAfterStartup)
+    end)
 end
 
-C_Timer.After(0, BootstrapAddon)
+function BOLT:OnLogin()
+    self.version = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version") or "dev"
+    if self.version:find("@", 1, true) then
+        self.version = "dev"
+    end
 
--- Make the addon globally available
+    self:InitializeDatabase()
+    self:HookMinimapTrackingMenu()
+
+    local enabled = {}
+    for _, name in ipairs(self.moduleOrder) do
+        local mod = self.modules[name]
+        if self:IsModuleEnabled(name) then
+            self:ActivateModule(mod)
+            if not mod.alwaysOn then
+                table.insert(enabled, mod.displayName or name)
+            end
+        end
+    end
+
+    self:Print(("v%s loaded. Enabled: %s"):format(self.version,
+        #enabled > 0 and table.concat(enabled, ", ") or "(none)"))
+end
+
+-- Modules are started from a timer instead of PLAYER_LOGIN/ADDON_LOADED handlers:
+-- running addon code while Blizzard builds the secure UI (GameMenuFrame_Setup in
+-- particular) taints the game menu button callbacks and causes ADDON_ACTION_FORBIDDEN
+-- on Logout/Exit. Waiting until the player is in the world and out of combat avoids it.
+local function TryStart()
+    if BOLT._started then return end
+    if not (IsLoggedIn() and GameMenuFrame) or InCombatLockdown() then
+        C_Timer.After(0.2, TryStart)
+        return
+    end
+    BOLT._started = true
+    BOLT:OnLogin()
+end
+
+C_Timer.After(0, TryStart)
+
 _G[ADDON_NAME] = BOLT

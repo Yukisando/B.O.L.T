@@ -1,354 +1,216 @@
-﻿-- B.O.L.T Skyriding Module
--- Remaps A/D → TURNLEFT/TURNRIGHT (and optionally W/S → PITCH) while the
--- player is actively in dynamic flight (Skyriding).
+-- B.O.L.T Skyriding Module
+-- While skyriding, remaps strafe keys to turn (and optionally forward/back to pitch).
 --
--- Safety guarantees
---   1. ClearOverrideBindings is NOT a protected function – it can be called
---      at any time, including in combat. Clearing stuck bindings is therefore
---      always possible immediately.
---   2. When overrides are active the watchdog runs every FRAME so landing is
---      detected in < 1 game tick (~16 ms). There is no 50 ms stuck window.
---   3. SetOverrideBinding IS protected. Activation is only attempted when
---      InCombatLockdown() == false.
---   4. Every event path that implies dismount / landing calls EagerClear()
---      before any deferred logic – even when in combat.
---   5. /boltreset and /boltnuke are always available as a last-resort escape.
+-- Override bindings can't be changed by addon code in combat, so the switching is
+-- done by a secure handler: a state driver flips "state-flight" on [advflyable,flying]
+-- and a restricted snippet sets/clears the bindings, which works in and out of combat.
+-- Addon code only refines the decision out of combat through the "gate" attribute
+-- (steady flight vs skyriding, mouse-button requirement) and the key list.
 
 local ADDON_NAME, BOLT = ...
 
-local Skyriding = {}
+local Skyriding = {
+    displayName = "Skyriding Controls",
+}
 
--- ── state ─────────────────────────────────────────────────────────────────
-local overrideFrame = nil   -- Frame that owns our override bindings
-local isActive      = false -- true while override bindings are in effect
-local leftDown      = false -- GLOBAL_MOUSE_DOWN/UP tracking
-local rightDown     = false
+local STEADY_FLIGHT_AURA = 404468
 
--- ── local cache ───────────────────────────────────────────────────────────
-local playerClass = UnitClassBase and select(1, UnitClassBase("player"))
-                 or select(2, UnitClass("player"))
+local driver
+local leftDown, rightDown = false, false
+local gateValue
+local lastSignature
 
--- ── helpers ───────────────────────────────────────────────────────────────
-local function CanApply()  return not InCombatLockdown() end
-
-local function Debug(s)
-    if BOLT:GetConfig("debug") then BOLT:Print(s) end
-end
-
--- Returns true when the player is in Skyriding (dynamic flight) mode.
--- Absence of the "Steady Flight" aura (id 404468) means dynamic flight.
--- issecretvalue guard handles tainted return values from protected code.
-local function IsSkyridingMode()
-    local aura = C_UnitAuras.GetPlayerAuraBySpellID(404468)
-    if issecretvalue and issecretvalue(aura) then return true end
-    return aura == nil
-end
-
-local function IsDruidSkyForm()
-    if playerClass ~= "DRUID" then return false end
-    local id = GetShapeshiftFormID and GetShapeshiftFormID()
-    if id == 27 or id == 29 then return true end
-    return IsFlying() and GetShapeshiftForm and GetShapeshiftForm() == 3
-end
-
--- Single source of truth: is the player actively skyriding right now?
-local function InSkyridingFlight()
-    if not IsFlying()                        then return false end
-    if not (IsMounted() or IsDruidSkyForm()) then return false end
-    if not IsAdvancedFlyableArea()           then return false end
-    if not IsOutdoors()                      then return false end
-    if not IsSkyridingMode()                 then return false end
-    return true
-end
-
--- Should override bindings be active right now?
-local function ShouldBeActive()
-    if not BOLT:IsModuleEnabled("skyriding") then return false end
-    if not InSkyridingFlight()               then return false end
-    if BOLT:GetConfig("skyriding", "requireMouseButton") then
-        return leftDown and not rightDown
-    end
-    return true
-end
-
--- ── override frame management ─────────────────────────────────────────────
-local function EnsureFrame()
-    if not overrideFrame then
-        overrideFrame = CreateFrame("Frame", "BOLTSkyridingOverrideFrame")
-    end
-end
-
--- Clear all override bindings.  Safe to call at ANY time – including combat.
-local function DoClear()
-    if overrideFrame then
-        ClearOverrideBindings(overrideFrame)
-    end
-end
-
--- Apply override bindings.  Must only be called when CanApply() is true.
-local function DoApply()
-    EnsureFrame()
-    local function bind(cmd, baseBinding)
-        local k1, k2, k3, k4 = GetBindingKey(baseBinding)
-        if k1 then SetOverrideBinding(overrideFrame, true, k1, cmd) end
-        if k2 then SetOverrideBinding(overrideFrame, true, k2, cmd) end
-        if k3 then SetOverrideBinding(overrideFrame, true, k3, cmd) end
-        if k4 then SetOverrideBinding(overrideFrame, true, k4, cmd) end
-    end
-    bind("TURNLEFT",  "STRAFELEFT")
-    bind("TURNRIGHT", "STRAFERIGHT")
-    if BOLT:GetConfig("skyriding", "enablePitchControl") then
-        local inv = BOLT:GetConfig("skyriding", "invertPitch")
-        bind(inv and "PITCHDOWN" or "PITCHUP",   "MOVEFORWARD")
-        bind(inv and "PITCHUP"   or "PITCHDOWN", "MOVEBACKWARD")
-    end
-end
-
--- ── activate / deactivate ─────────────────────────────────────────────────
-local function Activate()
-    -- SetOverrideBinding is a protected API – requires out-of-combat.
-    if not CanApply() then return end
-    DoApply()
-    isActive = true
-    Debug("Skyriding overrides ON")
-end
-
--- Immediately clear override bindings.
--- ClearOverrideBindings is NOT protected → always callable.
-local function Deactivate()
-    DoClear()
-    isActive = false
-    Debug("Skyriding overrides OFF")
-end
-
--- Unconditional clear: strips bindings whenever "not flying" is detected,
--- even mid-combat.  Called from the per-frame watchdog and event handlers.
-local function EagerClear()
-    if isActive then
-        Deactivate()
-    end
-end
-
--- Full recalc: bring isActive in line with ShouldBeActive().
--- Only attempts Activate() when CanApply() is true.
-local function Recalc()
-    -- Safety net: if we still think we're active but aren't flying, clear NOW.
-    if isActive and not IsFlying() then
-        Deactivate()
+local APPLY_SNIPPET = [[
+    if name ~= "state-flight" and name ~= "gate" and name ~= "enabled" and name ~= "bindingsversion" then
         return
     end
-    local should = ShouldBeActive()
-    if should and not isActive then
-        Activate()
-    elseif not should and isActive then
-        Deactivate()
+    self:ClearBindings()
+    if self:GetAttribute("enabled") and self:GetAttribute("gate") and self:GetAttribute("state-flight") == "on" then
+        for i = 1, self:GetAttribute("_count") or 0 do
+            self:SetBinding(true, self:GetAttribute("_key" .. i), self:GetAttribute("_cmd" .. i))
+        end
+    end
+]]
+
+function Skyriding:IsSupported()
+    -- WoW: Forever has no flying.
+    return not BOLT.isForever
+end
+
+local function Cfg(key)
+    return BOLT:GetConfig("skyriding", key)
+end
+
+local function IsSteadyFlight()
+    local aura = C_UnitAuras.GetPlayerAuraBySpellID(STEADY_FLIGHT_AURA)
+    if BOLT.IsSecret(aura) then return false end
+    return aura ~= nil
+end
+
+local function IsActive()
+    return driver ~= nil and driver:GetAttribute("enabled") and driver:GetAttribute("gate")
+        and driver:GetAttribute("state-flight") == "on"
+end
+
+-- Copy the player's current movement keys into the driver. Only called while the
+-- overrides are off, so GetBindingKey still reports the normal bindings.
+local function RebuildKeyList()
+    if InCombatLockdown() or not driver or IsActive() then return end
+
+    local pairsList = {
+        { "TURNLEFT", "STRAFELEFT" },
+        { "TURNRIGHT", "STRAFERIGHT" },
+    }
+    if Cfg("enablePitchControl") then
+        local invert = Cfg("invertPitch")
+        table.insert(pairsList, { invert and "PITCHDOWN" or "PITCHUP", "MOVEFORWARD" })
+        table.insert(pairsList, { invert and "PITCHUP" or "PITCHDOWN", "MOVEBACKWARD" })
+    end
+
+    local bindings = {}
+    for _, entry in ipairs(pairsList) do
+        for _, key in ipairs({ GetBindingKey(entry[2]) }) do
+            table.insert(bindings, { key, entry[1] })
+        end
+    end
+
+    -- Re-applying clears override bindings, which fires UPDATE_BINDINGS again; only
+    -- push a list that actually changed so that event can't loop.
+    local signature = {}
+    for _, binding in ipairs(bindings) do
+        table.insert(signature, binding[1] .. "=" .. binding[2])
+    end
+    signature = table.concat(signature, ",")
+    if signature == lastSignature then return end
+    lastSignature = signature
+
+    for index, binding in ipairs(bindings) do
+        driver:SetAttribute("_key" .. index, binding[1])
+        driver:SetAttribute("_cmd" .. index, binding[2])
+    end
+    driver:SetAttribute("_count", #bindings)
+    driver:SetAttribute("bindingsversion", (driver:GetAttribute("bindingsversion") or 0) + 1)
+end
+
+local function UpdateGate()
+    if InCombatLockdown() or not driver then return end
+
+    local gate = not IsSteadyFlight()
+    if gate and Cfg("requireMouseButton") then
+        gate = leftDown and not rightDown
+    end
+    if gate ~= gateValue then
+        gateValue = gate
+        driver:SetAttribute("gate", gate)
+        BOLT:Debug("Skyriding overrides " .. (IsActive() and "ON" or "OFF"))
     end
 end
 
--- ── watchdog ──────────────────────────────────────────────────────────────
--- When overrides are ACTIVE  → check IsFlying() on EVERY frame (< 1 tick).
--- When overrides are inactive → poll at INACTIVE_INTERVAL to catch mount-up.
--- This gives the fastest possible landing detection with minimal overhead
--- while idle.
-
-local watchdogFrame = nil
-local watchdogTimer = 0
-local INACTIVE_INTERVAL = 0.5  -- seconds between inactive polls
-
-local function StartWatchdog()
-    if watchdogFrame then return end
-    watchdogFrame = CreateFrame("Frame", "BOLTSkyridingWatchdog")
-    watchdogFrame:SetScript("OnUpdate", function(_, dt)
-        if isActive then
-            -- Per-frame fast path: clear the instant we stop flying.
-            -- ClearOverrideBindings is not protected so this always works.
-            if not IsFlying() then
-                EagerClear()
-            end
-        else
-            watchdogTimer = watchdogTimer + dt
-            if watchdogTimer >= INACTIVE_INTERVAL then
-                watchdogTimer = 0
-                if CanApply() then Recalc() end
-            end
-        end
-    end)
-end
-
-local function StopWatchdog()
-    if watchdogFrame then
-        watchdogFrame:SetScript("OnUpdate", nil)
-        watchdogFrame = nil
+-- Bring the secure driver in line with the module state. Out of combat only.
+function Skyriding:Sync()
+    if InCombatLockdown() then
+        self:ScheduleAfterCombat()
+        return
     end
-    watchdogTimer = 0
+
+    if not driver then
+        driver = CreateFrame("Frame", "BOLTSkyridingDriver", UIParent, "SecureHandlerAttributeTemplate")
+        driver:SetAttribute("_onattributechanged", APPLY_SNIPPET)
+        RegisterStateDriver(driver, "flight", "[advflyable,flying] on; off")
+    end
+
+    if not self.active then
+        driver:SetAttribute("enabled", false)
+        ClearOverrideBindings(driver)
+        return
+    end
+    RebuildKeyList()
+    UpdateGate()
+    if not driver:GetAttribute("enabled") then
+        driver:SetAttribute("enabled", true)
+    end
 end
 
--- ── event frame ───────────────────────────────────────────────────────────
-function Skyriding:CreateEventFrame()
-    if self.eventFrame then return end
-    self.eventFrame = CreateFrame("Frame", "BOLTSkyridingEvents")
+function Skyriding:ScheduleAfterCombat()
+    if self.combatWaiter then
+        self.combatWaiter:RegisterEvent("PLAYER_REGEN_ENABLED")
+        return
+    end
+    local waiter = CreateFrame("Frame")
+    waiter:SetScript("OnEvent", function(frame)
+        frame:UnregisterAllEvents()
+        self:Sync()
+    end)
+    waiter:RegisterEvent("PLAYER_REGEN_ENABLED")
+    self.combatWaiter = waiter
+end
 
-    -- Mount / flight state
-    self.eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    self.eventFrame:RegisterEvent("ZONE_CHANGED")
-    self.eventFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
-    self.eventFrame:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
-    self.eventFrame:RegisterEvent("MOUNT_JOURNAL_USABILITY_CHANGED")
-    self.eventFrame:RegisterEvent("UNIT_AURA")
-    self.eventFrame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
-    self.eventFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
-    self.eventFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORMS")
-
-    -- Mouse button tracking (for requireMouseButton option)
-    self.eventFrame:RegisterEvent("GLOBAL_MOUSE_DOWN")
-    self.eventFrame:RegisterEvent("GLOBAL_MOUSE_UP")
-
-    -- Combat lockdown (blocks Activate; does NOT block Deactivate)
-    self.eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
-    self.eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-
-    self.eventFrame:SetScript("OnEvent", function(_, event, ...)
-        -- ── Combat ────────────────────────────────────────────────────────
-        if event == "PLAYER_REGEN_DISABLED" then
-            -- Cannot Activate while in combat, but CAN Deactivate.
-            -- Clear immediately if we are no longer flying.
-            if isActive and not IsFlying() then Deactivate() end
-
-        elseif event == "PLAYER_REGEN_ENABLED" then
-            -- Out of combat: attempt to activate if conditions are met.
-            Recalc()
-
-        -- ── Mouse buttons ──────────────────────────────────────────────────
-        elseif event == "GLOBAL_MOUSE_DOWN" then
-            local btn = ...
-            if btn == "LeftButton" then
-                leftDown = true
-                Recalc()
-            elseif btn == "RightButton" then
-                rightDown = true
-                if isActive then Recalc() end
+function Skyriding:OnInitialize()
+    self.eventFrame = CreateFrame("Frame")
+    self.eventFrame:SetScript("OnEvent", function(_, event, arg1)
+        if event == "GLOBAL_MOUSE_DOWN" or event == "GLOBAL_MOUSE_UP" then
+            local down = event == "GLOBAL_MOUSE_DOWN"
+            if arg1 == "LeftButton" then
+                leftDown = down
+            elseif arg1 == "RightButton" then
+                rightDown = down
+            else
+                return
             end
-
-        elseif event == "GLOBAL_MOUSE_UP" then
-            local btn = ...
-            if btn == "LeftButton" then
-                leftDown = false
-                -- Eagerly clear when requireMouseButton is on – no need to
-                -- wait for the watchdog or a full Recalc.
-                if isActive and BOLT:GetConfig("skyriding", "requireMouseButton") then
-                    Deactivate()
-                else
-                    Recalc()
-                end
-            elseif btn == "RightButton" then
-                rightDown = false
-                Recalc()
-            end
-
-        -- ── Dismount / landing hints ───────────────────────────────────────
-        elseif event == "PLAYER_MOUNT_DISPLAY_CHANGED" then
-            -- Fire immediately so we never leave bindings on after dismount.
-            if not IsFlying() then EagerClear() end
-            C_Timer.After(0.1, function() if CanApply() then Recalc() end end)
-
-        elseif event == "UNIT_AURA" then
-            local unit = ...
-            if unit == "player" then
-                if not IsFlying() then EagerClear() end
-                if CanApply() then Recalc() end
-            end
-
-        elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
-            local unit = ...
-            if unit == "player" then
-                C_Timer.After(0.1, function()
-                    if not IsFlying() then EagerClear() end
-                    if CanApply() then Recalc() end
-                end)
-            end
-
-        elseif event == "UPDATE_SHAPESHIFT_FORM"
-            or event == "UPDATE_SHAPESHIFT_FORMS" then
-            C_Timer.After(0, function()
-                if not IsFlying() then EagerClear() end
-                if CanApply() then Recalc() end
-            end)
-
-        elseif event == "ZONE_CHANGED"
-            or event == "ZONE_CHANGED_NEW_AREA"
-            or event == "PLAYER_ENTERING_WORLD"
-            or event == "MOUNT_JOURNAL_USABILITY_CHANGED" then
-            -- Eagerly clear on zone transitions; landing detection in the
-            -- new zone will re-activate if still in dynamic flight.
-            if not IsFlying() then EagerClear() end
-            C_Timer.After(0.2, function()
-                if not IsFlying() then EagerClear() end
-                if CanApply() then Recalc() end
-            end)
+        elseif event == "UNIT_AURA" and arg1 ~= "player" then
+            return
+        elseif event == "UPDATE_BINDINGS" or event == "PLAYER_REGEN_ENABLED" then
+            RebuildKeyList()
         end
+        UpdateGate()
     end)
 end
-
--- ── lifecycle ─────────────────────────────────────────────────────────────
-function Skyriding:OnInitialize() end
 
 function Skyriding:OnEnable()
-    Debug("Skyriding OnEnable")
-    self:CreateEventFrame()
-    StartWatchdog()
-    if CanApply() then Recalc() end
+    for _, event in ipairs({ "GLOBAL_MOUSE_DOWN", "GLOBAL_MOUSE_UP", "UNIT_AURA", "UPDATE_BINDINGS",
+        "PLAYER_MOUNT_DISPLAY_CHANGED", "PLAYER_REGEN_ENABLED", "PLAYER_ENTERING_WORLD" }) do
+        self.eventFrame:RegisterEvent(event)
+    end
+    self:Sync()
 end
 
 function Skyriding:OnDisable()
-    StopWatchdog()
-
-    if self.eventFrame then
-        self.eventFrame:UnregisterAllEvents()
-        self.eventFrame:SetScript("OnEvent", nil)
-        self.eventFrame = nil
-    end
-
-    -- Always clear bindings on disable.  ClearOverrideBindings is safe to
-    -- call in combat, so this works regardless of lockdown state.
-    DoClear()
-    isActive  = false
-    leftDown  = false
-    rightDown = false
-
-    if overrideFrame then
-        ClearOverrideBindings(overrideFrame)
-        overrideFrame = nil
-    end
+    self.eventFrame:UnregisterAllEvents()
+    -- In combat the snippet keeps the overrides tied to flight state until Sync runs.
+    self:Sync()
 end
 
--- ── public API ────────────────────────────────────────────────────────────
-
--- Called by Config when pitch settings change.
-function Skyriding:OnPitchSettingChanged()
-    if not isActive or not CanApply() then return end
-    -- Re-apply with updated settings; WoW picks up new bindings on next tick.
-    DoClear()
-    DoApply()
+-- Turn the overrides off so GetBindingKey sees the real bindings, then rebuild.
+local function ResetOverrides()
+    driver:SetAttribute("gate", false)
+    gateValue = false
 end
 
--- Hard reset – clears everything regardless of state.
+-- Called by the settings UI when pitch or mouse options change.
+function Skyriding:OnSettingChanged()
+    if InCombatLockdown() or not driver then return end
+    ResetOverrides()
+    self:Sync()
+end
+
+-- /bolt reset, /boltreset: clear any override bindings this module owns.
 function Skyriding:EmergencyReset()
-    -- ClearOverrideBindings is not protected – always works.
-    DoClear()
-    leftDown  = false
-    rightDown = false
-    isActive  = false
-    BOLT:Print("B.O.L.T: Skyriding emergency reset complete.")
+    leftDown, rightDown = false, false
+    if not driver then return end
+    if InCombatLockdown() then
+        BOLT:Print("Skyriding: key overrides will be cleared when combat ends.")
+        self:ScheduleAfterCombat()
+        return
+    end
+    ResetOverrides()
+    ClearOverrideBindings(driver)
+    BOLT:Print("Skyriding key overrides cleared.")
 end
 
--- ── slash commands ────────────────────────────────────────────────────────
 SLASH_BOLTRESET1 = "/boltreset"
 SLASH_BOLTRESET2 = "/boltnuke"
-SlashCmdList["BOLTRESET"] = function()
-    if Skyriding and Skyriding.EmergencyReset then
-        Skyriding:EmergencyReset()
-    end
+SlashCmdList.BOLTRESET = function()
+    Skyriding:EmergencyReset()
 end
 
--- ── register ─────────────────────────────────────────────────────────────
 BOLT:RegisterModule("skyriding", Skyriding)

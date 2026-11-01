@@ -1,2005 +1,783 @@
 -- B.O.L.T Configuration UI
+-- Settings pages are built from the declarative PAGES table below. Each section
+-- belongs to a module; sections for modules missing on this client (e.g. WoW:
+-- Forever) are skipped, and a disabled module's options collapse.
+
 local ADDON_NAME, BOLT = ...
 
-local Config = {}
-Config.alwaysInitialize = false
+local Config = {
+    displayName = "Settings",
+    alwaysOn = true,
+}
 
--- Centralized keybinding capture helper
-local _bindingCaptureFrame
-local function StartKeybindingCapture(button, bindingAction, updateFunc)
-    if not button or button._isBinding then return end
-    button._isBinding = true
-    button:SetText("Press a key...")
-    if not _bindingCaptureFrame then
-        _bindingCaptureFrame = CreateFrame("Frame", nil, UIParent)
-        _bindingCaptureFrame:SetFrameStrata("DIALOG")
-        _bindingCaptureFrame:EnableKeyboard(true)
-        _bindingCaptureFrame:SetPropagateKeyboardInput(false)
-    end
-    local f = _bindingCaptureFrame
-    f:SetScript("OnKeyDown", function(_, key)
-        if key == "ESCAPE" then
-            button._isBinding = false
-            f:Hide()
-            f:SetScript("OnKeyDown", nil)
-            if updateFunc then updateFunc() end
-            return
-        end
-        if key == "LSHIFT" or key == "RSHIFT" or key == "LCTRL" or key == "RCTRL" or key == "LALT" or key == "RALT" then
-            return
-        end
-        local combo = ""
-        if IsControlKeyDown() then combo = "CTRL-" end
-        if IsAltKeyDown() then combo = combo .. "ALT-" end
-        if IsShiftKeyDown() then combo = combo .. "SHIFT-" end
-        combo = combo .. key:upper()
-        local k1, k2 = GetBindingKey(bindingAction)
-        if k1 then SetBinding(k1, nil) end
-        if k2 then SetBinding(k2, nil) end
-        if SetBinding(combo, bindingAction) then
-            SaveBindings(GetCurrentBindingSet())
-            if updateFunc then C_Timer.After(0.5, updateFunc) end
-        else
-            button:SetText("Binding failed - try another key")
-            if updateFunc then C_Timer.After(1.5, updateFunc) end
-        end
-        button._isBinding = false
-        f:Hide()
-        f:SetScript("OnKeyDown", nil)
-    end)
-    f:Show()
+local ROW_HEIGHT = 30
+local OPTION_X = 50
+local SECTION_HEADER = 54
+
+---------------------------------------------------------------------------
+-- Setting helpers
+---------------------------------------------------------------------------
+
+local function GetSetting(path)
+    return BOLT:GetConfig(unpack(path))
 end
 
-local function TrimWhitespace(text)
-    if type(text) ~= "string" then
-        return ""
-    end
-
-    local trimmed = text:match("^%s*(.-)%s*$")
-    return trimmed or ""
-end
-
-function Config:OnInitialize()
-    self.widgets = {}
-    self.eventFrame = CreateFrame("Frame")
-    self.eventFrame:RegisterEvent("TOYS_UPDATED")
-    -- Also listen for login so we can attempt an initial population when the player logs in
-    self.eventFrame:RegisterEvent("PLAYER_LOGIN")
-    self.toyListPopulated = false
-    self.eventFrame:SetScript("OnEvent", function(_, event, ...)
-        if event == "PLAYER_LOGIN" and not self.optionsPanel then
-            self:CreateInterfaceOptionsPanel()
-        end
-        if (event == "TOYS_UPDATED" or event == "PLAYER_LOGIN") and self.toyFrame then
-            -- On login or when the toy API signals an update, try to populate.
-            -- Delay slightly on login to allow Blizzard Collections to finish initializing.
-            C_Timer.After(0.1, function()
-                if not self then return end
-                -- If we haven't successfully populated yet, try again
-                self:PopulateToyList()
-                self.toyListPopulated = true
-                if self.toyPopup and self.toyPopup:IsShown() then
-                    self:UpdateToySelection()
-                end
-            end)
-        end
-    end)
-end
-
-function Config:EnsureInterfaceOptionsPanel()
-    if not self.optionsPanel then
-        self:CreateInterfaceOptionsPanel()
+-- Writes a setting and lets the owning module react (module name = first path key).
+local function SetSetting(path, value)
+    BOLT:SetConfig(value, unpack(path))
+    local mod = BOLT.modules[path[1]]
+    if mod and mod.active and mod.OnSettingChanged then
+        mod:OnSettingChanged(path[#path])
     end
 end
 
-function Config:CreateReloadIndicator(parent, anchor)
-    local label = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    label:SetPoint("LEFT", anchor.Text, "RIGHT", 10, 0)
-    label:SetText("|cFFFF6B6B(Requires /reload)|r")
-    label:Hide()
+local function Module(name)
+    return BOLT.modules[name]
+end
+
+---------------------------------------------------------------------------
+-- Page definitions
+---------------------------------------------------------------------------
+
+local MARKER_NAMES = { "Star", "Circle", "Diamond", "Triangle", "Moon", "Square", "Cross", "Skull" }
+local STATS_POSITIONS = {
+    { value = "TOPLEFT", label = "Top Left" },
+    { value = "TOPRIGHT", label = "Top Right" },
+    { value = "BOTTOMLEFT", label = "Bottom Left" },
+    { value = "BOTTOMRIGHT", label = "Bottom Right" },
+}
+
+local function LayoutOptions(settingKey)
+    return function()
+        local options = { { value = -1, label = "Disabled" } }
+        local roleplay = Module("roleplay")
+        for index, layout in ipairs(roleplay:GetCustomLayouts()) do
+            table.insert(options, { value = index, label = layout.layoutName or ("Layout " .. index) })
+        end
+        return options
+    end
+end
+
+local PAGES = {
+    {
+        title = "Interface",
+        sections = {
+            {
+                module = "gameMenu",
+                options = {
+                    { type = "checkbox", label = "Show Leave Group button", path = { "gameMenu", "showLeaveGroup" } },
+                    { type = "checkbox", label = "Show Reload UI button", path = { "gameMenu", "showReloadButton" } },
+                    { type = "checkbox", label = "Show group tools (ready check, countdown, raid marker)", path = { "gameMenu", "groupToolsEnabled" } },
+                    { type = "markers", label = "Raid marker:", path = { "gameMenu", "raidMarkerIndex" }, requires = { "gameMenu", "groupToolsEnabled" } },
+                    { type = "checkbox", label = "Show damage/healing number toggles", path = { "gameMenu", "showBattleTextToggles" } },
+                    { type = "checkbox", label = "Show volume button", path = { "gameMenu", "showVolumeButton" } },
+                    { type = "checkbox", label = "Show loot specialization button", path = { "gameMenu", "showLootSpecButton" } },
+                },
+            },
+            {
+                module = "nameplatesEnhancement",
+                description = "Colors enemy nameplate health bars blue for mana users (healers and casters).",
+                options = {
+                    { type = "color", label = "Mana color:", path = { "nameplatesEnhancement", "manaColor" },
+                        default = { r = 0.2, g = 0.4, b = 1.0 } },
+                    { type = "checkbox", label = "Only in instances (dungeons, raids, scenarios)", path = { "nameplatesEnhancement", "instanceOnly" } },
+                },
+            },
+            {
+                module = "partyFramesCenterGrowth",
+                description = "Keeps raid-style party frames centered as members join or leave. Requires Raid-Style Party Frames in Edit Mode.",
+            },
+        },
+    },
+    {
+        title = "Gameplay",
+        sections = {
+            {
+                module = "skyriding",
+                description = "While skyriding, strafe keys turn instead (and forward/back can pitch). Use /bolt reset if keys ever feel stuck.",
+                options = {
+                    { type = "checkbox", label = "Pitch control (forward/back keys)", path = { "skyriding", "enablePitchControl" } },
+                    { type = "checkbox", label = "Invert pitch", path = { "skyriding", "invertPitch" }, requires = { "skyriding", "enablePitchControl" } },
+                    { type = "checkbox", label = "Only while holding the left mouse button", path = { "skyriding", "requireMouseButton" } },
+                },
+            },
+            {
+                module = "autoRepSwitch",
+                description = "Switches the watched reputation bar to the faction you just gained reputation with.",
+            },
+            {
+                module = "smartTeleport",
+                description = "Shows teleports you own that fit the zone you're viewing, below the World Map.",
+            },
+            {
+                module = "savedInstances",
+                description = "Lists current-expansion dungeons and raids and your lockouts. /boltsaved or middle-click the game menu gear.",
+            },
+        },
+    },
+    {
+        title = "Social",
+        sections = {
+            {
+                module = "chatNotifier",
+                description = "Plays a sound when a new message arrives in the channels you pick.",
+                options = {
+                    { type = "dropdown", label = "Sound:", width = 170,
+                        get = function() return Module("chatNotifier"):GetSoundID() end,
+                        set = function(value)
+                            Module("chatNotifier"):SetSoundID(value)
+                            Module("chatNotifier"):PlayNotification()
+                        end,
+                        options = function()
+                            local list = {}
+                            for _, sound in ipairs(Module("chatNotifier").SOUND_OPTIONS) do
+                                table.insert(list, { value = sound.soundID, label = sound.label })
+                            end
+                            return list
+                        end },
+                    { type = "button", label = "Preview", width = 70, sameRow = true,
+                        onClick = function() Module("chatNotifier"):PlayNotification() end },
+                    { type = "multiselect", label = "Channels:", width = 300,
+                        isSelected = function(value) return Module("chatNotifier"):IsChannelEnabled(value) end,
+                        toggle = function(value, selected) Module("chatNotifier"):SetChannelEnabled(value, selected) end,
+                        options = function()
+                            local list = {}
+                            for _, channel in ipairs(Module("chatNotifier").CHANNEL_TYPES) do
+                                table.insert(list, { value = channel.event, label = channel.label })
+                            end
+                            return list
+                        end },
+                },
+            },
+            {
+                module = "wowheadLink",
+                description = "Hover an item, spell, NPC, quest or achievement and press the keybind (Ctrl+C by default) to get its Wowhead link.",
+            },
+            {
+                module = "keyShare",
+                description = "When someone types \"!keys\" in party, raid or guild chat, links your Mythic+ keystone there.",
+                options = {
+                    { type = "checkbox", label = "Roulette: pick a random key from everyone's answers and announce it", path = { "keyShare", "rouletteEnabled" } },
+                },
+            },
+        },
+    },
+    {
+        title = "Tracking",
+        sections = {
+            {
+                module = "achievementTracker",
+                description = "Announces progress whenever something you do advances an achievement (e.g. /love a critter, finishing a quest).",
+                options = {
+                    { type = "multiselect", label = "Categories:", width = 300,
+                        emptyText = "All categories",
+                        isSelected = function(value) return Module("achievementTracker"):IsCategoryTracked(value) end,
+                        toggle = function(value, selected) Module("achievementTracker"):SetCategoryTracked(value, selected) end,
+                        options = function()
+                            local list = {}
+                            for _, category in ipairs(Module("achievementTracker"):GetTopLevelCategories()) do
+                                table.insert(list, { value = category.id, label = category.name })
+                            end
+                            return list
+                        end },
+                    { type = "button", label = "Rescan", width = 80, sameRow = true,
+                        onClick = function() Module("achievementTracker"):BuildSnapshot() end },
+                },
+            },
+        },
+    },
+    {
+        title = "Extras",
+        sections = {
+            {
+                module = "playground",
+                options = {
+                    { type = "checkbox", label = "Favorite toy button", path = { "playground", "showFavoriteToy" } },
+                    { type = "toy", sameRow = true, requires = { "playground", "showFavoriteToy" } },
+                    { type = "checkbox", label = "Close the game menu when using the toy", path = { "playground", "closeGameMenuOnCast" }, requires = { "playground", "showFavoriteToy" } },
+                    { type = "checkbox", label = "Speedometer", path = { "playground", "showSpeedometer" } },
+                    { type = "checkbox", label = "FPS counter", path = { "playground", "showFPS" } },
+                    { type = "dropdown", label = "Position:", width = 130, path = { "playground", "statsPosition" },
+                        options = function() return STATS_POSITIONS end },
+                    { type = "checkbox", label = "Copy target's mount (/cm or keybind)", path = { "playground", "copyTargetMount" } },
+                },
+            },
+            {
+                module = "soundMuter",
+                description = "Mute individual game sounds by their numeric sound file ID.",
+                options = {
+                    { type = "button", label = "Manage Sounds", width = 150,
+                        onClick = function() Module("soundMuter"):ShowManagementPopup() end },
+                },
+            },
+            {
+                module = "characterSnapshot",
+                description = "Export a JSON time capsule of this character (level, money, /played, collections, achievement points and the Statistics tab).",
+                options = {
+                    { type = "button", label = "Export Snapshot (JSON)", width = 180,
+                        onClick = function() Module("characterSnapshot"):ShowExportPopup() end },
+                },
+            },
+            {
+                module = "admin",
+                options = {
+                    { type = "button", label = "Admin Settings", width = 140,
+                        onClick = function() Module("admin"):ShowPasswordPopup() end },
+                },
+            },
+        },
+    },
+    {
+        title = "Roleplay",
+        sections = {
+            {
+                module = "roleplay",
+                title = "Total RP 3",
+                description = "Requires Total RP 3. A keybind toggles your IC/OOC status and can apply the extras below.",
+                options = {
+                    { type = "keybind", label = "Toggle IC/OOC:", binding = "BOLT_TOGGLE_TRP3_STATUS" },
+                    { type = "checkbox", label = "Show the TRP toolbar when In Character, hide it when Out of Character", path = { "roleplay", "toggleTrpToolbar" } },
+                    { type = "dropdown", label = "Edit Mode layout when IC:", width = 160, path = { "roleplay", "editModeProfileIndex" },
+                        options = LayoutOptions("editModeProfileIndex") },
+                    { type = "dropdown", label = "Edit Mode layout when OOC:", width = 160, path = { "roleplay", "editModeOOCProfileIndex" },
+                        options = LayoutOptions("editModeOOCProfileIndex") },
+                },
+            },
+            {
+                module = "transmogPresets",
+                description = "Save transmog looks account-wide and stage them on any character at a Transmogrifier (/bolt transmog).",
+                options = {
+                    { type = "button", label = "Manage Presets", width = 160,
+                        onClick = function() Module("transmogPresets"):ShowUI() end },
+                },
+            },
+        },
+    },
+}
+
+---------------------------------------------------------------------------
+-- Widgets
+---------------------------------------------------------------------------
+
+local Widgets = {}
+
+local function AddLabel(parent, text, font)
+    local label = parent:CreateFontString(nil, "OVERLAY", font or "GameFontHighlightSmall")
+    label:SetText(text)
     return label
 end
 
--- Reusable: create a section frame with header + collapsible options container.
--- panelData must have a .scrollChild frame and a .sections table.
--- Returns { section, header, container, headerHeight }
--- The container auto-hides when the module is disabled.
-function Config:CreateSection(panelData, labelText, moduleName, hasOptions)
-    local parent = panelData.scrollChild
-    local section = CreateFrame("Frame", nil, parent)
-    section:SetPoint("LEFT", parent, "LEFT", 0, 0)
-    section:SetPoint("RIGHT", parent, "RIGHT", 0, 0)
-    section.moduleName = moduleName
-
-    -- Section label
-    local label = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    label:SetPoint("TOPLEFT", section, "TOPLEFT", 20, 0)
-    label:SetText(labelText)
-
-    -- Enable checkbox
-    local checkbox = CreateFrame("CheckButton", nil, section, "InterfaceOptionsCheckButtonTemplate")
-    checkbox:SetPoint("TOPLEFT", section, "TOPLEFT", 30, -24)
-    checkbox.Text:SetText("Enable " .. labelText .. " Module")
-
-    local reloadIndicator = self:CreateReloadIndicator(section, checkbox)
-    reloadIndicator:Hide()
-
-    -- Options container (collapsible)
-    local container = nil
-    if hasOptions then
-        container = CreateFrame("Frame", nil, section)
-        container:SetPoint("TOPLEFT", section, "TOPLEFT", 0, -54)
-        container:SetPoint("RIGHT", section, "RIGHT", 0, 0)
-        container:SetHeight(1)
-    end
-
-    local data = {
-        section = section,
-        label = label,
-        checkbox = checkbox,
-        reloadIndicator = reloadIndicator,
-        container = container,
-        moduleName = moduleName,
-        headerHeight = hasOptions and 54 or 54,
-        optionsHeight = 0,
-    }
-
-    table.insert(panelData.sections, data)
-    return data
+local function SetWidgetEnabled(widget, enabled)
+    if widget.SetEnabled then widget:SetEnabled(enabled) end
+    widget:SetAlpha(enabled and 1 or 0.5)
 end
 
--- Creates a panel frame with a scroll frame and returns a panelData table:
--- { panel, scrollChild, sections={} }
-function Config:CreatePanelWithScroll(frameName, titleText)
-    local panel = CreateFrame("Frame", frameName)
-    local scrollFrame = CreateFrame("ScrollFrame", frameName .. "Scroll", panel, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 4, -4)
-    scrollFrame:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -26, 4)
-    local content = CreateFrame("Frame", frameName .. "Content", scrollFrame)
-    scrollFrame:SetScrollChild(content)
-    content:SetWidth(700)
-    scrollFrame:SetScript("OnSizeChanged", function(_, w) content:SetWidth(w - 20) end)
-    if titleText then
-        local title = content:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-        title:SetPoint("TOPLEFT", content, "TOPLEFT", 16, -16)
-        title:SetText(titleText)
+function Widgets.checkbox(parent, option)
+    local check = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
+    check:SetSize(26, 26)
+    check.Text:SetFontObject("GameFontHighlight")
+    check.Text:SetText(option.label)
+    check:SetScript("OnClick", function(self)
+        SetSetting(option.path, self:GetChecked())
+        Config:RefreshAll()
+    end)
+    check.Refresh = function(self)
+        self:SetChecked(GetSetting(option.path) and true or false)
     end
-    return { panel = panel, scrollChild = content, sections = {} }
+    check.anchorRight = check.Text
+    return check
 end
 
--- Relayout all category panels, collapsing options when a module is disabled.
-function Config:RelayoutPanel()
-    if not self.panelData then return end
-    for _, pd in pairs(self.panelData) do
-        self:_RelayoutSinglePanel(pd)
-    end
+-- A button that opens a menu; the shared shape for dropdowns and multi-selects.
+local function MenuButton(parent, option, buildMenu, getText)
+    local holder = CreateFrame("Frame", nil, parent)
+    holder:SetSize(1, 22)
+    local label = AddLabel(holder, option.label)
+    label:SetPoint("LEFT")
+
+    local button = CreateFrame("DropdownButton", nil, holder, "WowStyle1DropdownTemplate")
+    button:SetWidth(option.width or 160)
+    button:SetPoint("LEFT", label, "RIGHT", 8, 0)
+    button:SetupMenu(buildMenu)
+    button:OverrideText(getText())
+    holder:SetWidth(label:GetStringWidth() + 8 + button:GetWidth())
+
+    holder.SetEnabled = function(_, enabled) button:SetEnabled(enabled) end
+    holder.Refresh = function() button:GenerateMenu() button:OverrideText(getText()) end
+    holder.anchorRight = button
+    return holder
 end
 
-function Config:_RelayoutSinglePanel(pd)
-    if not pd or not pd.sections then return end
-    local y = -60 -- below the panel title
-    for _, sec in ipairs(pd.sections) do
-        sec.section:ClearAllPoints()
-        sec.section:SetPoint("TOPLEFT", pd.scrollChild, "TOPLEFT", 0, y)
-        sec.section:SetPoint("RIGHT", pd.scrollChild, "RIGHT", 0, 0)
+function Widgets.dropdown(parent, option)
+    local get = option.get or function() return GetSetting(option.path) end
+    local set = option.set or function(value) SetSetting(option.path, value) end
+    local function Text()
+        local current = get()
+        for _, entry in ipairs(option.options()) do
+            if entry.value == current then return entry.label end
+        end
+        return "—"
+    end
+    local holder
+    holder = MenuButton(parent, option, function(_, root)
+        for _, entry in ipairs(option.options()) do
+            root:CreateRadio(entry.label,
+                function() return get() == entry.value end,
+                function()
+                    set(entry.value)
+                    holder.Refresh()
+                end)
+        end
+    end, Text)
+    return holder
+end
 
-        local enabled = sec.moduleName == nil or self.parent:IsModuleEnabled(sec.moduleName)
-        local showOptions = enabled and sec.container and sec.optionsHeight > 0
-        if sec.container then
-            if showOptions then
-                sec.container:Show()
+function Widgets.multiselect(parent, option)
+    local function Text()
+        local selected, all = {}, true
+        for _, entry in ipairs(option.options()) do
+            if option.isSelected(entry.value) then
+                table.insert(selected, entry.label)
             else
-                sec.container:Hide()
+                all = false
             end
         end
-
-        local sectionHeight = sec.headerHeight + (showOptions and sec.optionsHeight or 0)
-        sec.section:SetHeight(sectionHeight)
-        y = y - sectionHeight - 10
+        if all and option.emptyText then return option.emptyText end
+        if #selected == 0 then return "None" end
+        if #selected > 3 then
+            return ("%s, %s + %d more"):format(selected[1], selected[2], #selected - 2)
+        end
+        return table.concat(selected, ", ")
     end
-    pd.scrollChild:SetHeight(math.abs(y) + 100)
+    local holder
+    holder = MenuButton(parent, option, function(_, root)
+        for _, entry in ipairs(option.options()) do
+            root:CreateCheckbox(entry.label,
+                function() return option.isSelected(entry.value) end,
+                function()
+                    option.toggle(entry.value, not option.isSelected(entry.value))
+                    holder.Refresh()
+                end)
+        end
+    end, Text)
+    return holder
 end
 
-function Config:CreateInterfaceOptionsPanel()
-    -- Shared OnShow/OnHide for all category panels
-    local function SetPanelCallbacks(panel)
-        panel:SetScript("OnShow", function()
-            self:RefreshAll()
-            if self.parent and self.parent.modules and self.parent.modules.gameMenu then
-                self.parent.modules.gameMenu.settingsPanelOpen = true
-                self.parent.modules.gameMenu:EnsureHiddenIfMenuNotShown()
-            end
-        end)
-        panel:SetScript("OnHide", function()
-            if self.parent and self.parent.modules and self.parent.modules.gameMenu then
-                self.parent.modules.gameMenu.settingsPanelOpen = nil
-            end
-        end)
-    end
+function Widgets.button(parent, option)
+    local button = BOLT:CreateButton(parent, option.label, option.width or 120, 22, option.onClick)
+    button.anchorRight = button
+    return button
+end
 
-    ---------------------------------------------------------------------------
-    -- MAIN / OVERVIEW PANEL
-    ---------------------------------------------------------------------------
-    local mainPD = self:CreatePanelWithScroll("BOLTOptionsPanel", "B.O.L.T")
-    mainPD.panel.name = "B.O.L.T"
-    SetPanelCallbacks(mainPD.panel)
+function Widgets.color(parent, option)
+    local holder = CreateFrame("Frame", nil, parent)
+    holder:SetSize(200, 22)
+    local label = AddLabel(holder, option.label)
+    label:SetPoint("LEFT")
 
-    local mainDesc = mainPD.scrollChild:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    mainDesc:SetPoint("TOPLEFT", mainPD.scrollChild, "TOPLEFT", 16, -50)
-    mainDesc:SetWidth(560)
-    mainDesc:SetJustifyH("LEFT")
-    mainDesc:SetText("Use the categories in the sidebar to configure each module.")
-
-    local reloadBtn = CreateFrame("Button", "BOLTOptionsReloadButton", mainPD.scrollChild, "UIPanelButtonTemplate")
-    reloadBtn:SetSize(120, 25)
-    reloadBtn:SetText("Reload UI")
-    reloadBtn:SetPoint("TOPLEFT", mainPD.scrollChild, "TOPLEFT", 16, -90)
-    reloadBtn:SetScript("OnClick", ReloadUI)
-    self.widgets.reloadButton = reloadBtn
-
-    local versionText = mainPD.scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    versionText:SetPoint("TOPLEFT", mainPD.scrollChild, "TOPLEFT", 16, -130)
-    versionText:SetText("B.O.L.T v" .. (self.parent and self.parent.version or "?"))
-    self.widgets.versionText = versionText
-
-    mainPD.scrollChild:SetHeight(200)
-
-    ---------------------------------------------------------------------------
-    -- INTERFACE PANEL  (Game Menu · Nameplates Enhancement · Party Frames)
-    ---------------------------------------------------------------------------
-    local ifPD = self:CreatePanelWithScroll("BOLTInterfacePanel", "Interface")
-    SetPanelCallbacks(ifPD.panel)
-
-    ---------------------------------------------------------------------------
-    -- GAME MENU  (Interface)
-    ---------------------------------------------------------------------------
-    local gm = self:CreateSection(ifPD, "Game Menu", "gameMenu", true)
-    local c = gm.container
-    local cy = 0
-
-    gm.checkbox:SetScript("OnClick", function(button)
-        self.parent:SetModuleEnabled("gameMenu", button:GetChecked())
-        self:RelayoutPanel()
-        self:UpdateGameMenuChildControls()
-    end)
-    self.widgets.gameMenuCheckbox = gm.checkbox
-    self.widgets.gameMenuReloadIndicator = gm.reloadIndicator
-
-    local leaveGroupEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
-    leaveGroupEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
-    leaveGroupEnable.Text:SetText("Show Leave Group Button")
-    leaveGroupEnable:SetScript("OnClick", function(button)
-        self.parent:SetConfig(button:GetChecked(), "gameMenu", "showLeaveGroup")
-        self:UpdateGameMenuChildControls()
-    end)
-    self.widgets.leaveGroupCheckbox = leaveGroupEnable
-    cy = cy - 30
-
-    local reloadEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
-    reloadEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
-    reloadEnable.Text:SetText("Show Reload UI Button")
-    reloadEnable:SetScript("OnClick", function(button)
-        self.parent:SetConfig(button:GetChecked(), "gameMenu", "showReloadButton")
-        self:UpdateGameMenuChildControls()
-    end)
-    self.widgets.reloadCheckbox = reloadEnable
-    cy = cy - 30
-
-    local groupToolsEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
-    groupToolsEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
-    groupToolsEnable.Text:SetText("Enable Group Tools (Ready/Countdown/Raid Marker)")
-    groupToolsEnable:SetScript("OnClick", function(button)
-        self.parent:SetConfig(button:GetChecked(), "gameMenu", "groupToolsEnabled")
-        self:UpdateGameMenuChildControls()
-    end)
-    self.widgets.groupToolsCheckbox = groupToolsEnable
-    cy = cy - 30
-
-    local battleTextEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
-    battleTextEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
-    battleTextEnable.Text:SetText("Show Battle Text Toggles")
-    battleTextEnable:SetScript("OnClick", function(button)
-        self.parent:SetConfig(button:GetChecked(), "gameMenu", "showBattleTextToggles")
-        self:UpdateGameMenuChildControls()
-    end)
-    self.widgets.battleTextCheckbox = battleTextEnable
-    cy = cy - 30
-
-    local volumeEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
-    volumeEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
-    volumeEnable.Text:SetText("Show Volume Control Button")
-    volumeEnable:SetScript("OnClick", function(button)
-        self.parent:SetConfig(button:GetChecked(), "gameMenu", "showVolumeButton")
-        self:UpdateGameMenuChildControls()
-    end)
-    self.widgets.volumeButtonCheckbox = volumeEnable
-    cy = cy - 30
-
-    local lootSpecEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
-    lootSpecEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
-    lootSpecEnable.Text:SetText("Show Loot Spec Button")
-    lootSpecEnable:SetScript("OnClick", function(button)
-        self.parent:SetConfig(button:GetChecked(), "gameMenu", "showLootSpecButton")
-        self:UpdateGameMenuChildControls()
-    end)
-    self.widgets.lootSpecButtonCheckbox = lootSpecEnable
-    cy = cy - 36
-
-    -- Raid marker selector
-    local markerLabel = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    markerLabel:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
-    markerLabel:SetText("Raid Marker Icon:")
-    cy = cy - 22
-
-    local MARKER_TEXCOORDS = {
-        [1] = { 0, 0.25, 0, 0.25 },
-        [2] = { 0.25, 0.5, 0, 0.25 },
-        [3] = { 0.5, 0.75, 0, 0.25 },
-        [4] = { 0.75, 1, 0, 0.25 },
-        [5] = { 0, 0.25, 0.25, 0.5 },
-        [6] = { 0.25, 0.5, 0.25, 0.5 },
-        [7] = { 0.5, 0.75, 0.25, 0.5 },
-        [8] = { 0.75, 1, 0.25, 0.5 },
-    }
-
-    self.widgets.raidMarkerButtons = self.widgets.raidMarkerButtons or {}
-    local buttons = self.widgets.raidMarkerButtons
-    local btnSize = 22
-    for i = 1, 8 do
-        local b = buttons[i]
-        if not b then
-            b = CreateFrame("Button", nil, c)
-            b:SetSize(btnSize, btnSize)
-            b.tex = b:CreateTexture(nil, "ARTWORK")
-            b.tex:SetAllPoints(b)
-            b.tex:SetTexture("Interface\\TARGETINGFRAME\\UI-RaidTargetingIcons")
-            b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square")
-            buttons[i] = b
-        end
-        b:ClearAllPoints()
-        b:SetPoint("TOPLEFT", c, "TOPLEFT", 50 + ((i - 1) * (btnSize + 4)), cy)
-        local tc = MARKER_TEXCOORDS[i]
-        b.tex:SetTexCoord(tc[1], tc[2], tc[3], tc[4])
-        b:SetScript("OnClick", function()
-            self.parent:SetConfig(i, "gameMenu", "raidMarkerIndex")
-            self:RefreshOptionsPanel()
-            self:UpdateGameMenuChildControls()
-        end)
-        b:Show()
-    end
-
-    local clearBtn = self.widgets.raidMarkerClearButton
-    if not clearBtn then
-        clearBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
-        clearBtn:SetSize(48, btnSize)
-        clearBtn:SetText("Clear")
-        clearBtn:SetScript("OnClick", function()
-            self.parent:SetConfig(0, "gameMenu", "raidMarkerIndex")
-            self:RefreshOptionsPanel()
-            self:UpdateGameMenuChildControls()
-        end)
-        self.widgets.raidMarkerClearButton = clearBtn
-    end
-    clearBtn:ClearAllPoints()
-    clearBtn:SetPoint("TOPLEFT", c, "TOPLEFT", 50 + (8 * (btnSize + 4)) + 8, cy + 1)
-    cy = cy - 40
-
-    gm.optionsHeight = math.abs(cy)
-    c:SetHeight(gm.optionsHeight)
-
-    ---------------------------------------------------------------------------
-    -- NAMEPLATES ENHANCEMENT  (Interface)
-    ---------------------------------------------------------------------------
-    local ne = self:CreateSection(ifPD, "Nameplates Enhancement", "nameplatesEnhancement", true)
-    c = ne.container
-    cy = 0
-
-    ne.checkbox:SetScript("OnClick", function(button)
-        self.parent:SetModuleEnabled("nameplatesEnhancement", button:GetChecked())
-        self:RelayoutPanel()
-        self:UpdateNameplatesChildControls()
-    end)
-    self.widgets.nameplatesEnhancementCheckbox = ne.checkbox
-    self.widgets.nameplatesEnhancementReloadIndicator = ne.reloadIndicator
-
-    local neDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    neDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
-    neDesc:SetWidth(520)
-    neDesc:SetJustifyH("LEFT")
-    neDesc:SetText("Colors enemy nameplate health bars for mana users (healers/casters). Persists through combat and threat changes.")
-    cy = cy - 30
-
-    local neColorLabel = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    neColorLabel:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
-    neColorLabel:SetText("Mana Color:")
-
-    local neColorSwatch = CreateFrame("Button", nil, c, "BackdropTemplate")
-    neColorSwatch:SetSize(20, 20)
-    neColorSwatch:SetPoint("LEFT", neColorLabel, "RIGHT", 8, 0)
-    neColorSwatch:SetBackdrop({
+    local swatch = CreateFrame("Button", nil, holder, "BackdropTemplate")
+    swatch:SetSize(20, 20)
+    swatch:SetPoint("LEFT", label, "RIGHT", 8, 0)
+    swatch:SetBackdrop({
         bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
         edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 8,
-        insets = { left = 1, right = 1, top = 1, bottom = 1 },
+        edgeSize = 8, insets = { left = 1, right = 1, top = 1, bottom = 1 },
     })
-    neColorSwatch:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
-    self.widgets.neColorSwatch = neColorSwatch
 
-    local function UpdateSwatchColor()
-        local mc = self.parent:GetConfig("nameplatesEnhancement", "manaColor") or { r = 0.2, g = 0.4, b = 1.0 }
-        neColorSwatch:SetBackdropColor(mc.r, mc.g, mc.b, 1)
-    end
-    UpdateSwatchColor()
-
-    neColorSwatch:SetScript("OnClick", function()
-        local mc = self.parent:GetConfig("nameplatesEnhancement", "manaColor") or { r = 0.2, g = 0.4, b = 1.0 }
-        local function OnColorChanged()
-            local r, g, b = ColorPickerFrame:GetColorRGB()
-            self.parent:SetConfig({ r = r, g = g, b = b }, "nameplatesEnhancement", "manaColor")
-            UpdateSwatchColor()
-            local mod = self.parent.modules.nameplatesEnhancement
-            if mod and mod.LoadManaColor then mod:LoadManaColor() end
-        end
-        local function OnCancel(prev)
-            self.parent:SetConfig({ r = prev.r, g = prev.g, b = prev.b }, "nameplatesEnhancement", "manaColor")
-            UpdateSwatchColor()
-            local mod = self.parent.modules.nameplatesEnhancement
-            if mod and mod.LoadManaColor then mod:LoadManaColor() end
-        end
-        local info = {
-            r = mc.r, g = mc.g, b = mc.b,
-            swatchFunc = OnColorChanged,
-            cancelFunc = OnCancel,
-            previousValues = { r = mc.r, g = mc.g, b = mc.b },
-        }
-        ColorPickerFrame:SetupColorPickerAndShow(info)
-    end)
-
-    local neResetBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
-    neResetBtn:SetSize(55, 20)
-    neResetBtn:SetPoint("LEFT", neColorSwatch, "RIGHT", 6, 0)
-    neResetBtn:SetText("Reset")
-    neResetBtn:SetScript("OnClick", function()
-        self.parent:SetConfig({ r = 0.2, g = 0.4, b = 1.0 }, "nameplatesEnhancement", "manaColor")
-        UpdateSwatchColor()
-        local mod = self.parent.modules.nameplatesEnhancement
-        if mod and mod.LoadManaColor then mod:LoadManaColor() end
-    end)
-    self.widgets.neResetBtn = neResetBtn
-    self.widgets.UpdateNameplatesSwatchColor = UpdateSwatchColor
-    cy = cy - 28
-
-    local neInstanceOnly = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
-    neInstanceOnly:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
-    neInstanceOnly.Text:SetText("Only in instances (dungeons, raids, scenarios)")
-    neInstanceOnly.Text:SetFontObject("GameFontHighlightSmall")
-    neInstanceOnly:SetChecked(self.parent:GetConfig("nameplatesEnhancement", "instanceOnly") or false)
-    neInstanceOnly:SetScript("OnClick", function(button)
-        self.parent:SetConfig(button:GetChecked(), "nameplatesEnhancement", "instanceOnly")
-        local mod = self.parent.modules.nameplatesEnhancement
-        if mod then mod:RefreshInstanceOnly() end
-    end)
-    self.widgets.neInstanceOnly = neInstanceOnly
-    cy = cy - 26
-
-    ne.optionsHeight = math.abs(cy)
-    c:SetHeight(ne.optionsHeight)
-
-    ---------------------------------------------------------------------------
-    -- PARTY FRAMES CENTER GROWTH  (Interface)
-    ---------------------------------------------------------------------------
-    local pfcg = self:CreateSection(ifPD, "Party Frames Center Growth", "partyFramesCenterGrowth", true)
-    c = pfcg.container
-    cy = 0
-
-    pfcg.checkbox:SetScript("OnClick", function(button)
-        self.parent:SetModuleEnabled("partyFramesCenterGrowth", button:GetChecked())
-        self:RelayoutPanel()
-    end)
-    self.widgets.partyFramesCenterGrowthCheckbox = pfcg.checkbox
-
-    local pfcgDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    pfcgDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
-    pfcgDesc:SetWidth(560)
-    pfcgDesc:SetJustifyH("LEFT")
-    pfcgDesc:SetText("Keeps raid-style party frames center-aligned by nudging the party group anchor as members join or leave. Only affects party frames when Raid-Style Party Frames is enabled in Edit Mode.")
-    cy = cy - 40
-
-    pfcg.optionsHeight = math.abs(cy)
-    c:SetHeight(pfcg.optionsHeight)
-
-    ---------------------------------------------------------------------------
-    -- GAMEPLAY PANEL  (Skyriding · Auto Rep Switch · Smart Teleport · Saved Instances)
-    ---------------------------------------------------------------------------
-    local gpPD = self:CreatePanelWithScroll("BOLTGameplayPanel", "Gameplay")
-    SetPanelCallbacks(gpPD.panel)
-
-    ---------------------------------------------------------------------------
-    -- SKYRIDING  (Gameplay)
-    ---------------------------------------------------------------------------
-    local sk = self:CreateSection(gpPD, "Skyriding", "skyriding", true)
-    c = sk.container
-    cy = 0
-
-    sk.checkbox:SetScript("OnClick", function(button)
-        self.parent:SetModuleEnabled("skyriding", button:GetChecked())
-        self:RelayoutPanel()
-        self:UpdateSkyridingChildControls()
-    end)
-    self.widgets.skyridingCheckbox = sk.checkbox
-    self.widgets.skyridingReloadIndicator = sk.reloadIndicator
-
-    local pitchEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
-    pitchEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
-    pitchEnable.Text:SetText("Enable Pitch Control (W/S)")
-    pitchEnable:SetScript("OnClick", function(button)
-        self.parent:SetConfig(button:GetChecked(), "skyriding", "enablePitchControl")
-        self:UpdateSkyridingChildControls()
-    end)
-    self.widgets.pitchControlCheckbox = pitchEnable
-    cy = cy - 30
-
-    local invertEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
-    invertEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
-    invertEnable.Text:SetText("Invert Pitch")
-    invertEnable:SetScript("OnClick", function(button)
-        self.parent:SetConfig(button:GetChecked(), "skyriding", "invertPitch")
-    end)
-    self.widgets.invertPitchCheckbox = invertEnable
-    cy = cy - 30
-
-    local requireMouseBtn = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
-    requireMouseBtn:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
-    requireMouseBtn.Text:SetText("Require Mouse Button (hold LMB to activate)")
-    requireMouseBtn:SetScript("OnClick", function(button)
-        self.parent:SetConfig(button:GetChecked(), "skyriding", "requireMouseButton")
-        self:UpdateSkyridingChildControls()
-    end)
-    self.widgets.requireMouseButtonCheckbox = requireMouseBtn
-    cy = cy - 30
-
-    sk.optionsHeight = math.abs(cy)
-    c:SetHeight(sk.optionsHeight)
-
-    ---------------------------------------------------------------------------
-    -- AUTO REP SWITCH  (Gameplay)
-    ---------------------------------------------------------------------------
-    local ars = self:CreateSection(gpPD, "Auto Rep Switch", "autoRepSwitch", true)
-    c = ars.container
-    cy = 0
-
-    ars.checkbox:SetScript("OnClick", function(button)
-        self.parent:SetModuleEnabled("autoRepSwitch", button:GetChecked())
-        self:RelayoutPanel()
-    end)
-    self.widgets.autoRepSwitchCheckbox = ars.checkbox
-    self.widgets.autoRepSwitchReloadIndicator = ars.reloadIndicator
-
-    local arsDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    arsDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
-    arsDesc:SetWidth(520)
-    arsDesc:SetJustifyH("LEFT")
-    arsDesc:SetText("Automatically switch the watched reputation to the faction you just gained reputation with.")
-    cy = cy - 30
-
-    ars.optionsHeight = math.abs(cy)
-    c:SetHeight(ars.optionsHeight)
-
-    ---------------------------------------------------------------------------
-    -- SMART TELEPORT SUGGESTIONS  (Gameplay)
-    ---------------------------------------------------------------------------
-    local st = self:CreateSection(gpPD, "Smart Teleport Suggestions", "smartTeleport", true)
-    c = st.container
-    cy = 0
-
-    st.checkbox:SetScript("OnClick", function(button)
-        self.parent:SetModuleEnabled("smartTeleport", button:GetChecked())
-        self:RelayoutPanel()
-    end)
-    self.widgets.smartTeleportCheckbox = st.checkbox
-    self.widgets.smartTeleportReloadIndicator = st.reloadIndicator
-
-    local stDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    stDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
-    stDesc:SetWidth(520)
-    stDesc:SetJustifyH("LEFT")
-    stDesc:SetText("Shows context-relevant teleports you own when viewing the World Map. Toggle with a keybind while the map is open.")
-    cy = cy - 30
-
-    st.optionsHeight = math.abs(cy)
-    c:SetHeight(st.optionsHeight)
-
-    ---------------------------------------------------------------------------
-    -- SAVED INSTANCES  (Gameplay)
-    ---------------------------------------------------------------------------
-    local si = self:CreateSection(gpPD, "Saved Instances", "savedInstances", true)
-    c = si.container
-    cy = 0
-
-    si.checkbox:SetScript("OnClick", function(button)
-        self.parent:SetModuleEnabled("savedInstances", button:GetChecked())
-        self:RelayoutPanel()
-    end)
-    self.widgets.savedInstancesCheckbox = si.checkbox
-    self.widgets.savedInstancesReloadIndicator = si.reloadIndicator
-
-    local siDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    siDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
-    siDesc:SetWidth(520)
-    siDesc:SetJustifyH("LEFT")
-    siDesc:SetText("Lists current expansion dungeons and raids you haven't completed yet. Type /boltsaved to print the list.")
-    cy = cy - 30
-
-    si.optionsHeight = math.abs(cy)
-    c:SetHeight(si.optionsHeight)
-
-    ---------------------------------------------------------------------------
-    -- SOCIAL PANEL  (Chat Notifier · Wowhead Link)
-    ---------------------------------------------------------------------------
-    local soPD = self:CreatePanelWithScroll("BOLTSocialPanel", "Social")
-    SetPanelCallbacks(soPD.panel)
-
-    ---------------------------------------------------------------------------
-    -- CHAT NOTIFIER  (Social)
-    ---------------------------------------------------------------------------
-    local cn = self:CreateSection(soPD, "Chat Notifier", "chatNotifier", true)
-    c = cn.container
-    cy = 0
-
-    cn.checkbox:SetScript("OnClick", function(button)
-        self.parent:SetModuleEnabled("chatNotifier", button:GetChecked())
-        self:RelayoutPanel()
-        self:UpdateChatNotifierChildControls()
-    end)
-    self.widgets.chatNotifierCheckbox = cn.checkbox
-    self.widgets.chatNotifierReloadIndicator = cn.reloadIndicator
-
-    local cnDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    cnDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
-    cnDesc:SetWidth(520)
-    cnDesc:SetJustifyH("LEFT")
-    cnDesc:SetText("Plays a notification sound when a new message appears in any checked channel below.")
-    cy = cy - math.max(cnDesc:GetStringHeight() + 10, 24)
-
-    local cnSoundLabel = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    cnSoundLabel:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
-    cnSoundLabel:SetText("Sound:")
-
-    local cnSoundDropdown = CreateFrame("Button", "BOLTChatNotifierSoundDropdown", c, "UIPanelButtonTemplate")
-    cnSoundDropdown:SetSize(170, 22)
-    cnSoundDropdown:SetPoint("LEFT", cnSoundLabel, "RIGHT", 5, 0)
-    self.widgets.chatNotifierSoundDropdown = cnSoundDropdown
-
-    local function UpdateSoundDropdownText()
-        local chatMod = self.parent.modules.chatNotifier
-        if not chatMod then cnSoundDropdown:SetText("(none)"); return end
-        local curID = chatMod:GetSoundID()
-        for _, snd in ipairs(chatMod.SOUND_OPTIONS) do
-            if snd.soundID == curID then cnSoundDropdown:SetText(snd.label); return end
-        end
-        cnSoundDropdown:SetText("(none)")
-    end
-    UpdateSoundDropdownText()
-
-    cnSoundDropdown:SetScript("OnClick", function(btn)
-        local chatMod = self.parent.modules.chatNotifier
-        if not chatMod then return end
-        MenuUtil.CreateContextMenu(btn, function(_, rootDescription)
-            for _, snd in ipairs(chatMod.SOUND_OPTIONS) do
-                local s = snd
-                rootDescription:CreateRadio(s.label,
-                    function() return chatMod:GetSoundID() == s.soundID end,
-                    function()
-                        chatMod:SetSoundID(s.soundID)
-                        UpdateSoundDropdownText()
-                        PlaySound(s.soundID, "Master")
-                    end
-                )
-            end
-        end)
-    end)
-
-    local cnPreviewBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
-    cnPreviewBtn:SetSize(70, 22)
-    cnPreviewBtn:SetPoint("LEFT", cnSoundDropdown, "RIGHT", 6, 0)
-    cnPreviewBtn:SetText("Preview")
-    cnPreviewBtn:SetScript("OnClick", function()
-        local chatMod = self.parent.modules.chatNotifier
-        if chatMod then PlaySound(chatMod:GetSoundID(), "Master") end
-    end)
-    self.widgets.chatNotifierPreviewBtn = cnPreviewBtn
-    cy = cy - 36
-
-    local cnChannelsLabel = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    cnChannelsLabel:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
-    cnChannelsLabel:SetText("Channels:")
-
-    local chatMod = self.parent.modules.chatNotifier
-    local channelTypes = chatMod and chatMod.CHANNEL_TYPES or {}
-
-    self.widgets.chatNotifierSelectedChannels = {}
-    if chatMod then
-        for _, ch in ipairs(channelTypes) do
-            if chatMod:IsChannelEnabled(ch.event) then
-                self.widgets.chatNotifierSelectedChannels[ch.event] = true
-            end
-        end
+    local function Apply(r, g, b)
+        SetSetting(option.path, { r = r, g = g, b = b })
+        swatch:SetBackdropColor(r, g, b, 1)
     end
 
-    local function UpdateChatNotifierDropdownText()
-        local selected = {}
-        for _, ch in ipairs(channelTypes) do
-            if self.widgets.chatNotifierSelectedChannels[ch.event] then
-                table.insert(selected, ch.label)
-            end
-        end
-        local text = #selected > 0 and table.concat(selected, ", ") or "None"
-        if self.widgets.chatNotifierChannelsDropdown then
-            self.widgets.chatNotifierChannelsDropdown:SetText(text)
-        end
+    swatch:SetScript("OnClick", function()
+        local color = GetSetting(option.path)
+        ColorPickerFrame:SetupColorPickerAndShow({
+            r = color.r, g = color.g, b = color.b,
+            previousValues = { r = color.r, g = color.g, b = color.b },
+            swatchFunc = function() Apply(ColorPickerFrame:GetColorRGB()) end,
+            cancelFunc = function(previous) Apply(previous.r, previous.g, previous.b) end,
+        })
+    end)
+
+    local reset = BOLT:CreateButton(holder, "Reset", 55, 20, function()
+        Apply(option.default.r, option.default.g, option.default.b)
+    end)
+    reset:SetPoint("LEFT", swatch, "RIGHT", 6, 0)
+
+    holder.SetEnabled = function(_, enabled)
+        swatch:SetEnabled(enabled)
+        reset:SetEnabled(enabled)
     end
-    self.widgets.UpdateChatNotifierDropdownText = UpdateChatNotifierDropdownText
-
-    local cnChannelsDropdown = CreateFrame("Button", "BOLTChatNotifierChannelsDropdown", c, "UIPanelButtonTemplate")
-    cnChannelsDropdown:SetSize(300, 22)
-    cnChannelsDropdown:SetPoint("LEFT", cnChannelsLabel, "RIGHT", 5, -2)
-    cnChannelsDropdown:SetScript("OnClick", function(btn)
-        local mod = self.parent.modules.chatNotifier
-        if not mod then return end
-        MenuUtil.CreateContextMenu(btn, function(_, rootDescription)
-            for _, ch in ipairs(channelTypes) do
-                local evt = ch.event
-                local lbl = ch.label
-                rootDescription:CreateCheckbox(lbl,
-                    function() return self.widgets.chatNotifierSelectedChannels[evt] or false end,
-                    function()
-                        local newVal = not (self.widgets.chatNotifierSelectedChannels[evt] or false)
-                        self.widgets.chatNotifierSelectedChannels[evt] = newVal
-                        mod:SetChannelEnabled(evt, newVal)
-                        UpdateChatNotifierDropdownText()
-                    end
-                )
-            end
-        end)
-    end)
-    self.widgets.chatNotifierChannelsDropdown = cnChannelsDropdown
-    UpdateChatNotifierDropdownText()
-    cy = cy - 36
-
-    cn.optionsHeight = math.abs(cy)
-    c:SetHeight(cn.optionsHeight)
-
-    ---------------------------------------------------------------------------
-    -- WOWHEAD LINK  (Social)
-    ---------------------------------------------------------------------------
-    local wl = self:CreateSection(soPD, "Wowhead Link", "wowheadLink", true)
-    c = wl.container
-    cy = 0
-
-    wl.checkbox:SetScript("OnClick", function(button)
-        self.parent:SetModuleEnabled("wowheadLink", button:GetChecked())
-        self:RelayoutPanel()
-    end)
-    self.widgets.wowheadLinkCheckbox = wl.checkbox
-    self.widgets.wowheadLinkReloadIndicator = wl.reloadIndicator
-
-    local wlDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    wlDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
-    wlDesc:SetWidth(520)
-    wlDesc:SetJustifyH("LEFT")
-    wlDesc:SetText("Press Ctrl+C while hovering over an item to copy its Wowhead link. Default keybind is Ctrl+C.")
-    cy = cy - 30
-
-    wl.optionsHeight = math.abs(cy)
-    c:SetHeight(wl.optionsHeight)
-
-    ---------------------------------------------------------------------------
-    -- TRACKING PANEL  (Achievement Tracker)
-    ---------------------------------------------------------------------------
-    local trPD = self:CreatePanelWithScroll("BOLTTrackingPanel", "Tracking")
-    SetPanelCallbacks(trPD.panel)
-
-    ---------------------------------------------------------------------------
-    -- ACHIEVEMENT TRACKER  (Tracking)
-    ---------------------------------------------------------------------------
-    local at = self:CreateSection(trPD, "Achievement Progress Tracker", "achievementTracker", true)
-    c = at.container
-    cy = 0
-
-    at.checkbox:SetScript("OnClick", function(button)
-        self.parent:SetModuleEnabled("achievementTracker", button:GetChecked())
-        self:RelayoutPanel()
-    end)
-    self.widgets.achievementTrackerCheckbox = at.checkbox
-    self.widgets.achievementTrackerReloadIndicator = at.reloadIndicator
-
-    local atDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    atDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
-    atDesc:SetWidth(520)
-    atDesc:SetJustifyH("LEFT")
-    atDesc:SetText("Prints a chat message whenever an action you perform advances progress on any achievement (e.g. /love a critter, completing a quest, defeating a boss).")
-    cy = cy - math.max(atDesc:GetStringHeight() + 10, 36)
-
-    local atCatLabel = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    atCatLabel:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
-    atCatLabel:SetText("Track Categories:")
-
-    local function UpdateAchCategoryDropdownText()
-        local atMod = self.parent.modules.achievementTracker
-        if not atMod then return end
-        local topCats = atMod:GetTopLevelCategories()
-        local selected = {}
-        local allTracked = true
-        for _, cat in ipairs(topCats) do
-            if atMod:IsCategoryTracked(cat.id) then
-                selected[#selected + 1] = cat.name
-            else
-                allTracked = false
-            end
-        end
-        local text
-        if allTracked or #selected == 0 then
-            text = "All Categories"
-        elseif #selected <= 3 then
-            text = table.concat(selected, ", ")
-        else
-            text = selected[1] .. ", " .. selected[2] .. " + " .. (#selected - 2) .. " more"
-        end
-        if self.widgets.achievementCategoryDropdown then
-            self.widgets.achievementCategoryDropdown:SetText(text)
-        end
+    holder.Refresh = function()
+        local color = GetSetting(option.path)
+        swatch:SetBackdropColor(color.r, color.g, color.b, 1)
     end
-    self.widgets.UpdateAchCategoryDropdownText = UpdateAchCategoryDropdownText
-
-    local atCatDropdown = CreateFrame("Button", "BOLTAchievementCategoryDropdown", c, "UIPanelButtonTemplate")
-    atCatDropdown:SetSize(300, 22)
-    atCatDropdown:SetPoint("LEFT", atCatLabel, "RIGHT", 5, -2)
-    atCatDropdown:SetScript("OnClick", function(btn)
-        local atMod = self.parent.modules.achievementTracker
-        if not atMod then return end
-        local topCats = atMod:GetTopLevelCategories()
-        MenuUtil.CreateContextMenu(btn, function(_, rootDescription)
-            rootDescription:CreateButton("|cff00aaff-- None --|r", function()
-                self.parent:SetConfig({ ["__none"] = true }, "achievementTracker", "trackedCategories")
-                UpdateAchCategoryDropdownText()
-            end)
-            rootDescription:CreateDivider()
-            for _, cat in ipairs(topCats) do
-                local catRef = cat
-                rootDescription:CreateCheckbox(catRef.name,
-                    function() return atMod:IsCategoryTracked(catRef.id) end,
-                    function()
-                        atMod:SetCategoryTracked(catRef.id, not atMod:IsCategoryTracked(catRef.id))
-                        UpdateAchCategoryDropdownText()
-                    end
-                )
-            end
-        end)
-    end)
-    self.widgets.achievementCategoryDropdown = atCatDropdown
-    C_Timer.After(0.1, UpdateAchCategoryDropdownText)
-
-    local atRescanBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
-    atRescanBtn:SetSize(80, 22)
-    atRescanBtn:SetPoint("LEFT", atCatDropdown, "RIGHT", 6, 0)
-    atRescanBtn:SetText("Rescan")
-    atRescanBtn:SetScript("OnClick", function()
-        local atMod = self.parent.modules.achievementTracker
-        if atMod and self.parent:IsModuleEnabled("achievementTracker") then
-            atMod:BuildSnapshot()
-        end
-    end)
-    self.widgets.achievementRescanButton = atRescanBtn
-    cy = cy - 36
-
-    at.optionsHeight = math.abs(cy)
-    c:SetHeight(at.optionsHeight)
-
-    ---------------------------------------------------------------------------
-    -- EXTRAS PANEL  (Playground)
-    ---------------------------------------------------------------------------
-    local exPD = self:CreatePanelWithScroll("BOLTExtrasPanel", "Extras")
-    SetPanelCallbacks(exPD.panel)
-
-    ---------------------------------------------------------------------------
-    -- PLAYGROUND  (Extras)
-    ---------------------------------------------------------------------------
-    local pg = self:CreateSection(exPD, "Playground", "playground", true)
-    c = pg.container
-    cy = 0
-
-    pg.checkbox:SetScript("OnClick", function(button)
-        self.parent:SetModuleEnabled("playground", button:GetChecked())
-        self:RelayoutPanel()
-        self:UpdatePlaygroundChildControls()
-    end)
-    self.widgets.playgroundCheckbox = pg.checkbox
-    self.widgets.playgroundReloadIndicator = pg.reloadIndicator
-
-    local favToyEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
-    favToyEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
-    favToyEnable.Text:SetText("Favorite Toy Button")
-    favToyEnable:SetScript("OnClick", function(button)
-        self.parent:SetConfig(button:GetChecked(), "playground", "showFavoriteToy")
-        self:UpdatePlaygroundChildControls()
-    end)
-    self.widgets.favoriteToyCheckbox = favToyEnable
-
-    local chooseToyBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
-    chooseToyBtn:SetSize(120, 24)
-    chooseToyBtn:SetText("Choose Toy")
-    chooseToyBtn:SetScript("OnClick", function() self:ShowToySelectionPopup() end)
-    chooseToyBtn:SetPoint("LEFT", favToyEnable.Text, "RIGHT", 10, 0)
-    self.widgets.chooseToyButton = chooseToyBtn
-
-    local toyRow = CreateFrame("Frame", nil, c)
-    toyRow:SetSize(360, 24)
-    toyRow:SetPoint("LEFT", chooseToyBtn, "RIGHT", 12, 0)
-    self.widgets.currentToyRow = toyRow
-
-    local toyIcon = toyRow:CreateTexture(nil, "ARTWORK")
-    toyIcon:SetPoint("LEFT", toyRow, "LEFT", 0, 0)
-    toyIcon:SetSize(20, 20)
-    self.widgets.currentToyIcon = toyIcon
-
-    local toyText = toyRow:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    toyText:SetPoint("LEFT", toyIcon, "RIGHT", 8, 0)
-    toyText:SetJustifyH("LEFT")
-    toyText:SetText("None selected")
-    self.widgets.currentToyText = toyText
-    cy = cy - 30
-
-    local closeGameMenuOnCast = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
-    closeGameMenuOnCast:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
-    closeGameMenuOnCast.Text:SetText("Close gamemenu on cast")
-    closeGameMenuOnCast:SetScript("OnClick", function(button)
-        self.parent:SetConfig(button:GetChecked(), "playground", "closeGameMenuOnCast")
-        if self.parent.modules and self.parent.modules.playground and self.parent.modules.playground.UpdateFavoriteToyButton then
-            self.parent.modules.playground:UpdateFavoriteToyButton()
-        end
-    end)
-    self.widgets.closeGameMenuOnCastCheckbox = closeGameMenuOnCast
-    cy = cy - 30
-
-    local speedometerEnable = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
-    speedometerEnable:SetPoint("TOPLEFT", c, "TOPLEFT", 50, cy)
-    speedometerEnable.Text:SetText("Speedometer")
-    speedometerEnable:SetScript("OnClick", function(button)
-        self.parent:SetConfig(button:GetChecked(), "playground", "showSpeedometer")
-        self:UpdatePlaygroundChildControls()
-    end)
-    self.widgets.speedometerCheckbox = speedometerEnable
-
-    local posLabel = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    posLabel:SetPoint("LEFT", speedometerEnable.Text, "RIGHT", 10, 0)
-    posLabel:SetText("Position:")
-
-    local posNames = { TOPLEFT = "Top Left", TOPRIGHT = "Top Right", BOTTOMLEFT = "Bottom Left", BOTTOMRIGHT = "Bottom Right" }
-    local posDropdown = CreateFrame("Button", "BOLTSpeedometerPositionDropdown", c, "UIPanelButtonTemplate")
-    posDropdown:SetSize(130, 22)
-    posDropdown:SetPoint("LEFT", posLabel, "RIGHT", 5, 0)
-    self.widgets.speedometerPositionDropdown = posDropdown
-
-    local function UpdatePosDropdownText()
-        local cur = self.parent:GetConfig("playground", "statsPosition") or "TOPRIGHT"
-        posDropdown:SetText(posNames[cur] or "Top Right")
-    end
-    UpdatePosDropdownText()
-
-    posDropdown:SetScript("OnClick", function(btn)
-        local positions = {
-            { text = "Top Left",     value = "TOPLEFT" },
-            { text = "Top Right",    value = "TOPRIGHT" },
-            { text = "Bottom Left",  value = "BOTTOMLEFT" },
-            { text = "Bottom Right", value = "BOTTOMRIGHT" },
-        }
-        MenuUtil.CreateContextMenu(btn, function(_, rootDescription)
-            for _, pos in ipairs(positions) do
-                local p = pos
-                rootDescription:CreateRadio(p.text,
-                    function() return self.parent:GetConfig("playground", "statsPosition") == p.value end,
-                    function()
-                        self.parent:SetConfig(p.value, "playground", "statsPosition")
-                        UpdatePosDropdownText()
-                        if self.parent.modules.playground and self.parent.modules.playground.UpdateStatsPosition then
-                            self.parent.modules.playground:UpdateStatsPosition()
-                        end
-                    end
-                )
-            end
-        end)
-    end)
-    cy = cy - 36
-
-    pg.optionsHeight = math.abs(cy)
-    c:SetHeight(pg.optionsHeight)
-
-    ---------------------------------------------------------------------------
-    -- KEYSHARE  (Extras)
-    ---------------------------------------------------------------------------
-    local ks = self:CreateSection(exPD, "Key Share", "keyShare", true)
-    c = ks.container
-    cy = 0
-
-    ks.checkbox:SetScript("OnClick", function(button)
-        self.parent:SetModuleEnabled("keyShare", button:GetChecked())
-        self:RelayoutPanel()
-    end)
-    self.widgets.keyShareCheckbox = ks.checkbox
-
-    local ksDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    ksDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
-    ksDesc:SetWidth(520)
-    ksDesc:SetJustifyH("LEFT")
-    ksDesc:SetText("When anyone types \"!keys\" in Party, Raid, or Guild chat, links your current Mythic+ keystone in the same channel, including your own message.")
-    cy = cy - 40
-
-    local ksRoulette = CreateFrame("CheckButton", nil, c, "InterfaceOptionsCheckButtonTemplate")
-    ksRoulette:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
-    ksRoulette.Text:SetText("Auto-roulette: after !keys, pick a random key from all responses and announce it")
-    ksRoulette.Text:SetFontObject("GameFontHighlightSmall")
-    ksRoulette:SetChecked(self.parent:GetConfig("keyShare", "rouletteEnabled") ~= false)
-    ksRoulette:SetScript("OnClick", function(button)
-        self.parent:SetConfig(button:GetChecked(), "keyShare", "rouletteEnabled")
-    end)
-    self.widgets.ksRoulette = ksRoulette
-    cy = cy - 26
-
-    ks.optionsHeight = math.abs(cy)
-    c:SetHeight(ks.optionsHeight)
-
-    ---------------------------------------------------------------------------
-    -- SOUNDMUTER  (Extras)
-    ---------------------------------------------------------------------------
-    local sm = self:CreateSection(exPD, "Sound Muter", "soundMuter", true)
-    sm.checkbox:SetScript("OnClick", function(button)
-        self.parent:SetModuleEnabled("soundMuter", button:GetChecked())
-        self:RelayoutPanel()
-    end)
-    self.widgets.soundMuterCheckbox = sm.checkbox
-
-    local manageSoundsBtn = CreateFrame("Button", nil, sm.section, "UIPanelButtonTemplate")
-    manageSoundsBtn:SetSize(150, 22)
-    manageSoundsBtn:SetPoint("LEFT", sm.checkbox.Text, "RIGHT", 14, 0)
-    manageSoundsBtn:SetText("Manage Sounds")
-    manageSoundsBtn:SetScript("OnClick", function()
-        local soundMuter = self.parent.modules and self.parent.modules.soundMuter
-        if soundMuter and soundMuter.ShowManagementPopup then
-            soundMuter:ShowManagementPopup()
-        end
-    end)
-    self.widgets.soundMuterManageButton = manageSoundsBtn
-
-    c = sm.container
-    cy = 0
-
-    local smDesc = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    smDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 30, cy)
-    smDesc:SetWidth(520)
-    smDesc:SetJustifyH("LEFT")
-    smDesc:SetText("Mute specific numeric sound file IDs with a management popup. Add IDs to the list to mute them immediately while the module is enabled, or remove them to unmute them again.")
-    cy = cy - 40
-
-    sm.optionsHeight = math.abs(cy)
-    c:SetHeight(sm.optionsHeight)
-
-    ---------------------------------------------------------------------------
-    -- CHARACTER SNAPSHOT  (Extras)
-    ---------------------------------------------------------------------------
-    local snapSection = self:CreateSection(exPD, "Character Snapshot", nil, true)
-    snapSection.checkbox:Hide()
-    local snapContainer = snapSection.container
-    local snapcy = -6
-
-    local snapDesc = snapContainer:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    snapDesc:SetPoint("TOPLEFT", snapContainer, "TOPLEFT", 30, snapcy)
-    snapDesc:SetWidth(520)
-    snapDesc:SetJustifyH("LEFT")
-    snapDesc:SetText("Export a JSON time-capsule of this character (level, money, /played, collections counts, achievement points, and the full Statistics tab) for use on your website.")
-    snapcy = snapcy - 36
-
-    local snapBtn = CreateFrame("Button", nil, snapContainer, "UIPanelButtonTemplate")
-    snapBtn:SetSize(180, 26)
-    snapBtn:SetText("Export Snapshot (JSON)")
-    snapBtn:SetPoint("TOPLEFT", snapContainer, "TOPLEFT", 16, snapcy)
-    snapBtn:SetScript("OnClick", function()
-        if self.parent and self.parent.modules and self.parent.modules.characterSnapshot then
-            self.parent.modules.characterSnapshot:ShowExportPopup()
-        end
-    end)
-    snapcy = snapcy - 36
-
-    snapSection.optionsHeight = math.abs(snapcy)
-    snapContainer:SetHeight(snapSection.optionsHeight)
-
-    ---------------------------------------------------------------------------
-    -- ADMIN  (Extras)
-    ---------------------------------------------------------------------------
-    local adminSection = self:CreateSection(exPD, "Admin", nil, true)
-    adminSection.checkbox:Hide()
-    adminSection.headerHeight = 30  -- just the label, no checkbox row
-    local adminContainer = adminSection.container
-    local admincy = 0
-
-    local adminBtn = CreateFrame("Button", nil, adminContainer, "UIPanelButtonTemplate")
-    adminBtn:SetSize(140, 26)
-    adminBtn:SetText("Admin Settings")
-    adminBtn:SetPoint("TOPLEFT", adminContainer, "TOPLEFT", 16, admincy)
-    adminBtn:SetScript("OnClick", function()
-        if self.parent and self.parent.modules and self.parent.modules.admin then
-            self.parent.modules.admin:ShowPasswordPopup()
-        end
-    end)
-    admincy = admincy - 34
-
-    adminSection.optionsHeight = math.abs(admincy)
-    adminContainer:SetHeight(adminSection.optionsHeight)
-
-    ---------------------------------------------------------------------------
-    -- ROLEPLAY PANEL  (Total RP 3 · …)
-    ---------------------------------------------------------------------------
-    local rpPD = self:CreatePanelWithScroll("BOLTRoleplayPanel", "Roleplay")
-    SetPanelCallbacks(rpPD.panel)
-
-    ---------------------------------------------------------------------------
-    -- TOTAL RP 3  (Roleplay)
-    ---------------------------------------------------------------------------
-    local trp3Sec = self:CreateSection(rpPD, "Total RP 3", nil, true)
-    trp3Sec.checkbox:Hide()
-    trp3Sec.headerHeight = 30
-    local trp3C = trp3Sec.container
-    local trp3Cy = 0
-
-    local trp3Desc = trp3C:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    trp3Desc:SetPoint("TOPLEFT", trp3C, "TOPLEFT", 16, trp3Cy)
-    trp3Desc:SetWidth(520)
-    trp3Desc:SetJustifyH("LEFT")
-    trp3Desc:SetText("Requires Total RP 3. The features below hook into TRP3's API.")
-    trp3Cy = trp3Cy - 24
-
-    local trp3BindLabel = trp3C:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    trp3BindLabel:SetPoint("TOPLEFT", trp3C, "TOPLEFT", 16, trp3Cy)
-    trp3BindLabel:SetText("Toggle RP Status (IC / OOC):")
-
-    local trp3StatusBindBtn = CreateFrame("Button", nil, trp3C, "UIPanelButtonTemplate")
-    trp3StatusBindBtn:SetSize(110, 22)
-    trp3StatusBindBtn:SetPoint("LEFT", trp3BindLabel, "RIGHT", 8, 0)
-
-    local function UpdateTRP3StatusBindBtn()
-        local k1 = GetBindingKey("BOLT_TOGGLE_TRP3_STATUS")
-        trp3StatusBindBtn:SetText(k1 and k1 or "Unbound")
-    end
-    trp3StatusBindBtn:SetScript("OnClick", function(btn)
-        StartKeybindingCapture(btn, "BOLT_TOGGLE_TRP3_STATUS", UpdateTRP3StatusBindBtn)
-    end)
-    UpdateTRP3StatusBindBtn()
-    self.widgets.trp3StatusBindBtn = trp3StatusBindBtn
-    self.widgets.UpdateTRP3StatusBindBtn = UpdateTRP3StatusBindBtn
-    trp3Cy = trp3Cy - 30
-
-    -- Toolbar visibility toggle
-    local trp3ToolbarChk = CreateFrame("CheckButton", nil, trp3C, "InterfaceOptionsCheckButtonTemplate")
-    trp3ToolbarChk:SetPoint("TOPLEFT", trp3C, "TOPLEFT", 16, trp3Cy)
-    trp3ToolbarChk.Text:SetText("Show TRP toolbar when In Character, hide when Out of Character")
-    trp3ToolbarChk.Text:SetFontObject("GameFontHighlightSmall")
-    trp3ToolbarChk:SetChecked(self.parent:GetConfig("roleplay", "toggleTrpToolbar") or false)
-    trp3ToolbarChk:SetScript("OnClick", function(button)
-        self.parent:SetConfig(button:GetChecked(), "roleplay", "toggleTrpToolbar")
-    end)
-    self.widgets.trp3ToolbarChk = trp3ToolbarChk
-    trp3Cy = trp3Cy - 26
-
-    -- Edit Mode profile dropdown
-    local emLabel = trp3C:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    emLabel:SetPoint("TOPLEFT", trp3C, "TOPLEFT", 16, trp3Cy)
-    emLabel:SetText("Edit Mode profile when IC:")
-
-    local emDropdown = CreateFrame("Button", "BOLTEditModeProfileDropdown", trp3C, "UIPanelButtonTemplate")
-    emDropdown:SetSize(150, 22)
-    emDropdown:SetPoint("LEFT", emLabel, "RIGHT", 8, 0)
-    self.widgets.emProfileDropdown = emDropdown
-
-    local function UpdateEmDropdownText()
-        local idx = self.parent:GetConfig("roleplay", "editModeProfileIndex")
-        if not idx or idx <= 0 then
-            emDropdown:SetText("Disabled")
-            return
-        end
-        if C_EditMode then
-            local layoutInfo = C_EditMode.GetLayouts()
-            if layoutInfo and layoutInfo.layouts and layoutInfo.layouts[idx] then
-                emDropdown:SetText(layoutInfo.layouts[idx].layoutName)
-                return
-            end
-        end
-        emDropdown:SetText("Layout " .. idx)
-    end
-    UpdateEmDropdownText()
-    self.widgets.UpdateEmDropdownText = UpdateEmDropdownText
-
-    emDropdown:SetScript("OnClick", function(btn)
-        MenuUtil.CreateContextMenu(btn, function(_, rootDescription)
-            rootDescription:CreateRadio("Disabled",
-                function()
-                    local idx = self.parent:GetConfig("roleplay", "editModeProfileIndex")
-                    return not idx or idx < 0
-                end,
-                function()
-                    self.parent:SetConfig(-1, "roleplay", "editModeProfileIndex")
-                    UpdateEmDropdownText()
-                end
-            )
-            if C_EditMode then
-                local layoutInfo = C_EditMode.GetLayouts()
-                if layoutInfo and layoutInfo.layouts then
-                    for i, layout in ipairs(layoutInfo.layouts) do
-                        local layoutIndex = i  -- 1-based, matching C_EditMode's activeLayout field
-                        local layoutName = layout.layoutName or ("Layout " .. layoutIndex)
-                        rootDescription:CreateRadio(layoutName,
-                            function()
-                                return self.parent:GetConfig("roleplay", "editModeProfileIndex") == layoutIndex
-                            end,
-                            function()
-                                self.parent:SetConfig(layoutIndex, "roleplay", "editModeProfileIndex")
-                                UpdateEmDropdownText()
-                            end
-                        )
-                    end
-                end
-            end
-        end)
-    end)
-    trp3Cy = trp3Cy - 30
-
-    -- OOC Edit Mode profile dropdown
-    local emOOCLabel = trp3C:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    emOOCLabel:SetPoint("TOPLEFT", trp3C, "TOPLEFT", 16, trp3Cy)
-    emOOCLabel:SetText("Edit Mode profile when OOC:")
-
-    local emOOCDropdown = CreateFrame("Button", "BOLTEditModeOOCProfileDropdown", trp3C, "UIPanelButtonTemplate")
-    emOOCDropdown:SetSize(150, 22)
-    emOOCDropdown:SetPoint("LEFT", emOOCLabel, "RIGHT", 8, 0)
-    self.widgets.emOOCProfileDropdown = emOOCDropdown
-
-    local function UpdateEmOOCDropdownText()
-        local idx = self.parent:GetConfig("roleplay", "editModeOOCProfileIndex")
-        if not idx or idx <= 0 then
-            emOOCDropdown:SetText("Disabled")
-            return
-        end
-        if C_EditMode then
-            local layoutInfo = C_EditMode.GetLayouts()
-            if layoutInfo and layoutInfo.layouts and layoutInfo.layouts[idx] then
-                emOOCDropdown:SetText(layoutInfo.layouts[idx].layoutName)
-                return
-            end
-        end
-        emOOCDropdown:SetText("Layout " .. idx)
-    end
-    UpdateEmOOCDropdownText()
-    self.widgets.UpdateEmOOCDropdownText = UpdateEmOOCDropdownText
-
-    emOOCDropdown:SetScript("OnClick", function(btn)
-        MenuUtil.CreateContextMenu(btn, function(_, rootDescription)
-            rootDescription:CreateRadio("Disabled",
-                function()
-                    local idx = self.parent:GetConfig("roleplay", "editModeOOCProfileIndex")
-                    return not idx or idx < 0
-                end,
-                function()
-                    self.parent:SetConfig(-1, "roleplay", "editModeOOCProfileIndex")
-                    UpdateEmOOCDropdownText()
-                end
-            )
-            if C_EditMode then
-                local layoutInfo = C_EditMode.GetLayouts()
-                if layoutInfo and layoutInfo.layouts then
-                    for i, layout in ipairs(layoutInfo.layouts) do
-                        local layoutIndex = i
-                        local layoutName = layout.layoutName or ("Layout " .. layoutIndex)
-                        rootDescription:CreateRadio(layoutName,
-                            function()
-                                return self.parent:GetConfig("roleplay", "editModeOOCProfileIndex") == layoutIndex
-                            end,
-                            function()
-                                self.parent:SetConfig(layoutIndex, "roleplay", "editModeOOCProfileIndex")
-                                UpdateEmOOCDropdownText()
-                            end
-                        )
-                    end
-                end
-            end
-        end)
-    end)
-    trp3Cy = trp3Cy - 30
-
-    trp3Sec.optionsHeight = math.abs(trp3Cy)
-    trp3C:SetHeight(trp3Sec.optionsHeight)
-
-    ---------------------------------------------------------------------------
-    -- STORE ALL PANEL DATA & REGISTER WITH SETTINGS
-    ---------------------------------------------------------------------------
-    self.panelData = {
-        interface = ifPD,
-        gameplay  = gpPD,
-        social    = soPD,
-        tracking  = trPD,
-        extras    = exPD,
-        roleplay  = rpPD,
-    }
-
-    if Settings and Settings.RegisterCanvasLayoutCategory then
-        local mainCat = Settings.RegisterCanvasLayoutCategory(mainPD.panel, "B.O.L.T")
-        Settings.RegisterCanvasLayoutSubcategory(mainCat, ifPD.panel, "Interface")
-        Settings.RegisterCanvasLayoutSubcategory(mainCat, gpPD.panel, "Gameplay")
-        Settings.RegisterCanvasLayoutSubcategory(mainCat, soPD.panel, "Social")
-        Settings.RegisterCanvasLayoutSubcategory(mainCat, trPD.panel, "Tracking")
-        Settings.RegisterCanvasLayoutSubcategory(mainCat, exPD.panel, "Extras")
-        Settings.RegisterCanvasLayoutSubcategory(mainCat, rpPD.panel, "Roleplay")
-        self.settingsCategory = mainCat
-        Settings.RegisterAddOnCategory(mainCat)
-    elseif InterfaceOptions_AddCategory then
-        mainPD.panel.name = "B.O.L.T"
-        ifPD.panel.name  = "Interface";  ifPD.panel.parent  = "B.O.L.T"
-        gpPD.panel.name  = "Gameplay";   gpPD.panel.parent  = "B.O.L.T"
-        soPD.panel.name  = "Social";     soPD.panel.parent  = "B.O.L.T"
-        trPD.panel.name  = "Tracking";   trPD.panel.parent  = "B.O.L.T"
-        exPD.panel.name  = "Extras";     exPD.panel.parent  = "B.O.L.T"
-        rpPD.panel.name  = "Roleplay";   rpPD.panel.parent  = "B.O.L.T"
-        InterfaceOptions_AddCategory(mainPD.panel)
-        InterfaceOptions_AddCategory(ifPD.panel)
-        InterfaceOptions_AddCategory(gpPD.panel)
-        InterfaceOptions_AddCategory(soPD.panel)
-        InterfaceOptions_AddCategory(trPD.panel)
-        InterfaceOptions_AddCategory(exPD.panel)
-        InterfaceOptions_AddCategory(rpPD.panel)
-        self.settingsCategory = mainPD.panel
-    else
-        if self.parent and self.parent.Print then
-            self.parent:Print("B.O.L.T: Settings API not available on this client version.")
-        end
-    end
-
-    self.optionsPanel = mainPD.panel
-    self:RelayoutPanel()
+    return holder
 end
 
-function Config:UpdateGameMenuChildControls()
-    self:RelayoutPanel()
-    local enabled = self.parent:IsModuleEnabled("gameMenu")
-    local w = self.widgets
-
-    if w and w.leaveGroupCheckbox then
-        w.leaveGroupCheckbox:SetEnabled(enabled); w.leaveGroupCheckbox:SetAlpha(enabled and 1 or 0.5)
-    end
-    if w and w.reloadCheckbox then
-        w.reloadCheckbox:SetEnabled(enabled); w.reloadCheckbox:SetAlpha(enabled and 1 or 0.5)
-    end
-    if w and w.groupToolsCheckbox then
-        w.groupToolsCheckbox:SetEnabled(enabled); w.groupToolsCheckbox:SetAlpha(enabled and 1 or 0.5)
-    end
-    if w and w.battleTextCheckbox then
-        w.battleTextCheckbox:SetEnabled(enabled); w.battleTextCheckbox:SetAlpha(enabled and 1 or 0.5)
-    end
-    if w and w.volumeButtonCheckbox then
-        w.volumeButtonCheckbox:SetEnabled(enabled); w.volumeButtonCheckbox:SetAlpha(enabled and 1 or 0.5)
-    end
-    if w and w.lootSpecButtonCheckbox then
-        w.lootSpecButtonCheckbox:SetEnabled(enabled); w.lootSpecButtonCheckbox:SetAlpha(enabled and 1 or 0.5)
-    end
-
-    local groupToolsEnabled = false
-    if enabled and self.parent and self.parent.GetConfig then
-        groupToolsEnabled = self.parent:GetConfig("gameMenu", "groupToolsEnabled")
-    end
-    if w and w.raidMarkerButtons then
-        for _, b in ipairs(w.raidMarkerButtons) do
-            if b then b:SetEnabled(groupToolsEnabled); b:SetAlpha(groupToolsEnabled and 1 or 0.5) end
-        end
-        if w.raidMarkerClearButton then
-            w.raidMarkerClearButton:SetEnabled(groupToolsEnabled); w.raidMarkerClearButton:SetAlpha(groupToolsEnabled and 1 or 0.5)
-        end
-    end
-
-    if self.parent and self.parent.modules and self.parent.modules.gameMenu and self.parent.modules.gameMenu.UpdateGameMenu then
-        self.parent.modules.gameMenu:UpdateGameMenu()
-    end
+local function MarkerTexCoords(index)
+    local i = index - 1
+    local left, top = (i % 4) * 0.25, math.floor(i / 4) * 0.25
+    return left, left + 0.25, top, top + 0.25
 end
 
-function Config:UpdatePlaygroundChildControls()
-    self:RelayoutPanel()
-    local enabled = self.parent:IsModuleEnabled("playground")
-    local w = self.widgets
-    local canChooseToy = enabled and (self.parent:GetConfig("playground", "showFavoriteToy") ~= false)
+function Widgets.markers(parent, option)
+    local holder = CreateFrame("Frame", nil, parent)
+    holder:SetSize(320, 22)
+    local label = AddLabel(holder, option.label)
+    label:SetPoint("LEFT")
 
-    if w.favoriteToyCheckbox then
-        w.favoriteToyCheckbox:SetEnabled(enabled)
-        w.favoriteToyCheckbox:SetAlpha(enabled and 1 or 0.5)
-    end
-    if w.closeGameMenuOnCastCheckbox then
-        w.closeGameMenuOnCastCheckbox:SetEnabled(canChooseToy)
-        w.closeGameMenuOnCastCheckbox:SetAlpha(canChooseToy and 1 or 0.5)
-    end
-    if w.speedometerCheckbox then
-        w.speedometerCheckbox:SetEnabled(enabled)
-        w.speedometerCheckbox:SetAlpha(enabled and 1 or 0.5)
-    end
-    if w.speedometerPositionDropdown then
-        local speedometerEnabled = enabled and self.parent:GetConfig("playground", "showSpeedometer")
-        if speedometerEnabled then
-            w.speedometerPositionDropdown:Enable()
-        else
-            w.speedometerPositionDropdown:Disable()
-        end
-    end
-    if w.chooseToyButton then
-        w.chooseToyButton:SetEnabled(canChooseToy)
-        w.chooseToyButton:SetAlpha(canChooseToy and 1 or 0.5)
-    end
-    if w.currentToyRow then
-        w.currentToyRow:SetAlpha(canChooseToy and 1 or 0.5)
-    end
-
-    if self.parent.modules and self.parent.modules.playground and self.parent.modules.playground.UpdateSpeedometerVisibility then
-        self.parent.modules.playground:UpdateSpeedometerVisibility()
-    end
-end
-
--- Refresh logic
-function Config:RefreshAll()
-    self:RefreshOptionsPanel()
-    self:UpdateGameMenuChildControls()
-    self:UpdatePlaygroundChildControls()
-    self:UpdateSkyridingChildControls()
-    self:UpdateChatNotifierChildControls()
-    self:UpdateNameplatesChildControls()
-    self:UpdateCurrentToyDisplay()
-    self:RelayoutPanel()
-end
-
-function Config:RefreshOptionsPanel()
-    C_Timer.After(0.05, function()
-        local w = self.widgets
-        if w.gameMenuCheckbox then w.gameMenuCheckbox:SetChecked(self.parent:IsModuleEnabled("gameMenu")) end
-        if w.leaveGroupCheckbox then w.leaveGroupCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showLeaveGroup")) end
-        if w.reloadCheckbox then w.reloadCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showReloadButton")) end
-        if w.groupToolsCheckbox then w.groupToolsCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "groupToolsEnabled")) end
-        if w.battleTextCheckbox then w.battleTextCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showBattleTextToggles")) end
-        if w.volumeButtonCheckbox then w.volumeButtonCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showVolumeButton")) end
-        if w.lootSpecButtonCheckbox then w.lootSpecButtonCheckbox:SetChecked(self.parent:GetConfig("gameMenu", "showLootSpecButton")) end
-        if w.raidMarkerButtons then
-            local idx = self.parent:GetConfig("gameMenu", "raidMarkerIndex") or 1
-            for i, b in ipairs(w.raidMarkerButtons) do b:SetAlpha((i == idx) and 1 or 0.6) end
-            if w.raidMarkerClearButton then w.raidMarkerClearButton:SetAlpha(idx == 0 and 1 or 0.6) end
-        end
-        if w.playgroundCheckbox then w.playgroundCheckbox:SetChecked(self.parent:IsModuleEnabled("playground")) end
-        if w.favoriteToyCheckbox then w.favoriteToyCheckbox:SetChecked(self.parent:GetConfig("playground", "showFavoriteToy")) end
-        if w.closeGameMenuOnCastCheckbox then w.closeGameMenuOnCastCheckbox:SetChecked(self.parent:GetConfig("playground", "closeGameMenuOnCast")) end
-        if w.speedometerCheckbox then w.speedometerCheckbox:SetChecked(self.parent:GetConfig("playground", "showSpeedometer")) end
-        if w.speedometerPositionDropdown then
-            local currentPos = self.parent:GetConfig("playground", "statsPosition") or "TOPRIGHT"
-            local posNames = { TOPLEFT = "Top Left", TOPRIGHT = "Top Right", BOTTOMLEFT = "Bottom Left", BOTTOMRIGHT = "Bottom Right" }
-            w.speedometerPositionDropdown:SetText(posNames[currentPos] or "Top Right")
-        end
-        if w.skyridingCheckbox then w.skyridingCheckbox:SetChecked(self.parent:IsModuleEnabled("skyriding")) end
-        if w.pitchControlCheckbox then w.pitchControlCheckbox:SetChecked(self.parent:GetConfig("skyriding", "enablePitchControl")) end
-        if w.requireMouseButtonCheckbox then w.requireMouseButtonCheckbox:SetChecked(self.parent:GetConfig("skyriding", "requireMouseButton")) end
-        if w.wowheadLinkCheckbox then w.wowheadLinkCheckbox:SetChecked(self.parent:IsModuleEnabled("wowheadLink")) end
-        if w.autoRepSwitchCheckbox then w.autoRepSwitchCheckbox:SetChecked(self.parent:IsModuleEnabled("autoRepSwitch")) end
-        if w.smartTeleportCheckbox then w.smartTeleportCheckbox:SetChecked(self.parent:IsModuleEnabled("smartTeleport")) end
-        if w.chatNotifierCheckbox then w.chatNotifierCheckbox:SetChecked(self.parent:IsModuleEnabled("chatNotifier")) end
-        if w.achievementTrackerCheckbox then w.achievementTrackerCheckbox:SetChecked(self.parent:IsModuleEnabled("achievementTracker")) end
-        if w.UpdateAchCategoryDropdownText then w.UpdateAchCategoryDropdownText() end
-        if w.savedInstancesCheckbox then w.savedInstancesCheckbox:SetChecked(self.parent:IsModuleEnabled("savedInstances")) end
-        if w.soundMuterCheckbox then w.soundMuterCheckbox:SetChecked(self.parent:IsModuleEnabled("soundMuter")) end
-        if w.nameplatesEnhancementCheckbox then w.nameplatesEnhancementCheckbox:SetChecked(self.parent:IsModuleEnabled("nameplatesEnhancement")) end
-        if w.partyFramesCenterGrowthCheckbox then w.partyFramesCenterGrowthCheckbox:SetChecked(self.parent:IsModuleEnabled("partyFramesCenterGrowth")) end
-        if w.keyShareCheckbox then w.keyShareCheckbox:SetChecked(self.parent:IsModuleEnabled("keyShare")) end
-        if w.ksRoulette then w.ksRoulette:SetChecked(self.parent:GetConfig("keyShare", "rouletteEnabled") ~= false) end
-        if w.UpdateTRP3StatusBindBtn then w.UpdateTRP3StatusBindBtn() end
-        if w.trp3ToolbarChk then w.trp3ToolbarChk:SetChecked(self.parent:GetConfig("roleplay", "toggleTrpToolbar") or false) end
-        if w.UpdateEmDropdownText then w.UpdateEmDropdownText() end
-        if w.UpdateEmOOCDropdownText then w.UpdateEmOOCDropdownText() end
-        if w.neInstanceOnly then w.neInstanceOnly:SetChecked(self.parent:GetConfig("nameplatesEnhancement", "instanceOnly") or false) end
-        if w.UpdateNameplatesSwatchColor then w.UpdateNameplatesSwatchColor() end
-        -- Chat Notifier channels dropdown
-        if w.chatNotifierChannelsDropdown and w.chatNotifierSelectedChannels then
-            local chatMod = self.parent.modules.chatNotifier
-            if chatMod then
-                local chTypes = chatMod.CHANNEL_TYPES or {}
-                for _, ch in ipairs(chTypes) do
-                    w.chatNotifierSelectedChannels[ch.event] = chatMod:IsChannelEnabled(ch.event)
-                end
-                if w.UpdateChatNotifierDropdownText then w.UpdateChatNotifierDropdownText() end
-            end
-        end
-        -- Chat Notifier sound dropdown
-        if w.chatNotifierSoundDropdown then
-            local chatMod = self.parent.modules.chatNotifier
-            if chatMod then
-                local currentSoundID = chatMod:GetSoundID()
-                for _, snd in ipairs(chatMod.SOUND_OPTIONS) do
-                    if snd.soundID == currentSoundID then
-                        w.chatNotifierSoundDropdown:SetText(snd.label)
-                        break
-                    end
-                end
-            end
-        end
-        self:RelayoutPanel()
-    end)
-end
-
-function Config:UpdateSkyridingChildControls()
-    self:RelayoutPanel()
-    local sk = self.parent:IsModuleEnabled("skyriding")
-    local pitch = self.parent:GetConfig("skyriding", "enablePitchControl")
-    local w = self.widgets
-    if w.pitchControlCheckbox then
-        w.pitchControlCheckbox:SetEnabled(sk); w.pitchControlCheckbox:SetAlpha(sk and 1 or 0.5)
-    end
-    if w.invertPitchCheckbox then
-        local should = sk and pitch; w.invertPitchCheckbox:SetEnabled(should); w.invertPitchCheckbox:SetAlpha(should and 1 or 0.5)
-    end
-    if w.requireMouseButtonCheckbox then
-        w.requireMouseButtonCheckbox:SetEnabled(sk); w.requireMouseButtonCheckbox:SetAlpha(sk and 1 or 0.5)
-    end
-end
-
-function Config:UpdateChatNotifierChildControls()
-    self:RelayoutPanel()
-    local enabled = self.parent:IsModuleEnabled("chatNotifier")
-    local w = self.widgets
-
-    if w.chatNotifierSoundDropdown then
-        if enabled then w.chatNotifierSoundDropdown:Enable()
-        else w.chatNotifierSoundDropdown:Disable() end
-    end
-    if w.chatNotifierPreviewBtn then
-        w.chatNotifierPreviewBtn:SetEnabled(enabled)
-        w.chatNotifierPreviewBtn:SetAlpha(enabled and 1 or 0.5)
-    end
-    if w.chatNotifierChannelsDropdown then
-        if enabled then w.chatNotifierChannelsDropdown:Enable()
-        else w.chatNotifierChannelsDropdown:Disable() end
-    end
-end
-
-function Config:UpdateNameplatesChildControls()
-    self:RelayoutPanel()
-    local enabled = self.parent:IsModuleEnabled("nameplatesEnhancement")
-    local w = self.widgets
-
-    if w.neColorSwatch then
-        w.neColorSwatch:SetEnabled(enabled)
-        w.neColorSwatch:SetAlpha(enabled and 1 or 0.5)
-    end
-    if w.neResetBtn then
-        w.neResetBtn:SetEnabled(enabled)
-        w.neResetBtn:SetAlpha(enabled and 1 or 0.5)
-    end
-    if w.neInstanceOnly then
-        w.neInstanceOnly:SetEnabled(enabled)
-        w.neInstanceOnly:SetAlpha(enabled and 1 or 0.5)
-    end
-    if w.UpdateNameplatesSwatchColor then w.UpdateNameplatesSwatchColor() end
-end
-
-function Config:UpdateCurrentToyDisplay()
-    local w = self.widgets
-    if not w.currentToyIcon or not w.currentToyText then return end
-    local toyID = self.parent:GetConfig("playground", "favoriteToyId")
-    if toyID then
-        -- C_ToyBox.GetToyInfo returns: itemID, toyName, icon, isFavorite, hasFanfare, itemQuality
-        local itemID, toyName, icon = C_ToyBox.GetToyInfo(toyID)
-        if itemID and toyName and PlayerHasToy(itemID) then
-            w.currentToyIcon:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
-            w.currentToyText:SetText(toyName)
-            return
-        end
-    end
-    w.currentToyIcon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-    w.currentToyText:SetText("None selected")
-end
-
--- Toy selection UI
-function Config:ShowToySelectionPopup()
-    if not self.toyPopup then
-        self:CreateToySelectionPopup()
-    end
-    self.toyPopup:Show()
-    self:PopulateToyList()
-    self.toyListPopulated = true
-    self:UpdateToySelection()
-end
-
-function Config:CreateToySelectionPopup()
-    local popup = CreateFrame("Frame", "BOLTToySelectionPopup", UIParent, "DialogBoxFrame")
-    popup:SetSize(450, 400); popup:SetPoint("CENTER"); popup:SetFrameStrata("DIALOG")
-    local title = popup:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", popup, "TOP", 0, -20)
-    title:SetText("Choose Favorite Toy")
-    local close = CreateFrame("Button", nil, popup, "UIPanelCloseButton")
-    close:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -5, -5)
-    self:CreateToySelectionFrame(popup, 15, -50)
-    self.toyPopup = popup
-    popup:Hide()
-end
-
-function Config:CreateToySelectionFrame(parent, xOffset, yOffset)
-    local toyFrame = CreateFrame("Frame", "BOLTToySelectionFrame", parent)
-    toyFrame:SetPoint("TOPLEFT", parent, "TOPLEFT", xOffset, yOffset); toyFrame:SetSize(420, 320)
-    local searchLabel = toyFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    searchLabel:SetPoint("TOPLEFT", toyFrame, "TOPLEFT", 15, -15)
-    searchLabel:SetText("Search:")
-    local searchBox = CreateFrame("EditBox", "BOLTToySearchBox", toyFrame, "InputBoxTemplate")
-    searchBox:SetPoint("TOPLEFT", searchLabel, "TOPRIGHT", 15, 0); searchBox:SetSize(220, 28); searchBox:SetAutoFocus(false)
-    searchBox:SetScript("OnTextChanged", function() self:FilterToyList() end)
-    local clear = CreateFrame("Button", nil, toyFrame, "UIPanelButtonTemplate")
-    clear:SetPoint("LEFT", searchBox, "RIGHT", 10, 0); clear:SetSize(50, 28); clear:SetText("Clear"); clear:SetScript(
-        "OnClick", function()
-            searchBox:SetText(""); self:FilterToyList()
-        end)
-    local refresh = CreateFrame("Button", nil, toyFrame, "UIPanelButtonTemplate")
-    refresh:SetPoint("LEFT", clear, "RIGHT", 8, 0); refresh:SetSize(60, 28); refresh:SetText("Refresh")
-    refresh:SetScript("OnClick", function()
-        self:PopulateToyList(); self:UpdateToySelection()
-    end)
-
-
-    local currentLabel = toyFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    currentLabel:SetPoint("TOPLEFT", toyFrame, "TOPLEFT", 15, -50); currentLabel:SetText("Current:")
-    local currentToy = CreateFrame("Button", "BOLTCurrentToyButton", toyFrame); currentToy:SetPoint("LEFT", currentLabel,
-        "RIGHT", 15, 0); currentToy:SetSize(220, 28)
-    local currentIcon = currentToy:CreateTexture(nil, "ARTWORK")
-    currentIcon:SetPoint("LEFT", currentToy, "LEFT", 4, 0); currentIcon:SetSize(20, 20)
-    local currentText = currentToy:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    currentText:SetPoint("LEFT", currentIcon, "RIGHT", 8, 0)
-    currentText:SetPoint("RIGHT", currentToy, "RIGHT", -8, 0)
-    currentText:SetJustifyH("LEFT")
-    currentText:SetText("None selected")
-    currentToy:SetScript("OnClick",
-        function()
-            self.parent:SetConfig(nil, "playground", "favoriteToyId"); self:UpdateToySelection(); if self.parent.modules.playground and self.parent.modules.playground.UpdateFavoriteToyButton then
-                self.parent.modules.playground:UpdateFavoriteToyButton()
-            end
-        end)
-    local scrollFrame = CreateFrame("ScrollFrame", "BOLTToyScrollFrame", toyFrame, "UIPanelScrollFrameTemplate"); scrollFrame
-        :SetPoint("TOPLEFT", toyFrame, "TOPLEFT", 15, -85); scrollFrame:SetPoint("BOTTOMRIGHT", toyFrame, "BOTTOMRIGHT",
-        -35, 15)
-    local scrollChild = CreateFrame("Frame", nil, scrollFrame); scrollFrame:SetScrollChild(scrollChild); scrollChild
-        :SetSize(370, 1)
-    self.toyFrame = toyFrame; self.searchBox = searchBox; self.currentToyButton = currentToy; self.currentToyIcon =
-        currentIcon; self.currentToyText = currentText; self.toyScrollFrame = scrollFrame; self.toyScrollChild =
-        scrollChild; self.toyButtons = {}
-    toyFrame:SetScript("OnShow", function()
-        C_Timer.After(0.1, function()
-            if not self.toyListPopulated then
-                -- try to populate; may retry internally if data isn't ready
-                self:PopulateToyList()
-                self.toyListPopulated = true
-            end
-            self:UpdateToySelection()
-        end)
-    end)
-
-    -- Ensure we refresh when the game's toy data updates
-    if not self.toyEventFrame then
-        local f = CreateFrame("Frame")
-        f:RegisterEvent("TOYS_UPDATED")
-        f:RegisterEvent("PLAYER_LOGIN")
-        f:RegisterEvent("PLAYER_ENTERING_WORLD")
-        f:SetScript("OnEvent", function(_, event)
-            C_Timer.After(0.1, function()
-                if self and self.PopulateToyList then
-                    pcall(function()
-                        self:PopulateToyList()
-                        self.toyListPopulated = true
-                        self:UpdateToySelection()
-                    end)
-                end
-            end)
-        end)
-        self.toyEventFrame = f
-    end
-
-    self:UpdateToySelection()
-end
-
-function Config:PopulateToyList()
-    if not self.toyScrollChild then return end
-    -- Throttle repeated calls
-    if self._lastToyScan and (GetTime() - self._lastToyScan) < 0.5 then return end
-    self._lastToyScan = GetTime()
-
-    for _, b in pairs(self.toyButtons) do b:Hide() end
-    self.toyButtons = {}
-    self.allToys = {}
-
-    -- Try to ensure toy APIs are loaded
-    if not C_ToyBox then
-        pcall(LoadAddOn, "Blizzard_Collections")
-        if not C_ToyBox then
-            return
-        end
-    end
-
-    -- Prefer unfiltered total count first; filtered count can be zero when UI filters hide items
-    local getNum = (type(C_ToyBox.GetNumToys) == "function" and C_ToyBox.GetNumToys) or
-        ((type(C_ToyBox.GetNumFilteredToys) == "function" and C_ToyBox.GetNumFilteredToys) or nil)
-    if type(getNum) ~= "function" then
-        return
-    end
-
-    -- Try to ensure filters include everything (if API supports these helpers)
-    if C_ToyBox.SetAllSourceTypeFilters then
-        pcall(C_ToyBox.SetAllSourceTypeFilters, true)
-    end
-    if C_ToyBox.SetAllExpansionTypeFilters then
-        pcall(C_ToyBox.SetAllExpansionTypeFilters, true)
-    end
-    if C_ToyBox.SetUncollectedShown then pcall(C_ToyBox.SetUncollectedShown, false) end
-    if C_ToyBox.SetUnusableShown then pcall(C_ToyBox.SetUnusableShown, true) end
-
-    -- Re-query count after attempting to adjust filters
-    local numToys = getNum() or 0
-
-
-
-    -- If there are no toys yet, retry a few times (toy data may be loaded async)
-    if numToys == 0 then
-        self._toyPopulateRetries = (self._toyPopulateRetries or 0) + 1
-        if self._toyPopulateRetries <= 3 then
-            C_Timer.After(0.75, function()
-                if self and self.PopulateToyList then pcall(function() self:PopulateToyList() end) end
-            end)
-            return
-        else
-            -- continue and allow empty list
-        end
-    end
-
-    local added = 0
-    local foundIDs = false
-
-    -- Helper to process a toyID
-    local function processToyID(toyID)
-        if not toyID or toyID <= 0 then return false end
-        local itemID, toyName, icon = C_ToyBox.GetToyInfo(toyID)
-        if itemID and toyName and PlayerHasToy(itemID) then
-            if not icon and C_Item and C_Item.GetItemIconByID then
-                icon = C_Item.GetItemIconByID(itemID)
-            end
-            table.insert(self.allToys, {
-                id = toyID,
-                itemId = itemID,
-                name = toyName,
-                icon = icon,
-                lcname = string.lower(toyName)
-            })
-            return true
-        end
-        return false
-    end
-
-    -- First attempt: try 0-based indices (some clients use 0..n-1)
-    for i = 0, math.max(0, numToys - 1) do
-        local ok, toyID = pcall(C_ToyBox.GetToyFromIndex, i)
-        if ok and toyID and toyID > 0 then
-            foundIDs = true
-            if processToyID(toyID) then added = added + 1 end
-        else
-            -- ignore failures silently
-        end
-    end
-
-    -- If none found with 0-based, try 1-based indexing (legacy)
-    if not foundIDs then
-        for i = 1, numToys do
-            local ok, toyID = pcall(C_ToyBox.GetToyFromIndex, i)
-            if ok and toyID and toyID > 0 then
-                foundIDs = true
-                if processToyID(toyID) then added = added + 1 end
-            else
-                -- ignore failure
-            end
-        end
-    end
-
-    if not foundIDs then
-        if not self._toyFilterFixAttempted then
-            pcall(function() if ToggleCollectionsJournal then ToggleCollectionsJournal() end end)
-            -- Wait a moment for Collections UI to initialize, then attempt to clear filters and retry
-            C_Timer.After(0.5, function()
-                if not self then return end
-                if C_ToyBox then
-                    pcall(function()
-                        if C_ToyBox.SetAllSourceTypeFilters then C_ToyBox.SetAllSourceTypeFilters(true) end
-                        if C_ToyBox.SetAllExpansionTypeFilters then C_ToyBox.SetAllExpansionTypeFilters(true) end
-                        if C_ToyBox.SetUncollectedShown then pcall(C_ToyBox.SetUncollectedShown, true) end
-                        if C_ToyBox.SetUnusableShown then pcall(C_ToyBox.SetUnusableShown, true) end
-                        -- Try a few possible search/clear APIs on C_ToyBox if present
-                        local maybeClearFns = { "SetSearch", "SetFilterString", "ClearSearch", "SetSearchText" }
-                        for _, fname in ipairs(maybeClearFns) do
-                            if C_ToyBox[fname] and type(C_ToyBox[fname]) == "function" then
-                                pcall(C_ToyBox[fname], "")
-                            end
-                        end
-                    end)
-                end
-                -- mark that we attempted a fix so we don't loop infinitely
-                self._toyFilterFixAttempted = true
-                C_Timer.After(0.5, function()
-                    if self and self.PopulateToyList then pcall(function() self:PopulateToyList() end) end
-                end)
-            end)
-        else
-            -- already attempted fix
-        end
-    end
-
-    table.sort(self.allToys, function(a, b) return a.name < b.name end)
-
-    self._toyPopulateRetries = 0
-    
-    -- Show warning if toy list is empty after all attempts
-    if #self.allToys == 0 and self._toyFilterFixAttempted then
-        if self.parent and self.parent.Print then
-            self.parent:Print("|cFFFF8800Warning:|r No toys found in your collection. This may be due to filters applied in the WoW Toy Box. Please open your Toy Box (Shift+P) and clear any active filters.")
-        end
-    end
-
-    self:FilterToyList()
-
-    -- Schedule icon-cache retry for toys missing icons
-    local needsIcon = false
-    for _, t in ipairs(self.allToys) do
-        if not t.icon and t.itemId then
-            needsIcon = true
-            break
-        end
-    end
-
-    if needsIcon then
-        C_Timer.After(0.5, function()
-            if not self or not self.allToys then return end
-            local changed = false
-            for _, t in ipairs(self.allToys) do
-                if not t.icon and t.itemId and C_Item and C_Item.GetItemIconByID then
-                    local maybeIcon = C_Item.GetItemIconByID(t.itemId)
-                    if maybeIcon then
-                        t.icon = maybeIcon
-                        changed = true
-                    end
-                end
-            end
-            if changed and self.FilterToyList then
-                self:FilterToyList()
-            end
-        end)
-    end
-end
-
-function Config:FilterToyList()
-    if not self.toyScrollChild or not self.allToys then return end
-    local searchText = ""
-    if self.searchBox then searchText = self.searchBox:GetText():lower() end
-    local filteredToys = {}
-    for _, toy in ipairs(self.allToys) do
-        if searchText == "" or toy.lcname:find(searchText, 1, true) then
-            table.insert(filteredToys, toy)
-        end
-    end
-    local yOffset = 0
-    local buttonHeight = 30
-    for i, toy in ipairs(filteredToys) do
-        local button = self.toyButtons[i]
-        if not button then
-            button = CreateFrame("Button", nil, self.toyScrollChild)
-            button:SetSize(360, buttonHeight)
-            local highlight = button:CreateTexture(nil, "HIGHLIGHT")
-            highlight:SetAllPoints()
-            highlight:SetColorTexture(0.3, 0.3, 0.3, 0.5)
-            local icon = button:CreateTexture(nil, "ARTWORK")
-            icon:SetPoint("LEFT", button, "LEFT", 5, 0)
-            icon:SetSize(22, 22)
-            local text = button:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-            text:SetPoint("LEFT", icon, "RIGHT", 10, 0)
-            text:SetPoint("RIGHT", button, "RIGHT", -10, 0)
-            text:SetJustifyH("LEFT")
-            button.icon = icon
-            button.text = text
-            self.toyButtons[i] = button
-        end
-        button:SetPoint("TOPLEFT", self.toyScrollChild, "TOPLEFT", 0, -yOffset)
-        -- Safe texture set: use toy icon if present, otherwise a question mark placeholder
-        if toy.icon then
-            button.icon:SetTexture(toy.icon)
-        else
-            button.icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-        end
-        -- Ensure full UVs so icon draws correctly
-        button.icon:SetTexCoord(0, 1, 0, 1)
-        button.text:SetText(toy.name)
+    local buttons = {}
+    local previous = label
+    for index = 1, 8 do
+        local button = CreateFrame("Button", nil, holder)
+        button:SetSize(22, 22)
+        button:SetPoint("LEFT", previous, "RIGHT", index == 1 and 8 or 4, 0)
+        button:SetNormalTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
+        button:GetNormalTexture():SetTexCoord(MarkerTexCoords(index))
+        button:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
         button:SetScript("OnClick", function()
-            self.parent:SetConfig(toy.id, "playground", "favoriteToyId")
-            self:UpdateToySelection()
-            if self.parent.modules.playground and self.parent.modules.playground.UpdateFavoriteToyButton then
-                self
-                    .parent.modules.playground:UpdateFavoriteToyButton()
-            end
+            SetSetting(option.path, index)
+            holder.Refresh()
         end)
-        button:Show()
-        yOffset = yOffset + buttonHeight
+        button:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:SetText(MARKER_NAMES[index])
+            GameTooltip:Show()
+        end)
+        button:SetScript("OnLeave", GameTooltip_Hide)
+        buttons[index] = button
+        previous = button
     end
-    for i = #filteredToys + 1, #self.toyButtons do if self.toyButtons[i] then self.toyButtons[i]:Hide() end end
-    self.toyScrollChild:SetHeight(math.max(yOffset, 1))
-end
 
-function Config:UpdateToySelection()
-    if not self.currentToyButton then return end
-    local currentToyID = self.parent:GetConfig("playground", "favoriteToyId")
-    if currentToyID then
-        -- C_ToyBox.GetToyInfo returns: itemID, toyName, icon, isFavorite, hasFanfare, itemQuality
-        local itemID, toyName, toyIcon = C_ToyBox.GetToyInfo(currentToyID)
-        if itemID and toyName then
-            self.currentToyIcon:SetTexture(toyIcon or "Interface\\Icons\\INV_Misc_QuestionMark")
-            self.currentToyText:SetText(toyName)
-            self:UpdateCurrentToyDisplay()
-            return
+    holder.SetEnabled = function(_, enabled)
+        for _, button in ipairs(buttons) do button:SetEnabled(enabled) end
+    end
+    holder.Refresh = function()
+        local selected = GetSetting(option.path)
+        for index, button in ipairs(buttons) do
+            button:SetAlpha(index == selected and 1 or 0.4)
         end
     end
-    self.currentToyIcon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-    self.currentToyText:SetText("None selected (click to clear)")
-    self:UpdateCurrentToyDisplay()
+    return holder
+end
+
+function Widgets.keybind(parent, option)
+    local holder = CreateFrame("Frame", nil, parent)
+    holder:SetSize(260, 22)
+    local label = AddLabel(holder, option.label)
+    label:SetPoint("LEFT")
+
+    local button = BOLT:CreateButton(holder, "", 130, 22)
+    button:SetPoint("LEFT", label, "RIGHT", 8, 0)
+    button:EnableKeyboard(false)
+
+    local function Finish()
+        button:EnableKeyboard(false)
+        button:SetScript("OnKeyDown", nil)
+        holder.Refresh()
+    end
+
+    button:SetScript("OnClick", function()
+        button:SetText("Press a key...")
+        button:EnableKeyboard(true)
+        button:SetPropagateKeyboardInput(false)
+        button:SetScript("OnKeyDown", function(_, key)
+            if key == "ESCAPE" then Finish() return end
+            if key:find("SHIFT$") or key:find("CTRL$") or key:find("ALT$") then return end
+            local combo = (IsControlKeyDown() and "CTRL-" or "") .. (IsAltKeyDown() and "ALT-" or "")
+                .. (IsShiftKeyDown() and "SHIFT-" or "") .. key
+            for _, oldKey in ipairs({ GetBindingKey(option.binding) }) do
+                SetBinding(oldKey, nil)
+            end
+            if SetBinding(combo, option.binding) then
+                SaveBindings(GetCurrentBindingSet())
+            else
+                BOLT:Print("Couldn't bind " .. combo .. ".")
+            end
+            Finish()
+        end)
+    end)
+
+    holder.Refresh = function()
+        button:SetText(GetBindingKey(option.binding) or "Unbound")
+    end
+    return holder
+end
+
+-- Favorite toy picker: current toy + a button opening a searchable list.
+function Widgets.toy(parent, option)
+    local holder = CreateFrame("Frame", nil, parent)
+    holder:SetSize(330, 22)
+
+    local choose = BOLT:CreateButton(holder, "Choose Toy", 110, 22, function() Config:ShowToyPicker() end)
+    choose:SetPoint("LEFT")
+    local icon = holder:CreateTexture(nil, "ARTWORK")
+    icon:SetSize(20, 20)
+    icon:SetPoint("LEFT", choose, "RIGHT", 10, 0)
+    local name = AddLabel(holder, "", "GameFontHighlight")
+    name:SetPoint("LEFT", icon, "RIGHT", 6, 0)
+
+    holder.SetEnabled = function(_, enabled) choose:SetEnabled(enabled) end
+    holder.Refresh = function()
+        local toyID = BOLT:GetConfig("playground", "favoriteToyId")
+        local _, toyName, toyIcon
+        if toyID then
+            _, toyName, toyIcon = C_ToyBox.GetToyInfo(toyID)
+        end
+        icon:SetTexture(toyIcon or "Interface\\Icons\\INV_Misc_QuestionMark")
+        name:SetText(toyName or "None selected")
+    end
+    return holder
+end
+
+---------------------------------------------------------------------------
+-- Toy picker
+---------------------------------------------------------------------------
+
+local TOY_ROW = 28
+
+function Config:CreateToyPicker()
+    local picker = BOLT:CreateDialog("BOLTToySelectionPopup", 420, 440, "Choose Favorite Toy")
+
+    local search = CreateFrame("EditBox", nil, picker, "SearchBoxTemplate")
+    search:SetSize(250, 22)
+    search:SetPoint("TOPLEFT", 24, -48)
+    search:HookScript("OnTextChanged", function() self:FilterToyPicker() end)
+    picker.search = search
+
+    local clear = BOLT:CreateButton(picker, "No Toy", 90, 22, function()
+        Module("playground"):SetFavoriteToy(nil)
+        picker:Hide()
+        self:RefreshAll()
+    end)
+    clear:SetPoint("LEFT", search, "RIGHT", 12, 0)
+
+    local scroll = CreateFrame("ScrollFrame", nil, picker, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", 20, -80)
+    scroll:SetPoint("BOTTOMRIGHT", -36, 20)
+    local content = CreateFrame("Frame", nil, scroll)
+    content:SetSize(360, 1)
+    scroll:SetScrollChild(content)
+    picker.content = content
+    picker.rows = {}
+
+    self.toyPicker = picker
+end
+
+function Config:FilterToyPicker()
+    local picker = self.toyPicker
+    local query = picker.search:GetText():lower()
+    local shown = 0
+    for _, toy in ipairs(picker.toys) do
+        if query == "" or toy.name:lower():find(query, 1, true) then
+            shown = shown + 1
+            local row = picker.rows[shown]
+            if not row then
+                row = CreateFrame("Button", nil, picker.content)
+                row:SetSize(360, TOY_ROW)
+                row:SetPoint("TOPLEFT", 0, -(shown - 1) * TOY_ROW)
+                row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+                row.icon = row:CreateTexture(nil, "ARTWORK")
+                row.icon:SetSize(22, 22)
+                row.icon:SetPoint("LEFT", 4, 0)
+                row.text = AddLabel(row, "", "GameFontHighlight")
+                row.text:SetPoint("LEFT", row.icon, "RIGHT", 8, 0)
+                row:SetScript("OnClick", function(self)
+                    Module("playground"):SetFavoriteToy(self.toyID)
+                    picker:Hide()
+                    Config:RefreshAll()
+                end)
+                picker.rows[shown] = row
+            end
+            row.toyID = toy.id
+            row.icon:SetTexture(toy.icon)
+            row.text:SetText(toy.name)
+            row:Show()
+        end
+    end
+    for index = shown + 1, #picker.rows do
+        picker.rows[index]:Hide()
+    end
+    picker.content:SetHeight(math.max(1, shown * TOY_ROW))
+end
+
+function Config:ShowToyPicker()
+    if not self.toyPicker then
+        self:CreateToyPicker()
+    end
+    self.toyPicker.toys = Module("playground"):GetCollectedToys()
+    self.toyPicker.search:SetText("")
+    self:FilterToyPicker()
+    self.toyPicker:Show()
+end
+
+---------------------------------------------------------------------------
+-- Page building
+---------------------------------------------------------------------------
+
+local function IsOptionEnabled(option)
+    return not option.requires or GetSetting(option.requires) and true or false
+end
+
+function Config:BuildSection(page, spec)
+    local mod = Module(spec.module)
+    local section = CreateFrame("Frame", nil, page.content)
+    section.spec = spec
+    section.mod = mod
+
+    local title = AddLabel(section, spec.title or mod.displayName, "GameFontNormalLarge")
+    title:SetPoint("TOPLEFT", 20, 0)
+
+    local y = -28
+    if not mod.alwaysOn then
+        local toggle = CreateFrame("CheckButton", nil, section, "UICheckButtonTemplate")
+        toggle:SetSize(26, 26)
+        toggle:SetPoint("TOPLEFT", 26, y)
+        toggle.Text:SetFontObject("GameFontHighlight")
+        toggle.Text:SetText("Enable")
+        toggle:SetScript("OnClick", function(self)
+            BOLT:SetModuleEnabled(spec.module, self:GetChecked())
+            Config:RefreshAll()
+        end)
+        section.toggle = toggle
+        y = y - ROW_HEIGHT
+    end
+    section.headerHeight = -y
+
+    local body = CreateFrame("Frame", nil, section)
+    body:SetPoint("TOPLEFT", 0, y)
+    body:SetPoint("RIGHT")
+    section.body = body
+    section.widgets = {}
+
+    local by = 0
+    if spec.description then
+        local description = AddLabel(body, spec.description)
+        description:SetPoint("TOPLEFT", 30, by)
+        description:SetWidth(540)
+        description:SetJustifyH("LEFT")
+        by = by - math.max(ROW_HEIGHT - 6, description:GetStringHeight() + 10)
+    end
+
+    local previous
+    for _, option in ipairs(spec.options or {}) do
+        local widget = Widgets[option.type](body, option)
+        widget.option = option
+        if option.sameRow and previous then
+            widget:SetPoint("LEFT", previous.anchorRight or previous, "RIGHT", 12, 0)
+        else
+            widget:SetPoint("TOPLEFT", OPTION_X - (option.type == "checkbox" and 4 or 0), by)
+            by = by - ROW_HEIGHT
+        end
+        table.insert(section.widgets, widget)
+        previous = widget
+    end
+
+    section.bodyHeight = -by
+    body:SetHeight(math.max(1, section.bodyHeight))
+    table.insert(page.sections, section)
+end
+
+function Config:LayoutPage(page)
+    local y = -56
+    for _, section in ipairs(page.sections) do
+        local expanded = BOLT:IsModuleEnabled(section.spec.module)
+        section.body:SetShown(expanded)
+        local height = section.headerHeight + (expanded and section.bodyHeight or 0)
+        section:ClearAllPoints()
+        section:SetPoint("TOPLEFT", 0, y)
+        section:SetPoint("RIGHT")
+        section:SetHeight(height)
+        y = y - height - 12
+    end
+    page.content:SetHeight(-y + 20)
+end
+
+function Config:BuildPage(definition)
+    local panel = CreateFrame("Frame")
+    local scroll = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", 4, -4)
+    scroll:SetPoint("BOTTOMRIGHT", -26, 4)
+    local content = CreateFrame("Frame", nil, scroll)
+    content:SetSize(640, 1)
+    scroll:SetScrollChild(content)
+    scroll:SetScript("OnSizeChanged", function(_, width) content:SetWidth(width) end)
+
+    local heading = AddLabel(content, definition.title, "GameFontNormalHuge")
+    heading:SetPoint("TOPLEFT", 16, -16)
+
+    local page = { panel = panel, content = content, sections = {}, title = definition.title }
+    for _, spec in ipairs(definition.sections) do
+        if Module(spec.module) then
+            self:BuildSection(page, spec)
+        end
+    end
+    panel:SetScript("OnShow", function() self:RefreshAll() end)
+    return page
+end
+
+function Config:BuildMainPanel()
+    local panel = CreateFrame("Frame")
+    local heading = AddLabel(panel, "B.O.L.T", "GameFontNormalHuge")
+    heading:SetPoint("TOPLEFT", 16, -16)
+
+    local version = AddLabel(panel, "Brittle and Occasionally Lethal Tweaks - v" .. BOLT.version, "GameFontHighlight")
+    version:SetPoint("TOPLEFT", heading, "BOTTOMLEFT", 0, -8)
+
+    local help = AddLabel(panel, "Pick a category on the left to configure each module. Type /bolt help for chat commands."
+        .. (BOLT.isForever and "\n\nRunning on WoW: Forever - modules for modern-only systems are hidden." or ""))
+    help:SetPoint("TOPLEFT", version, "BOTTOMLEFT", 0, -16)
+    help:SetWidth(560)
+    help:SetJustifyH("LEFT")
+
+    local reload = BOLT:CreateButton(panel, "Reload UI", 120, 25, ReloadUI)
+    reload:SetPoint("TOPLEFT", help, "BOTTOMLEFT", 0, -16)
+    return panel
+end
+
+---------------------------------------------------------------------------
+-- Refresh
+---------------------------------------------------------------------------
+
+function Config:RefreshAll()
+    for _, page in ipairs(self.pages or {}) do
+        for _, section in ipairs(page.sections) do
+            if section.toggle then
+                section.toggle:SetChecked(BOLT:IsModuleEnabled(section.spec.module))
+            end
+            for _, widget in ipairs(section.widgets) do
+                if widget.Refresh then widget:Refresh() end
+                SetWidgetEnabled(widget, IsOptionEnabled(widget.option))
+            end
+        end
+        self:LayoutPage(page)
+    end
+end
+
+---------------------------------------------------------------------------
+-- Lifecycle
+---------------------------------------------------------------------------
+
+function Config:OnEnable()
+    if self.category then return end
+
+    local main = Settings.RegisterCanvasLayoutCategory(self:BuildMainPanel(), "B.O.L.T")
+    self.pages = {}
+    for _, definition in ipairs(PAGES) do
+        local page = self:BuildPage(definition)
+        if #page.sections > 0 then
+            Settings.RegisterCanvasLayoutSubcategory(main, page.panel, definition.title)
+            table.insert(self.pages, page)
+        end
+    end
+    Settings.RegisterAddOnCategory(main)
+    self.category = main
+    self:RefreshAll()
+end
+
+function Config:Open()
+    Settings.OpenToCategory(self.category:GetID())
 end
 
 BOLT:RegisterModule("config", Config)
-
--- ── Global binding handler ─────────────────────────────────────────────────
-
--- Toggle the player's TRP3 IC/OOC status and apply any BOLT-configured extras
--- (TRP toolbar visibility, Edit Mode profile switch).
-function BOLT_ToggleTRP3Status()
-    if not (AddOn_TotalRP3 and AddOn_TotalRP3.Player and AddOn_TotalRP3.Enums) then
-        BOLT:Print("|cFFFF6B6BTotal RP 3 is not installed or loaded.|r")
-        return
-    end
-    local ok, err = pcall(function()
-        local currentUser = AddOn_TotalRP3.Player.GetCurrentUser()
-        local enums = AddOn_TotalRP3.Enums.ROLEPLAY_STATUS
-        local currentStatus = currentUser:GetRoleplayStatus()
-        -- Treat unset/unknown status as OOC so the first press always enters IC.
-        local isCurrentlyIC = (currentStatus == enums.IN_CHARACTER)
-        local newStatus = isCurrentlyIC and enums.OUT_OF_CHARACTER or enums.IN_CHARACTER
-        currentUser:SetRoleplayStatus(newStatus)
-
-        local goingIC = (newStatus == enums.IN_CHARACTER)
-
-        -- Toggle TRP toolbar visibility if configured.
-        if BOLT:GetConfig("roleplay", "toggleTrpToolbar") and TRP3_ToolbarFrame then
-            TRP3_ToolbarFrame:SetShown(goingIC)
-        end
-
-        -- Switch Edit Mode profile if configured.
-        if EditModeManagerFrame and EditModeManagerFrame.SelectLayout then
-            local targetIdx
-            if goingIC then
-                targetIdx = BOLT:GetConfig("roleplay", "editModeProfileIndex")
-            else
-                targetIdx = BOLT:GetConfig("roleplay", "editModeOOCProfileIndex")
-            end
-            if targetIdx and targetIdx > 0 then
-                -- C_EditMode.GetLayouts().layouts only contains custom layouts; indices 1+2
-                -- are reserved for the built-in Modern/Classic presets, so offset by 2.
-                EditModeManagerFrame:SelectLayout(targetIdx + 2)
-            end
-        end
-
-        local label = goingIC and "|cFF55FF55In Character|r" or "|cFFFFAAAAOut of Character|r"
-        BOLT:Print("TRP3 status: " .. label)
-    end)
-    if not ok then
-        BOLT:Print("|cFFFF6B6BTRP3 status toggle failed: " .. tostring(err) .. "|r")
-    end
-end

@@ -1,7 +1,11 @@
+-- B.O.L.T Sound Muter Module
+-- Mutes game sound files by numeric file ID.
+
 local ADDON_NAME, BOLT = ...
 
-local SoundMuter = {}
-SoundMuter.alwaysInitialize = true
+local SoundMuter = {
+    displayName = "Sound Muter",
+}
 
 local POPUP_ROW_HEIGHT = 28
 
@@ -88,15 +92,11 @@ function SoundMuter:SaveMutedSoundIDs(soundIDs)
 end
 
 function SoundMuter:MuteSound(soundID)
-    if type(MuteSoundFile) == "function" then
-        pcall(MuteSoundFile, soundID)
-    end
+    MuteSoundFile(soundID)
 end
 
 function SoundMuter:UnmuteSound(soundID)
-    if type(UnmuteSoundFile) == "function" then
-        pcall(UnmuteSoundFile, soundID)
-    end
+    UnmuteSoundFile(soundID)
 end
 
 function SoundMuter:ApplyMutedSounds()
@@ -121,7 +121,6 @@ function SoundMuter:SetPopupStatus(message, r, g, b)
 end
 
 function SoundMuter:OnInitialize()
-    self.isEnabled = false
     local savedSoundIDs = self.parent:GetConfig("soundMuter", "mutedSoundIDs") or {}
     local normalizedSoundIDs = self:NormalizeMutedSoundIDs(savedSoundIDs)
     if not SoundIDListsMatch(savedSoundIDs, normalizedSoundIDs) then
@@ -130,14 +129,12 @@ function SoundMuter:OnInitialize()
 end
 
 function SoundMuter:OnEnable()
-    self.isEnabled = true
     self:ApplyMutedSounds()
     self:SetPopupStatus("Muted sound IDs are active.", 0.45, 0.9, 0.45)
     self:RefreshPopupList()
 end
 
 function SoundMuter:OnDisable()
-    self.isEnabled = false
     self:ClearMutedSounds()
     self:SetPopupStatus("Module disabled. Saved IDs will be muted again when re-enabled.", 1, 0.82, 0.3)
     self:RefreshPopupList()
@@ -159,7 +156,7 @@ function SoundMuter:AddMutedSoundID(soundID)
     table.insert(soundIDs, normalizedSoundID)
     self:SaveMutedSoundIDs(soundIDs)
 
-    if self.isEnabled then
+    if self.active then
         self:MuteSound(normalizedSoundID)
         return true, ("Muted sound ID %d."):format(normalizedSoundID)
     end
@@ -189,7 +186,7 @@ function SoundMuter:RemoveMutedSoundID(soundID)
     table.remove(soundIDs, removeIndex)
     self:SaveMutedSoundIDs(soundIDs)
 
-    if self.isEnabled then
+    if self.active then
         self:UnmuteSound(normalizedSoundID)
         return true, ("Unmuted sound ID %d."):format(normalizedSoundID)
     end
@@ -198,12 +195,13 @@ function SoundMuter:RemoveMutedSoundID(soundID)
 end
 
 function SoundMuter:ShowManagementPopup()
+    BOLT:InitializeModule(self)
     if not self.popup then
         self:CreateManagementPopup()
     end
 
     self.popup.input:SetText("")
-    if self.isEnabled then
+    if self.active then
         self:SetPopupStatus("Muted sound IDs are active.", 0.45, 0.9, 0.45)
     else
         self:SetPopupStatus("Module disabled. You can still edit the saved list.", 1, 0.82, 0.3)
@@ -214,36 +212,15 @@ function SoundMuter:ShowManagementPopup()
 end
 
 function SoundMuter:CreateManagementPopup()
-    local popup = CreateFrame("Frame", "BOLTSoundMuterPopup", UIParent, "BackdropTemplate")
-    popup:SetSize(430, 420)
+    local popup = BOLT:CreateDialog("BOLTSoundMuterPopup", 430, 420, "Sound Muter")
     popup:SetPoint("CENTER", UIParent, "CENTER", 0, 80)
-    popup:SetFrameStrata("DIALOG")
-    popup:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile = true, tileSize = 32, edgeSize = 32,
-        insets = { left = 11, right = 12, top = 12, bottom = 11 }
-    })
     popup:SetBackdropColor(0.05, 0.05, 0.05, 1)
-    popup:EnableMouse(true)
-    popup:SetMovable(true)
-    popup:RegisterForDrag("LeftButton")
-    popup:SetScript("OnDragStart", popup.StartMoving)
-    popup:SetScript("OnDragStop", popup.StopMovingOrSizing)
-    popup:Hide()
-
-    local title = popup:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", popup, "TOP", 0, -18)
-    title:SetText("Sound Muter")
 
     local subtitle = popup:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    subtitle:SetPoint("TOP", title, "BOTTOM", 0, -6)
+    subtitle:SetPoint("TOP", popup.title, "BOTTOM", 0, -6)
     subtitle:SetWidth(360)
     subtitle:SetJustifyH("CENTER")
     subtitle:SetText("Add numeric sound file IDs to mute them, or remove IDs from the list to unmute them again.")
-
-    local closeButton = CreateFrame("Button", nil, popup, "UIPanelCloseButton")
-    closeButton:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -5, -5)
 
     local inputLabel = popup:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     inputLabel:SetPoint("TOPLEFT", popup, "TOPLEFT", 22, -76)
@@ -304,8 +281,6 @@ function SoundMuter:CreateManagementPopup()
     popup.scrollChild = scrollChild
     popup.emptyText = emptyText
     popup.rows = {}
-
-    tinsert(UISpecialFrames, "BOLTSoundMuterPopup")
 
     self.popup = popup
 end

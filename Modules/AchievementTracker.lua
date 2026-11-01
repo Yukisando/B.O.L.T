@@ -3,7 +3,14 @@
 
 local ADDON_NAME, BOLT = ...
 
-local AchievementTracker = {}
+local AchievementTracker = {
+    displayName = "Achievement Tracker",
+}
+
+function AchievementTracker:IsSupported()
+    -- WoW: Forever replaces achievements with its Legacy system.
+    return not BOLT.isForever
+end
 
 -- Snapshot: achievementID → { completed = count, quantity = totalQty }
 local snapshot = {}
@@ -18,7 +25,7 @@ local rescanPending = false
 local debounceTimer = nil
 local activeTicker = nil
 
-local BUDGET_US = 500          -- max microseconds per frame (~0.5ms)
+local BUDGET_MS = 2            -- max scan time per frame; debugprofilestop() is in milliseconds
 local DEBOUNCE_SECONDS = 0.5
 local MAX_MESSAGES_PER_SCAN = 5
 
@@ -107,27 +114,27 @@ end
 -- Coroutine scheduler: resumes fn once per frame within a time budget
 ---------------------------------------------------------------------------
 local function CheckBudget(t0)
-    if (debugprofilestop() - t0) > BUDGET_US then
+    if (debugprofilestop() - t0) > BUDGET_MS then
         coroutine.yield()
         return debugprofilestop()
     end
     return t0
 end
 
+-- Runs fn as a coroutine, one budgeted slice per frame. onDone(ok) always runs,
+-- so a failed scan can't leave the tracker stuck in its busy state.
 local function RunAsync(fn, onDone)
     if activeTicker then activeTicker:Cancel() end
     local co = coroutine.create(fn)
     activeTicker = C_Timer.NewTicker(0, function()
-        if coroutine.status(co) == "dead" then
-            activeTicker:Cancel()
-            activeTicker = nil
-            if onDone then onDone() end
-            return
-        end
         local ok, err = coroutine.resume(co)
         if not ok then
+            geterrorhandler()(err)
+        end
+        if not ok or coroutine.status(co) == "dead" then
             activeTicker:Cancel()
             activeTicker = nil
+            onDone(ok)
         end
     end)
 end
@@ -161,23 +168,36 @@ function AchievementTracker:GetTopLevelCategories()
     return top
 end
 
+-- Saved as { [categoryID] = true }; an empty table tracks everything and the
+-- "__none" sentinel tracks nothing. Not part of BOLT.defaults, because merging
+-- defaults would re-add Exploration every login after the user removed it.
+local DEFAULT_TRACKED = { [97] = true } -- Exploration
+
+local function GetSavedCategories()
+    local saved = BOLT:GetConfig("achievementTracker", "trackedCategories")
+    if not saved then
+        saved = CopyTable(DEFAULT_TRACKED)
+        BOLT:SetConfig(saved, "achievementTracker", "trackedCategories")
+    end
+    return saved
+end
+
 function AchievementTracker:GetTrackedCategorySet()
-    local saved = self.parent:GetConfig("achievementTracker", "trackedCategories")
-    if not saved or not next(saved) then return nil end  -- nil = track all
+    local saved = GetSavedCategories()
+    if not next(saved) then return nil end  -- nil = track all
     if saved["__none"] then return {} end  -- explicit "none selected"
     return saved
 end
 
 function AchievementTracker:SetCategoryTracked(catID, enabled)
-    local saved = self.parent:GetConfig("achievementTracker", "trackedCategories") or {}
+    local saved = GetSavedCategories()
     saved["__none"] = nil  -- clear sentinel when manually toggling
     saved[catID] = enabled or nil
-    self.parent:SetConfig(saved, "achievementTracker", "trackedCategories")
 end
 
 function AchievementTracker:IsCategoryTracked(catID)
-    local saved = self.parent:GetConfig("achievementTracker", "trackedCategories")
-    if not saved or not next(saved) then return true end  -- empty = all tracked
+    local saved = GetSavedCategories()
+    if not next(saved) then return true end  -- empty = all tracked
     if saved["__none"] then return false end  -- explicit none
     return saved[catID] == true
 end
@@ -215,13 +235,10 @@ function AchievementTracker:BuildTrackedCategoryIDs()
     return allowed
 end
 
-function AchievementTracker:OnInitialize()
-end
-
 function AchievementTracker:OnEnable()
     self:RegisterEvents()
-    C_Timer.After(3, function()
-        self:BuildSnapshot()
+    C_Timer.After(1, function()
+        if self.active then self:BuildSnapshot() end
     end)
 end
 
@@ -268,7 +285,7 @@ function AchievementTracker:OnAchievementEarned(achievementID, alreadyEarned)
     if alreadyEarned then return end
     local link = self:GetAchievementLink(achievementID)
     ShowAlert("Achievement completed: " .. link .. "!")
-    self.parent:Print("Achievement completed: " .. link .. "!")
+    BOLT:Print("Achievement completed: " .. link .. "!")
     snapshot[achievementID] = nil
 end
 
@@ -282,7 +299,7 @@ function AchievementTracker:OnCriteriaComplete(criteriaID)
 
     local link = self:GetAchievementLink(achievementID)
     ShowAlert("Criteria completed for " .. link)
-    self.parent:Print("Criteria completed for " .. link)
+    BOLT:Print("Criteria completed for " .. link)
 end
 
 function AchievementTracker:OnCriteriaUpdate()
@@ -346,11 +363,12 @@ function AchievementTracker:BuildSnapshot()
         for achID in pairs(snapshot) do
             incompleteAchievements[#incompleteAchievements + 1] = achID
         end
-    end, function()
-        snapshotReady = true
+    end, function(ok)
+        snapshotReady = ok
         busy = false
         HideSpinner()
-        self.parent:Debug("Achievement Tracker: ready (" .. #incompleteAchievements .. " tracked)")
+        if not ok then return end
+        BOLT:Debug("Achievement Tracker: ready (" .. #incompleteAchievements .. " tracked)")
     end)
 end
 
@@ -394,8 +412,9 @@ function AchievementTracker:ScanForChanges()
             end
             incompleteAchievements = pruned
         end
-    end, function()
+    end, function(ok)
         busy = false
+        if not ok then return end
 
         -- Report progress with alert + chat
         local count = #changed
@@ -404,10 +423,10 @@ function AchievementTracker:ScanForChanges()
             for i = 1, shown do
                 local msg = "Progress on " .. self:GetAchievementLink(changed[i])
                 ShowAlert(msg)
-                self.parent:Print(msg)
+                BOLT:Print(msg)
             end
             if count > shown then
-                self.parent:Print("...and " .. (count - shown) .. " more achievement(s) progressed.")
+                BOLT:Print("...and " .. (count - shown) .. " more achievement(s) progressed.")
             end
         end
 

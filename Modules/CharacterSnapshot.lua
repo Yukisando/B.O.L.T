@@ -5,10 +5,10 @@
 
 local ADDON_NAME, BOLT = ...
 
-local CharacterSnapshot = {}
--- This module has no enable toggle and should always initialize so the
--- TIME_PLAYED_MSG listener is wired up before the popup is opened.
-CharacterSnapshot.alwaysInitialize = true
+local CharacterSnapshot = {
+    displayName = "Character Snapshot",
+    alwaysOn = true,
+}
 
 ---------------------------------------------------------------------------
 -- JSON encoder (small, table -> pretty-printed JSON string)
@@ -86,25 +86,15 @@ end
 -- Module lifecycle
 ---------------------------------------------------------------------------
 function CharacterSnapshot:OnInitialize()
-    self.timePlayedTotal = nil
-    self.timePlayedLevel = nil
-
-    local f = CreateFrame("Frame")
-    f:RegisterEvent("TIME_PLAYED_MSG")
-    f:SetScript("OnEvent", function(_, event, total, level)
-        if event == "TIME_PLAYED_MSG" then
-            self.timePlayedTotal = total
-            self.timePlayedLevel = level
-            -- Suppress chat spam from our own requests
-            if self._suppressChat and ChatFrame_DisplayTimePlayed then
-                self._suppressChat = false
-            end
-            if self.popup and self.popup:IsShown() then
-                self:RefreshSnapshotText()
-            end
+    local frame = CreateFrame("Frame")
+    frame:RegisterEvent("TIME_PLAYED_MSG")
+    frame:SetScript("OnEvent", function(_, _, total, level)
+        self.timePlayedTotal = total
+        self.timePlayedLevel = level
+        if self.popup and self.popup:IsShown() then
+            self:RefreshSnapshotText()
         end
     end)
-    self.eventFrame = f
 end
 
 ---------------------------------------------------------------------------
@@ -252,126 +242,71 @@ end
 -- UI
 ---------------------------------------------------------------------------
 function CharacterSnapshot:RefreshSnapshotText()
-    if not self.popup or not self.popup.editBox then return end
-    local snapshot = self:BuildSnapshot()
-    local json = ToJSON(snapshot)
-    self.popup.editBox:SetText(json)
-    self.popup.editBox:HighlightText()
+    local popup = self.popup
+    if not popup then return end
 
-    if self.popup.statusText then
-        if not snapshot.timePlayed.totalSeconds then
-            self.popup.statusText:SetText("|cFFFFD200Waiting for /played data...|r")
-        else
-            local hours = math.floor((snapshot.timePlayed.totalSeconds or 0) / 3600)
-            self.popup.statusText:SetText(string.format("Snapshot ready - %d categories, total /played: %dh.",
-                (snapshot.statistics and (function() local n = 0; for _ in pairs(snapshot.statistics) do n = n + 1 end; return n end)()) or 0,
-                hours))
-        end
+    local snapshot = self:BuildSnapshot()
+    popup.json = ToJSON(snapshot)
+    popup.editBox:SetText(popup.json)
+    popup.editBox:HighlightText()
+
+    local categories = 0
+    for _ in pairs(snapshot.statistics) do categories = categories + 1 end
+    if snapshot.timePlayed.totalSeconds then
+        popup.statusText:SetText(("Snapshot ready - %d stat categories, total /played: %dh."):format(
+            categories, math.floor(snapshot.timePlayed.totalSeconds / 3600)))
+    else
+        popup.statusText:SetText(("|cffffd200Waiting for /played data...|r  (%d stat categories)"):format(categories))
     end
 end
 
 function CharacterSnapshot:CreatePopup()
-    local popup = CreateFrame("Frame", "BOLTCharacterSnapshotPopup", UIParent, "BackdropTemplate")
-    popup:SetSize(560, 420)
-    popup:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-    popup:SetFrameStrata("DIALOG")
-    popup:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile = true, tileSize = 32, edgeSize = 32,
-        insets = { left = 11, right = 12, top = 12, bottom = 11 }
-    })
-    popup:SetBackdropColor(0, 0, 0, 1)
-    popup:EnableMouse(true)
-    popup:SetMovable(true)
-    popup:RegisterForDrag("LeftButton")
-    popup:SetScript("OnDragStart", popup.StartMoving)
-    popup:SetScript("OnDragStop", popup.StopMovingOrSizing)
-    popup:Hide()
-
-    local title = popup:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", popup, "TOP", 0, -16)
-    title:SetText("Character Snapshot (JSON)")
+    local popup = BOLT:CreateDialog("BOLTCharacterSnapshotPopup", 560, 420, "Character Snapshot (JSON)")
 
     local hint = popup:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    hint:SetPoint("TOP", title, "BOTTOM", 0, -4)
+    hint:SetPoint("TOP", popup.title, "BOTTOM", 0, -4)
     hint:SetText("Press Ctrl+C to copy. Ctrl+A re-selects all.")
 
-    local closeBtn = CreateFrame("Button", nil, popup, "UIPanelCloseButton")
-    closeBtn:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -4, -4)
+    local scroll = CreateFrame("ScrollFrame", nil, popup, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", 16, -60)
+    scroll:SetPoint("BOTTOMRIGHT", -32, 56)
 
-    -- Scrollable read-only EditBox
-    local scroll = CreateFrame("ScrollFrame", "BOLTCharacterSnapshotScroll", popup, "UIPanelScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT", popup, "TOPLEFT", 16, -60)
-    scroll:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -32, 56)
-
-    local editBox = CreateFrame("EditBox", "BOLTCharacterSnapshotEditBox", scroll)
+    local editBox = CreateFrame("EditBox", nil, scroll)
     editBox:SetMultiLine(true)
     editBox:SetFontObject(ChatFontNormal)
     editBox:SetWidth(500)
     editBox:SetAutoFocus(false)
-    editBox:EnableMouse(true)
     editBox:SetScript("OnEscapePressed", function() popup:Hide() end)
-    -- Block edits: revert to last known JSON if user types
-    editBox:SetScript("OnTextChanged", function(eb, userInput)
-        if userInput and popup._currentJson and eb:GetText() ~= popup._currentJson then
-            eb:SetText(popup._currentJson)
-            eb:HighlightText()
+    -- Read-only: revert anything the user types.
+    editBox:SetScript("OnTextChanged", function(box, userInput)
+        if userInput and popup.json then
+            box:SetText(popup.json)
+            box:HighlightText()
         end
     end)
     scroll:SetScrollChild(editBox)
     popup.editBox = editBox
 
-    -- Override the basic Refresh wrapper so we can keep the JSON cached for the lock above
-    local originalRefresh = self.RefreshSnapshotText
-    self.RefreshSnapshotText = function(s)
-        local snapshot = s:BuildSnapshot()
-        local json = ToJSON(snapshot)
-        popup._currentJson = json
-        editBox:SetText(json)
-        editBox:HighlightText()
-        if popup.statusText then
-            local categoryCount = 0
-            if snapshot.statistics then
-                for _ in pairs(snapshot.statistics) do categoryCount = categoryCount + 1 end
-            end
-            if not snapshot.timePlayed.totalSeconds then
-                popup.statusText:SetText(string.format("|cFFFFD200Waiting for /played data...|r  (%d stat categories)", categoryCount))
-            else
-                local hours = math.floor((snapshot.timePlayed.totalSeconds or 0) / 3600)
-                popup.statusText:SetText(string.format("Snapshot ready - %d stat categories, total /played: %dh.", categoryCount, hours))
-            end
-        end
-    end
+    popup.statusText = popup:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    popup.statusText:SetPoint("BOTTOMLEFT", 18, 22)
+    popup.statusText:SetJustifyH("LEFT")
 
-    -- Status line
-    local statusText = popup:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    statusText:SetPoint("BOTTOMLEFT", popup, "BOTTOMLEFT", 18, 22)
-    statusText:SetJustifyH("LEFT")
-    popup.statusText = statusText
+    local closeButton = BOLT:CreateButton(popup, "Close", 90, 22, function() popup:Hide() end)
+    closeButton:SetPoint("BOTTOMRIGHT", -16, 18)
 
-    -- Refresh button
-    local refreshBtn = CreateFrame("Button", nil, popup, "UIPanelButtonTemplate")
-    refreshBtn:SetSize(90, 22)
-    refreshBtn:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -110, 18)
-    refreshBtn:SetText("Refresh")
-    refreshBtn:SetScript("OnClick", function()
-        RequestTimePlayed()
+    local refreshButton = BOLT:CreateButton(popup, "Refresh", 90, 22, function()
+        self:RequestPlayed()
         self:RefreshSnapshotText()
     end)
-
-    -- Close button (text)
-    local closeTextBtn = CreateFrame("Button", nil, popup, "UIPanelButtonTemplate")
-    closeTextBtn:SetSize(90, 22)
-    closeTextBtn:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -16, 18)
-    closeTextBtn:SetText("Close")
-    closeTextBtn:SetScript("OnClick", function() popup:Hide() end)
-
-    if UISpecialFrames then
-        tinsert(UISpecialFrames, "BOLTCharacterSnapshotPopup")
-    end
+    refreshButton:SetPoint("RIGHT", closeButton, "LEFT", -6, 0)
 
     self.popup = popup
+end
+
+-- Replacing Blizzard's /played chat printer to hide this message would taint the
+-- chat frame's event handler, so the line in chat is left alone.
+function CharacterSnapshot:RequestPlayed()
+    RequestTimePlayed()
 end
 
 function CharacterSnapshot:ShowExportPopup()
@@ -382,12 +317,10 @@ function CharacterSnapshot:ShowExportPopup()
         self.popup:Hide()
         return
     end
-    -- Request /played; the event handler will refresh the JSON when it arrives.
-    RequestTimePlayed()
+    self:RequestPlayed()
     self:RefreshSnapshotText()
     self.popup:Show()
     self.popup.editBox:SetFocus()
-    self.popup.editBox:HighlightText()
 end
 
 BOLT:RegisterModule("characterSnapshot", CharacterSnapshot)

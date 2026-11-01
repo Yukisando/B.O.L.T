@@ -1,473 +1,227 @@
--- B.O.L.T Special Gamemode Module (Hidden trolling features)
--- Contains special "gamemodes" to prank friends
+-- B.O.L.T Special Gamemode Module (hidden prank features)
+-- "Hardcore mode" blacks out the screen and forces first person; a trigger word in
+-- chat can switch it on/off or dismount the player. Configured through /boltadmin.
 
 local ADDON_NAME, BOLT = ...
 
--- Create the SpecialGamemode module
-local SpecialGamemode = {}
+local SpecialGamemode = {
+    displayName = "Special Gamemode",
+    alwaysOn = true,
+}
 
-function SpecialGamemode:OnInitialize()
-    self.hardcoreModeActive = false
-    self.effectsPaused = false
+SpecialGamemode.CHANNELS = {
+    { value = "say", label = "Say", events = { "CHAT_MSG_SAY" } },
+    { value = "yell", label = "Yell", events = { "CHAT_MSG_YELL" } },
+    { value = "party", label = "Party", events = { "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER" } },
+    { value = "raid", label = "Raid", events = { "CHAT_MSG_RAID", "CHAT_MSG_RAID_LEADER" } },
+    { value = "instance", label = "Instance", events = { "CHAT_MSG_INSTANCE_CHAT", "CHAT_MSG_INSTANCE_CHAT_LEADER" } },
+    { value = "whisper", label = "Whisper", events = { "CHAT_MSG_WHISPER" } },
+}
 
-    -- Set up simple key polling for F1/F2
-    self:SetupKeyPolling()
+SpecialGamemode.DEFAULTS = {
+    triggersEnabled = true,
+    dismountTrigger = "oops",
+    dismountChannels = { yell = true },
+    hardcoreActivateTrigger = "carrot",
+    hardcoreDeactivateTrigger = "feta",
+    hardcoreChannels = { yell = true },
+    hardcoreEnableMsg = "Hardcore mode activated!",
+    hardcoreDisableMsg = "Hardcore mode deactivated!",
+}
 
-    -- Set up chat monitoring
-    self:SetupChatMonitoring()
-end
+local EFFECT_INTERVAL = 0.2
 
-function SpecialGamemode:OnEnable()
-    -- Module enabled
-end
-
-function SpecialGamemode:SetupKeyPolling()
-    -- Simple timer that checks key states every 0.1 seconds
-    self.keyPollTimer = C_Timer.NewTicker(0.1, function()
-        if IsKeyDown then
-            -- Ctrl+Shift+F1 to activate hardcore mode
-            if IsKeyDown("F1") and IsControlKeyDown() and IsShiftKeyDown() and not self.activateWasPressed and not self.hardcoreModeActive then
-                self.activateWasPressed = true
-                self:EnterHardcoreMode()
-            elseif not (IsKeyDown("F1") and IsControlKeyDown() and IsShiftKeyDown()) then
-                self.activateWasPressed = false
-            end
-
-            -- Ctrl+Shift+F2 to exit hardcore mode
-            if IsKeyDown("F2") and IsControlKeyDown() and IsShiftKeyDown() and not self.exitWasPressed and self.hardcoreModeActive then
-                self.exitWasPressed = true
-                self:ExitHardcoreMode()
-            elseif not (IsKeyDown("F2") and IsControlKeyDown() and IsShiftKeyDown()) then
-                self.exitWasPressed = false
-            end
+-- Account-wide settings in BOLTDB.admin, filled with defaults.
+function SpecialGamemode:GetSettings()
+    BOLTDB = BOLTDB or {}
+    BOLTDB.admin = BOLTDB.admin or {}
+    local settings = BOLTDB.admin
+    for key, value in pairs(self.DEFAULTS) do
+        if settings[key] == nil then
+            settings[key] = type(value) == "table" and CopyTable(value) or value
         end
-    end)
-end
-
-function SpecialGamemode:SetupChatMonitoring()
-    -- Create frame to handle chat events
-    if not self.chatFrame then
-        self.chatFrame = CreateFrame("Frame")
-        -- Register for all possible chat events we might use
-        self.chatFrame:RegisterEvent("CHAT_MSG_SAY")
-        self.chatFrame:RegisterEvent("CHAT_MSG_YELL")
-        self.chatFrame:RegisterEvent("CHAT_MSG_PARTY")
-        self.chatFrame:RegisterEvent("CHAT_MSG_PARTY_LEADER")
-        self.chatFrame:RegisterEvent("CHAT_MSG_RAID")
-        self.chatFrame:RegisterEvent("CHAT_MSG_RAID_LEADER")
-        self.chatFrame:RegisterEvent("CHAT_MSG_INSTANCE_CHAT")
-        self.chatFrame:RegisterEvent("CHAT_MSG_INSTANCE_CHAT_LEADER")
-        self.chatFrame:RegisterEvent("CHAT_MSG_WHISPER")
-        self.chatFrame:SetScript("OnEvent", function(frame, event, message, sender, ...)
-            self:OnChatMessage(event, message, sender, ...)
-        end)
     end
+    return settings
 end
 
--- Convert channel config table to list of chat events (for multi-select)
-function SpecialGamemode:GetChannelEvents(channelsTable)
-    local channelMap = {
-        say = { "CHAT_MSG_SAY" },
-        yell = { "CHAT_MSG_YELL" },
-        party = { "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER" },
-        raid = { "CHAT_MSG_RAID", "CHAT_MSG_RAID_LEADER" },
-        instance = { "CHAT_MSG_INSTANCE_CHAT", "CHAT_MSG_INSTANCE_CHAT_LEADER" },
-        whisper = { "CHAT_MSG_WHISPER" },
-    }
-    
-    local events = {}
-    local seen = {}
-    
-    -- Handle both new table format and legacy single string
-    if type(channelsTable) == "string" then
-        -- Legacy single channel format
-        for _, eventName in ipairs(channelMap[channelsTable] or { "CHAT_MSG_YELL" }) do
-            if not seen[eventName] then
-                seen[eventName] = true
-                table.insert(events, eventName)
-            end
-        end
-    elseif type(channelsTable) == "table" then
-        -- New multi-select format
-        for channel, enabled in pairs(channelsTable) do
-            if enabled and channelMap[channel] then
-                for _, eventName in ipairs(channelMap[channel]) do
-                    if not seen[eventName] then
-                        seen[eventName] = true
-                        table.insert(events, eventName)
-                    end
-                end
+local function EventInChannels(event, channels)
+    for _, channel in ipairs(SpecialGamemode.CHANNELS) do
+        if channels[channel.value] then
+            for _, channelEvent in ipairs(channel.events) do
+                if channelEvent == event then return true end
             end
         end
     end
-    
-    -- Default to yell if nothing selected
-    if #events == 0 then
-        return { "CHAT_MSG_YELL" }
-    end
-    
-    return events
+    return false
 end
 
--- Safely send a group chat message, respecting Midnight instance/combat restrictions
-function SpecialGamemode:SafeSendChat(chatMsg, chatType)
-    -- Addons cannot send chat while in an instance (Midnight 12.0 restriction)
-    if IsInInstance() then return end
-    if InCombatLockdown() then return end
-    if C_ChatInfo and C_ChatInfo.SendChatMessage then
-        local ok, err = pcall(C_ChatInfo.SendChatMessage, chatMsg, chatType)
-        if not ok then
-            if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
-                DEFAULT_CHAT_FRAME:AddMessage("|cFFFF6600[B.O.L.T]|r Chat send blocked: " .. tostring(err))
-            end
+local function ContainsTrigger(message, trigger)
+    -- Plain find: triggers with pattern characters ("(", "%", "-") match literally.
+    return trigger ~= "" and message:find(trigger:lower(), 1, true) ~= nil
+end
+
+function SpecialGamemode:OnChatMessage(event, message)
+    -- Chat in instances arrives as secret values that can't be inspected.
+    if BOLT.IsSecret(message) or type(message) ~= "string" then return end
+
+    local settings = self:GetSettings()
+    if not settings.triggersEnabled then return end
+    message = message:lower()
+
+    if EventInChannels(event, settings.hardcoreChannels) then
+        if ContainsTrigger(message, settings.hardcoreActivateTrigger) and not self.hardcoreActive then
+            self:EnterHardcoreMode()
+        elseif ContainsTrigger(message, settings.hardcoreDeactivateTrigger) and self.hardcoreActive then
+            self:ExitHardcoreMode()
         end
-    elseif DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
-        DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000[B.O.L.T]|r " .. chatMsg)
+    end
+
+    if EventInChannels(event, settings.dismountChannels) and ContainsTrigger(message, settings.dismountTrigger) then
+        if IsMounted() then
+            Dismount()
+        elseif UnitInVehicle("player") then
+            VehicleExit()
+        end
     end
 end
 
-function SpecialGamemode:OnChatMessage(event, message, sender, ...)
-    -- In Midnight (12.0+), chat messages in instances arrive as Secret Values;
-    -- we cannot compare or operate on them, so bail out early.
-    if issecretvalue and (issecretvalue(message) or issecretvalue(sender)) then return end
+---------------------------------------------------------------------------
+-- Hardcore mode
+---------------------------------------------------------------------------
 
-    -- Convert message to lowercase for case-insensitive matching
-    local lowerMessage = string.lower(message or "")
-    
-    -- Get configurable triggers from admin config
-    local adminCfg = self:GetAdminConfig()
-    
-    -- Get channel events based on config (now multi-select)
-    local hardcoreChannels = self:GetChannelEvents(adminCfg.hardcoreChannels or adminCfg.hardcoreChannel or { yell = true })
-    local dismountChannels = self:GetChannelEvents(adminCfg.dismountChannels or adminCfg.dismountChannel or { yell = true })
-
-    -- Define chat triggers with their actions
-    local chatTriggers = {
-        -- Hardcore mode triggers
-        {
-            trigger = adminCfg.hardcoreActivateTrigger or "carrot",
-            channels = hardcoreChannels,
-            action = function()
-                if not self.hardcoreModeActive then
-                    print("BOLT: Activating hardcore mode via chat")
-                    self:EnterHardcoreMode()
-                    if self.parent and self.parent.Print then
-                        self.parent:Print("|cFFFF0000Hardcore mode activated by group member!|r")
-                    end
-                else
-                    print("BOLT: Hardcore mode already active")
-                end
-            end
-        },
-        {
-            trigger = adminCfg.hardcoreDeactivateTrigger or "feta",
-            channels = hardcoreChannels,
-            action = function()
-                if self.hardcoreModeActive then
-                    print("BOLT: Deactivating hardcore mode via chat")
-                    self:ExitHardcoreMode()
-                    if self.parent and self.parent.Print then
-                        self.parent:Print("|cFF00FF00Hardcore mode deactivated by group member!|r")
-                    end
-                else
-                    print("BOLT: Hardcore mode not active")
-                end
-            end
-        },
-        -- Dismount trigger (completely silent)
-        {
-            trigger = adminCfg.dismountTrigger or "oops",
-            channels = dismountChannels,
-            action = function()
-                if IsMounted() then
-                    Dismount()
-                elseif UnitInVehicle("player") then
-                    VehicleExit()
-                end
-            end
-        }
-    }
-
-    -- Process all chat triggers
-    for _, triggerData in ipairs(chatTriggers) do
-        -- Check if the current event channel is in the trigger's allowed channels
-        local channelAllowed = false
-        for _, allowedChannel in ipairs(triggerData.channels) do
-            if event == allowedChannel then
-                channelAllowed = true
-                break
-            end
-        end
-
-        -- If channel is allowed and trigger word is found, execute the action.
-        -- Lowercase the trigger (the message is already lowercased) and use a
-        -- plain-text find so configured triggers with pattern characters
-        -- (e.g. "(", "%", "-") match literally instead of as Lua patterns.
-        local trigger = string.lower(triggerData.trigger or "")
-        if channelAllowed and trigger ~= "" and string.find(lowerMessage, trigger, 1, true) then
-            triggerData.action()
-        end
+function SpecialGamemode:AnnounceToGroup(text)
+    if IsInGroup() then
+        BOLT:SendChat(text, IsInRaid() and "RAID" or "PARTY")
     end
 end
 
 function SpecialGamemode:EnterHardcoreMode()
-    if self.hardcoreModeActive then
-        return
-    end
+    if self.hardcoreActive then return end
+    self.hardcoreActive = true
+    self.originalZoom = GetCameraZoom()
 
-    self.hardcoreModeActive = true
+    self:ShowModeMessage("HARDCORE MODE ACTIVATED", 2)
+    BOLT:Print("|cffff0000Hardcore mode activated!|r")
+    self:AnnounceToGroup(self:GetSettings().hardcoreEnableMsg)
 
-    -- Store original camera distance
-    self.originalCameraDistance = GetCameraZoom()
-
-    -- Show activation message
-    self:ShowModeMessage("HARDCORE MODE ACTIVATED", 2.0)
-    self.parent:Print("|cFFFF0000HARDCORE MODE ACTIVATED!|r")
-
-    -- Send group chat message (combat/instance safe)
-    if GetNumGroupMembers() > 0 then
-        local chatType = IsInRaid() and "RAID" or "PARTY"
-        local adminCfg = self:GetAdminConfig()
-        local chatMsg = adminCfg.hardcoreEnableMsg or "Hardcore mode activated!"
-        self:SafeSendChat(chatMsg, chatType)
-    end
-
-    -- Start the effect timer (applies effects every 0.2 seconds)
-    self:StartEffectTimer()
+    -- The effect pauses while the game menu is open so the player can still use it.
+    BOLT:WatchGameMenu("specialGamemode",
+        function() self.coverFrame:Hide() end,
+        function() self:ApplyEffects() end)
+    self.effectTicker = C_Timer.NewTicker(EFFECT_INTERVAL, function() self:ApplyEffects() end)
+    self:ApplyEffects()
 end
 
 function SpecialGamemode:ExitHardcoreMode()
-    if not self.hardcoreModeActive then
-        return
-    end
+    if not self.hardcoreActive then return end
+    self.hardcoreActive = false
 
-    self.hardcoreModeActive = false
+    self.effectTicker:Cancel()
+    self.effectTicker = nil
+    BOLT:UnwatchGameMenu("specialGamemode")
+    self.coverFrame:Hide()
 
-    -- Stop the effect timer
-    self:StopEffectTimer()
-
-    -- Restore interface: hide the cover frame (replaces the old UIParent:Show() which
-    -- caused ADDON_ACTION_FORBIDDEN because UIParent is a protected frame).
-    if self.coverFrame then
-        self.coverFrame:Hide()
-    end
-
-    -- Restore original camera zoom
-    if self.originalCameraDistance then
-        -- Directly restore the original camera distance without resetting first
-        if SetCameraZoom then
-            pcall(SetCameraZoom, self.originalCameraDistance)
-        else
-            -- Fallback: Use CameraZoomOut/CameraZoomIn to reach the original distance
-            local currentZoom = GetCameraZoom()
-            local targetZoom = self.originalCameraDistance
-
-            -- Calculate how much we need to adjust
-            if currentZoom < targetZoom then
-                -- Need to zoom out to increase distance
-                local difference = targetZoom - currentZoom
-                pcall(CameraZoomOut, difference)
-            elseif currentZoom > targetZoom then
-                -- Need to zoom in to decrease distance
-                local difference = currentZoom - targetZoom
-                pcall(CameraZoomIn, difference)
-            end
+    if self.originalZoom then
+        local difference = self.originalZoom - GetCameraZoom()
+        if difference > 0 then
+            CameraZoomOut(difference)
+        elseif difference < 0 then
+            CameraZoomIn(-difference)
         end
-        self.originalCameraDistance = nil
+        self.originalZoom = nil
     end
 
-    -- Remove game menu hooks
-    self:UnhookGameMenuFrame()
-
-    -- Send group chat message (combat/instance safe)
-    if GetNumGroupMembers() > 0 then
-        local chatType = IsInRaid() and "RAID" or "PARTY"
-        local adminCfg = self:GetAdminConfig()
-        local chatMsg = adminCfg.hardcoreDisableMsg or "Hardcore mode deactivated!"
-        self:SafeSendChat(chatMsg, chatType)
-    end
-
-    -- Show exit message
     self:ShowModeMessage("Hardcore mode deactivated", 1.5)
-    self.parent:Print("|cFF00FF00Hardcore mode deactivated.|r")
+    BOLT:Print("|cff00ff00Hardcore mode deactivated.|r")
+    self:AnnounceToGroup(self:GetSettings().hardcoreDisableMsg)
 end
 
-function SpecialGamemode:StartEffectTimer()
-    -- Stop any existing timer
-    self:StopEffectTimer()
-
-    -- Set up game menu monitoring
-    self:HookGameMenuFrame()
-
-    -- Start timer that applies effects every 0.2 seconds
-    self.effectTimer = C_Timer.NewTicker(0.2, function()
-        if self.hardcoreModeActive and not self.effectsPaused then
-            self:ApplyHardcoreEffects()
-        end
-    end)
+function SpecialGamemode:ApplyEffects()
+    if not self.hardcoreActive or BOLT:IsGameMenuShown() then return end
+    -- A full-screen cover instead of UIParent:Hide(), which is protected.
+    self.coverFrame:Show()
+    CameraZoomIn(50)
 end
 
-function SpecialGamemode:StopEffectTimer()
-    if self.effectTimer then
-        self.effectTimer:Cancel()
-        self.effectTimer = nil
-    end
-end
-
-function SpecialGamemode:GetOrCreateCoverFrame()
-    if not self.coverFrame then
-        -- Full-screen black cover drawn above all other frames. This replaces the old
-        -- UIParent:Hide() approach, which fired ADDON_ACTION_FORBIDDEN because
-        -- UIParent is a protected frame that addon code cannot manipulate.
-        local f = CreateFrame("Frame", "BOLTHardcoreCover", UIParent)
-        f:SetAllPoints(UIParent)
-        f:SetFrameStrata("FULLSCREEN_DIALOG")
-        f:SetFrameLevel(9999)
-        local bg = f:CreateTexture(nil, "BACKGROUND")
-        bg:SetAllPoints(f)
-        bg:SetColorTexture(0, 0, 0, 1)
-        f:Hide()
-        self.coverFrame = f
-    end
-    return self.coverFrame
-end
-
-function SpecialGamemode:ApplyHardcoreEffects()
-    -- Cover the UI instead of hiding UIParent (UIParent:Hide is a protected call).
-    local cover = self:GetOrCreateCoverFrame()
-    cover:Show()
-
-    -- Force camera to first person (guarded)
-    pcall(CameraZoomIn, 50) -- Zoom in as much as possible
-end
-
-function SpecialGamemode:PauseEffects()
-    self.effectsPaused = true
-    -- Uncover the UI when effects are paused.
-    if self.coverFrame then
-        self.coverFrame:Hide()
-    end
-end
-
-function SpecialGamemode:ResumeEffects()
-    self.effectsPaused = false
-    -- Effects will be applied on next timer tick
-end
-
-function SpecialGamemode:HookGameMenuFrame()
-    if self.hookedGameMenu or not GameMenuFrame then
-        return
-    end
-
-    local watcher = CreateFrame("Frame")
-    watcher.elapsed = 0
-    watcher.lastShown = GameMenuFrame:IsShown()
-    watcher:SetScript("OnUpdate", function(frame, elapsed)
-        frame.elapsed = frame.elapsed + elapsed
-        if frame.elapsed < 0.05 then
-            return
-        end
-        frame.elapsed = 0
-
-        if not GameMenuFrame then
-            return
-        end
-
-        local isShown = GameMenuFrame:IsShown()
-        if isShown == frame.lastShown then
-            return
-        end
-
-        frame.lastShown = isShown
-        if self.hardcoreModeActive then
-            if isShown then
-                self:PauseEffects()
-            else
-                self:ResumeEffects()
-            end
-        end
-    end)
-    self.gameMenuWatcher = watcher
-    self.hookedGameMenu = true
-end
-
-function SpecialGamemode:UnhookGameMenuFrame()
-    if self.gameMenuWatcher then
-        self.gameMenuWatcher:SetScript("OnUpdate", nil)
-        self.gameMenuWatcher = nil
-    end
-    self.hookedGameMenu = nil
+function SpecialGamemode:IsHardcoreModeActive()
+    return self.hardcoreActive == true
 end
 
 function SpecialGamemode:ShowModeMessage(text, duration)
-    -- Reuse a single message frame instead of creating a new (uncollectable)
-    -- frame and animation group on every activation/deactivation.
-    local messageFrame = self.messageFrame
-    if not messageFrame then
-        messageFrame = CreateFrame("Frame", nil, UIParent)
-        messageFrame:SetSize(400, 100)
-        messageFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 100)
+    local frame = self.messageFrame
+    frame.text:SetText(text)
+    frame.fade:SetDuration(duration)
+    frame:Show()
+    frame.animation:Stop()
+    frame.animation:Play()
+end
 
-        local messageText = messageFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
-        messageText:SetPoint("CENTER")
-        messageText:SetTextColor(1, 0, 0, 1) -- Red text
-        messageFrame.text = messageText
+---------------------------------------------------------------------------
+-- Lifecycle
+---------------------------------------------------------------------------
 
-        -- Create glow effect
-        local glow = messageFrame:CreateTexture(nil, "BACKGROUND")
-        glow:SetTexture("Interface\\Spellbook\\SpellBook-Parts")
-        glow:SetTexCoord(0.49, 0.74, 0.74, 0.95)
-        glow:SetPoint("CENTER")
-        glow:SetSize(450, 120)
-        glow:SetVertexColor(1, 0, 0, 0.5)
+function SpecialGamemode:CreateFrames()
+    local cover = CreateFrame("Frame", "BOLTHardcoreCover", UIParent)
+    cover:SetAllPoints(UIParent)
+    cover:SetFrameStrata("FULLSCREEN_DIALOG")
+    cover:SetFrameLevel(9999)
+    local black = cover:CreateTexture(nil, "BACKGROUND")
+    black:SetAllPoints()
+    black:SetColorTexture(0, 0, 0, 1)
+    cover:Hide()
+    self.coverFrame = cover
 
-        -- Fade out animation
-        local fadeOut = messageFrame:CreateAnimationGroup()
-        local alpha = fadeOut:CreateAnimation("Alpha")
-        alpha:SetFromAlpha(1)
-        alpha:SetToAlpha(0)
-        fadeOut:SetScript("OnFinished", function()
-            messageFrame:Hide()
-        end)
-        messageFrame.fadeOut = fadeOut
-        messageFrame.alphaAnim = alpha
+    local message = CreateFrame("Frame", nil, UIParent)
+    message:SetSize(400, 100)
+    message:SetPoint("CENTER", 0, 100)
+    message:SetFrameStrata("TOOLTIP")
+    message.text = message:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
+    message.text:SetPoint("CENTER")
+    message.text:SetTextColor(1, 0, 0, 1)
+    local glow = message:CreateTexture(nil, "BACKGROUND")
+    glow:SetTexture("Interface\\Spellbook\\SpellBook-Parts")
+    glow:SetTexCoord(0.49, 0.74, 0.74, 0.95)
+    glow:SetPoint("CENTER")
+    glow:SetSize(450, 120)
+    glow:SetVertexColor(1, 0, 0, 0.5)
+    message.animation = message:CreateAnimationGroup()
+    message.fade = message.animation:CreateAnimation("Alpha")
+    message.fade:SetFromAlpha(1)
+    message.fade:SetToAlpha(0)
+    message.animation:SetScript("OnFinished", function() message:Hide() end)
+    message:Hide()
+    self.messageFrame = message
+end
 
-        self.messageFrame = messageFrame
+-- Ctrl+Shift+F1 enters hardcore mode, Ctrl+Shift+F2 leaves it. Polled because a
+-- keybinding would show up (and could be rebound) in the Key Bindings UI.
+function SpecialGamemode:StartHotkeyPolling()
+    local wasDown = {}
+    C_Timer.NewTicker(0.1, function()
+        local modifiers = IsControlKeyDown() and IsShiftKeyDown()
+        for key, action in pairs({ F1 = "EnterHardcoreMode", F2 = "ExitHardcoreMode" }) do
+            local down = modifiers and IsKeyDown(key)
+            if down and not wasDown[key] then
+                self[action](self)
+            end
+            wasDown[key] = down
+        end
+    end)
+end
+
+function SpecialGamemode:OnInitialize()
+    self:CreateFrames()
+    self:StartHotkeyPolling()
+
+    self.eventFrame = CreateFrame("Frame")
+    for _, channel in ipairs(self.CHANNELS) do
+        for _, event in ipairs(channel.events) do
+            self.eventFrame:RegisterEvent(event)
+        end
     end
-
-    messageFrame.text:SetText(text)
-    messageFrame.alphaAnim:SetDuration(duration or 2.0)
-    messageFrame:Show()
-    messageFrame.fadeOut:Stop()
-    messageFrame.fadeOut:Play()
+    self.eventFrame:SetScript("OnEvent", function(_, event, message)
+        self:OnChatMessage(event, message)
+    end)
 end
 
--- Public interface for other modules
-function SpecialGamemode:IsHardcoreModeActive()
-    return self.hardcoreModeActive
-end
-
--- Get admin config for triggers
-function SpecialGamemode:GetAdminConfig()
-    if BOLTDB and BOLTDB.profile and BOLTDB.profile.admin then
-        return BOLTDB.profile.admin
-    end
-    return {
-        dismountTrigger = "oops",
-        dismountChannel = "yell",
-        hardcoreActivateTrigger = "carrot",
-        hardcoreDeactivateTrigger = "feta",
-        hardcoreChannel = "yell",
-        hardcoreEnableMsg = "Hardcore mode activated!",
-        hardcoreDisableMsg = "Hardcore mode deactivated!"
-    }
-end
-
--- Called by Admin module when settings change
-function SpecialGamemode:UpdateTriggers()
-    -- Triggers are read dynamically in OnChatMessage, so nothing to update here
-    -- This function exists for potential future caching
-end
-
--- Register the module
 BOLT:RegisterModule("specialGamemode", SpecialGamemode)

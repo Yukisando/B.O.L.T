@@ -2,6 +2,8 @@
 
 **Brittle and Occasionally Lethal Tweaks** - Quality of life improvements for World of Warcraft that make your gameplay experience smoother without changing core mechanics.
 
+Supports **Midnight (12.1.5)** and **WoW: Forever**. On Forever, modules built on modern-only systems (Skyriding, Key Share, Smart Teleport, Achievement Tracker) are hidden automatically.
+
 All modules can be toggled independently. New installs start with every module disabled — turn on what you want from the settings panel (`/bolt`) or via the quick toggles in the minimap tracking dropdown.
 
 ## Modules
@@ -46,20 +48,17 @@ All modules can be toggled independently. New installs start with every module d
 
 #### Skyriding
 
-- **Always-On Controls**: Override bindings activate automatically whenever you are Skyriding in a valid area — no button-holding required by default
-- **Optional Mouse-Button Mode**: Configurable option to only apply controls while holding the left mouse button
-- **Druid Support**: Detects druid skyriding flight form in addition to regular flying mounts
 - **Enhanced Movement**: Strafe keys (A/D) become horizontal turning while Skyriding
-- **Pitch Control**: Optional W/S mapping for pitch up/down (3D control)
-- **Invert Option**: Reverse pitch controls if preferred (W=dive, S=climb)
-- **Safe Operation**: Override bindings are cleared instantly on dismount or when leaving a Skyriding-eligible area — no permanent key changes
-- **Emergency Reset**: `/boltreset` (or `/boltnuke`) clears all override bindings if anything ever gets stuck
+- **Pitch Control**: Optional W/S mapping for pitch up/down (3D control), with an invert option
+- **Mouse-Button Mode**: Optionally only apply the controls while holding the left mouse button (default on; the button state can't change mid-combat)
+- **Combat Safe**: A secure state driver switches the key overrides on `[advflyable,flying]`, so they turn off the moment you land — even in combat. Steady Flight is ignored
+- **Emergency Reset**: `/bolt reset` or `/boltreset` clears the overrides if anything ever feels stuck
 
 #### Auto Rep Switch
 
 - **Automatic Watched Faction**: Automatically switches the "watched" reputation bar to whichever faction you just gained reputation with
 - **All Factions Supported**: Works across all reputation sources including the modern Renown system
-- **Secret Value Safe**: Handles Midnight (12.0) secret-value chat messages gracefully by falling back to snapshot-diff detection
+- **Instance Safe**: Uses Midnight's `FACTION_STANDING_CHANGED` event instead of parsing chat, so it also works inside instances
 
 #### Smart Teleport Suggestions
 
@@ -86,7 +85,8 @@ All modules can be toggled independently. New installs start with every module d
 
 #### Wowhead Link
 
-- **Quick Wowhead URL**: Press the configured key (default: Ctrl+C) while hovering over an item, spell, or other linkable object to generate its Wowhead URL
+- **Quick Wowhead URL**: Press the configured key (default: Ctrl+C, only if that key is free) while hovering an item, toy, spell, aura, mount, currency, NPC, quest or achievement to generate its Wowhead URL
+- **Forever Aware**: On WoW: Forever the link points to Wowhead's Forever database
 - **Copy Popup**: Displays the URL in a small dialog with the text pre-selected so a second Ctrl+C copies it to the clipboard
 
 ### Tracking
@@ -94,7 +94,7 @@ All modules can be toggled independently. New installs start with every module d
 #### Achievement Progress Tracker
 
 - **Progress Messages**: Prints a chat message whenever an action you perform advances progress on any achievement (e.g. /love a critter, completing a quest, defeating a boss)
-- **Category Filter**: Choose which top-level achievement categories to track (defaults to Exploration; select none to track everything)
+- **Category Filter**: Choose which top-level achievement categories to track (defaults to Exploration; tick them all to track everything)
 - **Incremental Scanning**: Scans achievement criteria in small time-budgeted chunks to avoid frame drops, with a minimap spinner while the scan is running
 - **Completion Detection**: Recognises when an achievement is fully completed and prunes it from further scanning
 - **Throttled Updates**: Rapid criterion changes are debounced so you don't get flooded with messages
@@ -104,7 +104,7 @@ All modules can be toggled independently. New installs start with every module d
 #### Playground (Fun Features)
 
 - **Favorite Toy Button**: Quick access to your favorite toy from the ESC menu, with a searchable toy picker and an optional "close game menu on cast" setting
-- **Speedometer**: Display your movement speed in yards/second, with a configurable screen corner
+- **Speedometer / FPS**: Display your movement speed (as % of run speed) and/or FPS in a configurable screen corner; fades out while standing still
 - **Copy Target Mount**: Summon the same mount your target is riding — via `/copymount` (`/cm`) or the "Copy Target Mount" keybinding
 
 #### Key Share
@@ -126,6 +126,12 @@ All modules can be toggled independently. New installs start with every module d
 
 ### Roleplay
 
+#### Transmog Presets
+
+- **Account-Wide Looks**: Save the appearance you're wearing as a named preset any character on the account can use (`/bolt transmog`)
+- **Stage at a Transmogrifier**: Pick a preset and click Stage; it's loaded into the transmog window as pending changes so you see the cost, then confirm with Blizzard's Apply button
+- **Collection Check**: Shows each slot's appearance name and flags ones this character hasn't collected
+
 #### Total RP 3 Integration
 
 Requires [Total RP 3](https://www.curseforge.com/wow/addons/total-rp-3) to be installed.
@@ -137,7 +143,7 @@ Requires [Total RP 3](https://www.curseforge.com/wow/addons/total-rp-3) to be in
 ## Installation
 
 1. Download the addon from [CurseForge](https://www.curseforge.com/wow/addons/bolt) or the GitHub releases
-2. Place the `BOLT` folder in your `World of Warcraft\_retail_\Interface\AddOns\` directory
+2. Place the `BOLT` folder in the `Interface\AddOns\` directory of the game version you play (e.g. `World of Warcraft\_retail_\Interface\AddOns\`)
 3. Restart WoW or type `/reload`
 
 ## Configuration
@@ -146,13 +152,18 @@ Access settings through:
 
 - **Interface Menu**: ESC > Options > AddOns > B.O.L.T (with Interface, Gameplay, Social, Tracking, Extras, and Roleplay categories)
 - **Console Command**: `/bolt` or `/b`
-- **Minimap Tracking Menu**: Quick enable/disable toggles for common modules in the minimap tracking dropdown
+- **Minimap Tracking Menu**: Quick enable/disable toggles for every module in the minimap tracking dropdown
+- **Game Menu**: Right-click the gear button above the ESC menu
 
-Each module can be enabled/disabled independently with full configuration options.
+Each module can be enabled/disabled independently; a disabled module's options collapse in the settings.
 
 ## Console Commands
 
 - `/bolt` or `/b` - Open settings panel
-- `/boltsaved` - Print unsaved instances to chat (Saved Instances module)
+- `/bolt help` - List commands
+- `/bolt status` - Show which modules are enabled
+- `/bolt toggle <module>` - Toggle a module (`/bolt toggle debug` toggles debug output)
+- `/bolt transmog` - Open Transmog Presets
+- `/bolt reset`, `/boltreset` or `/boltnuke` - Clear Skyriding key overrides
+- `/boltsaved` - Print current-expansion lockouts (Saved Instances module)
 - `/copymount` or `/cm` - Summon the same mount as your target (Playground module)
-- `/boltreset` or `/boltnuke` - Emergency reset of Skyriding override bindings

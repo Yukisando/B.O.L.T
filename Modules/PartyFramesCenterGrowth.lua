@@ -1,6 +1,12 @@
+-- B.O.L.T Party Frames Center Growth Module
+-- Keeps raid-style party frames centered by shifting the group anchor as members
+-- join or leave.
+
 local ADDON_NAME, BOLT = ...
 
-local PartyFramesCenterGrowth = {}
+local PartyFramesCenterGrowth = {
+    displayName = "Party Frames Center Growth",
+}
 
 local MAX_PARTY_UNITS = 5
 
@@ -206,20 +212,27 @@ function PartyFramesCenterGrowth:OnInitialize()
     end
 
     if not hookInstalled then
-        if CompactPartyFrameMixin and CompactPartyFrameMixin.UpdateLayout then
-            hooksecurefunc(CompactPartyFrameMixin, "UpdateLayout", function(compactPartyFrame)
-                frame = compactPartyFrame or frame or CompactPartyFrame
-                ApplyCenterOffset(frame)
-            end)
-            hookInstalled = true
+        -- Mixin methods are copied into frames when they are created, so hook the
+        -- existing CompactPartyFrame directly and the mixin for one created later.
+        local function HookPartyFrameMethod(method, handler)
+            if CompactPartyFrame and CompactPartyFrame[method] then
+                hooksecurefunc(CompactPartyFrame, method, handler)
+            elseif CompactPartyFrameMixin and CompactPartyFrameMixin[method] then
+                hooksecurefunc(CompactPartyFrameMixin, method, handler)
+            end
         end
 
-        if CompactPartyFrameMixin and CompactPartyFrameMixin.RefreshMembers then
-            hooksecurefunc(CompactPartyFrameMixin, "RefreshMembers", function(compactPartyFrame)
-                frame = compactPartyFrame or frame or CompactPartyFrame
-                self:QueueReapplyBurst()
-            end)
-        end
+        -- Deferred: moving the protected party frame inside Blizzard's own layout
+        -- call would taint the rest of that call chain.
+        HookPartyFrameMethod("UpdateLayout", function(compactPartyFrame)
+            frame = compactPartyFrame or frame or CompactPartyFrame
+            self:ScheduleApply()
+        end)
+        HookPartyFrameMethod("RefreshMembers", function(compactPartyFrame)
+            frame = compactPartyFrame or frame or CompactPartyFrame
+            self:QueueReapplyBurst()
+        end)
+        hookInstalled = true
 
         if PartyFrame and PartyFrame.UpdatePaddingAndLayout then
             hooksecurefunc(PartyFrame, "UpdatePaddingAndLayout", function()

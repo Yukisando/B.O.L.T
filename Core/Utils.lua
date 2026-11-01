@@ -1,241 +1,202 @@
 -- B.O.L.T Utility Functions (Brittle and Occasionally Lethal Tweaks)
--- Common helper functions used throughout the addon
+-- Shared helpers used by several modules.
 
 local ADDON_NAME, BOLT = ...
 
--- Check if player is in any kind of group
+-- Midnight (12.0+) hands addons "secret" values in restricted contexts (chat in
+-- instances, some unit data in combat). Comparing or indexing them errors.
+function BOLT.IsSecret(value)
+    return issecretvalue ~= nil and issecretvalue(value)
+end
+
+function BOLT.PlayHoverSound()
+    PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
+end
+
+---------------------------------------------------------------------------
+-- Groups
+---------------------------------------------------------------------------
+
+local function InDelve()
+    return C_PartyInfo.IsDelveInProgress() or C_PartyInfo.IsDelveComplete()
+end
+
 function BOLT:IsInGroup()
-    -- First check if we're actually in a real group (party or raid)
-    local inRealGroup = IsInGroup() or IsInRaid()
-    
-    -- Check for delves (only if we're also in a real group)
-    if inRealGroup and C_PartyInfo and C_PartyInfo.IsDelveInProgress and C_PartyInfo.IsDelveInProgress() then
-        return true
-    end
-    
-    -- Check for instance groups (LFG/LFR)
-    if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
-        return true
-    end
-    
-    -- Check for scenarios (only if we're in a real group, not solo scenarios)
-    if inRealGroup and C_Scenario and C_Scenario.IsInScenario and C_Scenario.IsInScenario() then
-        -- Additional check to make sure we're not in a solo quest scenario
-        local scenarioInfo = C_Scenario.GetInfo()
-        if scenarioInfo and scenarioInfo.isComplete == false then
-            return true
-        end
-    end
-    
-    -- Standard group check
-    return inRealGroup
+    return IsInGroup() or IsInRaid() or IsInGroup(LE_PARTY_CATEGORY_INSTANCE)
 end
 
--- Check if player can leave group (not leader in certain situations)
-function BOLT:CanLeaveGroup()
-    if not self:IsInGroup() then
-        return false
-    end
-    
-    -- Always allow leaving if not the leader
-    if not UnitIsGroupLeader("player") then
-        return true
-    end
-    
-    -- If leader, check if there are other members
-    local numMembers = GetNumGroupMembers()
-    return numMembers > 1
-end
-
--- Get group type string for display
 function BOLT:GetGroupTypeString()
-    -- Check for delves first (only if in a real group)
-    if (IsInGroup() or IsInRaid()) and C_PartyInfo and C_PartyInfo.IsDelveInProgress and C_PartyInfo.IsDelveInProgress() then
+    if InDelve() then
         return "Delve"
     end
-    
-    -- Check for scenarios (only if in a real group)
-    if (IsInGroup() or IsInRaid()) and C_Scenario and C_Scenario.IsInScenario and C_Scenario.IsInScenario() then
-        local scenarioInfo = C_Scenario.GetInfo()
-        if scenarioInfo and scenarioInfo.isComplete == false then
-            return "Scenario"
-        end
-    end
-    
-    -- Check for instance groups
     if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
-        if IsInRaid(LE_PARTY_CATEGORY_INSTANCE) then
-            return "Instance Raid"
-        else
-            return "Instance Party"
-        end
+        return IsInRaid(LE_PARTY_CATEGORY_INSTANCE) and "Instance Raid" or "Instance Party"
     end
-    
-    -- Standard group checks
     if IsInRaid() then
         return "Raid"
-    elseif IsInGroup() then
-        return "Party"
-    else
-        return nil
     end
+    if IsInGroup() then
+        return "Party"
+    end
+    return nil
 end
 
--- Safe leave group function
 function BOLT:LeaveGroup()
-    -- Allow leaving group even during combat (as requested by user)
-    
-    -- Check if we're in a delve first using the proper delve detection
-    if C_PartyInfo and (C_PartyInfo.IsDelveInProgress() or C_PartyInfo.IsDelveComplete()) then
-        self:Print("Leaving delve...")
-        -- Use the proper delve teleport out function
-        if C_PartyInfo.DelveTeleportOut then
-            C_PartyInfo.DelveTeleportOut()
-            self:Print("Teleported out of delve.")
-        else
-            -- Fallback if the function doesn't exist
-            if C_PartyInfo and C_PartyInfo.LeaveParty then
-                C_PartyInfo.LeaveParty()
-            else
-                LeaveParty()
-            end
-            self:Print("Left delve group.")
-        end
+    if InDelve() then
+        C_PartyInfo.DelveTeleportOut()
+        self:Print("Teleporting out of the delve...")
         return
     end
-    
-    -- Check if we're in LFG content
-    if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
-        self:Print("Leaving instance group...")
-        C_PartyInfo.LeaveParty(LE_PARTY_CATEGORY_INSTANCE)
-        return
-    end
-    
-    -- Check if we're in a scenario (only if we're actually in a group)
-    if (IsInGroup() or IsInRaid()) and C_Scenario and C_Scenario.IsInScenario and C_Scenario.IsInScenario() then
-        -- Make sure it's not a solo quest scenario
-        local scenarioInfo = C_Scenario.GetInfo()
-        if scenarioInfo and scenarioInfo.isComplete == false then
-            self:Print("Leaving scenario...")
-            if C_PartyInfo and C_PartyInfo.LeaveParty then
-                C_PartyInfo.LeaveParty()
-            else
-                LeaveParty()
-            end
-            return
-        end
-    end
-    
-    -- Check if we're in any special content that requires leaving the instance
-    local inInstance, instanceType = IsInInstance()
-    if inInstance and (instanceType == "party" or instanceType == "raid" or instanceType == "scenario") then
-        self:Print("Leaving instance and group...")
-        -- Use the more comprehensive leave function
-        if C_PartyInfo and C_PartyInfo.LeaveParty then
-            C_PartyInfo.LeaveParty()
-        else
-            LeaveParty()
-        end
-        return
-    end
-    
-    -- Standard group leaving logic
-    if not self:IsInGroup() then
+
+    local groupType = self:GetGroupTypeString()
+    if not groupType then
         self:Print("You are not in a group.")
         return
     end
-    
-    local groupType = self:GetGroupTypeString()
-    
-    if UnitIsGroupLeader("player") then
-        local numMembers = GetNumGroupMembers()
-        if numMembers > 1 then
-            -- Transfer leadership before leaving if possible
-            for i = 1, numMembers do
-                local unit = IsInRaid() and "raid" .. i or "party" .. i
-                if UnitExists(unit) and not UnitIsUnit(unit, "player") then
-                    PromoteToLeader(unit)
-                    break
-                end
-            end
-            -- Small delay to allow leadership transfer
-            C_Timer.After(0.5, function()
-                if C_PartyInfo and C_PartyInfo.LeaveParty then
-                    C_PartyInfo.LeaveParty()
-                else
-                    LeaveParty()
-                end
-                BOLT:Print("Left " .. (groupType or "group") .. ".")
-            end)
-        else
-            -- Solo in group, just leave
-            if C_PartyInfo and C_PartyInfo.LeaveParty then
-                C_PartyInfo.LeaveParty()
-            else
-                LeaveParty()
-            end
-            self:Print("Left " .. (groupType or "group") .. ".")
-        end
+
+    -- Leadership passes to another member automatically when the leader leaves.
+    if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
+        C_PartyInfo.LeaveParty(LE_PARTY_CATEGORY_INSTANCE)
     else
-        -- Not leader, just leave
-        if C_PartyInfo and C_PartyInfo.LeaveParty then
-            C_PartyInfo.LeaveParty()
-        else
-            LeaveParty()
+        C_PartyInfo.LeaveParty()
+    end
+    self:Print("Left " .. groupType .. ".")
+end
+
+---------------------------------------------------------------------------
+-- Chat
+---------------------------------------------------------------------------
+
+-- Send a chat message, respecting Midnight's chat messaging lockdown (active in
+-- instanced combat). Returns true when the message was handed to the client.
+function BOLT:SendChat(text, chatType, target)
+    if C_ChatInfo.InChatMessagingLockdown and C_ChatInfo.InChatMessagingLockdown() then
+        return false
+    end
+    local ok = pcall(C_ChatInfo.SendChatMessage, text, chatType, nil, target)
+    return ok
+end
+
+-- Strip realm and compare against the player's own name.
+function BOLT:IsPlayerName(sender)
+    if type(sender) ~= "string" or BOLT.IsSecret(sender) then return false end
+    return Ambiguate(sender, "short") == UnitName("player")
+end
+
+---------------------------------------------------------------------------
+-- Game menu watcher
+---------------------------------------------------------------------------
+
+-- Several modules decorate GameMenuFrame. Hooking its OnShow runs addon code inside
+-- ShowUIPanel's secure path and taints the menu, so one shared watcher polls the
+-- shown state instead and notifies listeners outside of that path.
+local menuListeners = {}
+local menuWatcher
+local menuShown = false
+
+local function NotifyMenuListeners(shown)
+    for _, listener in pairs(menuListeners) do
+        local callback = shown and listener.onShow or listener.onHide
+        if callback then callback() end
+    end
+end
+
+function BOLT:WatchGameMenu(key, onShow, onHide)
+    menuListeners[key] = { onShow = onShow, onHide = onHide }
+    if menuWatcher then
+        if not menuWatcher:IsShown() then
+            menuShown = GameMenuFrame:IsShown()
+            menuWatcher:Show()
         end
-        self:Print("Left " .. (groupType or "group") .. ".")
+        return
+    end
+
+    menuWatcher = CreateFrame("Frame")
+    menuShown = GameMenuFrame:IsShown()
+    local elapsed = 0
+    menuWatcher:SetScript("OnUpdate", function(_, delta)
+        elapsed = elapsed + delta
+        if elapsed < 0.05 then return end
+        elapsed = 0
+
+        local shown = GameMenuFrame:IsShown()
+        if shown ~= menuShown then
+            menuShown = shown
+            NotifyMenuListeners(shown)
+        end
+    end)
+end
+
+function BOLT:UnwatchGameMenu(key)
+    menuListeners[key] = nil
+    if menuWatcher and not next(menuListeners) then
+        menuWatcher:Hide()
     end
 end
 
--- Color text with class colors
-function BOLT:ColorText(text, color)
-    if type(color) == "string" then
-        return "|c" .. color .. text .. "|r"
-    elseif type(color) == "table" and color.r and color.g and color.b then
-        local hex = string.format("%02x%02x%02x", 
-            math.floor(color.r * 255), 
-            math.floor(color.g * 255), 
-            math.floor(color.b * 255))
-        return "|cff" .. hex .. text .. "|r"
-    else
-        return text
-    end
+function BOLT:IsGameMenuShown()
+    return GameMenuFrame ~= nil and GameMenuFrame:IsShown()
 end
 
--- Check if a module is enabled (reads account-wide state)
-function BOLT:IsModuleEnabled(moduleName)
-    if BOLTDB and BOLTDB.moduleStates and BOLTDB.moduleStates[moduleName] ~= nil then
-        return BOLTDB.moduleStates[moduleName] == true
+---------------------------------------------------------------------------
+-- Dialog frames
+---------------------------------------------------------------------------
+
+local DIALOG_BACKDROP = {
+    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+    tile = true, tileSize = 32, edgeSize = 32,
+    insets = { left = 11, right = 12, top = 12, bottom = 11 },
+}
+
+-- Movable, ESC-closable dialog with a title and a close button. Starts hidden.
+function BOLT:CreateDialog(globalName, width, height, title)
+    local frame = CreateFrame("Frame", globalName, UIParent, "BackdropTemplate")
+    frame:SetSize(width, height)
+    frame:SetPoint("CENTER")
+    frame:SetFrameStrata("DIALOG")
+    frame:SetBackdrop(DIALOG_BACKDROP)
+    frame:SetBackdropColor(0, 0, 0, 1)
+    frame:EnableMouse(true)
+    frame:SetMovable(true)
+    frame:SetClampedToScreen(true)
+    frame:RegisterForDrag("LeftButton")
+    frame:SetScript("OnDragStart", frame.StartMoving)
+    frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+    frame:Hide()
+
+    if title then
+        frame.title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        frame.title:SetPoint("TOP", 0, -16)
+        frame.title:SetText(title)
     end
-    -- Fallback for unknown modules
-    return false
+
+    frame.closeButton = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+    frame.closeButton:SetPoint("TOPRIGHT", -4, -4)
+
+    if globalName then
+        tinsert(UISpecialFrames, globalName)
+    end
+    return frame
 end
 
--- Get table keys utility function
-function BOLT:GetTableKeys(t)
-    local keys = {}
-    for k in pairs(t) do
-        table.insert(keys, k)
+function BOLT:CreateButton(parent, text, width, height, onClick)
+    local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    button:SetSize(width, height or 22)
+    button:SetText(text)
+    if onClick then
+        button:SetScript("OnClick", onClick)
     end
-    return keys
+    return button
 end
 
--- Open the configuration panel
+---------------------------------------------------------------------------
+-- Settings
+---------------------------------------------------------------------------
+
 function BOLT:OpenConfigPanel()
-    local configMod = self.modules and self.modules.config
-    if configMod and configMod.OnInitialize and not configMod._initialized then
-        configMod:OnInitialize()
-        configMod._initialized = true
-    end
-
-    -- Use modern Settings API (Retail). If Settings is not present, inform the user.
-    if configMod and configMod.EnsureInterfaceOptionsPanel then
-        configMod:EnsureInterfaceOptionsPanel()
-    end
-
-    if Settings and Settings.OpenToCategory and configMod and configMod.settingsCategory then
-        Settings.OpenToCategory(configMod.settingsCategory.ID)
-    else
-        self:Print("B.O.L.T settings are not available on this client.")
-    end
+    local config = self.modules.config
+    if not config then return end
+    self:ActivateModule(config)
+    config:Open()
 end
