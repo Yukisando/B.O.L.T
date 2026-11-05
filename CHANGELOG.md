@@ -6,6 +6,19 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-2 (2026-11-05)
+
+- feat: UI Revamp and Auto-hide UI modules, WoW: Forever fixes
+- UI Revamp (opt-in): portrait-less player, target, focus, target of target, pet and party frames drawn with Blizzard's own frame art (Forever's c60 art on Forever); the frame stretches over the portrait, the bars widen and fill flush to the borders, the level sits in Blizzard's level circle, and elite/rare dragons wrap the end of the target frame
+- UI Revamp: cast bars show the spell name on the bar instead of in a strip underneath; the reaction-colour strip behind target names is gone
+- Auto-hide UI (opt-in): action bars, micro menu and bags, experience bar, buffs, debuffs, unit frames, quest tracker, minimap and minimap buttons fade in on hover, with a target or in combat, and stay hidden while mounted or on a flight path unless in combat; always shown in Edit Mode, action bars also while dragging a spell or item; adjustable opacity while hidden
+- Game menu round buttons use the native minimap-style ring on WoW: Forever
+- Fixed: the game menu said "Leave Delve" on WoW: Forever, and its buttons broke there because the loot specialization button errored (now hidden on Forever)
+- Fixed: the raid marker button was blocked by the game; it now uses Blizzard's secure raid-marker action (not available while in combat)
+- WoW: Forever is detected from the client version; toy, mount-copy, countdown and Transmog Presets features hide where the game lacks them
+- Settings: multi-select dropdowns and Blizzard's own slider for the new modules
+- Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
 ## v8-1 (2026-11-01)
 
 - fix: Skyriding keys no longer get stuck turning after landing mid-turn
