@@ -58,20 +58,70 @@ local function LayoutOptions(settingKey)
     end
 end
 
+-- A multi-select dropdown over a section's on/off settings: entries = { { key, label }, ... }.
+local function ToggleList(section, label, allText, entries)
+    return {
+        type = "multiselect", label = label, width = 300, emptyText = allText,
+        isSelected = function(key) return GetSetting({ section, key }) and true or false end,
+        toggle = function(key, selected) SetSetting({ section, key }, selected) end,
+        options = function()
+            local list = {}
+            for _, entry in ipairs(entries) do
+                table.insert(list, { value = entry[1], label = entry[2] })
+            end
+            return list
+        end,
+    }
+end
+
 local PAGES = {
     {
         title = "Interface",
         sections = {
             {
+                module = "unitFrames",
+                description = "Restyles the game UI with Blizzard's own art. Unit frames lose their round portrait: the frame stretches over its space and the bars widen. Cast bars show the spell name on the bar. Turning something off takes a /reload.",
+                options = {
+                    ToggleList("unitFrames", "Restyle:", "Everything", {
+                        { "player", "Player" },
+                        { "target", "Target and focus" },
+                        { "targetOfTarget", "Target of target" },
+                        { "pet", "Pet" },
+                        { "party", "Party" },
+                        { "castBars", "Cast bars" },
+                    }),
+                },
+            },
+            {
+                module = "autoHide",
+                description = "Hides parts of the UI until you need them. They fade in when you hover them, have a target or are in combat, and stay hidden while mounted or on a flight path unless you're in combat. Everything shows in Edit Mode; action bars also show while you drag a spell or item.",
+                options = {
+                    ToggleList("autoHide", "Hide:", "Everything", {
+                        { "actionBars", "Action bars" },
+                        { "microMenu", "Micro menu and bags" },
+                        { "xpBar", "Experience bar" },
+                        { "buffs", "Buffs" },
+                        { "debuffs", "Debuffs" },
+                        { "unitFrames", "Unit frames" },
+                        { "questTracker", "Quest tracker" },
+                        { "minimap", "Minimap" },
+                        { "minimapButtons", "Minimap buttons" },
+                    }),
+                    { type = "slider", label = "Opacity while hidden:", path = { "autoHide", "idleAlpha" },
+                        min = 0, max = 100, step = 5, format = function(value) return ("%d%%"):format(value) end },
+                },
+            },
+            {
                 module = "gameMenu",
                 options = {
                     { type = "checkbox", label = "Show Leave Group button", path = { "gameMenu", "showLeaveGroup" } },
                     { type = "checkbox", label = "Show Reload UI button", path = { "gameMenu", "showReloadButton" } },
-                    { type = "checkbox", label = "Show group tools (ready check, countdown, raid marker)", path = { "gameMenu", "groupToolsEnabled" } },
+                    { type = "checkbox", label = BOLT.has.countdown and "Show group tools (ready check, countdown, raid marker)" or "Show group tools (ready check, raid marker)", path = { "gameMenu", "groupToolsEnabled" } },
                     { type = "markers", label = "Raid marker:", path = { "gameMenu", "raidMarkerIndex" }, requires = { "gameMenu", "groupToolsEnabled" } },
                     { type = "checkbox", label = "Show damage/healing number toggles", path = { "gameMenu", "showBattleTextToggles" } },
                     { type = "checkbox", label = "Show volume button", path = { "gameMenu", "showVolumeButton" } },
-                    { type = "checkbox", label = "Show loot specialization button", path = { "gameMenu", "showLootSpecButton" } },
+                    { type = "checkbox", label = "Show loot specialization button", path = { "gameMenu", "showLootSpecButton" },
+                        available = function() return BOLT.has.specializations end },
                 },
             },
             {
@@ -192,14 +242,18 @@ local PAGES = {
             {
                 module = "playground",
                 options = {
-                    { type = "checkbox", label = "Favorite toy button", path = { "playground", "showFavoriteToy" } },
-                    { type = "toy", sameRow = true, requires = { "playground", "showFavoriteToy" } },
-                    { type = "checkbox", label = "Close the game menu when using the toy", path = { "playground", "closeGameMenuOnCast" }, requires = { "playground", "showFavoriteToy" } },
+                    { type = "checkbox", label = "Favorite toy button", path = { "playground", "showFavoriteToy" },
+                        available = function() return BOLT.has.toys end },
+                    { type = "toy", sameRow = true, requires = { "playground", "showFavoriteToy" },
+                        available = function() return BOLT.has.toys end },
+                    { type = "checkbox", label = "Close the game menu when using the toy", path = { "playground", "closeGameMenuOnCast" }, requires = { "playground", "showFavoriteToy" },
+                        available = function() return BOLT.has.toys end },
                     { type = "checkbox", label = "Speedometer", path = { "playground", "showSpeedometer" } },
                     { type = "checkbox", label = "FPS counter", path = { "playground", "showFPS" } },
                     { type = "dropdown", label = "Position:", width = 130, path = { "playground", "statsPosition" },
                         options = function() return STATS_POSITIONS end },
-                    { type = "checkbox", label = "Copy target's mount (/cm or keybind)", path = { "playground", "copyTargetMount" } },
+                    { type = "checkbox", label = "Copy target's mount (/cm or keybind)", path = { "playground", "copyTargetMount" },
+                        available = function() return BOLT.has.mountJournal end },
                 },
             },
             {
@@ -305,6 +359,35 @@ local function MenuButton(parent, option, buildMenu, getText)
     holder.SetEnabled = function(_, enabled) button:SetEnabled(enabled) end
     holder.Refresh = function() button:GenerateMenu() button:OverrideText(getText()) end
     holder.anchorRight = button
+    return holder
+end
+
+-- Blizzard's own settings slider (with steppers and a value label on the right).
+function Widgets.slider(parent, option)
+    local holder = CreateFrame("Frame", nil, parent)
+    holder:SetSize(1, 22)
+    local label = AddLabel(holder, option.label)
+    label:SetPoint("LEFT")
+
+    local step = option.step or 1
+    local slider = CreateFrame("Frame", nil, holder, "MinimalSliderWithSteppersTemplate")
+    slider:SetWidth(option.width or 200)
+    slider:SetPoint("LEFT", label, "RIGHT", 12, 0)
+    local rightLabel = MinimalSliderWithSteppersMixin.Label.Right
+    slider:Init(GetSetting(option.path) or option.min, option.min, option.max, (option.max - option.min) / step, {
+        [rightLabel] = CreateMinimalSliderFormatter(rightLabel, option.format),
+    })
+    slider:RegisterCallback(MinimalSliderWithSteppersMixin.Event.OnValueChanged, function(_, value)
+        value = math.floor(value / step + 0.5) * step
+        if value ~= GetSetting(option.path) then
+            SetSetting(option.path, value)
+        end
+    end, holder)
+    holder:SetWidth(label:GetStringWidth() + 12 + slider:GetWidth() + 40)
+
+    holder.SetEnabled = function(_, enabled) slider:SetEnabled(enabled) end
+    holder.Refresh = function() slider:SetValue(GetSetting(option.path) or option.min) end
+    holder.anchorRight = slider
     return holder
 end
 
@@ -662,16 +745,19 @@ function Config:BuildSection(page, spec)
 
     local previous
     for _, option in ipairs(spec.options or {}) do
-        local widget = Widgets[option.type](body, option)
-        widget.option = option
-        if option.sameRow and previous then
-            widget:SetPoint("LEFT", previous.anchorRight or previous, "RIGHT", 12, 0)
-        else
-            widget:SetPoint("TOPLEFT", OPTION_X - (option.type == "checkbox" and 4 or 0), by)
-            by = by - ROW_HEIGHT
+        -- `available` hides options for systems this client lacks (e.g. on WoW: Forever).
+        if not option.available or option.available() then
+            local widget = Widgets[option.type](body, option)
+            widget.option = option
+            if option.sameRow and previous then
+                widget:SetPoint("LEFT", previous.anchorRight or previous, "RIGHT", 12, 0)
+            else
+                widget:SetPoint("TOPLEFT", OPTION_X - (option.type == "checkbox" and 4 or 0), by)
+                by = by - ROW_HEIGHT
+            end
+            table.insert(section.widgets, widget)
+            previous = widget
         end
-        table.insert(section.widgets, widget)
-        previous = widget
     end
 
     section.bodyHeight = -by

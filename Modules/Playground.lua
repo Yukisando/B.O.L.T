@@ -51,7 +51,7 @@ end
 
 -- Secure attributes can only change out of combat.
 function Playground:UpdateToyButton()
-    if not toyButton or InCombatLockdown() then return end
+    if not toyButton or not BOLT.has.toys or InCombatLockdown() then return end
 
     local toyID = Cfg("favoriteToyId")
     local itemID, icon
@@ -74,7 +74,7 @@ end
 
 function Playground:UpdateToyCooldown()
     local toyID = Cfg("favoriteToyId")
-    if not (toyButton and toyID and PlayerHasToy(toyID)) then return end
+    if not (toyButton and toyID and BOLT.has.toys and PlayerHasToy(toyID)) then return end
     local startTime, duration, enabled = C_Item.GetItemCooldown(toyID)
     ButtonUtils:SetButtonCooldown(toyButton, startTime, duration, enabled)
 end
@@ -135,7 +135,7 @@ function Playground:SetFavoriteToy(itemID)
 end
 
 function Playground:OnMenuShown()
-    if not Cfg("showFavoriteToy") then return end
+    if not (Cfg("showFavoriteToy") and BOLT.has.toys) then return end
     -- Deferred past the game menu module so its container is positioned first.
     C_Timer.After(0.05, function()
         if InCombatLockdown() or not BOLT:IsGameMenuShown() then return end
@@ -248,7 +248,7 @@ end
 
 -- Midnight: aura data is secret in combat, so mount detection only runs out of combat.
 function Playground:GetTargetMount()
-    if not UnitExists("target") or InCombatLockdown() then return nil end
+    if not BOLT.has.mountJournal or not UnitExists("target") or InCombatLockdown() then return nil end
 
     for index = 1, 40 do
         local aura = C_UnitAuras.GetAuraDataByIndex("target", index, "HELPFUL")
@@ -331,8 +331,11 @@ function Playground:OnInitialize()
 end
 
 function Playground:OnEnable()
-    for _, event in ipairs({ "TOYS_UPDATED", "SPELL_UPDATE_COOLDOWN", "BAG_UPDATE_COOLDOWN", "PLAYER_REGEN_ENABLED" }) do
+    for _, event in ipairs({ "SPELL_UPDATE_COOLDOWN", "BAG_UPDATE_COOLDOWN", "PLAYER_REGEN_ENABLED" }) do
         self.eventFrame:RegisterEvent(event)
+    end
+    if BOLT.has.toys then
+        self.eventFrame:RegisterEvent("TOYS_UPDATED")
     end
     BOLT:WatchGameMenu("playground",
         function() self:OnMenuShown() end,

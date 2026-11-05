@@ -7,14 +7,47 @@ BOLT.version = "dev" -- replaced from the TOC metadata at startup
 BOLT.modules = {}
 BOLT.moduleOrder = {}
 
--- WoW: Forever runs on the modern (Mainline) client. Only that game type exposes
--- C_GameRules.GetForeverExperiencePreset, so it doubles as a reliable runtime check.
-BOLT.isForever = C_GameRules ~= nil and C_GameRules.GetForeverExperiencePreset ~= nil
+-- WoW: Forever runs on the modern (Mainline) client with interface 16xxx. Some
+-- retail-only functions still exist there as stubs (the delve checks report a
+-- delve in progress), so features are gated on the client, not only on the API.
+local interfaceVersion = select(4, GetBuildInfo()) or 0
+BOLT.isForever = (interfaceVersion >= 16000 and interfaceVersion < 20000)
+    or (C_GameRules ~= nil and C_GameRules.GetForeverExperiencePreset ~= nil)
+
+-- Systems a feature needs; checked once at load.
+BOLT.has = {
+    delves = not BOLT.isForever and C_PartyInfo ~= nil and C_PartyInfo.IsDelveInProgress ~= nil,
+    specializations = not BOLT.isForever and GetSpecialization ~= nil and GetLootSpecialization ~= nil,
+    toys = C_ToyBox ~= nil and C_ToyBox.GetToyInfo ~= nil and PlayerHasToy ~= nil,
+    mountJournal = C_MountJournal ~= nil and C_MountJournal.GetMountFromSpell ~= nil,
+    countdown = C_PartyInfo ~= nil and C_PartyInfo.DoCountdown ~= nil,
+    transmogOutfits = C_TransmogOutfitInfo ~= nil and C_TransmogOutfitInfo.SetPendingTransmog ~= nil,
+}
 
 -- Per-character options. Module enabled states live account-wide in BOLTDB.moduleStates.
 BOLT.defaults = {
     profile = {
         debug = false,
+        unitFrames = {
+            player = true,
+            target = true,
+            targetOfTarget = true,
+            pet = true,
+            party = true,
+            castBars = true,
+        },
+        autoHide = {
+            actionBars = true,
+            microMenu = true,
+            xpBar = true,
+            minimapButtons = true,
+            buffs = false,
+            debuffs = false,
+            unitFrames = false,
+            questTracker = false,
+            minimap = false,
+            idleAlpha = 0, -- percent opacity while hidden
+        },
         gameMenu = {
             showLeaveGroup = true,
             showReloadButton = true,
@@ -63,6 +96,8 @@ BOLT.defaults = {
 -- Modules with an on/off toggle; all start disabled for new users.
 BOLT.defaultModuleStates = {
     gameMenu = false,
+    unitFrames = false,
+    autoHide = false,
     playground = false,
     skyriding = false,
     wowheadLink = false,

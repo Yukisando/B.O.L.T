@@ -142,15 +142,11 @@ end
 
 function GameMenu:UpdateLootSpecButton()
     local button = buttons.lootSpec
-    if not button then return end
+    if not (button and BOLT.has.specializations) then return end
 
     local specID = GetLootSpecialization()
     button.icon:SetTexture(self:GetLootSpecInfo(specID).icon)
-    if specID == 0 then
-        button.border:SetColorTexture(0.3, 0.28, 0.24, 1)
-    else
-        button.border:SetColorTexture(0.95, 0.76, 0.18, 1)
-    end
+    ButtonUtils:SetBorderActive(button, specID ~= 0)
 end
 
 ---------------------------------------------------------------------------
@@ -221,9 +217,26 @@ function GameMenu:CreateButtons()
     end)
     buttons.countdown = countdown
 
-    local marker = ButtonUtils:CreateIconButton(nil, parent, "Interface\\TargetingFrame\\UI-RaidTargetingIcons")
-    marker:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    marker:SetScript("OnClick", function(_, mouseButton) self:OnRaidMarkerClick(mouseButton) end)
+    -- Setting a raid marker is protected: Blizzard's secure "raidtarget" action does it on our
+    -- click. Protected buttons can't be shown, hidden or moved in combat, so this one lives on
+    -- UIParent, is placed in screen coordinates (anchoring it to our container would make the
+    -- container protected too) and isn't offered while in combat.
+    local marker = ButtonUtils:CreateIconButton("BOLTGameMenuRaidMarker", UIParent,
+        "Interface\\TargetingFrame\\UI-RaidTargetingIcons", { secure = true })
+    marker:SetFrameStrata("DIALOG")
+    marker:RegisterForClicks("LeftButtonUp", "RightButtonUp", "LeftButtonDown", "RightButtonDown")
+    marker:SetAttribute("type", "raidtarget")
+    marker:SetAttribute("unit", "player")
+    marker:SetAttribute("action2", "clear")
+    marker:HookScript("OnClick", function(_, mouseButton, down)
+        if down then return end
+        local index = Cfg("raidMarkerIndex")
+        if mouseButton == "RightButton" or index == 0 then
+            BOLT:Print("Raid marker cleared.")
+        else
+            BOLT:Print("Raid marker set: " .. MARKER_NAMES[index])
+        end
+    end)
     ButtonUtils:SetTooltip(marker, "ANCHOR_LEFT", function()
         local name = MARKER_NAMES[Cfg("raidMarkerIndex")] or "none selected"
         return "Raid Marker", TooltipLines(
@@ -345,15 +358,36 @@ function GameMenu:OnCountdownClick()
     C_PartyInfo.DoCountdown(5)
 end
 
-function GameMenu:OnRaidMarkerClick(mouseButton)
-    local index = Cfg("raidMarkerIndex")
-    if mouseButton == "RightButton" or index == 0 then
-        SetRaidTarget("player", 0)
-        BOLT:Print("Raid marker cleared.")
+-- The marker button is protected: attributes, visibility and position change out of combat only.
+function GameMenu:UpdateMarkerButton(shown, below)
+    local marker = buttons.marker
+    if InCombatLockdown() then
+        if not shown and marker:IsShown() then
+            -- Can't hide it now: make it invisible and hide it when combat ends.
+            marker:SetAlpha(0)
+            self.markerPendingHide = true
+        end
         return
     end
-    SetRaidTarget("player", index)
-    BOLT:Print("Raid marker set: " .. MARKER_NAMES[index])
+    self.markerPendingHide = nil
+
+    local index = Cfg("raidMarkerIndex")
+    marker:SetAttribute("marker", index > 0 and index or nil)
+    marker:SetAttribute("action1", index > 0 and "set" or "clear")
+    marker.icon:SetTexCoord(MarkerTexCoords(index > 0 and index or 1))
+    marker:SetAlpha(index > 0 and 1 or 0.5)
+
+    if not shown then
+        marker:Hide()
+        return
+    end
+    marker:ClearAllPoints()
+    if below then
+        marker:SetPoint("BOTTOM", UIParent, "BOTTOMLEFT", (below:GetCenter()), below:GetTop() + STACK_GAP)
+    else
+        marker:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", container:GetRight() + 8, container:GetBottom() + 12)
+    end
+    marker:Show()
 end
 
 function GameMenu:ShowLootSpecMenu()
@@ -413,10 +447,9 @@ function GameMenu:Refresh()
     buttons.volume:SetShown(Cfg("showVolumeButton"))
     buttons.damage:SetShown(showCombatText)
     buttons.healing:SetShown(showCombatText)
-    buttons.lootSpec:SetShown(Cfg("showLootSpecButton") and GetNumSpecializations() > 0)
-    buttons.marker:SetShown(groupTools)
+    buttons.lootSpec:SetShown(Cfg("showLootSpecButton") and BOLT.has.specializations and GetNumSpecializations() > 0)
     buttons.readyCheck:SetShown(groupTools and inGroup)
-    buttons.countdown:SetShown(groupTools and inGroup)
+    buttons.countdown:SetShown(groupTools and inGroup and BOLT.has.countdown)
 
     local groupType = BOLT:GetGroupTypeString()
     buttons.leave:SetText(groupType and ("Leave " .. groupType) or "Leave Group")
@@ -431,24 +464,30 @@ function GameMenu:Refresh()
         button:SetAlpha(canCommand and 1 or 0.4)
     end
 
-    local markerIndex = Cfg("raidMarkerIndex")
-    buttons.marker.icon:SetTexCoord(MarkerTexCoords(markerIndex > 0 and markerIndex or 1))
-    buttons.marker:SetAlpha(markerIndex > 0 and 1 or 0.5)
-
     self:UpdateVolumeDisplay()
     self:UpdateLootSpecButton()
     if showCombatText then
         self:RefreshCombatTextButtons()
     end
 
-    StackFromBottom({ buttons.lootSpec, buttons.readyCheck, buttons.countdown, buttons.marker }, "right")
+    local rightStack = { buttons.lootSpec, buttons.readyCheck, buttons.countdown }
+    StackFromBottom(rightStack, "right")
     StackFromBottom({ buttons.volume, buttons.healing, buttons.damage }, "left")
+
+    local topOfStack
+    for _, button in ipairs(rightStack) do
+        if button:IsShown() then topOfStack = button end
+    end
+    self:UpdateMarkerButton(groupTools, topOfStack)
 end
 
 function GameMenu:HideAll()
     showGeneration = showGeneration + 1
     if container then
         container:Hide()
+    end
+    if buttons.marker then
+        self:UpdateMarkerButton(false)
     end
 end
 
@@ -485,14 +524,23 @@ function GameMenu:OnInitialize()
         if event == "CVAR_UPDATE" and not (name and (name:find("^Sound_") or name:find("^floatingCombatText"))) then
             return
         end
+        if event == "PLAYER_REGEN_ENABLED" then
+            if self.markerPendingHide and not BOLT:IsGameMenuShown() then
+                self:UpdateMarkerButton(false)
+            end
+            return
+        end
         self:Refresh()
     end)
 end
 
 function GameMenu:OnEnable()
-    for _, event in ipairs({ "GROUP_ROSTER_UPDATE", "PARTY_LEADER_CHANGED", "PLAYER_ROLES_ASSIGNED",
-        "PLAYER_LOOT_SPEC_UPDATED", "PLAYER_SPECIALIZATION_CHANGED", "CVAR_UPDATE" }) do
+    for _, event in ipairs({ "GROUP_ROSTER_UPDATE", "PARTY_LEADER_CHANGED", "PLAYER_ROLES_ASSIGNED", "CVAR_UPDATE", "PLAYER_REGEN_ENABLED" }) do
         self.eventFrame:RegisterEvent(event)
+    end
+    if BOLT.has.specializations then
+        self.eventFrame:RegisterEvent("PLAYER_LOOT_SPEC_UPDATED")
+        self.eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
     end
     BOLT:WatchGameMenu("gameMenu",
         function() self:OnMenuShown() end,

@@ -18,6 +18,7 @@ end
 ---------------------------------------------------------------------------
 
 local function InDelve()
+    if not BOLT.has.delves then return false end
     return C_PartyInfo.IsDelveInProgress() or C_PartyInfo.IsDelveComplete()
 end
 

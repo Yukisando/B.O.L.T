@@ -19,8 +19,11 @@ Core\Core.lua
 Core\Database.lua
 Core\Utils.lua
 Core\ButtonUtils.lua
+Core\NativeArt.lua
 
 Modules\GameMenu.lua
+Modules\UnitFrames.lua
+Modules\AutoHide.lua
 Modules\Playground.lua
 Modules\Skyriding.lua
 Modules\AutoRepSwitch.lua
