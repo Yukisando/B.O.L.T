@@ -6,6 +6,13 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-7 (2026-11-06)
+
+- feat: Shoot Wand Key, fix for the Personal Resource Display fade error
+- Shoot Wand Key (WoW: Forever): one key targets the enemy under the mouse, sends your pet in and starts wand Shoot
+- Immersive Mode: fixed an error that repeated every frame while the Personal Resource Display was faded
+- Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
 ## v8-6 (2026-11-06)
 
 - feat: Campfire Rest, Personal Resource Display fade and menus, clearer resting Zzz
