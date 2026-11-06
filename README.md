@@ -34,6 +34,8 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 
 - **Frame-Free HUD**: Hides the player and target frames and turns on Blizzard's Personal Resource Display, so your health and power sit under your character and enemies are read off their nameplates
 - **One Switch**: Turning it off brings both frames back and turns the Personal Resource Display off. Toggle it in settings or from the minimap tracking menu; a switch made in combat applies when combat ends
+- **Faded Out of Combat**: The Personal Resource Display fades to its own opacity (10% by default) instead of hiding, comes back in combat or with an attackable target, and shows in full while you hover it
+- **Menus on the Bars**: Right-click the Personal Resource Display for your own menu, Shift + right-click for your target's
 
 #### Ranged Attack Timer
 
@@ -83,6 +85,10 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
   - Right-click: Toggle music on/off
   - Mouse wheel: Adjust master volume in 5% increments
   - A "Toggle Master Volume" keybinding is also available under B.O.L.T in Key Bindings
+
+#### Campfire Rest (WoW: Forever)
+
+- **Sit by the Fire**: While you have the Campfire Nearby buff, a small prompt fades in above the action bars; click it to sit, right-click to dismiss it until the next fire
 
 #### Auto Rep Switch
 

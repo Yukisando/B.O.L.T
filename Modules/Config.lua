@@ -113,6 +113,12 @@ local PAGES = {
             {
                 module = "immersive",
                 description = "Hides the player and target frames and turns on Blizzard's Personal Resource Display instead: your health and power sit under your character, enemies are read off their nameplates. Turning it off brings both frames back and turns the Personal Resource Display off. Also in the minimap tracking menu.",
+                options = {
+                    { type = "checkbox", label = "Also show the Personal Resource Display while you have an attackable target (when Edit Mode shows it only in combat)", path = { "immersive", "showWithTarget" } },
+                    { type = "slider", label = "Personal Resource Display opacity out of combat (hover shows it, 0% hides it):", path = { "immersive", "idleAlpha" },
+                        min = 0, max = 100, step = 5, format = function(value) return ("%d%%"):format(value) end },
+                    { type = "checkbox", label = "Right-click the Personal Resource Display for your menu, Shift + right-click for your target's", path = { "immersive", "rightClickMenus" } },
+                },
             },
             {
                 module = "tooltip",
@@ -187,6 +193,10 @@ local PAGES = {
                     { type = "button", label = "Clear Sell List", width = 140,
                         onClick = function() Module("autoSell"):ClearList() end },
                 },
+            },
+            {
+                module = "campfire",
+                description = "When the Campfire Nearby buff is on you, a small prompt offers to sit by the fire. Click it to sit, right-click to dismiss it until the next fire. It steps aside in combat, while mounted or swimming, and comes back when you get up and walk around near the fire.",
             },
             {
                 module = "autoRepSwitch",

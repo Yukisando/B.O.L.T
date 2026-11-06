@@ -36,6 +36,11 @@ BOLT.defaults = {
             party = true,
             castBars = true,
         },
+        immersive = {
+            showWithTarget = true, -- Personal Resource Display also shows with an attackable target
+            idleAlpha = 10, -- percent opacity of the Personal Resource Display out of combat; 0 hides it
+            rightClickMenus = true, -- right-click it for your menu, Shift + right-click for the target's
+        },
         autoHide = {
             mainBar = true,     -- main action bar, micro menu and bags, as one strip
             actionBars = true,  -- the other action bars
@@ -116,6 +121,7 @@ BOLT.defaultModuleStates = {
     wowheadLink = false,
     autoRepSwitch = false,
     autoSell = false,
+    campfire = false,
     smartTeleport = false,
     chatNotifier = false,
     achievementTracker = false,

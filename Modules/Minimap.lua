@@ -350,7 +350,7 @@ local function BuildCoords()
     end)
 end
 
--- The player frame's sleepy Zzz while resting, small and dim inside the day/night dial (or in
+-- The player frame's sleepy Zzz while resting, inside the day/night dial (or in
 -- the map's top-right corner where there's no dial).
 local function BuildRest()
     local atlas = NativeArt.ResolveAtlas("ui-hud-unitframe-player-rest-flipbook")
@@ -365,23 +365,37 @@ local function BuildRest()
         rest:SetFrameLevel(Minimap:GetFrameLevel() + 5)
     end
 
-    local zzz = rest:CreateTexture(nil, "OVERLAY")
+    -- Full strength even while the map's corner art is half faded, with a dark drop shadow so
+    -- the pale letters read against the dial.
+    rest:SetFrameLevel(rest:GetFrameLevel() + 5)
+    if rest.SetIgnoreParentAlpha then rest:SetIgnoreParentAlpha(true) end
+
+    local size = diel and diel:GetWidth() * 0.85 or 24
+    local shadow = rest:CreateTexture(nil, "OVERLAY", nil, 1)
+    shadow:SetAtlas(atlas)
+    shadow:SetSize(size, size)
+    shadow:SetPoint("CENTER", rest, "CENTER", 2, 0)
+    shadow:SetVertexColor(0, 0, 0)
+    shadow:SetAlpha(0.9)
+
+    local zzz = rest:CreateTexture(nil, "OVERLAY", nil, 2)
     zzz:SetAtlas(atlas)
-    local size = diel and diel:GetWidth() * 0.6 or 20
     zzz:SetSize(size, size)
     zzz:SetPoint("CENTER", rest, "CENTER", 1, 1)
-    zzz:SetAlpha(0.7)
 
     -- Same flipbook Blizzard plays on the player frame: 42 frames in 6 columns and 7 rows.
-    local loop = zzz:CreateAnimationGroup()
+    local loop = rest:CreateAnimationGroup()
     loop:SetLooping("REPEAT")
-    local flipbook = loop:CreateAnimation("FlipBook")
-    flipbook:SetFlipBookRows(7)
-    flipbook:SetFlipBookColumns(6)
-    flipbook:SetFlipBookFrames(42)
-    flipbook:SetFlipBookFrameWidth(0)
-    flipbook:SetFlipBookFrameHeight(0)
-    flipbook:SetDuration(1.5)
+    for _, texture in ipairs({ shadow, zzz }) do
+        local flipbook = loop:CreateAnimation("FlipBook")
+        flipbook:SetTarget(texture)
+        flipbook:SetFlipBookRows(7)
+        flipbook:SetFlipBookColumns(6)
+        flipbook:SetFlipBookFrames(42)
+        flipbook:SetFlipBookFrameWidth(0)
+        flipbook:SetFlipBookFrameHeight(0)
+        flipbook:SetDuration(1.5)
+    end
     rest.loop = loop
     rest:Hide()
 end
