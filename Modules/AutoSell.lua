@@ -32,15 +32,8 @@ end
 -- Bag slot icons
 ---------------------------------------------------------------------------
 
-local OnModifiedClick
-
 local function MarkButton(button)
     if not (button and button.GetBagID and button.GetID) then return end
-    -- Buttons made before BOLT loaded copied the mixin without our hook.
-    if not button.boltSellHooked and button.OnModifiedClick then
-        button.boltSellHooked = true
-        hooksecurefunc(button, "OnModifiedClick", function(...) OnModifiedClick(...) end)
-    end
     local ok, bag = pcall(button.GetBagID, button)
     if not ok or not bag then return end
     local itemID = C_Container.GetContainerItemID(bag, button:GetID())
@@ -105,15 +98,15 @@ end
 -- Alt + right-click
 ---------------------------------------------------------------------------
 
-function OnModifiedClick(button, mouseButton)
-    if not AutoSell.active or mouseButton ~= "RightButton" or not IsAltKeyDown() then return end
-    if not (button and button.GetBagID) then return end
-    -- A button can carry both the mixin hook and its own (see MarkButton): count the click once.
-    local now = GetTime()
-    if button.boltSellClick == now then return end
-    button.boltSellClick = now
-    local bag, slot = button:GetBagID(), button:GetID()
-    local info = bag and C_Container.GetContainerItemInfo(bag, slot)
+-- Every bag button (Blizzard's and Baganator's) hands a modified click to the global
+-- HandleModifiedItemClick with the slot's item location. Hooking that global catches buttons
+-- made before BOLT started, which a hook on the button mixin would miss.
+local function OnModifiedItemClick(_, itemLocation)
+    if not AutoSell.active or not IsAltKeyDown() or GetMouseButtonClicked() ~= "RightButton" then return end
+    if not (itemLocation and itemLocation.IsBagAndSlot and itemLocation:IsBagAndSlot()) then return end
+    local bag, slot = itemLocation:GetBagAndSlot()
+    if bag < 0 or bag > LastBag() then return end -- bags only, not the bank
+    local info = C_Container.GetContainerItemInfo(bag, slot)
     if not info or not info.itemID then return end
 
     local link = info.hyperlink or ("item:" .. info.itemID)
@@ -163,7 +156,7 @@ function AutoSell:Sell()
 
     local function Step()
         -- Merchant closed, or a newer run started.
-        if self.run ~= run or not (MerchantFrame and MerchantFrame:IsShown()) then return end
+        if self.run ~= run or not self.atMerchant then return end
         local entry = table.remove(queue, 1)
         if not entry then
             self.run = nil
@@ -182,7 +175,8 @@ function AutoSell:Sell()
         end
         C_Timer.After(SELL_DELAY, Step)
     end
-    Step()
+    -- Let the merchant window finish opening before the first sale.
+    C_Timer.After(SELL_DELAY, Step)
 end
 
 function AutoSell:ClearList()
@@ -198,17 +192,17 @@ end
 ---------------------------------------------------------------------------
 
 function AutoSell:OnInitialize()
-    if ContainerFrameItemButtonMixin then
-        hooksecurefunc(ContainerFrameItemButtonMixin, "OnModifiedClick", OnModifiedClick)
-    end
+    hooksecurefunc("HandleModifiedItemClick", OnModifiedItemClick)
     for _, frame in ipairs(BlizzardFrames()) do HookFrame(frame) end
     RegisterBaganator()
 
     self.eventFrame = CreateFrame("Frame")
     self.eventFrame:SetScript("OnEvent", function(_, event, name)
         if event == "MERCHANT_SHOW" then
+            self.atMerchant = true
             if self.active then self:Sell() end
         elseif event == "MERCHANT_CLOSED" then
+            self.atMerchant = false
             self.run = nil
         elseif event == "ADDON_LOADED" and name == "Baganator" then
             RegisterBaganator()
