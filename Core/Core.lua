@@ -70,6 +70,9 @@ BOLT.defaults = {
             statsPosition = "TOPRIGHT",
             copyTargetMount = true,
         },
+        wandShoot = {
+            petAttack = true, -- the Shoot Wand key also sends your pet in
+        },
         skyriding = {
             enablePitchControl = true,
             invertPitch = true,
@@ -118,6 +121,7 @@ BOLT.defaultModuleStates = {
     minimap = false,
     playground = false,
     skyriding = false,
+    wandShoot = false,
     wowheadLink = false,
     autoRepSwitch = false,
     autoSell = false,

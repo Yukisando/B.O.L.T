@@ -6,6 +6,7 @@ local strings = {
     BINDING_NAME_BOLT_COPY_TARGET_MOUNT = "Copy Target Mount",
     BINDING_NAME_BOLT_SHOW_WOWHEAD_LINK = "Wowhead Link",
     BINDING_NAME_BOLT_TOGGLE_TRP3_STATUS = "Toggle TRP3 IC/OOC Status",
+    ["BINDING_NAME_CLICK BOLTWandShootButton:LeftButton"] = "Shoot Wand",
 }
 
 local translations = {
@@ -14,18 +15,21 @@ local translations = {
         BINDING_NAME_BOLT_COPY_TARGET_MOUNT = "Copier la monture de la cible",
         BINDING_NAME_BOLT_SHOW_WOWHEAD_LINK = "Lien Wowhead",
         BINDING_NAME_BOLT_TOGGLE_TRP3_STATUS = "Basculer le statut TRP3 (RP/HRP)",
+        ["BINDING_NAME_CLICK BOLTWandShootButton:LeftButton"] = "Tirer avec la baguette",
     },
     deDE = {
         BINDING_NAME_BOLT_TOGGLE_MASTER_VOLUME = "Hauptlautstärke umschalten",
         BINDING_NAME_BOLT_COPY_TARGET_MOUNT = "Reittier des Ziels kopieren",
         BINDING_NAME_BOLT_SHOW_WOWHEAD_LINK = "Wowhead-Link",
         BINDING_NAME_BOLT_TOGGLE_TRP3_STATUS = "TRP3-Status umschalten (IC/OOC)",
+        ["BINDING_NAME_CLICK BOLTWandShootButton:LeftButton"] = "Mit Zauberstab schießen",
     },
     esES = {
         BINDING_NAME_BOLT_TOGGLE_MASTER_VOLUME = "Alternar volumen maestro",
         BINDING_NAME_BOLT_COPY_TARGET_MOUNT = "Copiar montura del objetivo",
         BINDING_NAME_BOLT_SHOW_WOWHEAD_LINK = "Enlace de Wowhead",
         BINDING_NAME_BOLT_TOGGLE_TRP3_STATUS = "Alternar estado de TRP3 (IC/OOC)",
+        ["BINDING_NAME_CLICK BOLTWandShootButton:LeftButton"] = "Disparar varita",
     },
 }
 translations.esMX = translations.esES

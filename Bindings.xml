@@ -11,4 +11,5 @@
 	<Binding name="BOLT_TOGGLE_TRP3_STATUS" category="B.O.L.T">
 		BOLT_ToggleTRP3Status()
 	</Binding>
+	<Binding name="CLICK BOLTWandShootButton:LeftButton" category="B.O.L.T"/>
 </Bindings>

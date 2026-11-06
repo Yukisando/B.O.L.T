@@ -91,7 +91,7 @@ end
 fader:SetScript("OnUpdate", function(self, elapsed)
     local display = Display()
     if not display then return self:Hide() end
-    local goal = MouseIsOver(display) and 1 or self.goal
+    local goal = display:IsMouseOver() and 1 or self.goal
     local alpha = display:GetAlpha()
     if alpha < goal then
         display:SetAlpha(math.min(goal, alpha + FADE_SPEED * elapsed))

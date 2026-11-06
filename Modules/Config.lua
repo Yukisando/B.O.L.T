@@ -216,6 +216,14 @@ local PAGES = {
         title = "Gameplay",
         sections = {
             {
+                module = "wandShoot",
+                description = "One key to start your wand: it targets the enemy under the mouse (or keeps your current target) and starts Shoot. Pressing it again doesn't stop the wand. Works in combat.",
+                options = {
+                    { type = "keybind", label = "Shoot wand:", binding = "CLICK BOLTWandShootButton:LeftButton" },
+                    { type = "checkbox", label = "Also send your pet to attack", path = { "wandShoot", "petAttack" } },
+                },
+            },
+            {
                 module = "skyriding",
                 description = "While skyriding, strafe keys turn instead (and forward/back can pitch). Use /bolt reset if keys ever feel stuck.",
                 options = {

@@ -111,6 +111,10 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 
 ### Gameplay
 
+#### Shoot Wand Key (WoW: Forever)
+
+- **One Key**: Targets the enemy under the mouse (or keeps your target), sends your pet in and starts wand Shoot; set the key in BOLT settings or Key Bindings
+
 #### Skyriding
 
 - **Enhanced Movement**: Strafe keys (A/D) become horizontal turning while Skyriding

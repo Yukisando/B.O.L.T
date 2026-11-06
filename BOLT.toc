@@ -30,6 +30,7 @@ Modules\AutoHide.lua
 Modules\Minimap.lua
 Modules\Playground.lua
 Modules\Skyriding.lua
+Modules\WandShoot.lua
 Modules\AutoRepSwitch.lua
 Modules\AutoSell.lua
 Modules\Campfire.lua
