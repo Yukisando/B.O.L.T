@@ -6,6 +6,14 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-5 (2026-11-06)
+
+- fix: Auto Sell works with Baganator and at every merchant, range dot sits higher
+- Auto Sell: Alt + right-click now works on every bag button, including Baganator's
+- Auto Sell: junk and listed items are sold reliably when a merchant opens, also with addons that change the merchant window
+- Nameplates: the range dot sits a little higher above the health bar
+- Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
 ## v8-4 (2026-11-06)
 
 - feat: Auto Sell, Tooltips, nameplate range dots, bare tracking spyglass
