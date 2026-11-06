@@ -6,6 +6,20 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-3 (2026-11-06)
+
+- feat: square Minimap, Immersive Mode, Ranged Attack Timer, Nameplates overhaul
+- Settings: a new Interface page gathers everything that changes how the UI looks (Unit Frames & Cast Bars, Minimap, Immersive Mode, Ranged Attack Timer, Nameplates, Auto-hide UI, Party Frames Center Growth); Game Menu, Auto Rep Switch, Smart Teleport and Saved Instances moved to a new Quality of Life page
+- Minimap (opt-in): square map framed with Blizzard's own minimap art (bronze on WoW: Forever); zone name and clock in a title bar; tracking, calendar, mail, expansion summary, instance difficulty, addon list (a settings cog) and an addon button drawer (three dots) in one bar at the bottom, under the title, or as a left/right column; coordinates inside the map; optional mouse-wheel zoom that zooms back out after 20 seconds
+- Minimap on WoW: Forever: the day/night dial moves into the map's corner and shows the player frame's Zzz while you're resting
+- Immersive Mode (opt-in): hides the player and target frames and turns on the Personal Resource Display; off brings them back. Also in the minimap tracking menu
+- Ranged Attack Timer (opt-in, hunters; on WoW: Forever also wand users): a thin bar under the Cooldown Manager that fills between automatic shots
+- Nameplates: target emphasis, unit-frame bar art, an interrupt cue (outline and your interrupt's icon when the cast can be interrupted and your interrupt is ready) and a subtle darker bar for enemies out of reach, on top of the mana-user colors
+- Auto-hide UI: the main action bar, micro menu and bags now show together as one strip; other action bars are their own group
+- Settings stay in sync when a module is toggled from the tracking menu or /bolt toggle
+- "UI Revamp" is now called Unit Frames
+- Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
 ## v8-2 (2026-11-05)
 
 - feat: UI Revamp and Auto-hide UI modules, WoW: Forever fixes
