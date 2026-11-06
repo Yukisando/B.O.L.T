@@ -37,8 +37,8 @@ BOLT.defaults = {
             castBars = true,
         },
         autoHide = {
-            actionBars = true,
-            microMenu = true,
+            mainBar = true,     -- main action bar, micro menu and bags, as one strip
+            actionBars = true,  -- the other action bars
             xpBar = true,
             minimapButtons = true,
             buffs = false,
@@ -77,9 +77,19 @@ BOLT.defaults = {
         soundMuter = {
             mutedSoundIDs = {},
         },
+        minimap = {
+            buttons = "BOTTOM", -- side of the map for the button bar: TOP, BOTTOM, LEFT or RIGHT
+            wheelZoom = true,
+        },
         nameplatesEnhancement = {
+            manaUsers = true,
             manaColor = { r = 0.2, g = 0.4, b = 1.0 },
             instanceOnly = false,
+            targetEmphasis = true,
+            nativeLook = true,
+            interruptCue = true,
+            rangeHint = true,
+            interruptColor = { r = 0.3, g = 1.0, b = 0.45 },
         },
         keyShare = {
             rouletteEnabled = true,
@@ -97,7 +107,10 @@ BOLT.defaults = {
 BOLT.defaultModuleStates = {
     gameMenu = false,
     unitFrames = false,
+    immersive = false,
+    rangedTimer = false,
     autoHide = false,
+    minimap = false,
     playground = false,
     skyriding = false,
     wowheadLink = false,
@@ -176,6 +189,11 @@ function BOLT:SetModuleEnabled(name, enabled)
         self:ActivateModule(mod)
     else
         self:DeactivateModule(mod)
+    end
+    -- Toggles also come from the tracking menu and slash commands: keep the settings page in step.
+    local config = self.modules.config
+    if config and config.pages then
+        config:RefreshAll()
     end
     self:Print(("%s %s."):format(mod.displayName or name, enabled and "enabled" or "disabled"))
 end

@@ -1,4 +1,4 @@
--- B.O.L.T UI Revamp Module (saved as "unitFrames")
+-- B.O.L.T Unit Frames Module (saved as "unitFrames")
 -- Restyles Blizzard's game UI with Blizzard's own art, so it looks shipped with the game:
 --   unit frames  portrait-less: the native box stretches over the portrait and the bars widen
 --   cast bars    spell name on the bar, no label strip underneath
@@ -13,7 +13,7 @@ local ADDON_NAME, BOLT = ...
 local NativeArt = BOLT.NativeArt
 
 local UnitFrames = {
-    displayName = "UI Revamp",
+    displayName = "Unit Frames",
 }
 
 local FOREVER = BOLT.isForever

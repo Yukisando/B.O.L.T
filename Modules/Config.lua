@@ -74,12 +74,21 @@ local function ToggleList(section, label, allText, entries)
     }
 end
 
+local BUTTON_SIDES = {
+    { value = "TOP", label = "Top, under the title" },
+    { value = "BOTTOM", label = "Bottom" },
+    { value = "LEFT", label = "Left column" },
+    { value = "RIGHT", label = "Right column" },
+}
+
 local PAGES = {
     {
+        -- Everything that changes how the game's UI looks.
         title = "Interface",
         sections = {
             {
                 module = "unitFrames",
+                title = "Unit Frames & Cast Bars",
                 description = "Restyles the game UI with Blizzard's own art. Unit frames lose their round portrait: the frame stretches over its space and the bars widen. Cast bars show the spell name on the bar. Turning something off takes a /reload.",
                 options = {
                     ToggleList("unitFrames", "Restyle:", "Everything", {
@@ -93,12 +102,47 @@ local PAGES = {
                 },
             },
             {
+                module = "minimap",
+                description = "A square minimap framed with Blizzard's own art. The zone name and clock sit in a title bar above it, and the minimap buttons (tracking, calendar, mail, expansion summary, instance difficulty, addon list and a drawer for addon buttons) in one bar. Coordinates sit inside the map. Turning it off takes a /reload.",
+                options = {
+                    { type = "dropdown", label = "Minimap buttons:", width = 170, path = { "minimap", "buttons" },
+                        options = function() return BUTTON_SIDES end },
+                    { type = "checkbox", label = "Zoom with the mouse wheel (hides the +/- buttons, zooms back out after 20 seconds)", path = { "minimap", "wheelZoom" } },
+                },
+            },
+            {
+                module = "immersive",
+                description = "Hides the player and target frames and turns on Blizzard's Personal Resource Display instead: your health and power sit under your character, enemies are read off their nameplates. Turning it off brings both frames back and turns the Personal Resource Display off. Also in the minimap tracking menu.",
+            },
+            {
+                module = "rangedTimer",
+                description = (BOLT.isForever and "A thin bar that fills between your Auto Shots and wand shots" or "A thin bar that fills between your Auto Shots")
+                    .. ", so you can fit casts and moves between them. It sits under the Cooldown Manager, or floats below your character when the Cooldown Manager is hidden.",
+            },
+            {
+                module = "nameplatesEnhancement",
+                description = "Small fixes on top of Blizzard's nameplates.",
+                options = {
+                    { type = "checkbox", label = "Color enemy mana users (healers and casters)", path = { "nameplatesEnhancement", "manaUsers" } },
+                    { type = "color", label = "Color:", path = { "nameplatesEnhancement", "manaColor" }, indent = 24,
+                        default = { r = 0.2, g = 0.4, b = 1.0 }, requires = { "nameplatesEnhancement", "manaUsers" } },
+                    { type = "checkbox", label = "Only in instances (dungeons, raids, scenarios)", path = { "nameplatesEnhancement", "instanceOnly" },
+                        indent = 24, requires = { "nameplatesEnhancement", "manaUsers" } },
+                    { type = "checkbox", label = "Larger nameplate for your target, the others slightly faded", path = { "nameplatesEnhancement", "targetEmphasis" } },
+                    { type = "checkbox", label = "Health bars with the same Blizzard art as the unit frames", path = { "nameplatesEnhancement", "nativeLook" } },
+                    { type = "checkbox", label = "Outline enemy casts you can interrupt right now (interruptible, and your interrupt is ready)", path = { "nameplatesEnhancement", "interruptCue" } },
+                    { type = "color", label = "Color:", path = { "nameplatesEnhancement", "interruptColor" }, indent = 24,
+                        default = { r = 0.3, g = 1.0, b = 0.45 }, requires = { "nameplatesEnhancement", "interruptCue" } },
+                    { type = "checkbox", label = "Slightly darken enemies out of your reach (measured with your interrupt or a basic attack)", path = { "nameplatesEnhancement", "rangeHint" } },
+                },
+            },
+            {
                 module = "autoHide",
                 description = "Hides parts of the UI until you need them. They fade in when you hover them, have a target or are in combat, and stay hidden while mounted or on a flight path unless you're in combat. Everything shows in Edit Mode; action bars also show while you drag a spell or item.",
                 options = {
                     ToggleList("autoHide", "Hide:", "Everything", {
-                        { "actionBars", "Action bars" },
-                        { "microMenu", "Micro menu and bags" },
+                        { "mainBar", "Main bar, micro menu and bags" },
+                        { "actionBars", "Other action bars" },
                         { "xpBar", "Experience bar" },
                         { "buffs", "Buffs" },
                         { "debuffs", "Debuffs" },
@@ -111,6 +155,15 @@ local PAGES = {
                         min = 0, max = 100, step = 5, format = function(value) return ("%d%%"):format(value) end },
                 },
             },
+            {
+                module = "partyFramesCenterGrowth",
+                description = "Keeps raid-style party frames centered as members join or leave. Requires Raid-Style Party Frames in Edit Mode.",
+            },
+        },
+    },
+    {
+        title = "Quality of Life",
+        sections = {
             {
                 module = "gameMenu",
                 options = {
@@ -125,17 +178,16 @@ local PAGES = {
                 },
             },
             {
-                module = "nameplatesEnhancement",
-                description = "Colors enemy nameplate health bars blue for mana users (healers and casters).",
-                options = {
-                    { type = "color", label = "Mana color:", path = { "nameplatesEnhancement", "manaColor" },
-                        default = { r = 0.2, g = 0.4, b = 1.0 } },
-                    { type = "checkbox", label = "Only in instances (dungeons, raids, scenarios)", path = { "nameplatesEnhancement", "instanceOnly" } },
-                },
+                module = "autoRepSwitch",
+                description = "Switches the watched reputation bar to the faction you just gained reputation with.",
             },
             {
-                module = "partyFramesCenterGrowth",
-                description = "Keeps raid-style party frames centered as members join or leave. Requires Raid-Style Party Frames in Edit Mode.",
+                module = "smartTeleport",
+                description = "Shows teleports you own that fit the zone you're viewing, below the World Map.",
+            },
+            {
+                module = "savedInstances",
+                description = "Lists current-expansion dungeons and raids and your lockouts. /boltsaved or middle-click the game menu gear.",
             },
         },
     },
@@ -150,18 +202,6 @@ local PAGES = {
                     { type = "checkbox", label = "Invert pitch", path = { "skyriding", "invertPitch" }, requires = { "skyriding", "enablePitchControl" } },
                     { type = "checkbox", label = "Only while holding the left mouse button", path = { "skyriding", "requireMouseButton" } },
                 },
-            },
-            {
-                module = "autoRepSwitch",
-                description = "Switches the watched reputation bar to the faction you just gained reputation with.",
-            },
-            {
-                module = "smartTeleport",
-                description = "Shows teleports you own that fit the zone you're viewing, below the World Map.",
-            },
-            {
-                module = "savedInstances",
-                description = "Lists current-expansion dungeons and raids and your lockouts. /boltsaved or middle-click the game menu gear.",
             },
         },
     },
@@ -348,13 +388,18 @@ local function MenuButton(parent, option, buildMenu, getText)
     holder:SetSize(1, 22)
     local label = AddLabel(holder, option.label)
     label:SetPoint("LEFT")
+    -- A fixed label width lines a run of dropdowns up in a column.
+    if option.labelWidth then
+        label:SetWidth(option.labelWidth)
+        label:SetJustifyH("LEFT")
+    end
 
     local button = CreateFrame("DropdownButton", nil, holder, "WowStyle1DropdownTemplate")
     button:SetWidth(option.width or 160)
     button:SetPoint("LEFT", label, "RIGHT", 8, 0)
     button:SetupMenu(buildMenu)
     button:OverrideText(getText())
-    holder:SetWidth(label:GetStringWidth() + 8 + button:GetWidth())
+    holder:SetWidth((option.labelWidth or label:GetStringWidth()) + 8 + button:GetWidth())
 
     holder.SetEnabled = function(_, enabled) button:SetEnabled(enabled) end
     holder.Refresh = function() button:GenerateMenu() button:OverrideText(getText()) end
@@ -443,6 +488,15 @@ function Widgets.multiselect(parent, option)
                 end)
         end
     end, Text)
+    return holder
+end
+
+-- A small heading inside a section, above a group of options.
+function Widgets.header(parent, option)
+    local holder = CreateFrame("Frame", nil, parent)
+    holder:SetSize(300, 22)
+    local label = AddLabel(holder, option.label, "GameFontNormal")
+    label:SetPoint("BOTTOMLEFT", 0, 2)
     return holder
 end
 
@@ -752,7 +806,7 @@ function Config:BuildSection(page, spec)
             if option.sameRow and previous then
                 widget:SetPoint("LEFT", previous.anchorRight or previous, "RIGHT", 12, 0)
             else
-                widget:SetPoint("TOPLEFT", OPTION_X - (option.type == "checkbox" and 4 or 0), by)
+                widget:SetPoint("TOPLEFT", OPTION_X + (option.indent or 0) - (option.type == "checkbox" and 4 or 0), by)
                 by = by - ROW_HEIGHT
             end
             table.insert(section.widgets, widget)

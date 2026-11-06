@@ -2,13 +2,68 @@
 
 **Brittle and Occasionally Lethal Tweaks** - Quality of life improvements for World of Warcraft that make your gameplay experience smoother without changing core mechanics.
 
-Supports **Midnight (12.1.5)** and **WoW: Forever**. On Forever, modules built on modern-only systems (Skyriding, Key Share, Smart Teleport, Achievement Tracker) are hidden automatically.
+Supports **Midnight (12.1.5)** and **WoW: Forever**. On Forever, modules built on modern-only systems (Skyriding, Key Share, Smart Teleport, Achievement Tracker) are hidden automatically, and the Interface modules use Forever's own bronze art.
 
 All modules can be toggled independently. New installs start with every module disabled — turn on what you want from the settings panel (`/bolt`) or via the quick toggles in the minimap tracking dropdown.
 
 ## Modules
 
 ### Interface
+
+Everything that changes how the game's UI looks lives on the **Interface** settings page. These modules restyle Blizzard's own frames with Blizzard's own art (Forever's bronze art on WoW: Forever), so the result looks like it shipped with the game.
+
+#### Unit Frames & Cast Bars
+
+- **Portrait-less Unit Frames**: Player, target, focus, target of target, pet and party frames lose their round portrait; Blizzard's frame stretches over the space and the bars widen and fill flush to the borders
+- **Native Art**: Level shown in Blizzard's level circle, elite/rare dragons wrap the end of the target frame
+- **Cast Bars**: The spell name sits on the bar instead of in a strip underneath
+- **Per-Frame Choice**: Pick which frames to restyle; turning one off takes a `/reload`
+
+#### Minimap
+
+- **Square Minimap**: The map is square, framed with Blizzard's minimap art (bronze on WoW: Forever, Blizzard's dark plates on Midnight)
+- **Title Bar**: Zone name and clock in one bar above the map
+- **One Button Bar**: Tracking, calendar, mail and crafting orders, expansion summary, instance difficulty, Blizzard's addon list (shown as a small settings cog) and the addon drawer (a gold count) sit in a single bar, without their own frames: a row at the bottom (default) or under the title bar, or a column on the left or right
+- **In the Map**: Coordinates in the bottom-right corner and, on WoW: Forever, the day/night dial in the top-right corner, both half faded until you hover the map. While you're resting, the player frame's little Zzz plays inside the dial (in the corner on Midnight)
+- **Addon Button Drawer**: Buttons that addons hang on the minimap go into one drawer button that shows how many there are; click it to open them, it closes by itself when the mouse leaves
+- **Mouse-Wheel Zoom**: Optional; hides the +/- buttons and zooms back out after 20 seconds
+- **Works With Auto-hide UI**: The bars and drawer button fade with the "Minimap buttons" group
+- Paused while SexyMap, BasicMinimap or ElvUI is loaded. Turning the module off takes a `/reload`
+
+#### Immersive Mode
+
+- **Frame-Free HUD**: Hides the player and target frames and turns on Blizzard's Personal Resource Display, so your health and power sit under your character and enemies are read off their nameplates
+- **One Switch**: Turning it off brings both frames back and turns the Personal Resource Display off. Toggle it in settings or from the minimap tracking menu; a switch made in combat applies when combat ends
+
+#### Ranged Attack Timer
+
+- **Shot Timer**: A thin bar fills between your automatic shots (Auto Shot; on WoW: Forever also wand Shoot), so you can fit casts and moves between them
+- **Built In**: Sits under the Cooldown Manager's main row at its width, or floats below your character when the Cooldown Manager is hidden
+- Only offered to classes with a repeating ranged attack. Melee swings can't be timed: the game keeps the combat log from addons
+
+#### Nameplates
+
+- **Mana User Highlighting**: Enemy nameplate health bars are colored for mana users (healers/casters), optionally only in dungeons, raids and scenarios, with a color of your choice
+- **Target Emphasis**: Your target's nameplate is larger and the others fade slightly (the game's own nameplate settings, restored to their defaults when turned off)
+- **Native Look**: Health bars use the same Blizzard fill art as the unit frames
+- **Interrupt Cue**: An enemy cast bar gets an outline and your interrupt's icon when the cast can be interrupted *and* your interrupt is off cooldown, so you know at a glance whether to kick. Works with Midnight's combat restrictions (the game itself decides whether to show the cue)
+- **Range Hint**: Enemies out of your reach get a slightly darker health bar, measured with your interrupt (or a basic attack for classes and specs without one)
+- **Combat Persistent**: Colors survive entering combat and threat updates via a secure post-hook on Blizzard's health color system
+
+#### Auto-hide UI
+
+- **Fade Until Needed**: The main action bar with the micro menu and bags (one strip: hovering any of them shows all three), the other action bars, experience bar, buffs, debuffs, unit frames, quest tracker, minimap and minimap buttons fade out
+- **Smart Reveal**: They fade in when you hover them, have a target or are in combat, and stay hidden while mounted or on a flight path unless you're in combat
+- **Edit Mode Friendly**: Everything shows in Edit Mode; action bars also show while you drag a spell or item
+- **Adjustable Opacity**: Choose how visible hidden parts stay
+
+#### Party Frames Center Growth
+
+- **Centered Raid-Style Party Growth**: Keeps raid-style party frames centered instead of visually drifting from a fixed corner as the group fills
+- **Dynamic Join/Leave Nudging**: Repositions the party anchor as members join or leave so the layout remains centered for party sizes 1-5
+- **Party-Only Scope**: Only affects party raid-style frames; raid group frames are untouched
+
+### Quality of Life
 
 #### Game Menu Enhancements
 
@@ -30,30 +85,6 @@ All modules can be toggled independently. New installs start with every module d
   - Mouse wheel: Adjust master volume in 5% increments
   - A "Toggle Master Volume" keybinding is also available under B.O.L.T in Key Bindings
 
-#### Nameplates Enhancement
-
-- **Mana User Highlighting**: Enemy nameplate health bars are colored for mana-using units (healers/casters), making them easy to spot in packs
-- **Combat Persistent**: Colors survive entering combat and threat updates via a secure post-hook on Blizzard's health color system
-- **Enemies Only**: Only enemy nameplates are affected — friendly and neutral units keep their default appearance
-- **Instance-Only Mode**: Optional toggle to limit nameplate coloring to dungeons, raids, and scenarios
-- **Customizable Mana Color**: Pick any color for mana-user nameplates from the config panel
-
-#### Party Frames Center Growth
-
-- **Centered Raid-Style Party Growth**: Keeps raid-style party frames centered instead of visually drifting from a fixed corner as the group fills
-- **Dynamic Join/Leave Nudging**: Repositions the party anchor as members join or leave so the layout remains centered for party sizes 1-5
-- **Party-Only Scope**: Only affects party raid-style frames; raid group frames are untouched
-
-### Gameplay
-
-#### Skyriding
-
-- **Enhanced Movement**: Strafe keys (A/D) become horizontal turning while Skyriding
-- **Pitch Control**: Optional W/S mapping for pitch up/down (3D control), with an invert option
-- **Mouse-Button Mode**: Optionally only apply the controls while holding the left mouse button (default on; the button state can't change mid-combat)
-- **Combat Safe**: A secure state driver switches the key overrides on `[advflyable,flying]`, so they turn off the moment you land — even in combat. Steady Flight is ignored
-- **Emergency Reset**: `/bolt reset` or `/boltreset` clears the overrides if anything ever feels stuck
-
 #### Auto Rep Switch
 
 - **Automatic Watched Faction**: Automatically switches the "watched" reputation bar to whichever faction you just gained reputation with
@@ -72,6 +103,16 @@ All modules can be toggled independently. New installs start with every module d
 - **Instance Lockout Overview**: Lists all current expansion dungeons and raids alongside your lockout status
 - **Slash Command**: Type `/boltsaved` to print unsaved instances to chat
 - **Color-Coded Output**: Green for unsaved, orange for in-progress, grey for completed
+
+### Gameplay
+
+#### Skyriding
+
+- **Enhanced Movement**: Strafe keys (A/D) become horizontal turning while Skyriding
+- **Pitch Control**: Optional W/S mapping for pitch up/down (3D control), with an invert option
+- **Mouse-Button Mode**: Optionally only apply the controls while holding the left mouse button (default on; the button state can't change mid-combat)
+- **Combat Safe**: A secure state driver switches the key overrides on `[advflyable,flying]`, so they turn off the moment you land — even in combat. Steady Flight is ignored
+- **Emergency Reset**: `/bolt reset` or `/boltreset` clears the overrides if anything ever feels stuck
 
 ### Social
 

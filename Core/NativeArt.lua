@@ -139,6 +139,52 @@ function Slice:SetBlendMode(mode)
 end
 
 ---------------------------------------------------------------------------
+-- Box: one Blizzard atlas cut in nine
+---------------------------------------------------------------------------
+-- Draws a bordered panel over the whole of `frame` at any size: the corners stay exactly as
+-- Blizzard drew them and the edges and centre stretch one pixel row/column of the art.
+--
+--   spec = { atlas = "...", corner = px, midX = column, midY = row }
+--   fill = false leaves the centre empty (a frame around something else)
+
+function NativeArt.CreateBox(frame, spec, fill, layer, subLevel)
+    local name = NativeArt.ResolveAtlas(spec.atlas)
+    local info = name and C_Texture.GetAtlasInfo(name)
+    if not info then return nil end
+
+    local left, right, top, bottom = info.leftTexCoord, info.rightTexCoord, info.topTexCoord, info.bottomTexCoord
+    local function U(x) return left + (right - left) * x / info.width end
+    local function V(y) return top + (bottom - top) * y / info.height end
+
+    local c = spec.corner
+    local cols = { { 0, c }, { spec.midX + 0.25, spec.midX + 0.75 }, { info.width - c, info.width } }
+    local rows = { { 0, c }, { spec.midY + 0.25, spec.midY + 0.75 }, { info.height - c, info.height } }
+    -- Piece edges as (anchor side, offset) from the frame's own edges.
+    local xs = { { "LEFT", 0 }, { "LEFT", c }, { "RIGHT", -c }, { "RIGHT", 0 } }
+    local ys = { { "TOP", 0 }, { "TOP", -c }, { "BOTTOM", c }, { "BOTTOM", 0 } }
+
+    local pieces = {}
+    for row = 1, 3 do
+        for col = 1, 3 do
+            if fill ~= false or row ~= 2 or col ~= 2 then
+                local texture = frame:CreateTexture(nil, layer or "BACKGROUND", nil, subLevel or 0)
+                texture:SetTexture(info.file)
+                texture:SetTexCoord(U(cols[col][1]), U(cols[col][2]), V(rows[row][1]), V(rows[row][2]))
+                if texture.SetSnapToPixelGrid then
+                    texture:SetSnapToPixelGrid(false)
+                    texture:SetTexelSnappingBias(0)
+                end
+                local x0, x1, y0, y1 = xs[col], xs[col + 1], ys[row], ys[row + 1]
+                texture:SetPoint("TOPLEFT", frame, y0[1] .. x0[1], x0[2], y0[2])
+                texture:SetPoint("BOTTOMRIGHT", frame, y1[1] .. x1[1], x1[2], y1[2])
+                table.insert(pieces, texture)
+            end
+        end
+    end
+    return pieces
+end
+
+---------------------------------------------------------------------------
 -- Concealing Blizzard art
 ---------------------------------------------------------------------------
 -- A mask that covers nothing makes a texture fully transparent. Blizzard keeps calling Show,

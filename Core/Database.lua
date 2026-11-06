@@ -12,6 +12,11 @@ local LEGACY_PROFILE_KEYS = {
     { "nameplatesEnhancement", "interruptWarningColor" },
     { "skyriding", "toggleMode" },
     { "playground", "allowSpecialGamemode" },
+    { "autoHide", "microMenu" },
+    -- The minimap's per-button placements became one button bar.
+    { "minimap", "zone" }, { "minimap", "clock" }, { "minimap", "difficulty" }, { "minimap", "tracking" },
+    { "minimap", "calendar" }, { "minimap", "mail" }, { "minimap", "landingPage" },
+    { "minimap", "compartment" }, { "minimap", "drawer" },
 }
 
 function BOLT:GetPlayerKey()

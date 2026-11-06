@@ -33,7 +33,7 @@ local function Named(names)
 end
 
 -- The minimap's surroundings: zone name, tracking, calendar, mail and the like, plus the
--- buttons addons hang on the minimap. The map itself stays.
+-- buttons addons hang on the minimap (or BOLT's square minimap bars). The map itself stays.
 local function MinimapButtons()
     local frames, seen = {}, {}
     local function Add(frame)
@@ -53,6 +53,13 @@ local function MinimapButtons()
         "ExpansionLandingPageMinimapButton", "MiniMapMailFrame", "MiniMapTracking", "MinimapZoneTextButton" })) do
         Add(frame)
     end
+    -- The square minimap's bars and addon drawer button.
+    local square = BOLT.modules.minimap
+    if square and square.active and square.GetChromeFrames then
+        for _, frame in ipairs(square:GetChromeFrames()) do
+            Add(frame)
+        end
+    end
     if Minimap then
         Add(Minimap.ZoomIn)
         Add(Minimap.ZoomOut)
@@ -67,18 +74,20 @@ end
 
 local GROUPS = {
     {
-        key = "actionBars",
+        -- The bottom row reads as one strip, so it shows as one: hovering the main bar, the
+        -- micro menu or the bags reveals all three.
+        key = "mainBar",
         showWhileDragging = true,
         frames = function()
-            return Named({ "MainActionBar", "MainMenuBar", "MultiBarBottomLeft", "MultiBarBottomRight",
-                "MultiBarRight", "MultiBarLeft", "MultiBar5", "MultiBar6", "MultiBar7",
-                "StanceBar", "PetActionBar", "MultiCastActionBarFrame" })
+            return Named({ "MainActionBar", "MainMenuBar", "MicroMenuContainer", "BagsBar", "MicroButtonAndBagsBar" })
         end,
     },
     {
-        key = "microMenu",
+        key = "actionBars",
+        showWhileDragging = true,
         frames = function()
-            return Named({ "MicroMenuContainer", "BagsBar", "MicroButtonAndBagsBar" })
+            return Named({ "MultiBarBottomLeft", "MultiBarBottomRight", "MultiBarRight", "MultiBarLeft",
+                "MultiBar5", "MultiBar6", "MultiBar7", "StanceBar", "PetActionBar", "MultiCastActionBarFrame" })
         end,
     },
     {
