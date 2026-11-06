@@ -1,7 +1,8 @@
 -- B.O.L.T Ranged Attack Timer Module
--- A thin bar that fills between automatic shots (Auto Shot, and wand Shoot on WoW: Forever), so
--- casts and moves can be timed between them. It sits under the Cooldown Manager's main row at its
--- width, or floats below the character when the Cooldown Manager isn't shown.
+-- A bar that fills between automatic shots (Auto Shot, and wand Shoot on WoW: Forever), so casts
+-- and moves can be timed between them. It is a child of the Personal Resource Display, drawn with
+-- the same bar art, sitting as one more bar under its health/power stack. With the Personal
+-- Resource Display turned off it floats below the character instead.
 --
 -- Only repeating shots are timed: they are the player's own spell casts, which addons always see.
 -- Melee swings would need the combat log, which the game keeps from addons.
@@ -21,12 +22,15 @@ local CLASSES = BOLT.isForever
     and { HUNTER = true, PRIEST = true, MAGE = true, WARLOCK = true }
     or { HUNTER = true }
 
-local HEIGHT = 4
-local FLOAT_WIDTH = 140
-local FLOAT_Y = -170     -- below the character, where the Personal Resource Display sits
+local COLOR = { 1, 0.76, 0.18 }  -- amber, apart from health green and power blue
+local DEFAULT_HEIGHT = 10        -- Personal Resource Display's power bar height when unreadable
+local DEFAULT_PADDING = 4
+local FLOAT_WIDTH = 200
+local FLOAT_Y = -170             -- below the character, where the Personal Resource Display sits
 local WHITE = "Interface\\Buttons\\WHITE8X8"
 
 local bar
+local hooked = false
 local speed = 2          -- last readable shot interval; stats can be hidden in some fights
 local startTime, duration
 local repeating = false
@@ -44,22 +48,56 @@ local function ReadSpeed()
     return speed
 end
 
-local function Anchor()
-    bar:ClearAllPoints()
-    local viewer = EssentialCooldownViewer
-    if viewer and viewer:IsShown() and viewer:GetWidth() > 20 then
-        bar:SetPoint("TOPLEFT", viewer, "BOTTOMLEFT", 0, -3)
-        bar:SetPoint("TOPRIGHT", viewer, "BOTTOMRIGHT", 0, -3)
-    else
-        local prd = PersonalResourceDisplayFrame
-        if prd and prd:IsShown() then
-            bar:SetPoint("TOP", prd, "BOTTOM", 0, -3)
-        else
-            bar:SetPoint("CENTER", UIParent, "CENTER", 0, FLOAT_Y)
-        end
-        bar:SetWidth(FLOAT_WIDTH)
+local function Readable(value, fallback)
+    if value and not BOLT.IsSecret(value) and value > 0 then return value end
+    return fallback
+end
+
+-- The display can be out of combat-hidden right now (first shot of a pull lands before it shows),
+-- so "turned on" is asked of the setting, not of IsShown.
+local function PersonalDisplayOn()
+    local prd = PersonalResourceDisplayFrame
+    if not prd then return false end
+    if prd:IsShown() then return true end
+    local rules = C_GameRules
+    if rules and rules.IsPersonalResourceDisplayEnabled then
+        return rules.IsPersonalResourceDisplayEnabled() == true
     end
-    bar:SetHeight(HEIGHT)
+    return C_CVar.GetCVarBool("nameplateShowSelf") == true
+end
+
+local function Anchor()
+    local prd = PersonalResourceDisplayFrame
+    bar:ClearAllPoints()
+    if PersonalDisplayOn() then
+        -- A child of the display: same scale, shown and hidden with it, and its bottom edge
+        -- follows every bar Blizzard adds or hides above.
+        if bar:GetParent() ~= prd then bar:SetParent(prd) end
+        local padding = prd.GetBarPadding and Readable(prd:GetBarPadding(), DEFAULT_PADDING)
+            or DEFAULT_PADDING
+        local power = prd.PowerBar
+        bar:SetPoint("TOPLEFT", prd, "BOTTOMLEFT", 0, -padding)
+        bar:SetPoint("TOPRIGHT", prd, "BOTTOMRIGHT", 0, -padding)
+        bar:SetHeight(power and Readable(power:GetHeight(), DEFAULT_HEIGHT) or DEFAULT_HEIGHT)
+    else
+        if bar:GetParent() ~= UIParent then bar:SetParent(UIParent) end
+        bar:SetPoint("CENTER", UIParent, "CENTER", 0, FLOAT_Y)
+        bar:SetSize(FLOAT_WIDTH, DEFAULT_HEIGHT)
+    end
+end
+
+-- Edit Mode changes to the display's bar height or spacing move the timer with it.
+local function HookDisplay()
+    local prd = PersonalResourceDisplayFrame
+    if hooked or not prd then return end
+    hooked = true
+    for _, method in ipairs({ "SetPowerBarHeight", "SetBarPadding", "SetBarWidth", "UpdateFrameHeight" }) do
+        if prd[method] then
+            hooksecurefunc(prd, method, function()
+                if bar then Anchor() end
+            end)
+        end
+    end
 end
 
 local function OnUpdate(self)
@@ -78,30 +116,31 @@ end
 
 local function Build()
     bar = CreateFrame("StatusBar", "BOLTRangedAttackTimer", UIParent)
-    bar:SetFrameStrata("MEDIUM")
     bar:SetMinMaxValues(0, 1)
     bar:SetValue(0)
 
-    -- Blizzard's own cast bar fill, kept thin and dim so it stays in the background.
-    local fill = NativeArt.ResolveAtlas("ui-castingbar-filling-standard")
+    -- The Personal Resource Display's own bar art (PersonalResourceStatusBar template).
+    local fill = NativeArt.ResolveAtlas("UI-HUD-CoolDownManager-Bar")
+    local back = NativeArt.ResolveAtlas("UI-HUD-CoolDownManager-Bar-BG")
     if fill then
         bar:SetStatusBarTexture(fill)
     else
         bar:SetStatusBarTexture(WHITE)
-        bar:SetStatusBarColor(1, 0.78, 0.3)
+    end
+    bar:SetStatusBarColor(COLOR[1], COLOR[2], COLOR[3])
+
+    local background = bar:CreateTexture(nil, "BACKGROUND")
+    if back then
+        background:SetAtlas(back)
+        background:SetPoint("TOPLEFT", -2, 3)
+        background:SetPoint("BOTTOMRIGHT", 6, -7)
+    else
+        background:SetTexture(WHITE)
+        background:SetVertexColor(0, 0, 0, 0.7)
+        background:SetPoint("TOPLEFT", -1, 1)
+        background:SetPoint("BOTTOMRIGHT", 1, -1)
     end
 
-    local outline = bar:CreateTexture(nil, "BACKGROUND", nil, -1)
-    outline:SetTexture(WHITE)
-    outline:SetVertexColor(0, 0, 0, 0.8)
-    outline:SetPoint("TOPLEFT", -1, 1)
-    outline:SetPoint("BOTTOMRIGHT", 1, -1)
-    local background = bar:CreateTexture(nil, "BACKGROUND")
-    background:SetTexture(WHITE)
-    background:SetVertexColor(0.08, 0.07, 0.05, 0.75)
-    background:SetAllPoints()
-
-    bar:SetAlpha(0.85)
     bar:SetScript("OnUpdate", OnUpdate)
     bar:Hide()
 end
@@ -118,6 +157,8 @@ local function OnEvent(_, event, unit, _, spellID)
         ReadSpeed()
     elseif event == "STOP_AUTOREPEAT_SPELL" then
         repeating = false
+    elseif event == "CVAR_UPDATE" then
+        if bar:IsShown() then Anchor() end
     else
         ReadSpeed()
     end
@@ -130,12 +171,15 @@ end
 
 function RangedTimer:OnEnable()
     if not bar then Build() end
+    HookDisplay()
+    Anchor()
     local events = self.eventFrame
     events:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
     events:RegisterUnitEvent("UNIT_RANGEDDAMAGE", "player")
     events:RegisterEvent("START_AUTOREPEAT_SPELL")
     events:RegisterEvent("STOP_AUTOREPEAT_SPELL")
     events:RegisterEvent("PLAYER_REGEN_DISABLED")
+    events:RegisterEvent("CVAR_UPDATE")
     ReadSpeed()
 end
 

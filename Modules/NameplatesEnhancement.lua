@@ -2,17 +2,16 @@
 -- Small fixes on top of Blizzard's nameplates:
 --   mana users     enemy healers and casters get a recolored health bar
 --   target         your target's plate is larger and the others fade a little (game settings)
---   native look    health bars use the same Blizzard fill art as the unit frames
 --   interrupt cue  an enemy cast bar lights up when the spell can be interrupted and your
 --                  interrupt is off cooldown
---   range hint     enemies out of your reach get a slightly darker health bar
+--   range hint     a dot at the top left of an enemy's health bar: dark red out of your reach,
+--                  yellow in melee range when your reach has a minimum range (hunters)
 --
 -- Midnight hides some unit data from addons in combat ("secret" values), including whether a
 -- cast can be interrupted. The cue never tests that value in Lua: it hands it to the game with
 -- SetAlphaFromBoolean, which accepts secrets.
 
 local ADDON_NAME, BOLT = ...
-local NativeArt = BOLT.NativeArt
 
 local Nameplates = {
     displayName = "Nameplates",
@@ -20,10 +19,8 @@ local Nameplates = {
 
 local DEFAULT_MANA_COLOR = { r = 0.2, g = 0.4, b = 1.0 }
 local DEFAULT_INTERRUPT_COLOR = { r = 0.3, g = 1.0, b = 0.45 }
-local HEALTH_ART = "ui-hud-unitframe-target-portraiton-bar-health-status"
 local WHITE = "Interface\\Buttons\\WHITE8X8"
 local CUE_REFRESH = 0.2   -- seconds between cooldown and range checks
-local RANGE_SHADE = 0.4   -- darkness over the health bar of an enemy out of range
 
 -- Game settings changed by "target emphasis", restored to the game's defaults when turned off.
 local TARGET_CVARS = {
@@ -104,23 +101,6 @@ function Nameplates:LoadColors()
 end
 
 ---------------------------------------------------------------------------
--- Native look
----------------------------------------------------------------------------
-
-local skinned = setmetatable({}, { __mode = "k" })
-
-local function SkinFrame(frame)
-    local bar = frame and frame.healthBar
-    if not (bar and IsOn("nativeLook")) then return end
-    local atlas = NativeArt.ResolveAtlas(HEALTH_ART)
-    if not atlas then return end
-    local texture = bar:GetStatusBarTexture()
-    if texture and texture:GetAtlas() == atlas then return end
-    bar:SetStatusBarTexture(atlas)
-    skinned[frame] = true
-end
-
----------------------------------------------------------------------------
 -- Target emphasis
 ---------------------------------------------------------------------------
 
@@ -166,7 +146,13 @@ local RANGE_FALLBACK = {
     DEMONHUNTER = { 162794 },   -- Chaos Strike
     EVOKER = { 361469 },        -- Living Flame
 }
-local rangeSpell
+-- Classes whose reference spell has a minimum range: a melee spell tells "too close" apart from
+-- "too far", so an enemy in melee gets a dot instead of the dark veil. Ranks listed for Forever.
+local MELEE_CHECK = {
+    -- Raptor Strike, Wing Clip, Mongoose Bite
+    HUNTER = { 2973, 14260, 14261, 14262, 14263, 14264, 14265, 14266, 186270, 2974, 14267, 14268, 1495, 14269, 14270, 14271 },
+}
+local rangeSpell, meleeSpell, hasMinRange
 
 local function Known(spellID)
     if IsPlayerSpell and IsPlayerSpell(spellID) then return true end
@@ -204,6 +190,16 @@ function Nameplates:FindInterrupt()
                 rangeSpell = spellID
                 break
             end
+        end
+    end
+
+    meleeSpell = nil
+    hasMinRange = MELEE_CHECK[class] ~= nil
+    for _, spellID in ipairs(MELEE_CHECK[class] or {}) do
+        local ok, known = pcall(Known, spellID)
+        if ok and known then
+            meleeSpell = spellID
+            break
         end
     end
 end
@@ -310,14 +306,52 @@ end
 ---------------------------------------------------------------------------
 -- Range hint
 ---------------------------------------------------------------------------
--- A dark veil over the health bar of an enemy your reference spell can't reach. The check may
--- come back secret in some fights, so like the cue it goes to the game as a boolean.
+-- A small dot at the top left of an enemy's health bar; the bar itself is never tinted.
+--   dark red   your reference spell can't reach it
+--   none       in reach
+--   yellow     too close for the reference spell but in melee range (hunters' minimum range)
+-- The reach check may come back secret in some fights: it then goes to the game as a boolean
+-- and only the red dot can show.
+
+local OUT_OF_RANGE_COLOR = { 0.6, 0.05, 0.05 }
+local MELEE_COLOR = { 1, 0.85, 0.1 }
+local DOT_SIZE = 6
+
+local function GetDot(bar)
+    local dot = bar.boltRangeDot
+    if dot then return dot end
+    dot = bar:CreateTexture(nil, "OVERLAY", nil, 7)
+    dot:SetTexture(WHITE)
+    dot:SetSize(DOT_SIZE, DOT_SIZE)
+    dot:SetPoint("BOTTOMLEFT", bar, "TOPLEFT", 0, 2)
+    local mask = bar:CreateMaskTexture()
+    mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+    mask:SetAllPoints(dot)
+    dot:AddMaskTexture(mask)
+    bar.boltRangeDot = dot
+    return dot
+end
+
+-- true / false, or nil when it can't be told (no melee check, or the answer is secret).
+local function InMelee(unit)
+    if meleeSpell then
+        local ok, inMelee = pcall(C_Spell.IsSpellInRange, meleeSpell, unit)
+        if ok and inMelee ~= nil and not BOLT.IsSecret(inMelee) then return inMelee end
+    end
+    if CheckInteractDistance then
+        local ok, near = pcall(CheckInteractDistance, unit, 3) -- about 10 yards
+        if ok and near ~= nil and not BOLT.IsSecret(near) then return near end
+    end
+    return nil
+end
 
 local function UpdateRange(frame)
     local bar = frame.healthBar
     if not bar then return end
-    local shade = bar.boltRangeShade
-    local function Off() if shade then shade:Hide() end end
+    -- The dark veil earlier versions put over the bar.
+    if bar.boltRangeShade then bar.boltRangeShade:Hide() end
+    local dot = bar.boltRangeDot
+    local function Off() if dot then dot:Hide() end end
 
     local unit = frame.unit
     if not (IsOn("rangeHint") and rangeSpell and IsPlateUnit(unit)) then return Off() end
@@ -326,19 +360,19 @@ local function UpdateRange(frame)
     local checked, inRange = pcall(C_Spell.IsSpellInRange, rangeSpell, unit)
     if not checked or inRange == nil then return Off() end
 
-    if not shade then
-        shade = bar:CreateTexture(nil, "ARTWORK", nil, 7)
-        shade:SetTexture(WHITE)
-        shade:SetVertexColor(0, 0, 0, 1)
-        shade:SetAllPoints(bar)
-        bar.boltRangeShade = shade
-    end
+    dot = GetDot(bar)
     if BOLT.IsSecret(inRange) then
-        shade:SetAlphaFromBoolean(inRange, 0, RANGE_SHADE)
-    else
-        shade:SetAlpha(inRange and 0 or RANGE_SHADE)
+        dot:SetVertexColor(unpack(OUT_OF_RANGE_COLOR))
+        dot:SetAlphaFromBoolean(inRange, 0, 1)
+        dot:Show()
+        return
     end
-    shade:Show()
+    if inRange then return Off() end
+
+    local tooClose = hasMinRange and InMelee(unit)
+    dot:SetVertexColor(unpack(tooClose and MELEE_COLOR or OUT_OF_RANGE_COLOR))
+    dot:SetAlpha(1)
+    dot:Show()
 end
 
 local function UpdatePlate(frame)
@@ -361,17 +395,10 @@ local CAST_EVENTS = {
     "UNIT_SPELLCAST_EMPOWER_START", "UNIT_SPELLCAST_EMPOWER_STOP",
 }
 
-local hookedFrames = setmetatable({}, { __mode = "k" })
 local colorHooked = false
 
 local function SetUpFrame(frame)
     if not frame then return end
-    if not hookedFrames[frame] and frame.ApplyFrameOptions then
-        hookedFrames[frame] = true
-        -- Blizzard re-applies its bar art when the nameplate style changes.
-        hooksecurefunc(frame, "ApplyFrameOptions", function(self) SkinFrame(self) end)
-    end
-    SkinFrame(frame)
     ColorFrame(frame)
     UpdatePlate(frame)
 end
@@ -455,9 +482,6 @@ function Nameplates:OnDisable()
     self.eventFrame:SetScript("OnUpdate", nil)
     self:ApplyTargetCVars()
     UpdateAllCues()
-    if next(skinned) then
-        BOLT:Print("Nameplates disabled. Type /reload to bring back Blizzard's bar art.")
-    end
 end
 
 function Nameplates:OnSettingChanged(key)
@@ -466,12 +490,9 @@ function Nameplates:OnSettingChanged(key)
         self:ApplyTargetCVars()
     elseif key == "interruptCue" or key == "rangeHint" then
         self:RegisterEvents()
-    elseif key == "nativeLook" and not Cfg("nativeLook") and next(skinned) then
-        BOLT:Print("Type /reload to bring back Blizzard's nameplate bar art.")
     end
     -- Only recolor; calling Blizzard's update from addon code would taint the plates.
     ForEachPlate(function(frame)
-        SkinFrame(frame)
         ColorFrame(frame)
         UpdatePlate(frame)
     end)

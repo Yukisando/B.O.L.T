@@ -115,9 +115,13 @@ local PAGES = {
                 description = "Hides the player and target frames and turns on Blizzard's Personal Resource Display instead: your health and power sit under your character, enemies are read off their nameplates. Turning it off brings both frames back and turns the Personal Resource Display off. Also in the minimap tracking menu.",
             },
             {
+                module = "tooltip",
+                description = "Tooltips get a see-through black background instead of Blizzard's dark blue, and unit tooltips lose the health bar underneath.",
+            },
+            {
                 module = "rangedTimer",
-                description = (BOLT.isForever and "A thin bar that fills between your Auto Shots and wand shots" or "A thin bar that fills between your Auto Shots")
-                    .. ", so you can fit casts and moves between them. It sits under the Cooldown Manager, or floats below your character when the Cooldown Manager is hidden.",
+                description = (BOLT.isForever and "A bar that fills between your Auto Shots and wand shots" or "A bar that fills between your Auto Shots")
+                    .. ", so you can fit casts and moves between them. It sits under the Personal Resource Display in the same style, or floats below your character when that display is off.",
             },
             {
                 module = "nameplatesEnhancement",
@@ -129,11 +133,10 @@ local PAGES = {
                     { type = "checkbox", label = "Only in instances (dungeons, raids, scenarios)", path = { "nameplatesEnhancement", "instanceOnly" },
                         indent = 24, requires = { "nameplatesEnhancement", "manaUsers" } },
                     { type = "checkbox", label = "Larger nameplate for your target, the others slightly faded", path = { "nameplatesEnhancement", "targetEmphasis" } },
-                    { type = "checkbox", label = "Health bars with the same Blizzard art as the unit frames", path = { "nameplatesEnhancement", "nativeLook" } },
                     { type = "checkbox", label = "Outline enemy casts you can interrupt right now (interruptible, and your interrupt is ready)", path = { "nameplatesEnhancement", "interruptCue" } },
                     { type = "color", label = "Color:", path = { "nameplatesEnhancement", "interruptColor" }, indent = 24,
                         default = { r = 0.3, g = 1.0, b = 0.45 }, requires = { "nameplatesEnhancement", "interruptCue" } },
-                    { type = "checkbox", label = "Slightly darken enemies out of your reach (measured with your interrupt or a basic attack)", path = { "nameplatesEnhancement", "rangeHint" } },
+                    { type = "checkbox", label = "Range dot on enemy nameplates: dark red when out of your reach (measured with your interrupt or a basic attack), yellow when too close to shoot (hunters), none when in reach", path = { "nameplatesEnhancement", "rangeHint" } },
                 },
             },
             {
@@ -175,6 +178,14 @@ local PAGES = {
                     { type = "checkbox", label = "Show volume button", path = { "gameMenu", "showVolumeButton" } },
                     { type = "checkbox", label = "Show loot specialization button", path = { "gameMenu", "showLootSpecButton" },
                         available = function() return BOLT.has.specializations end },
+                },
+            },
+            {
+                module = "autoSell",
+                description = "Sells every junk (grey) item and everything on your sell list when you open a merchant. Alt + right-click an item in your bags to add it to the sell list or take it off; listed items show a coin on their bag slot. The list is shared by all your characters.",
+                options = {
+                    { type = "button", label = "Clear Sell List", width = 140,
+                        onClick = function() Module("autoSell"):ClearList() end },
                 },
             },
             {

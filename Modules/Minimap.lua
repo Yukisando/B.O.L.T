@@ -655,9 +655,21 @@ local function ConcealRoundArt()
     local tracking = Cluster("Tracking")
     if tracking then
         NativeArt.Conceal(tracking.Background)
-        if FOREVER and tracking.Button then
-            CropFrame(tracking.Button.StateTexture)
-            CropFrame(tracking.Button.AddTexture)
+        local button = tracking.Button
+        if FOREVER and button and not button.boltCover then
+            -- Forever's art paints the spyglass on a black disc: both are hidden and the bare
+            -- spyglass (the classic tracking icon) is drawn on a layer above the button instead.
+            NativeArt.Conceal(button.StateTexture)
+            NativeArt.Conceal(button.AddTexture)
+            local cover = CreateFrame("Frame", nil, button)
+            cover:SetAllPoints()
+            cover:SetFrameLevel(button:GetFrameLevel() + 2)
+            local icon = cover:CreateTexture(nil, "OVERLAY")
+            icon:SetTexture("Interface\\Minimap\\Tracking\\None")
+            icon:SetAllPoints()
+            button:HookScript("OnEnter", function() icon:SetVertexColor(1, 0.82, 0) end)
+            button:HookScript("OnLeave", function() icon:SetVertexColor(1, 1, 1) end)
+            button.boltCover = cover
         end
     end
     if FOREVER and GameTimeFrame then

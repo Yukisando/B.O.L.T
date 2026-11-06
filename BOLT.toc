@@ -24,12 +24,14 @@ Core\NativeArt.lua
 Modules\GameMenu.lua
 Modules\UnitFrames.lua
 Modules\Immersive.lua
+Modules\Tooltip.lua
 Modules\RangedTimer.lua
 Modules\AutoHide.lua
 Modules\Minimap.lua
 Modules\Playground.lua
 Modules\Skyriding.lua
 Modules\AutoRepSwitch.lua
+Modules\AutoSell.lua
 Modules\SmartTeleportSuggestions.lua
 Modules\SavedInstances.lua
 Modules\NameplatesEnhancement.lua

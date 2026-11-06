@@ -37,15 +37,14 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 
 #### Ranged Attack Timer
 
-- **Shot Timer**: A thin bar fills between your automatic shots (Auto Shot; on WoW: Forever also wand Shoot), so you can fit casts and moves between them
-- **Built In**: Sits under the Cooldown Manager's main row at its width, or floats below your character when the Cooldown Manager is hidden
+- **Shot Timer**: A bar fills between your automatic shots (Auto Shot; on WoW: Forever also wand Shoot), so you can fit casts and moves between them
+- **Built In**: One more bar under the Personal Resource Display, in the same style and width, following it as you change it in Edit Mode; floats below your character when the Personal Resource Display is off
 - Only offered to classes with a repeating ranged attack. Melee swings can't be timed: the game keeps the combat log from addons
 
 #### Nameplates
 
 - **Mana User Highlighting**: Enemy nameplate health bars are colored for mana users (healers/casters), optionally only in dungeons, raids and scenarios, with a color of your choice
 - **Target Emphasis**: Your target's nameplate is larger and the others fade slightly (the game's own nameplate settings, restored to their defaults when turned off)
-- **Native Look**: Health bars use the same Blizzard fill art as the unit frames
 - **Interrupt Cue**: An enemy cast bar gets an outline and your interrupt's icon when the cast can be interrupted *and* your interrupt is off cooldown, so you know at a glance whether to kick. Works with Midnight's combat restrictions (the game itself decides whether to show the cue)
 - **Range Hint**: Enemies out of your reach get a slightly darker health bar, measured with your interrupt (or a basic attack for classes and specs without one)
 - **Combat Persistent**: Colors survive entering combat and threat updates via a secure post-hook on Blizzard's health color system

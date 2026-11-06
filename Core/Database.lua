@@ -2,7 +2,7 @@
 -- Saved variables layout (BOLTDB, account-wide):
 --   moduleStates[module]   = bool   account-wide on/off toggles
 --   profiles[playerKey]    = table  per-character options (see BOLT.defaults.profile)
---   admin, transmogPresets, preMuteVolume   account-wide data owned by modules
+--   admin, transmogPresets, preMuteVolume, sellList   account-wide data owned by modules
 
 local ADDON_NAME, BOLT = ...
 
