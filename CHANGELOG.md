@@ -11,7 +11,6 @@ Entries below the marker are added automatically by the release workflow from co
 - feat: Shoot Wand Key, fix for the Personal Resource Display fade error
 - Shoot Wand Key (WoW: Forever): one key targets the enemy under the mouse, sends your pet in and starts wand Shoot
 - Immersive Mode: fixed an error that repeated every frame while the Personal Resource Display was faded
-- Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 
 ## v8-6 (2026-11-06)
 
@@ -21,7 +20,6 @@ Entries below the marker are added automatically by the release workflow from co
 - Immersive Mode: the Personal Resource Display fades to its own opacity out of combat (10% by default) and shows in full on hover
 - Immersive Mode: right-click the Personal Resource Display for your menu, Shift + right-click for your target's
 - Minimap: the resting Zzz in the day/night dial is bigger, at full strength and shadowed
-- Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 
 ## v8-5 (2026-11-06)
 
@@ -29,7 +27,6 @@ Entries below the marker are added automatically by the release workflow from co
 - Auto Sell: Alt + right-click now works on every bag button, including Baganator's
 - Auto Sell: junk and listed items are sold reliably when a merchant opens, also with addons that change the merchant window
 - Nameplates: the range dot sits a little higher above the health bar
-- Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 
 ## v8-4 (2026-11-06)
 
@@ -40,7 +37,6 @@ Entries below the marker are added automatically by the release workflow from co
 - Nameplates: the range hint is now a small dot at the top left of the health bar instead of darkening it: dark red out of reach, yellow in melee range for hunters (too close to shoot), none in reach
 - Minimap on WoW: Forever: the tracking button shows the bare spyglass without its black disc
 - Ranged Attack Timer: sits under the Personal Resource Display in the same style, or floats below your character when that display is off
-- Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 
 ## v8-3 (2026-11-06)
 
@@ -54,7 +50,6 @@ Entries below the marker are added automatically by the release workflow from co
 - Auto-hide UI: the main action bar, micro menu and bags now show together as one strip; other action bars are their own group
 - Settings stay in sync when a module is toggled from the tracking menu or /bolt toggle
 - "UI Revamp" is now called Unit Frames
-- Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 
 ## v8-2 (2026-11-05)
 
@@ -67,7 +62,6 @@ Entries below the marker are added automatically by the release workflow from co
 - Fixed: the raid marker button was blocked by the game; it now uses Blizzard's secure raid-marker action (not available while in combat)
 - WoW: Forever is detected from the client version; toy, mount-copy, countdown and Transmog Presets features hide where the game lacks them
 - Settings: multi-select dropdowns and Blizzard's own slider for the new modules
-- Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 
 ## v8-1 (2026-11-01)
 
@@ -75,7 +69,6 @@ Entries below the marker are added automatically by the release workflow from co
 - While A/D (or W/S with pitch control) is held, the key overrides now wait until you release it before switching, so the release reaches Turn/Pitch and the movement stops. Taking off while holding a key no longer leaves you strafing either
 - Landing in combat can't be handled that way (addons can't change bindings in combat); a stuck key there is detected and fixed by tapping it once after combat
 - Fixed the remap never applying in v8-0: the secure snippet couldn't read the key list because its attribute names started with "_"
-- Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 
 ## v8-0 (2026-11-01)
 
@@ -92,7 +85,6 @@ Entries below the marker are added automatically by the release workflow from co
 - Smart Teleport works again after being disabled and re-enabled
 - Fixed: settings that defaulted to true could not be turned off; Copy Target Mount wrongly reported uncollected mounts; Edit Mode switching no longer taints Edit Mode; missing TRP3 keybinding name
 - Shared helpers for dialogs, chat sending and the game menu watcher; removed dead code
-- Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 
 ## v7-30 (2026-06-12)
 
@@ -101,12 +93,10 @@ Entries below the marker are added automatically by the release workflow from co
 - ('Found future tag'), so packaging in the same push-triggered run never
 - uploaded. The release workflow now triggers the package workflow via
 - workflow_dispatch, which the packager accepts.
-- Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
 
 ## v7-29 (2026-06-12)
 
 - chore: test automated release pipeline (changelog + CurseForge upload)
-- Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
 
 ## v7-28 (2026-06-05)
 

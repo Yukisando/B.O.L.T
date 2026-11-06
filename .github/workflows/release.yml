@@ -61,7 +61,7 @@ jobs:
           {
             echo "## $VERSION ($(date -u +%Y-%m-%d))"
             echo ""
-            echo "$COMMIT_MSG" | sed '/^[[:space:]]*$/d; s/^/- /'
+            echo "$COMMIT_MSG" | sed '/^[[:space:]]*$/d; /^Co-Authored-By:/Id; s/^- //; s/^/- /'
           } > /tmp/entry.md
 
           marker=$(grep -n '^<!-- AUTO-CHANGELOG -->$' CHANGELOG.md | head -n 1 | cut -d: -f1)
