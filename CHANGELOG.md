@@ -6,6 +6,16 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-6 (2026-11-06)
+
+- feat: Campfire Rest, Personal Resource Display fade and menus, clearer resting Zzz
+- - Campfire Rest (WoW: Forever): while you have the Campfire Nearby buff, a prompt offers to sit by the fire
+- - Immersive Mode: the Personal Resource Display also shows while you have an attackable target
+- - Immersive Mode: the Personal Resource Display fades to its own opacity out of combat (10% by default) and shows in full on hover
+- - Immersive Mode: right-click the Personal Resource Display for your menu, Shift + right-click for your target's
+- - Minimap: the resting Zzz in the day/night dial is bigger, at full strength and shadowed
+- Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
 ## v8-5 (2026-11-06)
 
 - fix: Auto Sell works with Baganator and at every merchant, range dot sits higher
