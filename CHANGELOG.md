@@ -9,11 +9,11 @@ Entries below the marker are added automatically by the release workflow from co
 ## v8-6 (2026-11-06)
 
 - feat: Campfire Rest, Personal Resource Display fade and menus, clearer resting Zzz
-- - Campfire Rest (WoW: Forever): while you have the Campfire Nearby buff, a prompt offers to sit by the fire
-- - Immersive Mode: the Personal Resource Display also shows while you have an attackable target
-- - Immersive Mode: the Personal Resource Display fades to its own opacity out of combat (10% by default) and shows in full on hover
-- - Immersive Mode: right-click the Personal Resource Display for your menu, Shift + right-click for your target's
-- - Minimap: the resting Zzz in the day/night dial is bigger, at full strength and shadowed
+- Campfire Rest (WoW: Forever): while you have the Campfire Nearby buff, a prompt offers to sit by the fire
+- Immersive Mode: the Personal Resource Display also shows while you have an attackable target
+- Immersive Mode: the Personal Resource Display fades to its own opacity out of combat (10% by default) and shows in full on hover
+- Immersive Mode: right-click the Personal Resource Display for your menu, Shift + right-click for your target's
+- Minimap: the resting Zzz in the day/night dial is bigger, at full strength and shadowed
 - Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 
 ## v8-5 (2026-11-06)
@@ -65,26 +65,26 @@ Entries below the marker are added automatically by the release workflow from co
 ## v8-1 (2026-11-01)
 
 - fix: Skyriding keys no longer get stuck turning after landing mid-turn
-- - While A/D (or W/S with pitch control) is held, the key overrides now wait until you release it before switching, so the release reaches Turn/Pitch and the movement stops. Taking off while holding a key no longer leaves you strafing either
-- - Landing in combat can't be handled that way (addons can't change bindings in combat); a stuck key there is detected and fixed by tapping it once after combat
-- - Fixed the remap never applying in v8-0: the secure snippet couldn't read the key list because its attribute names started with "_"
+- While A/D (or W/S with pitch control) is held, the key overrides now wait until you release it before switching, so the release reaches Turn/Pitch and the movement stops. Taking off while holding a key no longer leaves you strafing either
+- Landing in combat can't be handled that way (addons can't change bindings in combat); a stuck key there is detected and fixed by tapping it once after combat
+- Fixed the remap never applying in v8-0: the secure snippet couldn't read the key list because its attribute names started with "_"
 - Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 
 ## v8-0 (2026-11-01)
 
 - refactor: overhaul for Midnight 12.1.5 and WoW: Forever [major]
-- - Supports Midnight 12.1.5 (120105) and WoW: Forever (16001) from one TOC; modules that need modern-only systems (Skyriding, Key Share, Smart Teleport, Achievement Tracker) hide themselves on Forever
-- - Skyriding now switches key overrides through a secure state driver, so A/D and W/S return to normal the moment you land, even in combat
-- - Settings rebuilt from declarative tables on non-deprecated templates; the settings page now appears in Options without typing /bolt first
-- - Admin panel and hardcore/dismount chat triggers work again; settings are saved account-wide and the password typed in chat is no longer sent to the channel
-- - Transmog Presets ported to Midnight's outfit API: presets are staged in the transmog window and confirmed with Blizzard's Apply button
-- - Auto Rep Switch uses FACTION_STANDING_CHANGED, so it also works in instances and detects every gain (not only rank-ups)
-- - Achievement Tracker no longer hitches (time budget was 500 ms per frame instead of ~2 ms) and can't get stuck after a scan error; un-ticking Exploration now persists
-- - Toy picker restores your Toy Box filters after scanning instead of changing them
-- - Wowhead links cover toys, mounts, auras, currencies, NPCs, quests and achievements, use the Forever database on Forever, and only claim Ctrl+C if it is unbound
-- - Smart Teleport works again after being disabled and re-enabled
-- - Fixed: settings that defaulted to true could not be turned off; Copy Target Mount wrongly reported uncollected mounts; Edit Mode switching no longer taints Edit Mode; missing TRP3 keybinding name
-- - Shared helpers for dialogs, chat sending and the game menu watcher; removed dead code
+- Supports Midnight 12.1.5 (120105) and WoW: Forever (16001) from one TOC; modules that need modern-only systems (Skyriding, Key Share, Smart Teleport, Achievement Tracker) hide themselves on Forever
+- Skyriding now switches key overrides through a secure state driver, so A/D and W/S return to normal the moment you land, even in combat
+- Settings rebuilt from declarative tables on non-deprecated templates; the settings page now appears in Options without typing /bolt first
+- Admin panel and hardcore/dismount chat triggers work again; settings are saved account-wide and the password typed in chat is no longer sent to the channel
+- Transmog Presets ported to Midnight's outfit API: presets are staged in the transmog window and confirmed with Blizzard's Apply button
+- Auto Rep Switch uses FACTION_STANDING_CHANGED, so it also works in instances and detects every gain (not only rank-ups)
+- Achievement Tracker no longer hitches (time budget was 500 ms per frame instead of ~2 ms) and can't get stuck after a scan error; un-ticking Exploration now persists
+- Toy picker restores your Toy Box filters after scanning instead of changing them
+- Wowhead links cover toys, mounts, auras, currencies, NPCs, quests and achievements, use the Forever database on Forever, and only claim Ctrl+C if it is unbound
+- Smart Teleport works again after being disabled and re-enabled
+- Fixed: settings that defaulted to true could not be turned off; Copy Target Mount wrongly reported uncollected mounts; Edit Mode switching no longer taints Edit Mode; missing TRP3 keybinding name
+- Shared helpers for dialogs, chat sending and the game menu watcher; removed dead code
 - Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 
 ## v7-30 (2026-06-12)
