@@ -6,6 +6,17 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-4 (2026-11-06)
+
+- feat: Auto Sell, Tooltips, nameplate range dots, bare tracking spyglass
+- Auto Sell (opt-in, Quality of Life): sells every grey item and everything on your sell list when you open a merchant, then prints the total in chat
+- Auto Sell: Alt + right-click an item in your bags to add it to the sell list or take it off; the list is shared by all your characters, listed items show a coin on their bag slot (Blizzard bags and Baganator), and the settings have a Clear Sell List button
+- Tooltips (opt-in, Interface): see-through black background instead of Blizzard's dark blue, and no health bar under unit tooltips
+- Nameplates: the range hint is now a small dot at the top left of the health bar instead of darkening it: dark red out of reach, yellow in melee range for hunters (too close to shoot), none in reach
+- Minimap on WoW: Forever: the tracking button shows the bare spyglass without its black disc
+- Ranged Attack Timer: sits under the Personal Resource Display in the same style, or floats below your character when that display is off
+- Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
 ## v8-3 (2026-11-06)
 
 - feat: square Minimap, Immersive Mode, Ranged Attack Timer, Nameplates overhaul
