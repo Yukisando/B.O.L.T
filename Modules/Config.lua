@@ -196,7 +196,11 @@ local PAGES = {
             },
             {
                 module = "campfire",
-                description = "When the Campfire Nearby buff is on you, a small prompt offers to sit by the fire. Click it to sit, right-click to dismiss it until the next fire. It steps aside in combat, while mounted or swimming, and comes back when you get up and walk around near the fire.",
+                description = "When the Campfire Nearby buff is on you, a camp panel fades in on the right side of the screen, across from your party frames. Click its title to collapse it to one line. Click Sit to sit; it tells you whether you're close enough to the fire, counts down the minute to Camp Benefits, then lists what each camp object gave you. Below, your camp gear: left-click places an object from your bags (or crafts it), right-click crafts another. Right-click the title to hide the panel until the next fire. It steps aside in combat, while mounted or swimming.",
+                options = {
+                    { type = "checkbox", label = "Sit down on your own when you stop where the fire warmed you (if you have no camp benefits yet, or just placed an object)", path = { "campfire", "autoSit" } },
+                    { type = "checkbox", label = "Show the camp recipes you can craft", path = { "campfire", "showCraft" } },
+                },
             },
             {
                 module = "autoRepSwitch",
@@ -222,6 +226,10 @@ local PAGES = {
                     { type = "keybind", label = "Shoot wand:", binding = "CLICK BOLTWandShootButton:LeftButton" },
                     { type = "checkbox", label = "Also send your pet to attack", path = { "wandShoot", "petAttack" } },
                 },
+            },
+            {
+                module = "doubleClickFishing",
+                description = "Double right-click on the world to cast Fishing. It stays out of the way in combat, while mounted, with a character under the mouse, with loot open, and while your line is already in the water.",
             },
             {
                 module = "skyriding",

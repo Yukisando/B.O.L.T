@@ -17,6 +17,7 @@ local LEGACY_PROFILE_KEYS = {
     { "minimap", "zone" }, { "minimap", "clock" }, { "minimap", "difficulty" }, { "minimap", "tracking" },
     { "minimap", "calendar" }, { "minimap", "mail" }, { "minimap", "landingPage" },
     { "minimap", "compartment" }, { "minimap", "drawer" },
+    { "campfire", "recipes" }, -- became the built-in recipe table plus campfire.learned
 }
 
 function BOLT:GetPlayerKey()

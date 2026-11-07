@@ -98,6 +98,12 @@ BOLT.defaults = {
             rangeHint = true,
             interruptColor = { r = 0.3, g = 1.0, b = 0.45 },
         },
+        campfire = {
+            autoSit = true,   -- sit again on a spot where the fire warmed you, when it would gain something
+            showCraft = true, -- craft rows for the camp recipes you know
+            collapsed = false, -- panel folded to its title line
+            -- learned = { [recipeID] = true }, camp recipes seen in open profession windows
+        },
         keyShare = {
             rouletteEnabled = true,
         },
@@ -122,6 +128,7 @@ BOLT.defaultModuleStates = {
     playground = false,
     skyriding = false,
     wandShoot = false,
+    doubleClickFishing = false,
     wowheadLink = false,
     autoRepSwitch = false,
     autoSell = false,

@@ -88,7 +88,11 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 
 #### Campfire Rest (WoW: Forever)
 
-- **Sit by the Fire**: While you have the Campfire Nearby buff, a small prompt fades in above the action bars; click it to sit, right-click to dismiss it until the next fire
+- **Camp Panel**: While you have the Campfire Nearby buff, a small panel fades in on the right side of the screen, across from your party frames; click its title to collapse it to one line, right-click to hide it until the next fire
+- **Sit by the Fire**: Click Sit; the panel says "In range" or "Too far" once you sit, and remembers where the fire warmed you so it can sit you down again there (option)
+- **Camp Benefits**: A bar counts the minute until Camp Benefits, then one row per camp object shows what it gave you, with the time left
+- **Camp Gear**: Every camp object you carry or can craft, built in for all professions and tiers. Left-click places it (or crafts it), right-click crafts another; shows cooldowns, missing reagents and what each object gives
+- `/bolt camp` prints what the panel sees, for bug reports
 
 #### Auto Rep Switch
 
@@ -114,6 +118,10 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 #### Shoot Wand Key (WoW: Forever)
 
 - **One Key**: Targets the enemy under the mouse (or keeps your target), sends your pet in and starts wand Shoot; set the key in BOLT settings or Key Bindings
+
+#### Double-Click Fishing
+
+- **Quick Cast**: Double right-click on the world to cast Fishing; ignored in combat, while mounted, over a character, with loot open or while already fishing
 
 #### Skyriding
 

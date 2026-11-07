@@ -32,6 +32,7 @@ local function PrintHelp()
         { "/bolt toggle debug", "Toggle debug mode" },
         { "/bolt debug config", "Show configuration debug info" },
         { "/bolt transmog", "Open Transmog Presets" },
+        { "/bolt camp", "Show what the Campfire panel sees (WoW: Forever)" },
         { "/bolt reset", "Clear any stuck Skyriding key overrides" },
         { "/bolt reload", "Reload the UI" },
     }
@@ -92,6 +93,15 @@ commands.transmog = function(arg)
         mod:PrintDebug()
     else
         mod:ShowUI()
+    end
+end
+
+commands.camp = function()
+    local mod = BOLT.modules.campfire
+    if mod then
+        mod:PrintDebug()
+    else
+        BOLT:Print("Campfire is only available on WoW: Forever.")
     end
 end
 
