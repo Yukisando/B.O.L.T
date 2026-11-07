@@ -6,6 +6,18 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-8 (2026-11-07)
+
+- feat: Camp panel for campfires, Double-Click Fishing
+- Campfire Rest (WoW: Forever): the sit prompt is now a camp panel on the right of the screen, across from your party frames
+- Campfire Rest: click the panel's title to fold it to one line, right-click to hide it until the next fire
+- Campfire Rest: a Sit button, a countdown to Camp Benefits and an In range / Too far badge that learns where the fire warms you
+- Campfire Rest: sits down again on its own where the fire warmed you, when it would gain you something
+- Campfire Rest: lists your active camp benefits and the time left
+- Campfire Rest: your camp gear in one list, click to place it or craft it (BOLT knows every camp recipe)
+- Campfire Rest: /bolt camp shows what the panel sees
+- Double-Click Fishing: double right-click on the world to cast Fishing
+
 ## v8-7 (2026-11-06)
 
 - feat: Shoot Wand Key, fix for the Personal Resource Display fade error
