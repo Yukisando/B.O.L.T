@@ -4,7 +4,7 @@
 --   target         your target's plate is larger and the others fade a little (game settings)
 --   interrupt cue  an enemy cast bar lights up when the spell can be interrupted and your
 --                  interrupt is off cooldown
---   range hint     a dot at the top left of an enemy's health bar: dark red out of your reach,
+--   range hint     a dot above the top left of an enemy's health bar: dark red out of your reach,
 --                  yellow in melee range when your reach has a minimum range (hunters)
 --
 -- Midnight hides some unit data from addons in combat ("secret" values), including whether a
@@ -153,6 +153,30 @@ local MELEE_CHECK = {
     HUNTER = { 2973, 14260, 14261, 14262, 14263, 14264, 14265, 14266, 186270, 2974, 14267, 14268, 1495, 14269, 14270, 14271 },
 }
 local rangeSpell, meleeSpell, hasMinRange
+local rangeChecks, meleeChecks = {}, {}
+
+-- What to hand C_Spell.IsSpellInRange, best first. A rank's spell ID can answer "out of range"
+-- when the spellbook holds another version (Forever's ranks, talent overrides), so the spell's
+-- name, which the game resolves to the spellbook entry, goes first.
+local function RangeChecks(spellID)
+    local checks = {}
+    if not spellID then return checks end
+    local name = C_Spell.GetSpellName(spellID)
+    if name then table.insert(checks, name) end
+    local override = C_Spell.GetOverrideSpell and C_Spell.GetOverrideSpell(spellID)
+    if override and override ~= spellID then table.insert(checks, override) end
+    table.insert(checks, spellID)
+    return checks
+end
+
+-- First real answer (true, false or secret) from the checks; nil when none can tell.
+local function SpellInRange(checks, unit)
+    for _, spell in ipairs(checks) do
+        local ok, inRange = pcall(C_Spell.IsSpellInRange, spell, unit)
+        if ok and inRange ~= nil then return inRange, spell end
+    end
+    return nil
+end
 
 local function Known(spellID)
     if IsPlayerSpell and IsPlayerSpell(spellID) then return true end
@@ -202,6 +226,8 @@ function Nameplates:FindInterrupt()
             break
         end
     end
+    rangeChecks = RangeChecks(rangeSpell)
+    meleeChecks = RangeChecks(meleeSpell)
 end
 
 -- Cooldown state is never secret for your own spells (isActive), so this is a plain test.
@@ -256,7 +282,10 @@ local function PaintCue(cue)
     for _, edge in ipairs(cue.edges) do
         edge:SetVertexColor(color.r, color.g, color.b, 1)
     end
-    local size = math.max(12, cue:GetHeight() + 6)
+    -- The cast bar's height can be secret (no arithmetic allowed): fall back to a fixed size.
+    local height = cue:GetHeight()
+    local size = 14
+    if height and not BOLT.IsSecret(height) then size = math.max(12, height + 6) end
     cue.icon:SetSize(size, size)
     cue.icon:SetTexture(interruptIcon)
 end
@@ -316,6 +345,7 @@ end
 local OUT_OF_RANGE_COLOR = { 0.6, 0.05, 0.05 }
 local MELEE_COLOR = { 1, 0.85, 0.1 }
 local DOT_SIZE = 6
+local DOT_RISE = 14 -- pixels above the health bar, clear of the bar's top edge and the name
 
 local function GetDot(bar)
     local dot = bar.boltRangeDot
@@ -323,7 +353,7 @@ local function GetDot(bar)
     dot = bar:CreateTexture(nil, "OVERLAY", nil, 7)
     dot:SetTexture(WHITE)
     dot:SetSize(DOT_SIZE, DOT_SIZE)
-    dot:SetPoint("BOTTOMLEFT", bar, "TOPLEFT", 0, 5)
+    dot:SetPoint("BOTTOMLEFT", bar, "TOPLEFT", 0, DOT_RISE)
     local mask = bar:CreateMaskTexture()
     mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
     mask:SetAllPoints(dot)
@@ -335,8 +365,8 @@ end
 -- true / false, or nil when it can't be told (no melee check, or the answer is secret).
 local function InMelee(unit)
     if meleeSpell then
-        local ok, inMelee = pcall(C_Spell.IsSpellInRange, meleeSpell, unit)
-        if ok and inMelee ~= nil and not BOLT.IsSecret(inMelee) then return inMelee end
+        local inMelee = SpellInRange(meleeChecks, unit)
+        if inMelee ~= nil and not BOLT.IsSecret(inMelee) then return inMelee end
     end
     if CheckInteractDistance then
         local ok, near = pcall(CheckInteractDistance, unit, 3) -- about 10 yards
@@ -357,8 +387,8 @@ local function UpdateRange(frame)
     if not (IsOn("rangeHint") and rangeSpell and IsPlateUnit(unit)) then return Off() end
     local ok, canAttack = pcall(UnitCanAttack, "player", unit)
     if not ok or BOLT.IsSecret(canAttack) or not canAttack then return Off() end
-    local checked, inRange = pcall(C_Spell.IsSpellInRange, rangeSpell, unit)
-    if not checked or inRange == nil then return Off() end
+    local inRange = SpellInRange(rangeChecks, unit)
+    if inRange == nil then return Off() end
 
     dot = GetDot(bar)
     if BOLT.IsSecret(inRange) then
@@ -496,6 +526,27 @@ function Nameplates:OnSettingChanged(key)
         ColorFrame(frame)
         UpdatePlate(frame)
     end)
+end
+
+-- /bolt range: what the range hint measures with, and what each check says about your target.
+function Nameplates:PrintRangeDebug()
+    self:FindInterrupt()
+    local function Show(value)
+        if BOLT.IsSecret(value) then return "secret" end
+        return tostring(value)
+    end
+    BOLT:Print(("Range spell: %s (%s), interrupt: %s, melee spell: %s"):format(
+        tostring(rangeSpell), tostring(rangeSpell and C_Spell.GetSpellName(rangeSpell)),
+        tostring(interruptID), tostring(meleeSpell)))
+    if not UnitExists("target") then
+        BOLT:Print("Target an enemy to test the checks.")
+        return
+    end
+    for _, spell in ipairs(rangeChecks) do
+        local ok, inRange = pcall(C_Spell.IsSpellInRange, spell, "target")
+        BOLT:Print(("  %s -> %s"):format(tostring(spell), ok and Show(inRange) or "error"))
+    end
+    BOLT:Print("  result -> " .. Show(SpellInRange(rangeChecks, "target")))
 end
 
 Nameplates.DEFAULT_MANA_COLOR = DEFAULT_MANA_COLOR

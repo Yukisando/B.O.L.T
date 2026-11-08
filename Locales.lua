@@ -7,6 +7,9 @@ local strings = {
     BINDING_NAME_BOLT_SHOW_WOWHEAD_LINK = "Wowhead Link",
     BINDING_NAME_BOLT_TOGGLE_TRP3_STATUS = "Toggle TRP3 IC/OOC Status",
     ["BINDING_NAME_CLICK BOLTWandShootButton:LeftButton"] = "Shoot Wand",
+    BINDING_NAME_BOLT_EMOTE_HELLO = "Emote: Hello",
+    BINDING_NAME_BOLT_EMOTE_THANKS = "Emote: Thanks",
+    BINDING_NAME_BOLT_EMOTE_SIT = "Emote: Sit",
 }
 
 local translations = {
@@ -16,6 +19,9 @@ local translations = {
         BINDING_NAME_BOLT_SHOW_WOWHEAD_LINK = "Lien Wowhead",
         BINDING_NAME_BOLT_TOGGLE_TRP3_STATUS = "Basculer le statut TRP3 (RP/HRP)",
         ["BINDING_NAME_CLICK BOLTWandShootButton:LeftButton"] = "Tirer avec la baguette",
+        BINDING_NAME_BOLT_EMOTE_HELLO = "Emote : Bonjour",
+        BINDING_NAME_BOLT_EMOTE_THANKS = "Emote : Merci",
+        BINDING_NAME_BOLT_EMOTE_SIT = "Emote : S'asseoir",
     },
     deDE = {
         BINDING_NAME_BOLT_TOGGLE_MASTER_VOLUME = "Hauptlautstärke umschalten",
@@ -23,6 +29,9 @@ local translations = {
         BINDING_NAME_BOLT_SHOW_WOWHEAD_LINK = "Wowhead-Link",
         BINDING_NAME_BOLT_TOGGLE_TRP3_STATUS = "TRP3-Status umschalten (IC/OOC)",
         ["BINDING_NAME_CLICK BOLTWandShootButton:LeftButton"] = "Mit Zauberstab schießen",
+        BINDING_NAME_BOLT_EMOTE_HELLO = "Emote: Hallo",
+        BINDING_NAME_BOLT_EMOTE_THANKS = "Emote: Danke",
+        BINDING_NAME_BOLT_EMOTE_SIT = "Emote: Hinsetzen",
     },
     esES = {
         BINDING_NAME_BOLT_TOGGLE_MASTER_VOLUME = "Alternar volumen maestro",
@@ -30,6 +39,9 @@ local translations = {
         BINDING_NAME_BOLT_SHOW_WOWHEAD_LINK = "Enlace de Wowhead",
         BINDING_NAME_BOLT_TOGGLE_TRP3_STATUS = "Alternar estado de TRP3 (IC/OOC)",
         ["BINDING_NAME_CLICK BOLTWandShootButton:LeftButton"] = "Disparar varita",
+        BINDING_NAME_BOLT_EMOTE_HELLO = "Emote: Hola",
+        BINDING_NAME_BOLT_EMOTE_THANKS = "Emote: Gracias",
+        BINDING_NAME_BOLT_EMOTE_SIT = "Emote: Sentarse",
     },
 }
 translations.esMX = translations.esES

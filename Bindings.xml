@@ -11,5 +11,14 @@
 	<Binding name="BOLT_TOGGLE_TRP3_STATUS" category="B.O.L.T">
 		BOLT_ToggleTRP3Status()
 	</Binding>
+	<Binding name="BOLT_EMOTE_HELLO" category="B.O.L.T">
+		BOLT_EmoteHello()
+	</Binding>
+	<Binding name="BOLT_EMOTE_THANKS" category="B.O.L.T">
+		BOLT_EmoteThanks()
+	</Binding>
+	<Binding name="BOLT_EMOTE_SIT" category="B.O.L.T">
+		BOLT_EmoteSit()
+	</Binding>
 	<Binding name="CLICK BOLTWandShootButton:LeftButton" category="B.O.L.T"/>
 </Bindings>

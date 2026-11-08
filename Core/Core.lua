@@ -112,6 +112,7 @@ BOLT.defaults = {
             editModeProfileIndex = -1,
             editModeOOCProfileIndex = -1,
             toggleTrpToolbar = false,
+            autoThankBuffs = true,
         },
     },
 }

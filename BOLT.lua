@@ -33,6 +33,7 @@ local function PrintHelp()
         { "/bolt debug config", "Show configuration debug info" },
         { "/bolt transmog", "Open Transmog Presets" },
         { "/bolt camp", "Show what the Campfire panel sees (WoW: Forever)" },
+        { "/bolt range", "Show what the nameplate range dot checks on your target" },
         { "/bolt reset", "Clear any stuck Skyriding key overrides" },
         { "/bolt reload", "Reload the UI" },
     }
@@ -102,6 +103,15 @@ commands.camp = function()
         mod:PrintDebug()
     else
         BOLT:Print("Campfire is only available on WoW: Forever.")
+    end
+end
+
+commands.range = function()
+    local mod = BOLT.modules.nameplatesEnhancement
+    if mod then
+        mod:PrintRangeDebug()
+    else
+        BOLT:Print("Nameplates module is not loaded.")
     end
 end
 

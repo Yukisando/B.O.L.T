@@ -2,7 +2,7 @@
 -- Double right-click on the world to cast Fishing.
 --
 -- Addons can't cast from their own code. On the second right press, BUTTON2 is bound for that one
--- click to a secure button that casts Fishing; the button clears the binding as soon as it fires
+-- click to a secure button that casts Fishing on the release; the button clears the binding as soon as it fires
 -- (a secure snippet, so it also works if combat starts), and a short timer clears it if the click
 -- never lands. Skipped in combat, while mounted, with a unit under the mouse, with a loot window
 -- open, or while already fishing (so a double-click on the bobber doesn't recast).
@@ -22,11 +22,11 @@ local FISHING_IDS = { 131474, 7620, 7731, 7732, 18248, 33095, 51294, 88868, 1104
 local IS_FISHING_ID = {}
 for _, id in ipairs(FISHING_IDS) do IS_FISHING_ID[id] = true end
 
+-- Ask both APIs: on Forever an old rank can be missing from one and present in the other.
 local function IsKnown(id)
-    if C_SpellBook and C_SpellBook.IsSpellKnown then
-        return C_SpellBook.IsSpellKnown(id)
-    end
-    return IsPlayerSpell and IsPlayerSpell(id)
+    if IsPlayerSpell and IsPlayerSpell(id) then return true end
+    if C_SpellBook and C_SpellBook.IsSpellKnown and C_SpellBook.IsSpellKnown(id) then return true end
+    return IsSpellKnown ~= nil and IsSpellKnown(id) == true
 end
 
 -- The known Fishing spell's name; casting by name picks the best rank. nil if the player can't fish.
@@ -84,7 +84,6 @@ function DoubleClickFishing:OnMouseDown(mouseButton)
 
     self.lastClick = nil -- a third click starts a new pair
     self.button:SetAttribute("spell", spell)
-    self.button:SetAttribute("useKeyDown", GetCVarBool("ActionButtonUseKeyDown"))
     SetOverrideBindingClick(self.button, true, "BUTTON2", BUTTON_NAME)
     self.bound = true
     C_Timer.After(0.5, function() self:ClearBinding() end)
@@ -94,9 +93,13 @@ function DoubleClickFishing:OnInitialize()
     local button = CreateFrame("Button", BUTTON_NAME, UIParent, "SecureActionButtonTemplate")
     button:RegisterForClicks("AnyDown", "AnyUp")
     button:SetAttribute("type", "spell")
-    -- Drop the one-shot binding on the press that actually casts (down or up, per the CVar).
+    -- The binding goes in during the second press, so only that press's release reaches the
+    -- button: cast on release whatever "cast on key down" says. Blizzard reads "useOnKeyDown";
+    -- without it the button follows ActionButtonUseKeyDown (on by default) and ignores the release.
+    button:SetAttribute("useOnKeyDown", false)
+    -- Drop the one-shot binding on the release that casts.
     SecureHandlerWrapScript(button, "PostClick", button, [[
-        if down == self:GetAttribute("useKeyDown") then
+        if not down then
             self:ClearBindings()
         end
     ]])

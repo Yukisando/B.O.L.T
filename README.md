@@ -198,6 +198,11 @@ Requires [Total RP 3](https://www.curseforge.com/wow/addons/total-rp-3) to be in
 - **Toolbar Visibility**: Optionally show the TRP toolbar while In Character and hide it while Out of Character
 - **Edit Mode Profile Switching**: Optionally switch to a chosen Edit Mode (UI layout) profile when going In Character, and a different one when going Out of Character — e.g. a minimal immersive layout for RP and your normal layout otherwise
 
+#### Everyday Emotes
+
+- **One Key per Emote**: Hello, Thanks and Sit each get a keybind slot in the Roleplay settings (also under B.O.L.T in Key Bindings). Emotes are aimed at your target when you have one. Total RP 3 not needed
+- **Thank Your Buffers** (on by default): when another player buffs you, you /thank them 2 seconds later. Out of combat only, once a minute per player
+
 ## Installation
 
 1. Download the addon from [CurseForge](https://www.curseforge.com/wow/addons/bolt) or the GitHub releases
