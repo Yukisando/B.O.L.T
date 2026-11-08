@@ -6,6 +6,16 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-9 (2026-11-08)
+
+- feat: Everyday emote keybinds, thank players who buff you, fishing and nameplate fixes
+- Roleplay: Hello, Thanks and Sit keybinds in the Roleplay settings, no Total RP 3 needed
+- Roleplay: automatically /thank players who buff you (on by default, out of combat, once a minute per player)
+- Double-Click Fishing now casts again (the second click did nothing with "cast on key down" on)
+- Nameplates: fixed an interrupt cue error on some enemy cast bars
+- Nameplates: the range dot sits higher and checks your spellbook spell, fixing a wrong red dot on shamans
+- New /bolt range command shows what the range dot checks on your target
+
 ## v8-8 (2026-11-07)
 
 - feat: Camp panel for campfires, Double-Click Fishing
