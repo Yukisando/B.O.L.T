@@ -65,6 +65,7 @@ end
 -- Everyday emotes on a key, no Total RP 3 needed. DoEmote aims at your target when you have one,
 -- like typing /hello.
 function BOLT_EmoteHello() DoEmote("HELLO") end
+function BOLT_EmoteBye() DoEmote("BYE") end
 function BOLT_EmoteThanks() DoEmote("THANK") end
 function BOLT_EmoteSit() DoEmote("SIT") end
 

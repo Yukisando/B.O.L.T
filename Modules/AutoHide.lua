@@ -1,6 +1,6 @@
 -- B.O.L.T Auto-hide UI Module
 -- Fades parts of Blizzard's UI out until they're needed. A group fades in when you hover it,
--- have a target or are in combat; it stays hidden while mounted or on a flight path unless
+-- have a target (any, attackable or not attackable: autoHide.showWithTarget) or are in combat; it stays hidden while mounted or on a flight path unless
 -- you're in combat. Everything shows in Edit Mode, and action bars show while you drag a
 -- spell or item onto them.
 --
@@ -118,7 +118,13 @@ local GROUPS = {
         -- Target and focus only exist while you have one, and a target shows the UI anyway.
         key = "unitFrames",
         frames = function()
-            return Named({ "PlayerFrame", "PetFrame", "FocusFrame", "PartyFrame", "CompactPartyFrame" })
+            local frames = Named({ "PetFrame", "FocusFrame", "PartyFrame", "CompactPartyFrame" })
+            -- The Player Frame's own hide/show options (Edit Mode) win over auto-hide.
+            local visibility = BOLT.modules.frameVisibility
+            if PlayerFrame and not (visibility and visibility:Controls("player")) then
+                table.insert(frames, 1, PlayerFrame)
+            end
+            return frames
         end,
     },
     {
@@ -203,8 +209,11 @@ local function OnUpdate(_, elapsed)
     local now = GetTime()
     local inCombat = InCombatLockdown() or UnitAffectingCombat("player")
     local mounted = IsMounted() or UnitOnTaxi("player")
-    -- Combat always shows; a target shows unless you're mounted or flying a taxi.
-    local wanted = inCombat or (UnitExists("target") and not mounted) or IsEditing()
+    -- Combat always shows; a fitting target shows unless you're mounted or flying a taxi.
+    local visibility = BOLT.modules.frameVisibility
+    local targetKind = Cfg("showWithTarget") or "ANY"
+    local hasTarget = visibility and visibility.TargetFits(targetKind) or (targetKind ~= "OFF" and UnitExists("target"))
+    local wanted = inCombat or (hasTarget and not mounted) or IsEditing()
     local dragging = GetCursorInfo() ~= nil
     local idleAlpha = (Cfg("idleAlpha") or 0) / 100
 

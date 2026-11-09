@@ -6,6 +6,8 @@ Supports **Midnight (12.1.5)** and **WoW: Forever**. On Forever, modules built o
 
 All modules can be toggled independently. New installs start with every module disabled — turn on what you want from the settings panel (`/bolt`) or via the quick toggles in the minimap tracking dropdown.
 
+**Edit Mode**: BOLT's own frames (camp bar, floating ranged timer) move in Edit Mode like Blizzard's, with positions saved per layout. Select a Blizzard frame (Player, Target, Personal Resource Display, Minimap, action bars, micro menu, bags, experience bar, buffs, quest tracker, cast bar, focus, pet and party frames) and a "B.O.L.T" block under its settings says what BOLT can do to that frame, such as "Fade out until needed" or "Flat style (no round portrait)". Ticking one turns its module on when needed. Those options live only in Edit Mode: the settings page turns modules on and off and has an "Open Edit Mode" button.
+
 ## Modules
 
 ### Interface
@@ -28,19 +30,20 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 - **Addon Button Drawer**: Buttons that addons hang on the minimap go into one drawer button that shows how many there are; click it to open them, it closes by itself when the mouse leaves
 - **Mouse-Wheel Zoom**: Optional; hides the +/- buttons and zooms back out after 20 seconds
 - **Works With Auto-hide UI**: The bars and drawer button fade with the "Minimap buttons" group
+- **Screen Edge**: Drag the minimap right into the corner in Edit Mode: by default only the visible map has to stay on screen, so the empty space around it can go past the edge. "Screen edge" at the top of the Minimap's B.O.L.T block switches back to Blizzard's limit or lets it move freely; `/bolt edge` shows what it's doing. Works with or without the square minimap
 - Paused while SexyMap, BasicMinimap or ElvUI is loaded. Turning the module off takes a `/reload`
 
-#### Immersive Mode
+#### Player & Target Frames
 
-- **Frame-Free HUD**: Hides the player and target frames and turns on Blizzard's Personal Resource Display, so your health and power sit under your character and enemies are read off their nameplates
-- **One Switch**: Turning it off brings both frames back and turns the Personal Resource Display off. Toggle it in settings or from the minimap tracking menu; a switch made in combat applies when combat ends
-- **Faded Out of Combat**: The Personal Resource Display fades to its own opacity (10% by default) instead of hiding, comes back in combat or with an attackable target, and shows in full while you hover it
-- **Menus on the Bars**: Right-click the Personal Resource Display for your own menu, Shift + right-click for your target's
+- **Hide Them Your Way**: Hide the Player Frame and/or the Target Frame, then pick when each comes back: in combat, with a target (any target, attackable only or not attackable only), or on mouse hover
+- **Personal Resource Display**: Turn on Blizzard's health and power bars under your character. When Edit Mode shows it only in combat, it can also show with a target (any, attackable only or not attackable only), fade to an opacity of your choice instead of hiding, and open your menu on right-click (Shift + right-click for your target's)
+- **Your Own Immersive Mode**: Hide both frames and turn on the Personal Resource Display. (This replaces the old Immersive Mode toggle; if you had it on, your setup carries over)
+- **In Edit Mode**: Select the Player Frame, Target Frame or Personal Resource Display; BOLT's options sit in a "B.O.L.T" block under Blizzard's settings. Every frame shows while you edit
 
 #### Ranged Attack Timer
 
 - **Shot Timer**: A bar fills between your automatic shots (Auto Shot; on WoW: Forever also wand Shoot), so you can fit casts and moves between them
-- **Built In**: One more bar under the Personal Resource Display, in the same style and width, following it as you change it in Edit Mode; floats below your character when the Personal Resource Display is off
+- **Built In**: One more bar under the Personal Resource Display, in the same style and width, following it as you change it in Edit Mode; floats on its own when the Personal Resource Display is off (or "Attach" is unticked). Move the floating bar and set its width in Edit Mode
 - Only offered to classes with a repeating ranged attack. Melee swings can't be timed: the game keeps the combat log from addons
 
 #### Nameplates
@@ -54,7 +57,7 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 #### Auto-hide UI
 
 - **Fade Until Needed**: The main action bar with the micro menu and bags (one strip: hovering any of them shows all three), the other action bars, experience bar, buffs, debuffs, unit frames, quest tracker, minimap and minimap buttons fade out
-- **Smart Reveal**: They fade in when you hover them, have a target or are in combat, and stay hidden while mounted or on a flight path unless you're in combat
+- **Smart Reveal**: They fade in when you hover them, are in combat or have a target (any, attackable only, not attackable only, or never), and stay hidden while mounted or on a flight path unless you're in combat
 - **Edit Mode Friendly**: Everything shows in Edit Mode; action bars also show while you drag a spell or item
 - **Adjustable Opacity**: Choose how visible hidden parts stay
 
@@ -88,11 +91,12 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 
 #### Campfire Rest (WoW: Forever)
 
-- **Camp Panel**: While you have the Campfire Nearby buff, a small panel fades in on the right side of the screen, across from your party frames; click its title to collapse it to one line, right-click to hide it until the next fire
-- **Sit by the Fire**: Click Sit; the panel says "In range" or "Too far" once you sit, and remembers where the fire warmed you so it can sit you down again there (option)
-- **Camp Benefits**: A bar counts the minute until Camp Benefits, then one row per camp object shows what it gave you, with the time left
-- **Camp Gear**: Every camp object you carry or can craft, built in for all professions and tiers. Left-click places it (or crafts it), right-click crafts another; shows cooldowns, missing reagents and what each object gives
-- `/bolt camp` prints what the panel sees, for bug reports
+- **Camp Bar**: While you have the Campfire Nearby buff, a slim bar fades in beside the minimap: what to do now, a bar counting down the minute to Camp Benefits (then their time left), and a Sit button. Right-click it to hide it until the next fire
+- **Sit by the Fire**: Click Sit; the bar tells you if you're too far once you sit, and remembers where the fire warmed you so it can sit you down again there (option)
+- **Ready Alert**: A sound, a glow and a taskbar flash when Camp Benefits lands, so you can look away during the minute of sitting (option)
+- **Camp Drawer**: Click the bar for the camp benefits you got (one row per camp object) and your camp gear: every camp object you carry or can craft, built in for all professions and tiers, each with its own Place and Craft buttons, cooldowns and missing reagents
+- **In Edit Mode** ("Camp Bar"): left (default), right, above or under the minimap, or drag it anywhere; set its size and options
+- `/bolt camp` prints what the bar sees, for bug reports
 
 #### Auto Rep Switch
 
@@ -200,7 +204,7 @@ Requires [Total RP 3](https://www.curseforge.com/wow/addons/total-rp-3) to be in
 
 #### Everyday Emotes
 
-- **One Key per Emote**: Hello, Thanks and Sit each get a keybind slot in the Roleplay settings (also under B.O.L.T in Key Bindings). Emotes are aimed at your target when you have one. Total RP 3 not needed
+- **One Key per Emote**: Hello, Goodbye, Thanks and Sit each get a keybind slot in the Roleplay settings (also under B.O.L.T in Key Bindings). Emotes are aimed at your target when you have one. Total RP 3 not needed
 - **Thank Your Buffers** (on by default): when another player buffs you, you /thank them 2 seconds later. Out of combat only, once a minute per player
 
 ## Installation

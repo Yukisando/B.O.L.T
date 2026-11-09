@@ -18,7 +18,53 @@ local LEGACY_PROFILE_KEYS = {
     { "minimap", "calendar" }, { "minimap", "mail" }, { "minimap", "landingPage" },
     { "minimap", "compartment" }, { "minimap", "drawer" },
     { "campfire", "recipes" }, -- became the built-in recipe table plus campfire.learned
+    { "campfire", "collapsed" },
+    { "screenEdges", "minimap" }, -- became minimapEdge, defaulting to MAP (2026-11-09) -- the camp panel became a bar with a drawer (campfire.expanded)
 }
+
+-- Immersive Mode (one toggle) became per-frame options in Edit Mode (2026-11-09). Players who
+-- had it on get the same result: both frames hidden, the Personal Resource Display keeps its
+-- extras. The display's CVar was already on from Immersive, so it stays as it is.
+local function MigrateImmersive(profile, wasOn)
+    local old = profile.immersive
+    profile.immersive = nil
+    if not wasOn then return end
+    local frames = profile.frameVisibility or {}
+    profile.frameVisibility = frames
+    frames.player = frames.player or {}
+    frames.target = frames.target or {}
+    frames.player.hide, frames.target.hide = true, true
+    frames.display = frames.display or {}
+    local display = frames.display
+    old = type(old) == "table" and old or {}
+    display.showWithTarget = old.showWithTarget ~= false
+    display.idleAlpha = old.idleAlpha or 10
+    display.rightClickMenus = old.rightClickMenus ~= false
+end
+
+-- Target conditions were on/off (2026-11-09) and became a choice of target kind: any,
+-- attackable, not attackable. The Target Frame's "hostile" became target = "HOSTILE".
+local function MigrateTargetKinds(profile)
+    local frames = profile.frameVisibility
+    if type(frames) ~= "table" then return end
+    local function Kind(value, onKind)
+        if value == true then return onKind end
+        if value == false then return "OFF" end
+        return value
+    end
+    if type(frames.player) == "table" then
+        frames.player.target = Kind(frames.player.target, "ANY")
+    end
+    if type(frames.target) == "table" then
+        if frames.target.hostile ~= nil and frames.target.target == nil then
+            frames.target.target = Kind(frames.target.hostile, "HOSTILE")
+        end
+        frames.target.hostile = nil
+    end
+    if type(frames.display) == "table" then
+        frames.display.showWithTarget = Kind(frames.display.showWithTarget, "HOSTILE")
+    end
+end
 
 function BOLT:GetPlayerKey()
     return UnitName("player") .. " - " .. GetRealmName()
@@ -73,7 +119,13 @@ function BOLT:InitializeDatabase()
         end
     end
 
+    local immersiveOn = BOLTDB.moduleStates.immersive
+    BOLTDB.moduleStates.immersive = nil
     for _, profile in pairs(BOLTDB.profiles) do
+        if profile.immersive ~= nil or immersiveOn then
+            MigrateImmersive(profile, immersiveOn == true)
+        end
+        MigrateTargetKinds(profile)
         CleanProfile(profile, self.defaultModuleStates)
     end
 

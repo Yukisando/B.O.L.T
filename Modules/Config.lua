@@ -22,13 +22,10 @@ local function GetSetting(path)
     return BOLT:GetConfig(unpack(path))
 end
 
--- Writes a setting and lets the owning module react (module name = first path key).
+-- Writes a setting and lets the owning module react (module name = first path key). Shared with
+-- the Edit Mode dialogs (BOLT:SetSetting), so both always show the same value.
 local function SetSetting(path, value)
-    BOLT:SetConfig(value, unpack(path))
-    local mod = BOLT.modules[path[1]]
-    if mod and mod.active and mod.OnSettingChanged then
-        mod:OnSettingChanged(path[#path])
-    end
+    BOLT:SetSetting(path, value)
 end
 
 local function Module(name)
@@ -81,6 +78,20 @@ local BUTTON_SIDES = {
     { value = "RIGHT", label = "Right column" },
 }
 
+-- Opens Blizzard's Edit Mode from the settings page.
+local function OpenEditMode()
+    if InCombatLockdown() then
+        BOLT:Print("Edit Mode can't open in combat.")
+        return
+    end
+    -- :Hide() rather than HideUIPanel, as in GameMenu:OpenSettingsFromMenu (taint).
+    if SettingsPanel and SettingsPanel:IsShown() then SettingsPanel:Hide() end
+    if GameMenuFrame and GameMenuFrame:IsShown() then GameMenuFrame:Hide() end
+    C_Timer.After(0.1, function()
+        if EditModeManagerFrame and not InCombatLockdown() then ShowUIPanel(EditModeManagerFrame) end
+    end)
+end
+
 local PAGES = {
     {
         -- Everything that changes how the game's UI looks.
@@ -90,6 +101,7 @@ local PAGES = {
                 module = "unitFrames",
                 title = "Unit Frames & Cast Bars",
                 description = "Restyles the game UI with Blizzard's own art. Unit frames lose their round portrait: the frame stretches over its space and the bars widen. Cast bars show the spell name on the bar. Turning something off takes a /reload.",
+                editMode = "select the Player, Target, Focus, Pet or Party frame or the Cast Bar and tick its Flat style option.",
                 options = {
                     ToggleList("unitFrames", "Restyle:", "Everything", {
                         { "player", "Player" },
@@ -104,6 +116,7 @@ local PAGES = {
             {
                 module = "minimap",
                 description = "A square minimap framed with Blizzard's own art. The zone name and clock sit in a title bar above it, and the minimap buttons (tracking, calendar, mail, expansion summary, instance difficulty, addon list and a drawer for addon buttons) in one bar. Coordinates sit inside the map. Turning it off takes a /reload.",
+                editMode = "select the Minimap to pick where its buttons go and turn wheel zoom on or off.",
                 options = {
                     { type = "dropdown", label = "Minimap buttons:", width = 170, path = { "minimap", "buttons" },
                         options = function() return BUTTON_SIDES end },
@@ -111,14 +124,9 @@ local PAGES = {
                 },
             },
             {
-                module = "immersive",
-                description = "Hides the player and target frames and turns on Blizzard's Personal Resource Display instead: your health and power sit under your character, enemies are read off their nameplates. Turning it off brings both frames back and turns the Personal Resource Display off. Also in the minimap tracking menu.",
-                options = {
-                    { type = "checkbox", label = "Also show the Personal Resource Display while you have an attackable target (when Edit Mode shows it only in combat)", path = { "immersive", "showWithTarget" } },
-                    { type = "slider", label = "Personal Resource Display opacity out of combat (hover shows it, 0% hides it):", path = { "immersive", "idleAlpha" },
-                        min = 0, max = 100, step = 5, format = function(value) return ("%d%%"):format(value) end },
-                    { type = "checkbox", label = "Right-click the Personal Resource Display for your menu, Shift + right-click for your target's", path = { "immersive", "rightClickMenus" } },
-                },
+                module = "frameVisibility",
+                description = "Hide the Player and Target frames and pick when they come back. Pair a hidden Player Frame with Blizzard's Personal Resource Display (your health and power under your character), which B.O.L.T can also fade out of combat and make right-clickable.",
+                editMode = "select the Player Frame, the Target Frame or the Personal Resource Display.",
             },
             {
                 module = "tooltip",
@@ -127,7 +135,11 @@ local PAGES = {
             {
                 module = "rangedTimer",
                 description = (BOLT.isForever and "A bar that fills between your Auto Shots and wand shots" or "A bar that fills between your Auto Shots")
-                    .. ", so you can fit casts and moves between them. It sits under the Personal Resource Display in the same style, or floats below your character when that display is off.",
+                    .. ", so you can fit casts and moves between them. It sits under the Personal Resource Display in the same style, or floats on its own when that display is off.",
+                editMode = "select Ranged Attack Timer to attach it or let it float, move it and set its width.",
+                options = {
+                    { type = "checkbox", label = "Attach it under the Personal Resource Display when that display is on", path = { "rangedTimer", "attach" } },
+                },
             },
             {
                 module = "nameplatesEnhancement",
@@ -148,6 +160,7 @@ local PAGES = {
             {
                 module = "autoHide",
                 description = "Hides parts of the UI until you need them. They fade in when you hover them, have a target or are in combat, and stay hidden while mounted or on a flight path unless you're in combat. Everything shows in Edit Mode; action bars also show while you drag a spell or item.",
+                editMode = "select an action bar, the bags, micro menu, experience bar, buffs, debuffs, quest tracker, minimap, or the pet, focus or party frames, and tick Fade out until needed.",
                 options = {
                     ToggleList("autoHide", "Hide:", "Everything", {
                         { "mainBar", "Main bar, micro menu and bags" },
@@ -196,9 +209,11 @@ local PAGES = {
             },
             {
                 module = "campfire",
-                description = "When the Campfire Nearby buff is on you, a camp panel fades in on the right side of the screen, across from your party frames. Click its title to collapse it to one line. Click Sit to sit; it tells you whether you're close enough to the fire, counts down the minute to Camp Benefits, then lists what each camp object gave you. Below, your camp gear: left-click places an object from your bags (or crafts it), right-click crafts another. Right-click the title to hide the panel until the next fire. It steps aside in combat, while mounted or swimming.",
+                description = "When the Campfire Nearby buff is on you, a slim camp bar fades in beside the minimap: what to do now, a bar counting down the minute to Camp Benefits (then their time left), and a Sit button. Click the bar to open the camp benefits you got and your camp gear, each object with its own Place and Craft buttons. Right-click it to hide it until the next fire. It steps aside in combat, while mounted or swimming.",
+                editMode = "select the Camp Bar to place it beside the minimap or anywhere, size it, and set auto-sit, the ready alert and the recipes list.",
                 options = {
                     { type = "checkbox", label = "Sit down on your own when you stop where the fire warmed you (if you have no camp benefits yet, or just placed an object)", path = { "campfire", "autoSit" } },
+                    { type = "checkbox", label = "Ready alert: a sound, a glow and a taskbar flash when Camp Benefits lands", path = { "campfire", "readyAlert" } },
                     { type = "checkbox", label = "Show the camp recipes you can craft", path = { "campfire", "showCraft" } },
                 },
             },
@@ -380,6 +395,7 @@ local PAGES = {
                 description = "One key per emote, aimed at your target if you have one. Total RP 3 not needed.",
                 options = {
                     { type = "keybind", label = "Hello:", binding = "BOLT_EMOTE_HELLO" },
+                    { type = "keybind", label = "Goodbye:", binding = "BOLT_EMOTE_BYE" },
                     { type = "keybind", label = "Thanks:", binding = "BOLT_EMOTE_THANKS" },
                     { type = "checkbox", label = "Thank players who buff you (2 seconds later, out of combat, once a minute per player)", path = { "roleplay", "autoThankBuffs" } },
                     { type = "keybind", label = "Sit:", binding = "BOLT_EMOTE_SIT" },
@@ -419,12 +435,19 @@ function Widgets.checkbox(parent, option)
     check:SetSize(26, 26)
     check.Text:SetFontObject("GameFontHighlight")
     check.Text:SetText(option.label)
+    -- option.get/option.set bind it to something other than a saved setting (a CVar...).
     check:SetScript("OnClick", function(self)
-        SetSetting(option.path, self:GetChecked())
+        if option.set then
+            option.set(self:GetChecked())
+        else
+            SetSetting(option.path, self:GetChecked())
+        end
         Config:RefreshAll()
     end)
     check.Refresh = function(self)
-        self:SetChecked(GetSetting(option.path) and true or false)
+        local value
+        if option.get then value = option.get() else value = GetSetting(option.path) end
+        self:SetChecked(value and true or false)
     end
     check.anchorRight = check.Text
     return check
@@ -822,6 +845,9 @@ function Config:BuildSection(page, spec)
         toggle.Text:SetFontObject("GameFontHighlight")
         toggle.Text:SetText("Enable")
         toggle:SetScript("OnClick", function(self)
+            if self:GetChecked() and Module("editModeOptions") then
+                Module("editModeOptions"):EnsureSomethingOn(spec.module)
+            end
             BOLT:SetModuleEnabled(spec.module, self:GetChecked())
             Config:RefreshAll()
         end)
@@ -836,9 +862,17 @@ function Config:BuildSection(page, spec)
     section.body = body
     section.widgets = {}
 
+    -- Sections whose options live in Edit Mode: only the switch above and a button here.
+    local options = spec.options or {}
+    local text = spec.description
+    if spec.editMode and BOLT.EditMode and BOLT.EditMode.available then
+        options = { { type = "button", label = "Open Edit Mode", width = 150, onClick = OpenEditMode } }
+        text = (text and text .. "\n\n" or "") .. "|cffffd100Options in Edit Mode:|r " .. spec.editMode
+    end
+
     local by = 0
-    if spec.description then
-        local description = AddLabel(body, spec.description)
+    if text then
+        local description = AddLabel(body, text)
         description:SetPoint("TOPLEFT", 30, by)
         description:SetWidth(540)
         description:SetJustifyH("LEFT")
@@ -846,7 +880,7 @@ function Config:BuildSection(page, spec)
     end
 
     local previous
-    for _, option in ipairs(spec.options or {}) do
+    for _, option in ipairs(options) do
         -- `available` hides options for systems this client lacks (e.g. on WoW: Forever).
         if not option.available or option.available() then
             local widget = Widgets[option.type](body, option)
@@ -914,6 +948,7 @@ function Config:BuildMainPanel()
     version:SetPoint("TOPLEFT", heading, "BOTTOMLEFT", 0, -8)
 
     local help = AddLabel(panel, "Pick a category on the left to configure each module. Type /bolt help for chat commands."
+        .. "\n\nEdit Mode: B.O.L.T's frames (camp bar, ranged timer) move like Blizzard's, and selecting a Blizzard frame shows a B.O.L.T block with what B.O.L.T can do to it. Options for those live only there; these pages turn the modules on and off."
         .. (BOLT.isForever and "\n\nRunning on WoW: Forever - modules for modern-only systems are hidden." or ""))
     help:SetPoint("TOPLEFT", version, "BOTTOMLEFT", 0, -16)
     help:SetWidth(560)

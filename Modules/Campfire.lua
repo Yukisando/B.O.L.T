@@ -1,11 +1,11 @@
 -- B.O.L.T Campfire Module (WoW: Forever only)
--- While the "Campfire Nearby" buff is on you (it reaches ~100 yards), a camp panel fades in above
--- the action bars:
---   * Header: sit by the fire (click), with an "In range" / "Too far" verdict.
---   * Warm-up bar: the minute of sitting until Welcoming Campfire turns into Camp Benefits.
---   * Camp benefits: one row per camp object, read from the Camp Benefits tooltip.
---   * Your camp gear: one row per camp object you carry or can craft. Left-click places the one in
---     your bags (or crafts it), right-click crafts another.
+-- While the "Campfire Nearby" buff is on you (it reaches ~100 yards), a slim camp bar fades in
+-- beside the minimap (left by default; right, above, under or anywhere, set in Edit Mode):
+--   * The bar: the fire, what to do now ("Sit by the fire", "Warming up", "Camp benefits
+--     active"), a progress bar for the minute of warming up or the benefits' time left, and Sit.
+--   * Click it to open the drawer: the camp benefits you got (read from the Camp Benefits
+--     tooltip) and your camp gear, each object with its own Place and Craft buttons.
+--   * Ready alert: a sound, a glow and a taskbar flash when Camp Benefits lands.
 --
 -- Range: the game gives no distance to the fire (Campfire Nearby covers ~100 yards and the
 -- Cooking spell-focus check ignores campfires, tested 2026-11-07). What we do know:
@@ -13,9 +13,9 @@
 --   seated + no Welcoming after a moment = too far,
 --   standing on a remembered spot        = close enough; auto-sit happens there.
 --
--- Crafting: opening a profession is a spellbook cast, so every gear row is a secure button. When
--- the profession is already open, PreClick crafts directly; otherwise the click casts the
--- profession spell and the craft fires once its window is ready (click again if it didn't).
+-- Crafting: opening a profession is a spellbook cast, so Craft, Place and Open are secure
+-- buttons. When the profession is already open, Craft crafts directly; otherwise the click casts
+-- the profession spell and the craft fires once its window is ready (click again if it didn't).
 --
 -- Camp recipes ship with the addon (OBJECTS); open profession windows refine what you know.
 -- `/bolt camp` prints what the module sees, for bug reports.
@@ -25,6 +25,9 @@ local ADDON_NAME, BOLT = ...
 local Campfire = {
     displayName = "Campfire",
 }
+
+local NativeArt = BOLT.NativeArt
+local EditMode = BOLT.EditMode
 
 local AURA_NEARBY = "Campfire Nearby"
 local AURA_WARMING = "Welcoming Campfire"
@@ -36,15 +39,22 @@ local WARM_RADIUS = 2.5     -- yards around a spot where the fire warmed you
 local CRAFT_RETRY_HINT = 1.5 -- seconds after the window opened with no craft started
 local FALLBACK_ICON = "Interface\\Icons\\Spell_Fire_Fire"
 local FADE = 0.35
-local WIDTH = 300
+local WIDTH = 270           -- bar and drawer
+local BAR_HEIGHT = 46
 local PAD = 12
+local GAP = 2
 local ROW_HEIGHT = 34
 local BENEFIT_HEIGHT = 20
+local EDIT_KEY = "campBar"
+
+-- The square minimap's panel art, so the bar looks like part of the minimap.
+local BOX = { atlas = "ui-hud-minimap-header-button", corner = 7, midX = 76, midY = 11 }
 
 local GREEN = { 0.45, 1, 0.45 }
 local RED = { 1, 0.4, 0.3 }
 local GOLD = { 1, 0.82, 0 }
 local GREY = { 0.65, 0.65, 0.65 }
+local ORANGE = { 1, 0.55, 0.15 }
 
 ---------------------------------------------------------------------------
 -- Camp objects (Forever camping guides, 2026-11; recipe/item IDs from wowforever.be and
@@ -130,7 +140,7 @@ function Campfire:IsSupported()
     return BOLT.isForever
 end
 
-local prompt
+local bar
 local state = {
     seatedAt = nil,      -- GetTime() when the player sat, until they move
     dismissed = false,   -- right-clicked, until Campfire Nearby goes away
@@ -401,46 +411,51 @@ local function GearList()
     return rows
 end
 
+
 ---------------------------------------------------------------------------
--- Panel building blocks
+-- Camp bar building blocks
 ---------------------------------------------------------------------------
 
+local function SetColor(fontString, color)
+    fontString:SetTextColor(color[1], color[2], color[3])
+end
+
 local function FadeTo(alpha, onDone)
-    prompt.fade:Stop()
-    local from = prompt:GetAlpha()
+    bar.fade:Stop()
+    local from = bar:GetAlpha()
     if math.abs(alpha - from) < 0.01 then
-        prompt:SetAlpha(alpha)
+        bar:SetAlpha(alpha)
         if onDone then onDone() end
         return
     end
-    prompt.fade.alpha:SetFromAlpha(from)
-    prompt.fade.alpha:SetToAlpha(alpha)
-    prompt.fade.alpha:SetDuration(FADE * math.abs(alpha - from))
-    prompt.fade.onDone = onDone
-    prompt.fade:Play()
+    bar.fade.alpha:SetFromAlpha(from)
+    bar.fade.alpha:SetToAlpha(alpha)
+    bar.fade.alpha:SetDuration(FADE * math.abs(alpha - from))
+    bar.fade.onDone = onDone
+    bar.fade:Play()
 end
 
 local function Reveal()
-    if prompt.wanted then return end
-    prompt.wanted = true
-    if not prompt:IsShown() then
-        prompt:SetAlpha(0)
-        prompt:Show()
+    if bar.wanted then return end
+    bar.wanted = true
+    if not bar:IsShown() then
+        bar:SetAlpha(0)
+        bar:Show()
     end
-    prompt.glow.pulse:Play()
+    bar.glow.pulse:Play()
     FadeTo(1)
 end
 
 local function Conceal(instant)
-    if not prompt.wanted and not instant then return end
-    prompt.wanted = false
+    if not bar.wanted and not instant then return end
+    bar.wanted = false
     local function done()
-        prompt:Hide()
-        prompt.glow.pulse:Stop()
+        bar:Hide()
+        bar.glow.pulse:Stop()
     end
     if instant then
-        prompt.fade:Stop()
-        prompt:SetAlpha(0)
+        bar.fade:Stop()
+        bar:SetAlpha(0)
         done()
     else
         FadeTo(0, done)
@@ -454,43 +469,55 @@ local function Sit()
     Campfire:Update()
 end
 
-local function SetColor(fontString, color)
-    fontString:SetTextColor(color[1], color[2], color[3])
+-- Bronze (Forever) or dark (Midnight) Blizzard panel, the same art as BOLT's square minimap.
+local function Panel(frame)
+    if NativeArt.CreateBox(frame, BOX, true) then return end
+    local backdrop = CreateFrame("Frame", nil, frame, "TooltipBackdropTemplate")
+    backdrop:SetAllPoints()
+    backdrop:SetFrameLevel(frame:GetFrameLevel())
+    if backdrop.NineSlice and backdrop.NineSlice.SetCenterColor then
+        backdrop.NineSlice:SetCenterColor(0.06, 0.04, 0.02, 0.92)
+    end
 end
 
-local function CreateSection(label)
-    local section = {}
-    section.label = prompt:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    section.label:SetText(label)
-    section.label:SetJustifyH("LEFT")
-    section.extra = prompt:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    section.extra:SetJustifyH("RIGHT")
-    SetColor(section.extra, GREY)
-    section.line = prompt:CreateTexture(nil, "ARTWORK")
-    section.line:SetColorTexture(1, 0.82, 0, 0.25)
-    section.line:SetHeight(1)
+local function SectionLabel(parent, text)
+    local label = parent:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    label:SetText(text)
+    label:SetJustifyH("LEFT")
+    local extra = parent:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    extra:SetJustifyH("RIGHT")
+    SetColor(extra, GREY)
+    local line = parent:CreateTexture(nil, "ARTWORK")
+    line:SetColorTexture(1, 0.82, 0, 0.25)
+    line:SetHeight(1)
+    local section = { label = label, extra = extra, line = line }
     function section:Place(y)
-        self.label:ClearAllPoints()
-        self.label:SetPoint("TOPLEFT", PAD, y)
-        self.extra:ClearAllPoints()
-        self.extra:SetPoint("TOPRIGHT", -PAD, y)
-        self.line:ClearAllPoints()
-        self.line:SetPoint("TOPLEFT", PAD, y - 14)
-        self.line:SetPoint("TOPRIGHT", -PAD, y - 14)
+        label:ClearAllPoints()
+        label:SetPoint("TOPLEFT", PAD, y)
+        extra:ClearAllPoints()
+        extra:SetPoint("TOPRIGHT", -PAD, y)
+        line:ClearAllPoints()
+        line:SetPoint("TOPLEFT", PAD, y - 14)
+        line:SetPoint("TOPRIGHT", -PAD, y - 14)
         return y - 20
     end
     function section:SetShown(shown)
-        self.label:SetShown(shown)
-        self.extra:SetShown(shown)
-        self.line:SetShown(shown)
+        label:SetShown(shown)
+        extra:SetShown(shown)
+        line:SetShown(shown)
     end
     return section
 end
 
+---------------------------------------------------------------------------
+-- Drawer rows
+---------------------------------------------------------------------------
+
 local function BenefitRow(index)
-    local row = prompt.benefitRows[index]
+    local drawer = bar.drawer
+    local row = drawer.benefitRows[index]
     if row then return row end
-    row = CreateFrame("Frame", nil, prompt)
+    row = CreateFrame("Frame", nil, drawer)
     row:SetSize(WIDTH - PAD * 2, BENEFIT_HEIGHT)
     row.icon = row:CreateTexture(nil, "ARTWORK")
     row.icon:SetSize(16, 16)
@@ -504,45 +531,35 @@ local function BenefitRow(index)
     row.effect:SetJustifyH("RIGHT")
     row.effect:SetWordWrap(false)
     SetColor(row.effect, GREEN)
-    prompt.benefitRows[index] = row
+    drawer.benefitRows[index] = row
     return row
 end
 
----------------------------------------------------------------------------
--- Gear rows (secure: place an item, or open a profession and craft)
----------------------------------------------------------------------------
-
-local function GearPreClick(self, mouseButton)
+-- Craft: when the profession is open, craft right away; otherwise this click casts the
+-- profession spell (opening its window) and the craft fires when the window is ready.
+local function CraftPreClick(self)
     if InCombatLockdown() then return end
-    local action = mouseButton == "RightButton" and self.rightAction or self.leftAction
+    local data = self:GetParent().data
+    local object = data.object
     self:SetAttribute("type", nil)
-    if action == "place" then
-        self:SetAttribute("type", "item")
-        self:SetAttribute("item", "item:" .. self.data.object.itemID)
-        state.placedAt = GetTime()
-    elseif action == "craft" then
-        local object = self.data.object
-        state.clickAgain = nil
-        if OpenProfession() == object.skillLine then
-            C_TradeSkillUI.CraftRecipe(object.recipeID, 1)
-        elseif self.data.profession and self.data.profession.opener then
-            state.pendingCraft = object.recipeID
-            state.openedForCraft = true
-            self:SetAttribute("type", "spell")
-            self:SetAttribute("spell", self.data.profession.opener)
-        end
-    elseif action == "open" then
+    state.clickAgain = nil
+    if OpenProfession() == object.skillLine then
+        C_TradeSkillUI.CraftRecipe(object.recipeID, 1)
+    elseif data.profession and data.profession.opener then
+        state.pendingCraft = object.recipeID
+        state.openedForCraft = true
         self:SetAttribute("type", "spell")
-        self:SetAttribute("spell", self.data.profession.opener)
+        self:SetAttribute("spell", data.profession.opener)
     end
 end
 
-local function GearTooltip(self)
-    local data = self.data
-    GameTooltip:SetOwner(self, "ANCHOR_LEFT") -- the panel sits on the right edge
+local function RowTooltip(self)
+    local data = self.data or self:GetParent().data
+    if not data then return end
+    GameTooltip:SetOwner(self, "ANCHOR_LEFT")
     if data.hint then
         GameTooltip:SetText(data.profession.name, 1, 1, 1)
-        GameTooltip:AddLine("BOLT hasn't seen a camp recipe for this profession yet. Click to open it once; "
+        GameTooltip:AddLine("BOLT hasn't seen a camp recipe for this profession yet. Click Open once; "
             .. "the camp recipes you know then show here.", nil, nil, nil, true)
         GameTooltip:Show()
         return
@@ -560,38 +577,37 @@ local function GearTooltip(self)
                 ("%d/%d"):format(have, reagent[2]), 0.85, 0.85, 0.85, color[1], color[2], color[3])
         end
     end
-    GameTooltip:AddLine(" ")
-    if self.leftAction == "place" then
-        GameTooltip:AddLine("Left-click: place it at this camp", GREY[1], GREY[2], GREY[3])
-        if self.rightAction == "craft" then
-            GameTooltip:AddLine("Right-click: craft another", GREY[1], GREY[2], GREY[3])
-        end
+    if data.count > 0 then
+        GameTooltip:AddLine(" ")
         GameTooltip:AddLine("One object per character per camp, then a 1 hour cooldown.", GREY[1], GREY[2], GREY[3], true)
-    elseif self.leftAction == "craft" then
-        GameTooltip:AddLine("Click: craft one (opens your " .. object.profession .. " window)", GREY[1], GREY[2], GREY[3], true)
     end
     GameTooltip:Show()
 end
 
-local function GearRow(index)
-    local row = prompt.gearRows[index]
-    if row then return row end
-    row = CreateFrame("Button", nil, prompt, "SecureActionButtonTemplate")
-    row:SetSize(WIDTH - PAD * 2 + 8, ROW_HEIGHT)
-    row:RegisterForClicks("AnyUp") -- mouse clicks act on release on this client
-    row:SetScript("PreClick", GearPreClick)
-    row:SetScript("OnEnter", GearTooltip)
-    row:SetScript("OnLeave", GameTooltip_Hide)
+local function RowButton(row, label, width)
+    local button = CreateFrame("Button", nil, row, "SecureActionButtonTemplate,UIPanelButtonTemplate")
+    button:SetSize(width, 20)
+    button:SetText(label)
+    button:RegisterForClicks("AnyUp") -- secure buttons act on release on this client
+    button:SetAttribute("useOnKeyDown", false)
+    button:SetScript("OnEnter", RowTooltip)
+    button:SetScript("OnLeave", GameTooltip_Hide)
+    return button
+end
 
-    local highlight = row:CreateTexture(nil, "HIGHLIGHT")
-    highlight:SetTexture("Interface\\Buttons\\UI-Listbox-Highlight2")
-    highlight:SetBlendMode("ADD")
-    highlight:SetVertexColor(1, 0.75, 0.35, 0.3)
-    highlight:SetAllPoints()
+local function GearRow(index)
+    local drawer = bar.drawer
+    local row = drawer.gearRows[index]
+    if row then return row end
+    row = CreateFrame("Frame", nil, drawer)
+    row:SetSize(WIDTH - PAD * 2 + 4, ROW_HEIGHT)
+    row:EnableMouse(true)
+    row:SetScript("OnEnter", RowTooltip)
+    row:SetScript("OnLeave", GameTooltip_Hide)
 
     row.icon = row:CreateTexture(nil, "ARTWORK")
     row.icon:SetSize(28, 28)
-    row.icon:SetPoint("LEFT", 4, 0)
+    row.icon:SetPoint("LEFT", 2, 0)
     row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     row.border = row:CreateTexture(nil, "OVERLAY")
     row.border:SetTexture("Interface\\Buttons\\UI-Quickslot2")
@@ -599,39 +615,68 @@ local function GearRow(index)
     row.border:SetPoint("BOTTOMRIGHT", row.icon, 10, -10)
     row.count = row:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
     row.count:SetPoint("BOTTOMRIGHT", row.icon, -1, 1)
-    row.cooldown = CreateFrame("Cooldown", nil, row, "CooldownFrameTemplate")
-    row.cooldown:SetAllPoints(row.icon)
-    row.cooldown:SetHideCountdownNumbers(true)
+
+    -- Place uses the item in your bags; Craft makes one more.
+    row.place = RowButton(row, "Place", 54)
+    row.place:SetPoint("RIGHT", -2, 0)
+    row.place:SetAttribute("type", "item")
+    row.place:SetScript("PreClick", function() state.placedAt = GetTime() end)
+    row.craft = RowButton(row, "Craft", 54)
+    row.craft:SetScript("PreClick", CraftPreClick)
+    row.open = RowButton(row, "Open", 54)
+    row.open:SetPoint("RIGHT", -2, 0)
+    row.open:SetAttribute("type", "spell")
 
     row.name = row:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     row.name:SetPoint("TOPLEFT", row.icon, "TOPRIGHT", 8, -1)
     row.name:SetJustifyH("LEFT")
+    row.name:SetWordWrap(false)
     row.detail = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     row.detail:SetPoint("BOTTOMLEFT", row.icon, "BOTTOMRIGHT", 8, 1)
     row.detail:SetJustifyH("LEFT")
     row.detail:SetWordWrap(false)
-    SetColor(row.detail, GREY)
-    row.action = row:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    row.action:SetPoint("RIGHT", -6, 0)
-    row.action:SetJustifyH("RIGHT")
-    row.detail:SetPoint("RIGHT", row.action, "LEFT", -6, 0)
 
-    prompt.gearRows[index] = row
+    drawer.gearRows[index] = row
     return row
 end
 
+-- Fits a 54px button: "42m", "35s".
+local function ShortTime(seconds)
+    seconds = math.max(0, seconds)
+    if seconds >= 60 then return ("%dm"):format(math.ceil(seconds / 60)) end
+    return ("%ds"):format(math.ceil(seconds))
+end
+
+-- "Missing: 2 Light Leather, 1 Coarse Thread"
+local function MissingText(object)
+    local parts = {}
+    for _, reagent in ipairs(Reagents(object)) do
+        local short = reagent[2] - C_Item.GetItemCount(reagent[1])
+        if short > 0 then
+            table.insert(parts, ("%d %s"):format(short, C_Item.GetItemNameByID(reagent[1]) or ("item " .. reagent[1])))
+        end
+    end
+    return #parts > 0 and ("Missing: " .. table.concat(parts, ", ")) or nil
+end
+
+-- Out of combat only (secure buttons inside).
 local function FillGearRow(row, data)
     row.data = data
-    row.cooldown:Clear()
     row.icon:SetDesaturated(false)
     row.count:SetText("")
+    row.place:Hide()
+    row.craft:Hide()
+    row.open:Hide()
+
     if data.hint then
-        row.leftAction, row.rightAction = "open", nil
         row.icon:SetTexture(C_Spell.GetSpellTexture(data.profession.opener) or FALLBACK_ICON)
         row.name:SetText(data.profession.name)
         row.detail:SetText("Open it once to list its camp recipes")
-        row.action:SetText("Open")
-        SetColor(row.action, GOLD)
+        SetColor(row.detail, GREY)
+        row.open:SetAttribute("spell", data.profession.opener)
+        row.open:Show()
+        row.name:SetPoint("RIGHT", row.open, "LEFT", -6, 0)
+        row.detail:SetPoint("RIGHT", row.open, "LEFT", -6, 0)
         return
     end
 
@@ -639,91 +684,165 @@ local function FillGearRow(row, data)
     row.icon:SetTexture(ObjectIcon(object))
     row.name:SetText(object.name)
     row.detail:SetText(object.effect or "")
-    local craftable = data.known and CraftableCount(object) or 0
+    SetColor(row.detail, GREY)
+    local leftmost
 
     if data.count > 0 then
-        row.leftAction = "place"
-        row.rightAction = data.known and "craft" or nil
         row.count:SetText(data.count > 1 and data.count or "")
+        row.place:SetAttribute("item", "item:" .. object.itemID)
         local start, duration = C_Container.GetItemCooldown(object.itemID)
         if duration and duration > 2 then
-            row.cooldown:SetCooldown(start, duration)
-            row.action:SetText(FormatTime(start + duration - GetTime()))
-            SetColor(row.action, GREY)
+            row.place:SetText(ShortTime(start + duration - GetTime()))
+            row.place:Disable()
         else
-            row.action:SetText("Place")
-            SetColor(row.action, GREEN)
+            row.place:SetText("Place")
+            row.place:Enable()
         end
-    else
-        row.leftAction, row.rightAction = "craft", nil
-        if state.clickAgain == object.recipeID then
-            row.action:SetText("Click again")
-            SetColor(row.action, GOLD)
-        elseif craftable > 0 then
-            row.action:SetText(craftable > 1 and ("Craft (%d)"):format(craftable) or "Craft")
-            SetColor(row.action, GOLD)
-        else
-            row.action:SetText("Need reagents")
-            SetColor(row.action, RED)
-            row.icon:SetDesaturated(true)
-        end
+        row.place:Show()
+        leftmost = row.place
     end
+
+    if data.known then
+        local craftable = CraftableCount(object)
+        row.craft:ClearAllPoints()
+        if leftmost then
+            row.craft:SetPoint("RIGHT", leftmost, "LEFT", -2, 0)
+        else
+            row.craft:SetPoint("RIGHT", -2, 0)
+        end
+        if state.clickAgain == object.recipeID then
+            row.craft:SetText("Again")
+            row.craft:Enable()
+        elseif craftable > 0 then
+            row.craft:SetText("Craft")
+            row.craft:Enable()
+        else
+            row.craft:SetText("Craft")
+            row.craft:Disable()
+            if data.count == 0 then row.icon:SetDesaturated(true) end
+            local missing = MissingText(object)
+            if missing then
+                row.detail:SetText(missing)
+                SetColor(row.detail, RED)
+            end
+        end
+        if craftable > 1 and data.count == 0 then row.count:SetText(craftable) end
+        row.craft:Show()
+        leftmost = row.craft
+    end
+
+    row.name:SetPoint("RIGHT", leftmost or row, leftmost and "LEFT" or "RIGHT", -6, 0)
+    row.detail:SetPoint("RIGHT", leftmost or row, leftmost and "LEFT" or "RIGHT", -6, 0)
 end
 
 ---------------------------------------------------------------------------
--- The panel
+-- The bar
 ---------------------------------------------------------------------------
 
-local function BuildPrompt()
-    prompt = CreateFrame("Frame", "BOLTCampfirePrompt", UIParent, "TooltipBackdropTemplate")
-    prompt:SetFrameStrata("MEDIUM")
-    prompt:SetSize(WIDTH, 60)
-    prompt:Hide()
-    if prompt.NineSlice and prompt.NineSlice.SetCenterColor then
-        prompt.NineSlice:SetCenterColor(0.06, 0.04, 0.02, 0.92)
+local function BarTooltip(self)
+    GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+    GameTooltip:SetText("Campfire", 1, 1, 1)
+    local benefits = ReadBenefits(FindAura(AURA_BENEFITS))
+    for _, benefit in ipairs(benefits) do
+        GameTooltip:AddDoubleLine(benefit.name or "", benefit.effect or "", 0.85, 0.85, 0.85, GREEN[1], GREEN[2], GREEN[3])
     end
+    if #benefits > 0 then GameTooltip:AddLine(" ") end
+    GameTooltip:AddLine(BOLT:GetConfig("campfire", "expanded", false) and "Click to fold the camp details away."
+        or "Click for camp benefits and your camp gear.", nil, nil, nil, true)
+    GameTooltip:AddLine("Right-click to hide the bar until the next fire.", GREY[1], GREY[2], GREY[3], true)
+    GameTooltip:AddLine("Move it in Edit Mode.", GREY[1], GREY[2], GREY[3], true)
+    GameTooltip:Show()
+end
 
-    -- Header: click to sit, right-click to dismiss.
-    local header = CreateFrame("Button", nil, prompt)
-    header:SetPoint("TOPLEFT", 6, -6)
-    header:SetPoint("TOPRIGHT", -6, -6)
-    header:SetHeight(44)
-    header:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    prompt.header = header
+local function BuildDrawer()
+    local drawer = CreateFrame("Frame", nil, bar)
+    drawer:SetWidth(WIDTH)
+    drawer:Hide()
+    Panel(drawer)
+    drawer.benefitSection = SectionLabel(drawer, "Camp benefits")
+    drawer.benefitEmpty = drawer:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    drawer.benefitEmpty:SetJustifyH("LEFT")
+    drawer.benefitEmpty:SetWidth(WIDTH - PAD * 2)
+    SetColor(drawer.benefitEmpty, GREY)
+    drawer.benefitRows = {}
+    drawer.gearSection = SectionLabel(drawer, "Your camp gear")
+    drawer.gearEmpty = drawer:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    drawer.gearEmpty:SetJustifyH("LEFT")
+    drawer.gearEmpty:SetWidth(WIDTH - PAD * 2)
+    SetColor(drawer.gearEmpty, GREY)
+    drawer.gearRows = {}
+    bar.drawer = drawer
+end
 
-    local icon = header:CreateTexture(nil, "ARTWORK")
-    icon:SetSize(34, 34)
-    icon:SetPoint("LEFT", 6, 0)
+local function BuildBar()
+    bar = CreateFrame("Button", "BOLTCampBar", UIParent)
+    bar:SetFrameStrata("MEDIUM")
+    bar:SetSize(WIDTH, BAR_HEIGHT)
+    bar:SetClampedToScreen(true)
+    bar:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    bar:Hide()
+    Panel(bar)
+
+    local icon = bar:CreateTexture(nil, "ARTWORK")
+    icon:SetSize(30, 30)
+    icon:SetPoint("LEFT", 8, 0)
     icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    prompt.icon = icon
+    bar.icon = icon
+    local iconBorder = bar:CreateTexture(nil, "OVERLAY")
+    iconBorder:SetTexture("Interface\\Buttons\\UI-Quickslot2")
+    iconBorder:SetPoint("TOPLEFT", icon, -11, 11)
+    iconBorder:SetPoint("BOTTOMRIGHT", icon, 11, -11)
 
-    local glow = header:CreateTexture(nil, "BACKGROUND", nil, 1)
+    -- Soft breathing glow behind the icon; a brighter burst when Camp Benefits lands.
+    local glow = bar:CreateTexture(nil, "BACKGROUND", nil, 2)
     glow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
     glow:SetBlendMode("ADD")
     glow:SetVertexColor(1, 0.55, 0.15)
-    glow:SetSize(64, 64)
+    glow:SetSize(58, 58)
     glow:SetPoint("CENTER", icon)
     local pulse = glow:CreateAnimationGroup()
     pulse:SetLooping("BOUNCE")
     local breathe = pulse:CreateAnimation("Alpha")
-    breathe:SetFromAlpha(0.25)
-    breathe:SetToAlpha(0.8)
+    breathe:SetFromAlpha(0.2)
+    breathe:SetToAlpha(0.7)
     breathe:SetDuration(1.4)
     breathe:SetSmoothing("IN_OUT")
     glow.pulse = pulse
-    prompt.glow = glow
+    bar.glow = glow
 
-    -- Collapse indicator (top right), range verdict next to it, Sit button below.
-    prompt.toggle = header:CreateTexture(nil, "ARTWORK")
-    prompt.toggle:SetSize(14, 14)
-    prompt.toggle:SetPoint("TOPRIGHT", -5, -5)
+    local burst = bar:CreateTexture(nil, "OVERLAY", nil, 2)
+    burst:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
+    burst:SetBlendMode("ADD")
+    burst:SetVertexColor(0.5, 1, 0.4)
+    burst:SetSize(64, 64)
+    burst:SetPoint("CENTER", icon)
+    burst:SetAlpha(0)
+    local flash = burst:CreateAnimationGroup()
+    local grow = flash:CreateAnimation("Scale")
+    grow:SetScaleFrom(0.6, 0.6)
+    grow:SetScaleTo(1.4, 1.4)
+    grow:SetDuration(0.6)
+    local appear = flash:CreateAnimation("Alpha")
+    appear:SetFromAlpha(0)
+    appear:SetToAlpha(1)
+    appear:SetDuration(0.15)
+    local vanish = flash:CreateAnimation("Alpha")
+    vanish:SetFromAlpha(1)
+    vanish:SetToAlpha(0)
+    vanish:SetStartDelay(0.6)
+    vanish:SetDuration(0.8)
+    flash:SetLooping("NONE")
+    bar.burst = flash
 
-    prompt.badge = header:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    prompt.badge:SetPoint("RIGHT", prompt.toggle, "LEFT", -6, 0)
+    -- Fold arrow (far right) and Sit button.
+    local arrow = bar:CreateTexture(nil, "ARTWORK")
+    arrow:SetSize(16, 16)
+    arrow:SetPoint("RIGHT", -8, 0)
+    bar.arrow = arrow
 
-    local sit = CreateFrame("Button", nil, header, "UIPanelButtonTemplate")
-    sit:SetSize(52, 20)
-    sit:SetPoint("BOTTOMRIGHT", -2, 1)
+    local sit = CreateFrame("Button", nil, bar, "UIPanelButtonTemplate")
+    sit:SetSize(46, 20)
+    sit:SetPoint("RIGHT", arrow, "LEFT", -4, 0)
     sit:SetText("Sit")
     sit:SetScript("OnClick", function() Sit() end)
     sit:SetScript("OnEnter", function(self)
@@ -734,154 +853,166 @@ local function BuildPrompt()
         GameTooltip:Show()
     end)
     sit:SetScript("OnLeave", GameTooltip_Hide)
-    prompt.sit = sit
+    bar.sit = sit
 
-    prompt.title = header:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-    prompt.title:SetPoint("TOPLEFT", icon, "TOPRIGHT", 10, 0)
-    prompt.title:SetPoint("RIGHT", prompt.badge, "LEFT", -6, 0)
-    prompt.title:SetJustifyH("LEFT")
-    prompt.title:SetWordWrap(false)
-    prompt.hint = header:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    prompt.hint:SetPoint("BOTTOMLEFT", icon, "BOTTOMRIGHT", 10, 1)
-    prompt.hint:SetPoint("RIGHT", sit, "LEFT", -6, 0)
-    prompt.hint:SetJustifyH("LEFT")
-    prompt.hint:SetWordWrap(false)
-    prompt.hint:SetTextColor(0.85, 0.85, 0.85)
+    bar.title = bar:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    bar.title:SetPoint("TOPLEFT", icon, "TOPRIGHT", 10, 1)
+    bar.title:SetJustifyH("LEFT")
+    bar.title:SetWordWrap(false)
 
-    local highlight = header:CreateTexture(nil, "HIGHLIGHT")
+    bar.subtitle = bar:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    bar.subtitle:SetPoint("BOTTOMLEFT", icon, "BOTTOMRIGHT", 10, 0)
+    bar.subtitle:SetJustifyH("LEFT")
+    bar.subtitle:SetWordWrap(false)
+    bar.subtitle:SetTextColor(0.85, 0.85, 0.85)
+
+    -- Warm-up / time-left bar under the title, in the Personal Resource Display's bar art.
+    local progress = CreateFrame("StatusBar", nil, bar)
+    progress:SetHeight(9)
+    progress:SetPoint("BOTTOMLEFT", icon, "BOTTOMRIGHT", 10, 1)
+    local fill = NativeArt.ResolveAtlas("UI-HUD-CoolDownManager-Bar")
+    local back = NativeArt.ResolveAtlas("UI-HUD-CoolDownManager-Bar-BG")
+    progress:SetStatusBarTexture(fill or "Interface\\TargetingFrame\\UI-StatusBar")
+    progress.bg = progress:CreateTexture(nil, "BACKGROUND")
+    if back then
+        progress.bg:SetAtlas(back)
+        progress.bg:SetPoint("TOPLEFT", -2, 3)
+        progress.bg:SetPoint("BOTTOMRIGHT", 6, -7)
+    else
+        progress.bg:SetAllPoints()
+        progress.bg:SetColorTexture(0, 0, 0, 0.7)
+    end
+    progress.text = progress:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    progress.text:SetPoint("CENTER", 0, 0)
+    progress.text:SetScale(0.9)
+    progress:Hide()
+    bar.progress = progress
+
+    local highlight = bar:CreateTexture(nil, "HIGHLIGHT")
     highlight:SetTexture("Interface\\Buttons\\UI-Listbox-Highlight2")
     highlight:SetBlendMode("ADD")
-    highlight:SetVertexColor(1, 0.75, 0.35, 0.2)
-    highlight:SetAllPoints()
+    highlight:SetVertexColor(1, 0.75, 0.35, 0.15)
+    highlight:SetPoint("TOPLEFT", 4, -4)
+    highlight:SetPoint("BOTTOMRIGHT", -4, 4)
 
-    header:SetScript("OnClick", function(_, button)
+    bar:SetScript("OnClick", function(_, button)
+        if state.preview then return end
         if button == "RightButton" then
             state.dismissed = true
             Campfire:Update()
         elseif not InCombatLockdown() then
-            BOLT:SetConfig(not BOLT:GetConfig("campfire", "collapsed", false), "campfire", "collapsed")
+            BOLT:SetConfig(not BOLT:GetConfig("campfire", "expanded", false), "campfire", "expanded")
             PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
-            Campfire:Tick()
+            Campfire:Layout()
         end
     end)
-    header:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        GameTooltip:SetText("Campfire", 1, 1, 1)
-        GameTooltip:AddLine(BOLT:GetConfig("campfire", "collapsed", false) and "Click to expand."
-            or "Click to collapse to this line.", nil, nil, nil, true)
-        GameTooltip:AddLine("Right-click to hide this panel until the next fire.", GREY[1], GREY[2], GREY[3], true)
-        GameTooltip:Show()
-    end)
-    header:SetScript("OnLeave", GameTooltip_Hide)
+    bar:SetScript("OnEnter", function(self) if not state.preview then BarTooltip(self) end end)
+    bar:SetScript("OnLeave", GameTooltip_Hide)
 
-    -- Warm-up bar.
-    local bar = CreateFrame("StatusBar", nil, prompt)
-    bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-    bar:SetStatusBarColor(1, 0.55, 0.15)
-    bar:SetHeight(14)
-    bar.bg = bar:CreateTexture(nil, "BACKGROUND")
-    bar.bg:SetAllPoints()
-    bar.bg:SetColorTexture(0, 0, 0, 0.7)
-    bar.border = CreateFrame("Frame", nil, bar, "TooltipBackdropTemplate")
-    bar.border:SetPoint("TOPLEFT", -3, 3)
-    bar.border:SetPoint("BOTTOMRIGHT", 3, -3)
-    if bar.border.NineSlice and bar.border.NineSlice.SetCenterColor then
-        bar.border.NineSlice:SetCenterColor(0, 0, 0, 0)
-    end
-    bar.text = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    bar.text:SetPoint("CENTER", 0, 0)
-    bar:Hide()
-    prompt.bar = bar
+    BuildDrawer()
 
-    prompt.benefitSection = CreateSection("Camp benefits")
-    prompt.benefitEmpty = prompt:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    prompt.benefitEmpty:SetJustifyH("LEFT")
-    SetColor(prompt.benefitEmpty, GREY)
-    prompt.benefitRows = {}
-
-    prompt.gearSection = CreateSection("Your camp gear")
-    prompt.gearRows = {}
-
-    local fade = prompt:CreateAnimationGroup()
+    local fade = bar:CreateAnimationGroup()
     fade.alpha = fade:CreateAnimation("Alpha")
     fade:SetToFinalAlpha(true)
     fade:SetScript("OnFinished", function(self)
         if self.onDone then self.onDone() end
     end)
-    prompt.fade = fade
+    bar.fade = fade
 
-    prompt.elapsed = 0
-    prompt:SetScript("OnUpdate", function(_, elapsed)
-        prompt.elapsed = prompt.elapsed + elapsed
-        if prompt.elapsed < 0.25 then return end
-        prompt.elapsed = 0
-        Campfire:Tick()
+    bar.elapsed = 0
+    bar:SetScript("OnUpdate", function(_, elapsed)
+        bar.elapsed = bar.elapsed + elapsed
+        if bar.elapsed < 0.25 then return end
+        bar.elapsed = 0
+        if not state.preview then Campfire:Tick() end
     end)
 end
 
--- Right middle of the screen, mirroring the party frames on the left: same distance from the
--- screen edge, top aligned with theirs. Without visible party frames, a fixed spot.
-local PARTY_FRAMES = { "CompactPartyFrame", "PartyFrame", "CompactRaidFrameContainer" }
-local function PlacePanel()
-    if InCombatLockdown() then return end
-    local ratio = 1 / UIParent:GetEffectiveScale()
-    local inset, top = 300, UIParent:GetHeight() / 2 + 140
-    for _, name in ipairs(PARTY_FRAMES) do
-        local frame = _G[name]
-        if frame and frame:IsVisible() and frame:GetLeft() and frame:GetTop() then
-            local scale = frame:GetEffectiveScale() * ratio
-            inset, top = frame:GetLeft() * scale, frame:GetTop() * scale
-            break
-        end
-    end
-    inset = math.min(math.max(inset, 20), UIParent:GetWidth() / 3)
-    prompt:ClearAllPoints()
-    prompt:SetPoint("TOPRIGHT", UIParent, "BOTTOMRIGHT", -inset, top)
+---------------------------------------------------------------------------
+-- Placement: beside the minimap (left by default, right, above, under) or free (dragged in
+-- Edit Mode). Saved per Edit Mode layout.
+---------------------------------------------------------------------------
+
+local function Anchor() return EditMode:Get(EDIT_KEY, "anchor", "LEFT") end
+local function Scale() return (EditMode:Get(EDIT_KEY, "scale", 100) or 100) / 100 end
+
+-- The minimap and everything framed around it, in UIParent coordinates (Core/Utils.lua).
+local function MinimapBounds()
+    return BOLT.MinimapBounds()
 end
 
--- Rebuilds the rows. Secure rows inside: out of combat only.
-function Campfire:Layout()
-    if InCombatLockdown() then return end
-    local collapsed = BOLT:GetConfig("campfire", "collapsed", false)
-    prompt.layoutCollapsed, prompt.layoutBar = collapsed, prompt.wantBar
-    prompt.toggle:SetTexture(collapsed and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
-    prompt.bar:SetShown(prompt.wantBar and not collapsed)
-    local y = -56
+local function PlaceDrawer()
+    local drawer = bar.drawer
+    drawer:ClearAllPoints()
+    local scale = bar:GetEffectiveScale() / UIParent:GetEffectiveScale()
+    local bottom = (bar:GetBottom() or 0) * scale
+    local opensDown = bottom > UIParent:GetHeight() / 2
+    if opensDown then
+        drawer:SetPoint("TOPLEFT", bar, "BOTTOMLEFT", 0, -GAP)
+    else
+        drawer:SetPoint("BOTTOMLEFT", bar, "TOPLEFT", 0, GAP)
+    end
+    local expanded = drawer:IsShown()
+    -- Arrow points where the drawer opens (or closes back to).
+    local down = (opensDown and not expanded) or (not opensDown and expanded)
+    bar.arrow:SetTexture(down and "Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Up"
+        or "Interface\\ChatFrame\\UI-ChatIcon-ScrollUp-Up")
+end
 
-    if collapsed then
-        prompt.benefitSection:SetShown(false)
-        prompt.benefitEmpty:Hide()
-        for _, row in ipairs(prompt.benefitRows) do row:Hide() end
-        prompt.gearSection:SetShown(false)
-        for _, row in ipairs(prompt.gearRows) do row:Hide() end
-        prompt:SetHeight(-y + 2)
+function Campfire:Place()
+    if not bar or InCombatLockdown() then return end
+    local scale = Scale()
+    bar:SetScale(scale)
+    bar:ClearAllPoints()
+    local anchor = Anchor()
+    local l, r, t, b
+    if anchor ~= "FREE" then l, r, t, b = MinimapBounds() end
+    if anchor == "FREE" or not l then
+        local point, x, y = EditMode:GetPosition(EDIT_KEY)
+        bar:SetPoint(point, UIParent, point, x, y)
+    elseif anchor == "RIGHT" then
+        bar:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", (r + GAP * 3) / scale, t / scale)
+    elseif anchor == "TOP" then
+        bar:SetPoint("BOTTOM", UIParent, "BOTTOMLEFT", (l + r) / 2 / scale, (t + GAP * 3) / scale)
+    elseif anchor == "BOTTOM" then
+        bar:SetPoint("TOP", UIParent, "BOTTOMLEFT", (l + r) / 2 / scale, (b - GAP * 3) / scale)
+    else
+        bar:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", (l - GAP * 3) / scale, t / scale)
+    end
+    PlaceDrawer()
+end
+
+---------------------------------------------------------------------------
+-- Drawer layout (rebuilds secure rows: out of combat only)
+---------------------------------------------------------------------------
+
+function Campfire:Layout()
+    if InCombatLockdown() or not bar then return end
+    local drawer = bar.drawer
+    local expanded = BOLT:GetConfig("campfire", "expanded", false) and not state.preview
+    bar.layoutExpanded = expanded
+    if not expanded then
+        drawer:Hide()
+        PlaceDrawer()
         return
     end
 
-    if prompt.bar:IsShown() then
-        prompt.bar:ClearAllPoints()
-        prompt.bar:SetPoint("TOPLEFT", PAD + 2, y)
-        prompt.bar:SetPoint("TOPRIGHT", -PAD - 2, y)
-        y = y - 24
-    end
-
+    local y = -10
     -- Camp benefits
-    local benefits = prompt.benefits or {}
-    local showBenefits = #benefits > 0 or prompt.bar:IsShown()
-    prompt.benefitSection:SetShown(showBenefits)
-    prompt.benefitEmpty:Hide()
-    for i, row in ipairs(prompt.benefitRows) do
+    local benefits = bar.benefits or {}
+    for i, row in ipairs(drawer.benefitRows) do
         if i > #benefits then row:Hide() end
     end
-    if showBenefits then
-        y = prompt.benefitSection:Place(y)
-        if #benefits == 0 then
-            prompt.benefitEmpty:ClearAllPoints()
-            prompt.benefitEmpty:SetPoint("TOPLEFT", PAD, y - 2)
-            prompt.benefitEmpty:SetText("Revealed when the bar fills.")
-            prompt.benefitEmpty:Show()
-            y = y - 20
-        end
+    y = drawer.benefitSection:Place(y)
+    if #benefits == 0 then
+        drawer.benefitEmpty:ClearAllPoints()
+        drawer.benefitEmpty:SetPoint("TOPLEFT", PAD, y - 2)
+        drawer.benefitEmpty:SetText(FindAura(AURA_WARMING) and "Revealed when the bar fills."
+            or "Sit by the fire for a minute to gain the camp's benefits.")
+        drawer.benefitEmpty:Show()
+        y = y - drawer.benefitEmpty:GetStringHeight() - 8
+    else
+        drawer.benefitEmpty:Hide()
         for i, benefit in ipairs(benefits) do
             local row = BenefitRow(i)
             row.icon:SetTexture(benefit.object and ObjectIcon(benefit.object) or FALLBACK_ICON)
@@ -892,17 +1023,23 @@ function Campfire:Layout()
             row:Show()
             y = y - BENEFIT_HEIGHT
         end
-        y = y - 6
     end
+    y = y - 8
 
     -- Camp gear
-    local gear = prompt.gear or {}
-    prompt.gearSection:SetShown(#gear > 0)
-    for i, row in ipairs(prompt.gearRows) do
+    local gear = bar.gear or {}
+    for i, row in ipairs(drawer.gearRows) do
         if i > #gear then row:Hide() end
     end
-    if #gear > 0 then
-        y = prompt.gearSection:Place(y)
+    y = drawer.gearSection:Place(y)
+    if #gear == 0 then
+        drawer.gearEmpty:ClearAllPoints()
+        drawer.gearEmpty:SetPoint("TOPLEFT", PAD, y - 2)
+        drawer.gearEmpty:SetText("No camp objects in your bags, and no camp recipes known yet.")
+        drawer.gearEmpty:Show()
+        y = y - drawer.gearEmpty:GetStringHeight() - 8
+    else
+        drawer.gearEmpty:Hide()
         for i, data in ipairs(gear) do
             local row = GearRow(i)
             FillGearRow(row, data)
@@ -913,14 +1050,42 @@ function Campfire:Layout()
         end
     end
 
-    prompt:SetHeight(-y + 8)
+    drawer:SetHeight(-y + 8)
+    drawer:Show()
+    PlaceDrawer()
 end
 
 ---------------------------------------------------------------------------
 -- Update
 ---------------------------------------------------------------------------
 
--- Header, bar and range verdict; runs four times a second while the panel is up.
+local function ReadyAlert()
+    if not BOLT:GetConfig("campfire", "readyAlert", true) then return end
+    PlaySound(SOUNDKIT.READY_CHECK or 8960)
+    bar.burst:Stop()
+    bar.burst:Play()
+    if FlashClientIcon then FlashClientIcon() end
+end
+
+local function ShowProgress(value, max, text, color)
+    local progress = bar.progress
+    progress:SetMinMaxValues(0, max)
+    progress:SetValue(value)
+    progress:SetStatusBarColor(color[1], color[2], color[3])
+    progress.text:SetText(text)
+    progress:SetPoint("RIGHT", bar.sit:IsShown() and bar.sit or bar.arrow, "LEFT", -8, 0)
+    progress:Show()
+    bar.subtitle:Hide()
+end
+
+local function ShowSubtitle(text)
+    bar.progress:Hide()
+    bar.subtitle:SetText(text)
+    bar.subtitle:SetPoint("RIGHT", bar.sit:IsShown() and bar.sit or bar.arrow, "LEFT", -6, 0)
+    bar.subtitle:Show()
+end
+
+-- Status line, progress and range verdict; runs four times a second while the bar is up.
 function Campfire:Tick()
     local now = GetTime()
     if IsMoving() then
@@ -933,6 +1098,15 @@ function Campfire:Tick()
     local benefits = FindAura(AURA_BENEFITS)
     if warming and not state.seatedAt then state.seatedAt = now end -- sat on their own (/sit)
     local seated = state.seatedAt ~= nil
+
+    -- Camp Benefits just landed (or refreshed with new objects) while sitting by this fire.
+    local benefitsUntil = benefits and benefits.expirationTime or nil
+    if benefitsUntil and benefitsUntil ~= state.benefitsUntil and state.wasWarming then
+        ReadyAlert()
+        state.wasWarming = false
+    end
+    state.benefitsUntil = benefitsUntil
+    if warming and seated then state.wasWarming = true end
 
     local range -- "in", "far" or nil (unknown)
     if seated and warming then
@@ -962,86 +1136,156 @@ function Campfire:Tick()
         state.dirty = true
     end
 
-    local title, hint, color
-    local bar = prompt.bar
-    local showBar = false
+    bar.sit:SetShown(not seated and not warming)
     if seated and warming then
         local duration = warming.duration and warming.duration > 0 and warming.duration or WARM_UP
         local left = warming.expirationTime and warming.expirationTime > 0 and warming.expirationTime - now
             or duration - (now - state.seatedAt)
-        bar:SetMinMaxValues(0, duration)
-        bar:SetValue(duration - left)
-        bar.text:SetText(("Camp benefits in %s"):format(FormatTime(left)))
-        showBar = true
-        title, color = "Warming up", GOLD
-        hint = BOLT:GetConfig("campfire", "collapsed", false) and ("Camp benefits in %s"):format(FormatTime(left))
-            or "Stay seated until the bar fills"
+        bar.title:SetText("Warming up")
+        SetColor(bar.title, GOLD)
+        ShowProgress(duration - left, duration, ("Camp benefits in %s"):format(FormatTime(left)), ORANGE)
     elseif range == "far" then
-        title, hint, color = "Too far from the fire", "Stand up, step closer to the flames and sit again", RED
+        bar.title:SetText("Too far from the fire")
+        SetColor(bar.title, RED)
+        ShowSubtitle("Stand up, step closer and sit again")
     elseif seated then
-        title, hint, color = "Sitting down...", "Checking the fire's warmth", GOLD
+        bar.title:SetText("Sitting down...")
+        SetColor(bar.title, GOLD)
+        ShowSubtitle("Checking the fire's warmth")
     elseif benefits then
         local left = benefits.expirationTime and benefits.expirationTime > 0 and benefits.expirationTime - now
-        title, color = "Camp benefits active", GREEN
-        hint = (left and (FormatTime(left) .. " left. ") or "") .. "Sit again to add new objects"
+        bar.title:SetText("Camp benefits active")
+        SetColor(bar.title, GREEN)
+        if left and benefits.duration and benefits.duration > 0 then
+            ShowProgress(left, benefits.duration, ("%s left"):format(FormatTime(left)), GREEN)
+        else
+            ShowSubtitle("Sit again to add new objects")
+        end
     else
-        title, hint, color = "Sit by the fire", range == "in" and "You're close enough: click to sit"
-            or "Sit right next to the flames", GOLD
+        bar.title:SetText("Sit by the fire")
+        SetColor(bar.title, GOLD)
+        ShowSubtitle(range == "in" and "You're close enough" or "Right next to the flames")
     end
-
-    prompt.title:SetText(title)
-    SetColor(prompt.title, color)
-    prompt.hint:SetText(hint)
-    prompt.sit:SetShown(not seated and not warming)
+    bar.title:SetPoint("RIGHT", bar.sit:IsShown() and bar.sit or bar.arrow, "LEFT", -6, 0)
     local benefitsLeft = benefits and benefits.expirationTime and benefits.expirationTime > 0
         and benefits.expirationTime - now
-    prompt.benefitSection.extra:SetText(benefitsLeft and (FormatTime(benefitsLeft) .. " left") or "")
-    if range == "in" then
-        prompt.badge:SetText("In range")
-        SetColor(prompt.badge, GREEN)
-    elseif range == "far" then
-        prompt.badge:SetText("Too far")
-        SetColor(prompt.badge, RED)
-    else
-        prompt.badge:SetText("")
-    end
+    bar.drawer.benefitSection.extra:SetText(benefitsLeft and (FormatTime(benefitsLeft) .. " left") or "")
 
     -- Benefits change rarely: compare a signature before relayouting.
     local list = ReadBenefits(benefits)
     local signature = {}
     for _, benefit in ipairs(list) do table.insert(signature, (benefit.name or "") .. benefit.effect) end
     signature = table.concat(signature, "|")
-    prompt.wantBar = showBar
-    local collapsed = BOLT:GetConfig("campfire", "collapsed", false)
-    if (signature ~= prompt.benefitSignature or showBar ~= prompt.layoutBar or collapsed ~= prompt.layoutCollapsed
-        or state.dirty) and not InCombatLockdown() then
-        prompt.benefitSignature = signature
-        prompt.benefits = list
+    local expanded = BOLT:GetConfig("campfire", "expanded", false)
+    if (signature ~= bar.benefitSignature or expanded ~= bar.layoutExpanded or state.dirty)
+        and not InCombatLockdown() then
+        bar.benefitSignature = signature
+        bar.benefits = list
         if state.dirty then
             state.dirty = false
-            prompt.gear = GearList()
+            bar.gear = GearList()
         end
         self:Layout()
     end
 end
 
 function Campfire:Update()
-    if not prompt then return end
+    if not bar or state.preview then return end
     if InCombatLockdown() then return end
 
     local nearby = self.active and FindAura(AURA_NEARBY)
     if not nearby then
-        state.dismissed, state.seatedAt, state.placedAt = false, nil, nil
+        state.dismissed, state.seatedAt, state.placedAt, state.wasWarming = false, nil, nil, false
         wipe(state.warmSpots)
         return Conceal()
     end
-    prompt.icon:SetTexture(nearby.icon or FALLBACK_ICON)
+    bar.icon:SetTexture(nearby.icon or FALLBACK_ICON)
     if state.dismissed or not CanSit() then
         return Conceal()
     end
-    PlacePanel()
+    self:Place()
     self:Tick()
     Reveal()
+end
+
+---------------------------------------------------------------------------
+-- Edit Mode: preview, position and options
+---------------------------------------------------------------------------
+
+local ANCHORS = {
+    { text = "Left of the minimap", value = "LEFT" },
+    { text = "Right of the minimap", value = "RIGHT" },
+    { text = "Above the minimap", value = "TOP" },
+    { text = "Under the minimap", value = "BOTTOM" },
+    { text = "Free (where you drag it)", value = "FREE" },
+}
+
+local function ShowPreview()
+    if not (Campfire.active and bar) then return end
+    state.preview = true
+    bar.drawer:Hide()
+    bar.icon:SetTexture(FALLBACK_ICON)
+    bar.title:SetText("Campfire")
+    SetColor(bar.title, GOLD)
+    bar.sit:Hide()
+    ShowProgress(40, WARM_UP, "Camp bar", ORANGE)
+    Campfire:Place()
+    bar.fade:Stop()
+    bar.wanted = true
+    bar:SetAlpha(1)
+    bar:Show()
+end
+
+local function EndPreview()
+    if not state.preview then return end
+    state.preview = false
+    Conceal(true)
+    state.dirty = true
+    Campfire:Update()
+end
+
+function Campfire:RegisterEditMode()
+    if self.editModeRegistered or not EditMode.available then return end
+    self.editModeRegistered = true
+    EditMode:AddFrame({
+        key = EDIT_KEY,
+        name = "Camp Bar",
+        frame = bar,
+        default = { point = "TOPRIGHT", x = -250, y = -40 },
+        onEnter = ShowPreview,
+        onExit = EndPreview,
+        onMoved = function(layoutName)
+            EditMode:Set(EDIT_KEY, "anchor", "FREE", layoutName)
+            EditMode:RefreshFrame(EDIT_KEY)
+        end,
+        apply = function() Campfire:Place() end,
+        settings = {
+            EditMode:Dropdown("Position", nil, ANCHORS, {
+                default = "LEFT",
+                desc = "Beside the minimap (it follows the minimap), or free where you drag it.",
+                get = function() return Anchor() end,
+                set = function(value)
+                    EditMode:Set(EDIT_KEY, "anchor", value)
+                    Campfire:Place()
+                end,
+            }),
+            EditMode:Slider("Size", nil, {
+                min = 50, max = 150, step = 5, default = 100, format = EditMode.Percent,
+                get = function() return EditMode:Get(EDIT_KEY, "scale", 100) end,
+                set = function(value)
+                    EditMode:Set(EDIT_KEY, "scale", value)
+                    Campfire:Place()
+                end,
+            }),
+            EditMode:Checkbox("Sit down on its own", { "campfire", "autoSit" }, {
+                desc = "Sit again when you stop where the fire warmed you, if you have no camp benefits yet or just placed an object.",
+            }),
+            EditMode:Checkbox("Ready alert", { "campfire", "readyAlert" }, {
+                desc = "A sound, a glow and a taskbar flash when Camp Benefits lands.",
+            }),
+            EditMode:Checkbox("Show camp recipes you can craft", { "campfire", "showCraft" }),
+        },
+    })
 end
 
 ---------------------------------------------------------------------------
@@ -1091,15 +1335,18 @@ function Campfire:PrintDebug()
 end
 
 ---------------------------------------------------------------------------
+
+---------------------------------------------------------------------------
 -- Lifecycle
 ---------------------------------------------------------------------------
 
 function Campfire:OnInitialize()
-    BuildPrompt()
+    BuildBar()
+    self:RegisterEditMode()
     self.eventFrame = CreateFrame("Frame")
     self.eventFrame:SetScript("OnEvent", function(_, event, unit, _, spellID)
         if event == "PLAYER_REGEN_DISABLED" then
-            -- Fires just before combat lockdown: last chance to hide the secure rows.
+            -- Fires just before combat lockdown: last chance to hide the secure buttons.
             Conceal(true)
             return
         elseif event == "PLAYER_STARTED_MOVING" then
@@ -1134,6 +1381,7 @@ end
 
 function Campfire:OnSettingChanged()
     state.dirty = true
+    if state.preview then return end
     self:Update()
 end
 
@@ -1149,13 +1397,18 @@ function Campfire:OnEnable()
         events:RegisterEvent(event)
     end
     state.dirty = true
-    self:Update()
+    if EditMode:IsActive() then
+        ShowPreview()
+    else
+        self:Update()
+    end
 end
 
 function Campfire:OnDisable()
     self.eventFrame:UnregisterAllEvents()
     state.pendingCraft, state.openedForCraft = nil, false
-    self:Update()
+    state.preview = false
+    Conceal(true)
 end
 
 BOLT:RegisterModule("campfire", Campfire)

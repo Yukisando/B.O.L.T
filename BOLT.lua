@@ -32,7 +32,8 @@ local function PrintHelp()
         { "/bolt toggle debug", "Toggle debug mode" },
         { "/bolt debug config", "Show configuration debug info" },
         { "/bolt transmog", "Open Transmog Presets" },
-        { "/bolt camp", "Show what the Campfire panel sees (WoW: Forever)" },
+        { "/bolt camp", "Show what the camp bar sees (WoW: Forever)" },
+        { "/bolt edge", "Show how far the minimap may go past the screen edge" },
         { "/bolt range", "Show what the nameplate range dot checks on your target" },
         { "/bolt reset", "Clear any stuck Skyriding key overrides" },
         { "/bolt reload", "Reload the UI" },
@@ -103,6 +104,14 @@ commands.camp = function()
         mod:PrintDebug()
     else
         BOLT:Print("Campfire is only available on WoW: Forever.")
+    end
+end
+
+commands.edge = function()
+    local mod = BOLT.modules.editModeOptions
+    if mod and mod.DescribeMinimapEdge then
+        if mod.ApplyMinimapEdge then mod.ApplyMinimapEdge() end
+        BOLT:Print("Minimap screen edge: " .. mod:DescribeMinimapEdge())
     end
 end
 

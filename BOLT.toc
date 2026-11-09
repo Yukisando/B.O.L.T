@@ -15,15 +15,21 @@
 
 Locales.lua
 
+# LibEditMode (p3lim, MIT), embedded privately: namespaced.lua makes it load onto BOLT's
+# namespace instead of LibStub.
+Libs\LibEditMode\namespaced.lua
+Libs\LibEditMode\embed.xml
+
 Core\Core.lua
 Core\Database.lua
 Core\Utils.lua
 Core\ButtonUtils.lua
 Core\NativeArt.lua
+Core\EditMode.lua
 
 Modules\GameMenu.lua
 Modules\UnitFrames.lua
-Modules\Immersive.lua
+Modules\FrameVisibility.lua
 Modules\Tooltip.lua
 Modules\RangedTimer.lua
 Modules\AutoHide.lua
@@ -49,6 +55,7 @@ Modules\SpecialGamemode.lua
 Modules\Admin.lua
 Modules\Roleplay.lua
 Modules\TransmogPresets.lua
+Modules\EditModeOptions.lua
 Modules\Config.lua
 
 BOLT.lua

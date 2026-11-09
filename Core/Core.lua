@@ -36,10 +36,17 @@ BOLT.defaults = {
             party = true,
             castBars = true,
         },
-        immersive = {
-            showWithTarget = true, -- Personal Resource Display also shows with an attackable target
-            idleAlpha = 10, -- percent opacity of the Personal Resource Display out of combat; 0 hides it
-            rightClickMenus = true, -- right-click it for your menu, Shift + right-click for the target's
+        -- Player Frame, Target Frame and Personal Resource Display: hide and show conditions.
+        -- Edited from each frame's Edit Mode dialog (B.O.L.T block) or the settings page.
+        frameVisibility = {
+            -- target / showWithTarget: "OFF", "ANY", "HOSTILE" (attackable) or "FRIENDLY" (not attackable)
+            player = { hide = false, combat = false, target = "OFF", hover = false },
+            target = { hide = false, combat = false, target = "OFF", hover = false },
+            display = {
+                showWithTarget = "OFF", -- also show with this kind of target (Edit Mode "In combat")
+                idleAlpha = 0,          -- percent opacity out of combat; 0 keeps Blizzard's hiding
+                rightClickMenus = false, -- right-click it for your menu, Shift + right-click for the target's
+            },
         },
         autoHide = {
             mainBar = true,     -- main action bar, micro menu and bags, as one strip
@@ -52,6 +59,7 @@ BOLT.defaults = {
             questTracker = false,
             minimap = false,
             idleAlpha = 0, -- percent opacity while hidden
+            showWithTarget = "ANY", -- which targets bring it back: OFF, ANY, HOSTILE, FRIENDLY
         },
         gameMenu = {
             showLeaveGroup = true,
@@ -85,6 +93,12 @@ BOLT.defaults = {
         soundMuter = {
             mutedSoundIDs = {},
         },
+        -- How far Edit Mode lets a frame go: BLIZZARD (whole frame on screen), MAP (only the
+        -- visible map, the empty space around it may leave the screen), FREE (anywhere).
+        -- Set from the Minimap's Edit Mode dialog.
+        screenEdges = {
+            minimapEdge = "MAP",
+        },
         minimap = {
             buttons = "BOTTOM", -- side of the map for the button bar: TOP, BOTTOM, LEFT or RIGHT
             wheelZoom = true,
@@ -101,8 +115,12 @@ BOLT.defaults = {
         campfire = {
             autoSit = true,   -- sit again on a spot where the fire warmed you, when it would gain something
             showCraft = true, -- craft rows for the camp recipes you know
-            collapsed = false, -- panel folded to its title line
+            expanded = false,  -- camp bar drawer (benefits and gear) open
+            readyAlert = true, -- sound, glow and taskbar flash when Camp Benefits lands
             -- learned = { [recipeID] = true }, camp recipes seen in open profession windows
+        },
+        rangedTimer = {
+            attach = true, -- sit under the Personal Resource Display when it is on
         },
         keyShare = {
             rouletteEnabled = true,
@@ -121,7 +139,6 @@ BOLT.defaults = {
 BOLT.defaultModuleStates = {
     gameMenu = false,
     unitFrames = false,
-    immersive = false,
     tooltip = false,
     rangedTimer = false,
     autoHide = false,
@@ -162,6 +179,21 @@ function BOLT:RegisterModule(name, module)
     module.parent = self
     self.modules[name] = module
     table.insert(self.moduleOrder, name)
+end
+
+-- Writes a setting and lets everything that shows it catch up: the owning module (first path
+-- key) gets OnSettingChanged(lastKey), and the settings page refreshes. Used by the settings
+-- page and by the Edit Mode dialogs, so both always show the same value.
+function BOLT:SetSetting(path, value)
+    self:SetConfig(value, unpack(path))
+    local mod = self.modules[path[1]]
+    if mod and (mod.active or mod.alwaysOn) and mod.OnSettingChanged then
+        mod:OnSettingChanged(path[#path], path)
+    end
+    local config = self.modules.config
+    if config and config.pages and mod ~= config then
+        config:RefreshAll()
+    end
 end
 
 function BOLT:GetModule(name)

@@ -201,3 +201,30 @@ function BOLT:OpenConfigPanel()
     self:ActivateModule(config)
     config:Open()
 end
+
+-- Bounds of the visible minimap and everything framed around it (zone title, BOLT's square
+-- minimap bars) as left, right, top, bottom in `space`'s coordinates (UIParent by default).
+-- Used to place the camp bar beside it and to let the empty part of the cluster leave the screen.
+function BOLT.MinimapBounds(space)
+    space = space or UIParent
+    local ratio = 1 / space:GetEffectiveScale()
+    local l, r, t, b
+    local function Add(frame)
+        if not (frame and frame:IsVisible() and frame:GetLeft()) then return end
+        local s = frame:GetEffectiveScale() * ratio
+        local fl, fr, ft, fb = frame:GetLeft() * s, frame:GetRight() * s, frame:GetTop() * s, frame:GetBottom() * s
+        l, r = math.min(l or fl, fl), math.max(r or fr, fr)
+        t, b = math.max(t or ft, ft), math.min(b or fb, fb)
+    end
+    Add(Minimap)
+    local cluster = MinimapCluster
+    if cluster then
+        Add(cluster.BorderTop)
+        Add(cluster.ZoneTextButton)
+    end
+    local square = BOLT.modules and BOLT.modules.minimap
+    if square and square.active and square.GetChromeFrames then
+        for _, frame in ipairs(square:GetChromeFrames()) do Add(frame) end
+    end
+    return l, r, t, b
+end
