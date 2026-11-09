@@ -6,6 +6,19 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-10 (2026-11-09)
+
+- feat: Edit Mode support, camp bar, Player & Target Frames, minimap screen edge, Goodbye emote
+- Edit Mode: select a Blizzard frame (Player, Target, Personal Resource Display, Minimap, action bars, bags, micro menu, XP bar, buffs, quest tracker, cast bar, focus, pet, party) and a B.O.L.T block lists what BOLT can do to it
+- Edit Mode: BOLT's own frames (camp bar, floating ranged timer) move like Blizzard's, saved per layout
+- Settings page now only turns these modules on and off, with an "Open Edit Mode" button
+- Player & Target Frames replaces Immersive Mode: hide either frame and pick when it comes back (in combat, with a target, on mouse hover); your Immersive setup carries over
+- Target options are a choice: any target, attackable or not attackable (frames, Personal Resource Display, Auto-hide)
+- Campfire (WoW: Forever): a slim camp bar beside the minimap with a drawer for benefits and camp gear, Place and Craft buttons, and a ready alert when Camp Benefits lands
+- Minimap: the empty space around it can go past the screen edge so the map sits snug in the corner (/bolt edge)
+- Ranged attack timer can float on its own, with its width set in Edit Mode
+- Roleplay: Goodbye emote keybind
+
 ## v8-9 (2026-11-08)
 
 - feat: Everyday emote keybinds, thank players who buff you, fishing and nameplate fixes
