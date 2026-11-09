@@ -6,6 +6,11 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-11 (2026-11-09)
+
+- feat: pet health bar on the Personal Resource Display
+- Personal Resource Display: a half-height pet health bar on top of your health bar, in the display's own gold-bordered style (Edit Mode: select the Personal Resource Display, tick Pet health bar)
+
 ## v8-10 (2026-11-09)
 
 - feat: Edit Mode support, camp bar, Player & Target Frames, minimap screen edge, Goodbye emote
