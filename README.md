@@ -37,6 +37,7 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 
 - **Hide Them Your Way**: Hide the Player Frame and/or the Target Frame, then pick when each comes back: in combat, with a target (any target, attackable only or not attackable only), or on mouse hover
 - **Personal Resource Display**: Turn on Blizzard's health and power bars under your character. When Edit Mode shows it only in combat, it can also show with a target (any, attackable only or not attackable only), fade to an opacity of your choice instead of hiding, and open your menu on right-click (Shift + right-click for your target's)
+- **Pet Health Bar**: A half-height bar on top of the Personal Resource Display's health bar shows your pet's health, with the same gold-bordered art, width and spacing as its other bars. Shows while you have a pet out
 - **Your Own Immersive Mode**: Hide both frames and turn on the Personal Resource Display. (This replaces the old Immersive Mode toggle; if you had it on, your setup carries over)
 - **In Edit Mode**: Select the Player Frame, Target Frame or Personal Resource Display; BOLT's options sit in a "B.O.L.T" block under Blizzard's settings. Every frame shows while you edit
 

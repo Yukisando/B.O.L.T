@@ -11,7 +11,8 @@
 --
 -- Personal Resource Display: on/off (CVar nameplateShowSelf), and with Edit Mode's "In Combat"
 -- visibility: also show with a target (any, attackable or not attackable), an out-of-combat opacity instead of hiding,
--- and right-click menus (yours; Shift for your target's) on its bars.
+-- and right-click menus (yours; Shift for your target's) on its bars. Also a half-height pet
+-- health bar on top of its health bar.
 
 local ADDON_NAME, BOLT = ...
 local EditMode = BOLT.EditMode
@@ -350,6 +351,104 @@ function FrameVisibility:UpdateMenuCatcher()
 end
 
 ---------------------------------------------------------------------------
+-- Pet health bar: half the height of the display's other bars, drawn with its own bar art and
+-- sitting on top of its health bar. A child of the display, so it shows, hides, fades and scales
+-- with it; it only shows while you have a pet out.
+---------------------------------------------------------------------------
+
+local PET_COLOR = { 0.45, 0.85, 0.3 } -- a softer green than the player's own health
+local DEFAULT_PADDING = 4
+local DEFAULT_POWER_HEIGHT = 10 -- the display's power bar height when unreadable
+local PET_MIN_HEIGHT = 5
+local WHITE = "Interface\\Buttons\\WHITE8X8"
+
+local petBar, petAnchoredTo, petEvents
+
+local function Readable(value, fallback)
+    if value and not BOLT.IsSecret(value) and value > 0 then return value end
+    return fallback
+end
+
+local function AnchorPetBar()
+    local display = Display()
+    if not display then return false end
+    local container = display.HealthBarsContainer or display
+    if petBar:GetParent() ~= display then petBar:SetParent(display) end
+    local power = display.PowerBar
+    local height = power and Readable(power:GetHeight(), DEFAULT_POWER_HEIGHT) or DEFAULT_POWER_HEIGHT
+    local padding = display.GetBarPadding and Readable(display:GetBarPadding(), DEFAULT_PADDING) or DEFAULT_PADDING
+    petBar:ClearAllPoints()
+    petBar:SetPoint("BOTTOMLEFT", container, "TOPLEFT", 0, padding)
+    petBar:SetPoint("BOTTOMRIGHT", container, "TOPRIGHT", 0, padding)
+    petBar:SetHeight(math.max(PET_MIN_HEIGHT, math.floor(height / 2 + 0.5)))
+    if petAnchoredTo ~= container then
+        petAnchoredTo = container
+        -- Edit Mode changes to the display's size reach the container; follow them.
+        container:HookScript("OnSizeChanged", function()
+            if petBar:IsShown() and petAnchoredTo == container then AnchorPetBar() end
+        end)
+    end
+    return true
+end
+
+-- UnitHealth/UnitHealthMax can be secret values in combat on Midnight; status bars accept them
+-- as they are, so they go straight in without being compared.
+local function UpdatePetBar()
+    if not (DisplayCfg("petHealth") and UnitExists("pet") and AnchorPetBar()) then
+        petBar:Hide()
+        return
+    end
+    petBar:SetMinMaxValues(0, UnitHealthMax("pet"))
+    petBar:SetValue(UnitHealth("pet"))
+    petBar:Show()
+end
+
+local function BuildPetBar()
+    petBar = CreateFrame("StatusBar", "BOLTPetHealthBar", UIParent)
+    petBar:SetMinMaxValues(0, 1)
+    petBar:SetValue(1)
+    petBar:Hide()
+
+    -- The display's own bar art (PersonalResourceStatusBar template): the background atlas
+    -- carries the gold border, drawn a little past the fill on every side.
+    local fill = BOLT.NativeArt.ResolveAtlas("UI-HUD-CoolDownManager-Bar")
+    local back = BOLT.NativeArt.ResolveAtlas("UI-HUD-CoolDownManager-Bar-BG")
+    petBar:SetStatusBarTexture(fill or WHITE)
+    petBar:SetStatusBarColor(PET_COLOR[1], PET_COLOR[2], PET_COLOR[3])
+    local background = petBar:CreateTexture(nil, "BACKGROUND")
+    if back then
+        background:SetAtlas(back)
+        background:SetPoint("TOPLEFT", -2, 3)
+        background:SetPoint("BOTTOMRIGHT", 6, -7)
+    else
+        background:SetTexture(WHITE)
+        background:SetVertexColor(0, 0, 0, 0.7)
+        background:SetPoint("TOPLEFT", -1, 1)
+        background:SetPoint("BOTTOMRIGHT", 1, -1)
+    end
+
+    petEvents = CreateFrame("Frame")
+    petEvents:SetScript("OnEvent", UpdatePetBar)
+end
+
+function FrameVisibility:UpdatePetBar()
+    local on = DisplayCfg("petHealth") == true
+    if not petBar then
+        if not on then return end
+        BuildPetBar()
+    end
+    if on then
+        petEvents:RegisterUnitEvent("UNIT_HEALTH", "pet")
+        petEvents:RegisterUnitEvent("UNIT_MAXHEALTH", "pet")
+        petEvents:RegisterUnitEvent("UNIT_PET", "player")
+        petEvents:RegisterEvent("PLAYER_ENTERING_WORLD")
+    else
+        petEvents:UnregisterAllEvents()
+    end
+    UpdatePetBar()
+end
+
+---------------------------------------------------------------------------
 -- Edit Mode: a B.O.L.T block under the Player, Target and Personal Resource Display dialogs
 ---------------------------------------------------------------------------
 
@@ -412,6 +511,10 @@ function FrameVisibility:RegisterEditMode()
             desc = "Right-click the display for your menu, Shift + right-click for your target's.",
             hidden = displayOff,
         }),
+        EditMode:Checkbox("Pet health bar", { "frameVisibility", "display", "petHealth" }, {
+            desc = "A half-height bar on top of your health bar with your pet's health, in the same style. Shows while you have a pet out.",
+            hidden = displayOff,
+        }),
     })
 end
 
@@ -423,6 +526,7 @@ function FrameVisibility:OnSettingChanged(key, path)
     if path and path[2] == "display" then
         RefreshDisplay()
         self:UpdateMenuCatcher()
+        self:UpdatePetBar()
     else
         self:ApplyFrames()
     end
@@ -448,6 +552,7 @@ function FrameVisibility:OnEnable()
     self:ApplyFrames()
     RefreshDisplay()
     self:UpdateMenuCatcher()
+    self:UpdatePetBar()
 end
 
 BOLT:RegisterModule("frameVisibility", FrameVisibility)

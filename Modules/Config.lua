@@ -125,7 +125,7 @@ local PAGES = {
             },
             {
                 module = "frameVisibility",
-                description = "Hide the Player and Target frames and pick when they come back. Pair a hidden Player Frame with Blizzard's Personal Resource Display (your health and power under your character), which B.O.L.T can also fade out of combat and make right-clickable.",
+                description = "Hide the Player and Target frames and pick when they come back. Pair a hidden Player Frame with Blizzard's Personal Resource Display (your health and power under your character), which B.O.L.T can also fade out of combat, make right-clickable and top with your pet's health.",
                 editMode = "select the Player Frame, the Target Frame or the Personal Resource Display.",
             },
             {
