@@ -46,7 +46,7 @@ BOLT.defaults = {
                 showWithTarget = "OFF", -- also show with this kind of target (Edit Mode "In combat")
                 idleAlpha = 0,          -- percent opacity out of combat; 0 keeps Blizzard's hiding
                 rightClickMenus = false, -- right-click it for your menu, Shift + right-click for the target's
-                petHealth = false,       -- half-height pet health bar on top of its health bar
+                petHealth = true,        -- half-height pet health bar on top of its health bar
             },
         },
         autoHide = {

@@ -257,6 +257,19 @@ function BOLT:InitializeDatabase()
         end
     end
 
+    -- The pet health bar shipped off by default (v8-11) and the merge above wrote that "off"
+    -- into every layout. It defaults to on now: flip the stored off once, the day after it
+    -- shipped, before anyone could really have chosen it.
+    if not BOLTDB.petHealthDefaultOn then
+        for _, layout in pairs(BOLTDB.layouts) do
+            local display = type(layout.settings.frameVisibility) == "table" and layout.settings.frameVisibility.display
+            if type(display) == "table" and display.petHealth == false then
+                display.petHealth = true
+            end
+        end
+        BOLTDB.petHealthDefaultOn = true
+    end
+
     MergeDefaults(profile, characterDefaults)
 
     self.db = { global = BOLTDB, profile = profile }

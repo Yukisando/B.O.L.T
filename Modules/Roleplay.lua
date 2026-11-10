@@ -101,9 +101,13 @@ local function OnPlayerAura(_, _, unit, updateInfo)
     if unit ~= "player" or InCombatLockdown() then return end
     if not BOLT:GetConfig("roleplay", "autoThankBuffs") then return end
     if BOLT.IsSecret(updateInfo) or type(updateInfo) ~= "table" then return end
+    -- Fields can be secret even when the table isn't (seen out of combat too): testing one
+    -- errors, so skip the update when either field we read is secret.
+    local isFullUpdate, addedAuras = updateInfo.isFullUpdate, updateInfo.addedAuras
+    if BOLT.IsSecret(isFullUpdate) or BOLT.IsSecret(addedAuras) then return end
     -- A full update (login, zoning) isn't someone buffing you right now.
-    if updateInfo.isFullUpdate or not updateInfo.addedAuras then return end
-    for _, aura in ipairs(updateInfo.addedAuras) do
+    if isFullUpdate or type(addedAuras) ~= "table" then return end
+    for _, aura in ipairs(addedAuras) do
         pcall(ThankCaster, aura)
     end
 end
