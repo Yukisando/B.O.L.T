@@ -6,6 +6,12 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-13 (2026-11-10)
+
+- fix: auto-thank error on secret aura data, pet health bar on by default
+- Fixed: auto-thank for buffs could throw an error when the game marked buff data as secret (seen outside combat too); those updates are now skipped
+- Personal Resource Display: the pet health bar is now on by default, including for layouts saved before this update
+
 ## v8-12 (2026-11-10)
 
 - feat: Auto Party Chat, UI setup saved per Edit Mode layout, double-click fishing fix
