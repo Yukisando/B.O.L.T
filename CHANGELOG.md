@@ -6,6 +6,16 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-12 (2026-11-10)
+
+- feat: Auto Party Chat, UI setup saved per Edit Mode layout, double-click fishing fix
+- Auto Party Chat (new, Social): joining a group switches the chat box to Party, Raid or Instance chat; leaving puts it back on Say. Guild, whispers and custom channels are left alone
+- Edit Mode: your UI setup is now saved with each Edit Mode layout and shared by all your characters: positions, every Edit Mode option and whether the UI modules are on. Switching layout switches it too; a new layout starts as a copy of the current one
+- Fixed: the camp bar forgot its position (like "Above the minimap") when you changed character
+- Fixed: Double-Click Fishing didn't cast. A quick right-click on the world now readies it, and the second click casts Fishing
+- New installs start with Unit Frames, Minimap, Tooltips, Ranged Attack Timer, Nameplates, Party Frames Center Growth, Game Menu, Wowhead Links and Key Share on
+- The minimap tracking menu now only lists Ranged Attack Timer, Auto-hide UI, Game Menu, Auto Sell, Campfire, Auto Rep Switch, Skyriding Controls, Chat Notifier, Key Share and Achievement Tracker
+
 ## v8-11 (2026-11-09)
 
 - feat: pet health bar on the Personal Resource Display
