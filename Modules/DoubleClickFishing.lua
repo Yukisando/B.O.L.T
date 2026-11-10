@@ -1,11 +1,13 @@
 -- B.O.L.T Double-Click Fishing Module
 -- Double right-click on the world to cast Fishing.
 --
--- Addons can't cast from their own code. On the second right press, BUTTON2 is bound for that one
--- click to a secure button that casts Fishing on the release; the button clears the binding as soon as it fires
--- (a secure snippet, so it also works if combat starts), and a short timer clears it if the click
--- never lands. Skipped in combat, while mounted, with a unit under the mouse, with a loot window
--- open, or while already fishing (so a double-click on the bobber doesn't recast).
+-- Addons can't cast from their own code. WoW sends a key's release to the binding that took its
+-- press, so the binding can't be swapped in the middle of a click. Instead, a short right-click on
+-- the world arms the double-click: BUTTON2 is bound to a secure button that casts Fishing, for as
+-- long as a second click may follow. The button clears the binding as soon as it fires (a secure
+-- snippet, so it also works if combat starts), and a timer clears it if no second click comes.
+-- Skipped in combat, while mounted, with a unit under the mouse, with a loot window open, or
+-- while already fishing (so a double-click on the bobber doesn't recast).
 
 local ADDON_NAME, BOLT = ...
 
@@ -14,7 +16,7 @@ local DoubleClickFishing = {
 }
 
 local BUTTON_NAME = "BOLTFishingButton"
-local MIN_GAP = 0.05 -- faster than this is a bounce, not a second click
+local MAX_HOLD = 0.3 -- a longer press is turning the camera, not a click
 local MAX_GAP = 0.4  -- slower than this is two single clicks
 
 -- Fishing cast spells: modern one first, then the old ranks (Classic-style clients).
@@ -67,41 +69,52 @@ end
 function DoubleClickFishing:ClearBinding()
     if self.bound and not InCombatLockdown() then
         ClearOverrideBindings(self.button)
-        self.bound = false
     end
+    self.bound = false
 end
 
 function DoubleClickFishing:OnMouseDown(mouseButton)
-    if mouseButton ~= "RightButton" or InCombatLockdown() then return end
+    if mouseButton ~= "RightButton" then return end
+    if self.bound then
+        -- This press went to the fishing button; tidy up once the binding has fired.
+        self.pressTime = nil
+        C_Timer.After(0, function() self:ClearBinding() end)
+        return
+    end
+    self.pressTime = GetTime()
+end
 
-    local now = GetTime()
-    local gap = now - (self.lastClick or 0)
-    self.lastClick = now
-    if gap < MIN_GAP or gap > MAX_GAP or not self:CanCast() then return end
+function DoubleClickFishing:OnMouseUp(mouseButton)
+    if mouseButton ~= "RightButton" or not self.pressTime then return end
+    local held = GetTime() - self.pressTime
+    self.pressTime = nil
+    if held > MAX_HOLD or not self:CanCast() then return end
 
     local spell = FishingSpellName()
     if not spell then return end
 
-    self.lastClick = nil -- a third click starts a new pair
     self.button:SetAttribute("spell", spell)
     SetOverrideBindingClick(self.button, true, "BUTTON2", BUTTON_NAME)
     self.bound = true
-    C_Timer.After(0.5, function() self:ClearBinding() end)
+    self.armToken = (self.armToken or 0) + 1
+    local token = self.armToken
+    C_Timer.After(MAX_GAP, function()
+        if token == self.armToken then
+            self:ClearBinding()
+        end
+    end)
 end
 
 function DoubleClickFishing:OnInitialize()
     local button = CreateFrame("Button", BUTTON_NAME, UIParent, "SecureActionButtonTemplate")
-    button:RegisterForClicks("AnyDown", "AnyUp")
+    button:RegisterForClicks("AnyDown")
     button:SetAttribute("type", "spell")
-    -- The binding goes in during the second press, so only that press's release reaches the
-    -- button: cast on release whatever "cast on key down" says. Blizzard reads "useOnKeyDown";
-    -- without it the button follows ActionButtonUseKeyDown (on by default) and ignores the release.
-    button:SetAttribute("useOnKeyDown", false)
-    -- Drop the one-shot binding on the release that casts.
+    -- Cast on the second press. Blizzard reads "useOnKeyDown"; without it the button follows
+    -- ActionButtonUseKeyDown and a player with it off would never cast.
+    button:SetAttribute("useOnKeyDown", true)
+    -- Drop the one-shot binding as soon as it has cast.
     SecureHandlerWrapScript(button, "PostClick", button, [[
-        if not down then
-            self:ClearBindings()
-        end
+        self:ClearBindings()
     ]])
     self.button = button
 
@@ -109,6 +122,8 @@ function DoubleClickFishing:OnInitialize()
     frame:SetScript("OnEvent", function(_, event, ...)
         if event == "GLOBAL_MOUSE_DOWN" then
             self:OnMouseDown(...)
+        elseif event == "GLOBAL_MOUSE_UP" then
+            self:OnMouseUp(...)
         elseif event == "PLAYER_REGEN_DISABLED" then
             self:ClearBinding()
         end
@@ -118,6 +133,7 @@ end
 
 function DoubleClickFishing:OnEnable()
     self.eventFrame:RegisterEvent("GLOBAL_MOUSE_DOWN")
+    self.eventFrame:RegisterEvent("GLOBAL_MOUSE_UP")
     self.eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
 end
 

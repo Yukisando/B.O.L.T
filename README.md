@@ -6,7 +6,7 @@ Supports **Midnight (12.1.5)** and **WoW: Forever**. On Forever, modules built o
 
 All modules can be toggled independently. New installs start with every module disabled — turn on what you want from the settings panel (`/bolt`) or via the quick toggles in the minimap tracking dropdown.
 
-**Edit Mode**: BOLT's own frames (camp bar, floating ranged timer) move in Edit Mode like Blizzard's, with positions saved per layout. Select a Blizzard frame (Player, Target, Personal Resource Display, Minimap, action bars, micro menu, bags, experience bar, buffs, quest tracker, cast bar, focus, pet and party frames) and a "B.O.L.T" block under its settings says what BOLT can do to that frame, such as "Fade out until needed" or "Flat style (no round portrait)". Ticking one turns its module on when needed. Those options live only in Edit Mode: the settings page turns modules on and off and has an "Open Edit Mode" button.
+**Edit Mode**: BOLT's own frames (camp bar, floating ranged timer) move in Edit Mode like Blizzard's. Your whole UI setup is saved with each Edit Mode layout and shared by all your characters: positions, every Edit Mode option, and whether the UI modules (Unit Frames, Minimap, Auto-hide UI, Tooltips, Nameplates, Party Frames Center Growth, Ranged Attack Timer, Campfire) are on. Switching layout switches that setup too, and a new layout starts as a copy of the one you were on. Select a Blizzard frame (Player, Target, Personal Resource Display, Minimap, action bars, micro menu, bags, experience bar, buffs, quest tracker, cast bar, focus, pet and party frames) and a "B.O.L.T" block under its settings says what BOLT can do to that frame, such as "Fade out until needed" or "Flat style (no round portrait)". Ticking one turns its module on when needed. Those options live only in Edit Mode: the settings page turns modules on and off and has an "Open Edit Mode" button.
 
 ## Modules
 
@@ -126,7 +126,7 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 
 #### Double-Click Fishing
 
-- **Quick Cast**: Double right-click on the world to cast Fishing; ignored in combat, while mounted, over a character, with loot open or while already fishing
+- **Quick Cast**: Double right-click on the world to cast Fishing; ignored in combat, while mounted, over a character, with loot open or while already fishing. A quick right-click followed by holding the button down within 0.4 s also casts, instead of turning the camera
 
 #### Skyriding
 
@@ -145,6 +145,12 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 - **Multiple Sound Options**: Choose from several built-in notification sounds with a preview button
 - **Throttled Alerts**: Rapid messages are throttled so sounds don't overlap
 - **Self-Filtering**: Your own messages are ignored
+
+#### Auto Party Chat
+
+- **Group Channel by Default**: Joining a group switches the chat box to Party, Raid or Instance chat to match the group
+- **Back to Say**: Leaving the group puts the chat box back on Say
+- **Leaves Your Choices Alone**: Only switches away from Say or a group channel; Guild, whispers and custom channels stay as you set them
 
 #### Wowhead Link
 

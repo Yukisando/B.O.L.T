@@ -4,7 +4,8 @@
 --
 --   * BOLT's own frames (camp bar, ranged timer...) are registered with EditMode:AddFrame: they
 --     get the blue Edit Mode selection, drag to move, and a settings dialog. Positions and
---     per-frame choices are saved per Edit Mode layout in profile.editMode[layout][key].
+--     per-frame choices are saved per Edit Mode layout in BOLTDB.layouts[layout].frames[key],
+--     shared by every character (Core/Database.lua).
 --   * Blizzard's frames (Player Frame, Minimap, action bars...) get a "B.O.L.T" block under their
 --     own Edit Mode dialog with EditMode:AddSystemSettings. Those options are the same saved
 --     settings the BOLT settings page edits.
@@ -25,20 +26,10 @@ local specs = {} -- [key] = frame spec
 -- Per-layout storage
 ---------------------------------------------------------------------------
 
-function EditMode:LayoutName()
-    return (LEM and LEM:GetActiveLayoutName()) or "Default"
-end
-
 local function Store(key, layoutName)
-    local root = BOLT:GetConfig("editMode")
-    if type(root) ~= "table" then
-        root = {}
-        BOLT:SetConfig(root, "editMode")
-    end
-    layoutName = layoutName or EditMode:LayoutName()
-    root[layoutName] = root[layoutName] or {}
-    root[layoutName][key] = root[layoutName][key] or {}
-    return root[layoutName][key]
+    local frames = BOLT:GetLayout(layoutName).frames
+    frames[key] = frames[key] or {}
+    return frames[key]
 end
 
 function EditMode:Get(key, field, default, layoutName)
@@ -123,9 +114,28 @@ if LEM then
         end
     end)
     LEM:RegisterCallback("layout", function(layoutName)
+        if not BOLT.db then return end
+        BOLT:SwitchLayout(layoutName)
         for _, spec in pairs(specs) do
             if spec.apply then spec.apply(layoutName) end
         end
+    end)
+
+    LEM:RegisterCallback("create", function(layoutName, _, copySource)
+        if BOLT.db then BOLT:GetLayout(layoutName, copySource) end
+    end)
+    LEM:RegisterCallback("rename", function(oldName, newName)
+        if BOLT.db then BOLT:RenameLayout(oldName, newName) end
+    end)
+    LEM:RegisterCallback("delete", function(layoutName)
+        if BOLT.db then BOLT:DeleteLayout(layoutName) end
+    end)
+
+    -- A layout switch during combat waits for it to end (modules may touch secure frames).
+    local regen = CreateFrame("Frame")
+    regen:RegisterEvent("PLAYER_REGEN_ENABLED")
+    regen:SetScript("OnEvent", function()
+        if BOLT.pendingLayoutApply then BOLT:ApplyLayout() end
     end)
 end
 

@@ -136,30 +136,46 @@ BOLT.defaults = {
     },
 }
 
--- Modules with an on/off toggle; all start disabled for new users.
+-- Modules with an on/off toggle and their state on a fresh install. Existing players keep
+-- what they saved.
 BOLT.defaultModuleStates = {
-    gameMenu = false,
-    unitFrames = false,
-    tooltip = false,
-    rangedTimer = false,
+    gameMenu = true,
+    unitFrames = true,
+    tooltip = true,
+    rangedTimer = true,
     autoHide = false,
-    minimap = false,
+    minimap = true,
     playground = false,
     skyriding = false,
     wandShoot = false,
     doubleClickFishing = false,
-    wowheadLink = false,
+    wowheadLink = true,
     autoRepSwitch = false,
     autoSell = false,
     campfire = false,
     smartTeleport = false,
     chatNotifier = false,
+    autoPartyChat = false,
     achievementTracker = false,
     savedInstances = false,
     soundMuter = false,
-    nameplatesEnhancement = false,
-    partyFramesCenterGrowth = false,
-    keyShare = false,
+    nameplatesEnhancement = true,
+    partyFramesCenterGrowth = true,
+    keyShare = true,
+}
+
+-- Modules that also get an on/off checkbox in the minimap tracking menu.
+BOLT.trackingMenuModules = {
+    rangedTimer = true,
+    autoHide = true,
+    gameMenu = true,
+    autoSell = true,
+    campfire = true,
+    autoRepSwitch = true,
+    skyriding = true,
+    chatNotifier = true,
+    keyShare = true,
+    achievementTracker = true,
 }
 
 ---------------------------------------------------------------------------
@@ -204,7 +220,11 @@ end
 function BOLT:IsModuleEnabled(name)
     local mod = self.modules[name]
     if mod and mod.alwaysOn then return true end
-    return BOLTDB ~= nil and BOLTDB.moduleStates ~= nil and BOLTDB.moduleStates[name] == true
+    if not (self.db and BOLTDB) then return false end
+    if self.LAYOUT_MODULES[name] then
+        return self:GetLayout().modules[name] == true
+    end
+    return BOLTDB.moduleStates ~= nil and BOLTDB.moduleStates[name] == true
 end
 
 function BOLT:InitializeModule(mod)
@@ -226,10 +246,15 @@ function BOLT:DeactivateModule(mod)
     if mod.OnDisable then mod:OnDisable() end
 end
 
--- Enable or disable a toggleable module immediately and persist the choice account-wide.
+-- Enable or disable a toggleable module immediately and persist the choice: in the current
+-- Edit Mode layout for UI modules, account-wide for the rest.
 function BOLT:SetModuleEnabled(name, enabled)
     enabled = enabled and true or false
-    BOLTDB.moduleStates[name] = enabled
+    if self.LAYOUT_MODULES[name] then
+        self:GetLayout().modules[name] = enabled
+    else
+        BOLTDB.moduleStates[name] = enabled
+    end
 
     local mod = self.modules[name]
     if not mod then
@@ -289,9 +314,11 @@ function BOLT:HookMinimapTrackingMenu()
         rootDescription:CreateTitle("|cff00aaffB.O.L.T|r")
         for _, mod in ipairs(self:GetToggleableModules()) do
             local name = mod.name
-            rootDescription:CreateCheckbox(mod.displayName or name,
-                function() return self:IsModuleEnabled(name) end,
-                function() self:SetModuleEnabled(name, not self:IsModuleEnabled(name)) end)
+            if self.trackingMenuModules[name] then
+                rootDescription:CreateCheckbox(mod.displayName or name,
+                    function() return self:IsModuleEnabled(name) end,
+                    function() self:SetModuleEnabled(name, not self:IsModuleEnabled(name)) end)
+            end
         end
     end)
 end
@@ -304,6 +331,14 @@ function BOLT:OnLogin()
 
     self:InitializeDatabase()
     self:HookMinimapTrackingMenu()
+    -- Blizzard may already have reported the active Edit Mode layout.
+    local lem = self.LibEditMode
+    local layoutName = lem and lem:GetActiveLayoutName()
+    if layoutName then
+        self:GetLayout(layoutName)
+        self.layoutName = layoutName
+        self.db.profile.lastLayout = layoutName
+    end
 
     local enabled = {}
     for _, name in ipairs(self.moduleOrder) do

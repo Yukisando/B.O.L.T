@@ -46,6 +46,7 @@ Modules\SavedInstances.lua
 Modules\NameplatesEnhancement.lua
 Modules\PartyFramesCenterGrowth.lua
 Modules\ChatNotifier.lua
+Modules\AutoPartyChat.lua
 Modules\WowheadLink.lua
 Modules\KeyShare.lua
 Modules\AchievementTracker.lua

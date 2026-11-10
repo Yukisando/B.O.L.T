@@ -820,6 +820,12 @@ function SquareMinimap:OnDisable()
     end
 end
 
+function SquareMinimap:OnLayoutChanged()
+    if not self.ready then return end
+    Layout()
+    self:ApplyZoom()
+end
+
 function SquareMinimap:OnSettingChanged(key)
     if not self.ready then return end
     if key == "wheelZoom" then

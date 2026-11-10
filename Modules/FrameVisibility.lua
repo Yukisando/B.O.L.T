@@ -522,6 +522,13 @@ end
 -- Lifecycle
 ---------------------------------------------------------------------------
 
+function FrameVisibility:OnLayoutChanged()
+    self:ApplyFrames()
+    RefreshDisplay()
+    self:UpdateMenuCatcher()
+    self:UpdatePetBar()
+end
+
 function FrameVisibility:OnSettingChanged(key, path)
     if path and path[2] == "display" then
         RefreshDisplay()

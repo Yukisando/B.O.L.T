@@ -133,6 +133,10 @@ commands.debug = function(arg)
     for name, enabled in pairs(BOLTDB.moduleStates) do
         print(("  %s = %s"):format(name, tostring(enabled)))
     end
+    print("  Edit Mode layout = " .. tostring(BOLT.layoutName))
+    for name, enabled in pairs(BOLT:GetLayout().modules) do
+        print(("  %s = %s (this layout)"):format(name, tostring(enabled)))
+    end
     print("  debug = " .. tostring(BOLT:GetConfig("debug")))
     print("  player key = " .. BOLT:GetPlayerKey())
     print("  client = " .. (BOLT.isForever and "WoW: Forever" or "Midnight"))

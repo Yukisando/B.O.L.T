@@ -514,6 +514,12 @@ function Nameplates:OnDisable()
     UpdateAllCues()
 end
 
+function Nameplates:OnLayoutChanged()
+    self:ApplyTargetCVars()
+    self:RegisterEvents()
+    self:OnSettingChanged()
+end
+
 function Nameplates:OnSettingChanged(key)
     self:LoadColors()
     if key == "targetEmphasis" then

@@ -620,6 +620,11 @@ function UnitFrames:OnDisable()
     end
 end
 
+-- Edit Mode layout switched. Frames the new layout leaves unstyled keep the flat look until a /reload.
+function UnitFrames:OnLayoutChanged()
+    self:ApplyAll()
+end
+
 function UnitFrames:OnSettingChanged(key)
     if Cfg(key) then
         self:ApplyAll()

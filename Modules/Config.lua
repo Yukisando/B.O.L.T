@@ -292,6 +292,10 @@ local PAGES = {
                 },
             },
             {
+                module = "autoPartyChat",
+                description = "When you join a group, the chat box switches to Party (Raid in a raid, Instance in a dungeon finder group), and back to Say when you leave. A channel you picked yourself, like Guild or a whisper, is left alone.",
+            },
+            {
                 module = "wowheadLink",
                 description = "Hover an item, spell, NPC, quest or achievement and press the keybind (Ctrl+C by default) to get its Wowhead link.",
             },
@@ -868,6 +872,9 @@ function Config:BuildSection(page, spec)
     if spec.editMode and BOLT.EditMode and BOLT.EditMode.available then
         options = { { type = "button", label = "Open Edit Mode", width = 150, onClick = OpenEditMode } }
         text = (text and text .. "\n\n" or "") .. "|cffffd100Options in Edit Mode:|r " .. spec.editMode
+    end
+    if BOLT:IsLayoutModule(spec.module) then
+        text = (text and text .. "\n" or "") .. "|cff888888Saved with your current Edit Mode layout, for all your characters.|r"
     end
 
     local by = 0
