@@ -315,39 +315,78 @@ end
 
 -- Right-click opens your own menu, Shift + right-click your target's. A thin click catcher sits
 -- over the health and power bars; left clicks pass through to the world.
-local function OpenMenu(catcher)
-    if IsShiftKeyDown() then
-        if UnitExists("target") and TargetFrame_OpenMenu then TargetFrame_OpenMenu(catcher) end
+-- It is a secure unit button using the "togglemenu" action, so Blizzard's own code opens the
+-- menu. Opening it from addon code (UnitPopup_OpenMenu) taints the whole menu, and entries that
+-- cast a spell then fail with ADDON_ACTION_FORBIDDEN.
+-- A protected frame makes every frame it is parented or anchored to protected too, and then
+-- Blizzard's own Show() of the display gets blocked in combat. So the catcher lives on UIParent
+-- with plain coordinates copied from the bars, and follows the display only out of combat (and
+-- once more as combat starts, which is still allowed).
+local function DisplayShowsInCombat(display)
+    if display:IsVisible() then return true end
+    local setting = Enum.PersonalResourceDisplayVisibleSetting
+    return setting and display.GetVisibleSetting and display:GetVisibleSetting() == setting.InCombat
+end
+
+function FrameVisibility:SyncMenuCatcher(combatStarting)
+    local catcher, display = self.menuCatcher, Display()
+    if not (catcher and display) or InCombatLockdown() then return end
+    local container = display.HealthBarsContainer or display
+    local lower = display.PowerBar or container
+    local left, top = Plain(container:GetLeft()), Plain(container:GetTop())
+    local right, bottom = Plain(lower:GetRight()), Plain(lower:GetBottom())
+    local wanted = DisplayCfg("rightClickMenus")
+        and (combatStarting and DisplayShowsInCombat(display) or display:IsVisible())
+    if not (wanted and left and top and right and bottom) then
+        catcher:Hide()
         return
     end
-    if not UnitPopup_OpenMenu then return end
-    local inVehicle = UnitHasVehicleUI and UnitHasVehicleUI("player")
-    UnitPopup_OpenMenu(inVehicle and "VEHICLE" or "SELF", {
-        fromPlayerFrame = true,
-        ownerFrame = catcher,
-        unit = inVehicle and "vehicle" or "player",
-    })
+    local ratio = container:GetEffectiveScale() / UIParent:GetEffectiveScale()
+    catcher:ClearAllPoints()
+    catcher:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", left * ratio, bottom * ratio)
+    catcher:SetSize(math.max(1, (right - left) * ratio), math.max(1, (top - bottom) * ratio))
+    catcher:SetFrameStrata(display:GetFrameStrata())
+    catcher:SetFrameLevel(display:GetFrameLevel() + 10)
+    catcher:Show()
 end
 
 function FrameVisibility:UpdateMenuCatcher()
     local display = Display()
     if not (display and display.HealthBarsContainer) then return end
-    local catcher = self.menuCatcher
-    if not catcher then
+    if InCombatLockdown() then
+        self.menuPending = true
+        self.eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+        return
+    end
+    self.menuPending = nil
+    if not self.menuCatcher then
         if not DisplayCfg("rightClickMenus") then return end
-        catcher = CreateFrame("Button", "BOLTDisplayMenuCatcher", display)
-        catcher:SetPoint("TOPLEFT", display.HealthBarsContainer, "TOPLEFT")
-        catcher:SetPoint("BOTTOMRIGHT", display.PowerBar or display.HealthBarsContainer, "BOTTOMRIGHT")
-        catcher:SetFrameLevel(display:GetFrameLevel() + 10)
+        local catcher = CreateFrame("Button", "BOLTDisplayMenuCatcher", UIParent, "SecureUnitButtonTemplate")
+        catcher:Hide()
         catcher:RegisterForClicks("RightButtonUp")
         catcher:SetMouseMotionEnabled(false)
-        if catcher.SetPassThroughButtons and not InCombatLockdown() then
-            catcher:SetPassThroughButtons("LeftButton")
-        end
-        catcher:SetScript("OnClick", OpenMenu)
+        if catcher.SetPassThroughButtons then catcher:SetPassThroughButtons("LeftButton") end
+        catcher:SetAttribute("unit", "player")
+        catcher:SetAttribute("toggleForVehicle", true)
+        catcher:SetAttribute("shift-unit2", "target")
+        catcher:SetAttribute("*type2", "togglemenu")
         self.menuCatcher = catcher
+
+        -- Follow the display out of combat: shown/hidden, Edit Mode resizes and moves.
+        local sync = function() self:SyncMenuCatcher() end
+        display:HookScript("OnShow", sync)
+        display:HookScript("OnHide", sync)
+        display.HealthBarsContainer:HookScript("OnSizeChanged", sync)
+        hooksecurefunc(display, "UpdateShownState", sync)
+        if EditMode.lib then EditMode.lib:RegisterCallback("exit", sync) end
+        local combat = CreateFrame("Frame")
+        combat:RegisterEvent("PLAYER_REGEN_DISABLED")
+        combat:RegisterEvent("PLAYER_REGEN_ENABLED")
+        combat:SetScript("OnEvent", function(_, event)
+            self:SyncMenuCatcher(event == "PLAYER_REGEN_DISABLED")
+        end)
     end
-    catcher:SetShown(DisplayCfg("rightClickMenus") and true or false)
+    self:SyncMenuCatcher()
 end
 
 ---------------------------------------------------------------------------
@@ -391,6 +430,56 @@ local function AnchorPetBar()
     return true
 end
 
+---------------------------------------------------------------------------
+-- Pet happiness: a 2px line just above the pet health bar. Its length and colour follow the
+-- pet's mood (a third and red = unhappy, two thirds and amber = content, full and faint green =
+-- happy); unhappy also breathes slowly so it catches the eye when the pet needs feeding.
+-- Only hunter pets have a mood, and only on clients with GetPetHappiness; elsewhere it stays hidden.
+---------------------------------------------------------------------------
+
+local MOODS = {
+    [1] = { 0.9, 0.25, 0.2, 0.9 },  -- unhappy: feed it
+    [2] = { 0.95, 0.75, 0.25, 0.6 }, -- content: feed it soon
+    [3] = { 0.45, 0.85, 0.3, 0.25 }, -- happy: barely there
+}
+
+local moodLine, moodPulse
+
+local function BuildMoodLine()
+    moodLine = petBar:CreateTexture(nil, "OVERLAY")
+    moodLine:SetTexture(WHITE)
+    moodLine:SetHeight(2)
+    moodLine:SetPoint("BOTTOMLEFT", petBar, "TOPLEFT", 0, 4) -- clears the bar art's top border
+    moodLine:Hide()
+    moodPulse = moodLine:CreateAnimationGroup()
+    moodPulse:SetLooping("BOUNCE")
+    local fade = moodPulse:CreateAnimation("Alpha")
+    fade:SetFromAlpha(1)
+    fade:SetToAlpha(0.35)
+    fade:SetDuration(1.2)
+    fade:SetSmoothing("IN_OUT")
+end
+
+local function UpdateMoodLine()
+    local happiness = DisplayCfg("petHappiness") and GetPetHappiness and HasPetUI
+        and select(2, HasPetUI()) and GetPetHappiness()
+    local mood = happiness and MOODS[happiness]
+    if not mood then
+        if moodLine then moodPulse:Stop() moodLine:Hide() end
+        return
+    end
+    if not moodLine then BuildMoodLine() end
+    local width = petBar:GetWidth()
+    moodLine:SetWidth(math.max(1, (Readable(width, 1)) * happiness / 3))
+    moodLine:SetVertexColor(mood[1], mood[2], mood[3], mood[4])
+    moodLine:Show()
+    if happiness == 1 then
+        if not moodPulse:IsPlaying() then moodPulse:Play() end
+    else
+        moodPulse:Stop()
+    end
+end
+
 -- UnitHealth/UnitHealthMax can be secret values in combat on Midnight; status bars accept them
 -- as they are, so they go straight in without being compared.
 local function UpdatePetBar()
@@ -401,6 +490,7 @@ local function UpdatePetBar()
     petBar:SetMinMaxValues(0, UnitHealthMax("pet"))
     petBar:SetValue(UnitHealth("pet"))
     petBar:Show()
+    UpdateMoodLine()
 end
 
 local function BuildPetBar()
@@ -427,6 +517,8 @@ local function BuildPetBar()
         background:SetPoint("BOTTOMRIGHT", 1, -1)
     end
 
+    petBar:SetScript("OnSizeChanged", UpdateMoodLine)
+
     petEvents = CreateFrame("Frame")
     petEvents:SetScript("OnEvent", UpdatePetBar)
 end
@@ -442,6 +534,12 @@ function FrameVisibility:UpdatePetBar()
         petEvents:RegisterUnitEvent("UNIT_MAXHEALTH", "pet")
         petEvents:RegisterUnitEvent("UNIT_PET", "player")
         petEvents:RegisterEvent("PLAYER_ENTERING_WORLD")
+        if GetPetHappiness then
+            -- UNIT_HAPPINESS only exists on clients with pet happiness; there, happiness is
+            -- also a pet power, so power updates cover clients that only send those.
+            pcall(petEvents.RegisterUnitEvent, petEvents, "UNIT_HAPPINESS", "pet")
+            petEvents:RegisterUnitEvent("UNIT_POWER_UPDATE", "pet")
+        end
     else
         petEvents:UnregisterAllEvents()
     end
@@ -515,6 +613,10 @@ function FrameVisibility:RegisterEditMode()
             desc = "A half-height bar on top of your health bar with your pet's health, in the same style. Shows while you have a pet out.",
             hidden = displayOff,
         }),
+        EditMode:Checkbox("  Pet happiness", { "frameVisibility", "display", "petHappiness" }, {
+            desc = "A thin line above the pet health bar: faint green when happy, amber when content, pulsing red when it's unhappy and needs feeding.",
+            hidden = function() return displayOff() or not DisplayCfg("petHealth") or not GetPetHappiness end,
+        }),
     })
 end
 
@@ -545,6 +647,7 @@ function FrameVisibility:OnInitialize()
         if event == "PLAYER_REGEN_ENABLED" then
             self.eventFrame:UnregisterEvent("PLAYER_REGEN_ENABLED")
             if self.pending then self:ApplyFrames() end
+            if self.menuPending then self:UpdateMenuCatcher() end
         end
     end)
     self:HookDisplay()

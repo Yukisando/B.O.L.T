@@ -47,6 +47,7 @@ BOLT.defaults = {
                 idleAlpha = 0,          -- percent opacity out of combat; 0 keeps Blizzard's hiding
                 rightClickMenus = false, -- right-click it for your menu, Shift + right-click for the target's
                 petHealth = true,        -- half-height pet health bar on top of its health bar
+                petHappiness = true,     -- thin mood line above the pet health bar (hunter pets)
             },
         },
         autoHide = {

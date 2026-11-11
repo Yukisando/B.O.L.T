@@ -293,7 +293,7 @@ local PAGES = {
             },
             {
                 module = "autoPartyChat",
-                description = "When you join a group, the chat box switches to Party (Raid in a raid, Instance in a dungeon finder group), and back to Say when you leave. A channel you picked yourself, like Guild or a whisper, is left alone.",
+                description = "When you join a group, the chat box switches to Party (Raid in a raid, Instance in a dungeon finder group), and back to Say when you leave. It switches even from a whisper or a channel, since that is often how you asked for the invite. Leaving only puts Say back if the box was still on the group.",
             },
             {
                 module = "wowheadLink",
