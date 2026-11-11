@@ -6,6 +6,15 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-14 (2026-11-11)
+
+- feat: pet happiness line, right-click menu fixes, Auto Party Chat and fishing tweaks
+- Pet happiness (new, resource display): a thin line above the pet health bar shows your hunter pet's mood: faint green when happy, amber when content, pulsing red when it needs feeding. Toggle it in the display's Edit Mode panel
+- Fixed: spells cast from the resource display's right-click menu were blocked (ADDON_ACTION_FORBIDDEN)
+- Fixed: the resource display could fail to show in combat (ADDON_ACTION_BLOCKED on PersonalResourceDisplayFrame:Show)
+- Auto Party Chat: joining a group now switches the chat box even from a whisper or a channel; leaving only puts Say back if it was still on the group. Text you're typing is never redirected
+- Double-Click Fishing: a second click at the exact same spot now casts too, and the double-click window is a little longer
+
 ## v8-13 (2026-11-10)
 
 - fix: auto-thank error on secret aura data, pet health bar on by default
