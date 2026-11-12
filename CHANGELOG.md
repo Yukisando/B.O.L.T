@@ -6,6 +6,14 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-15 (2026-11-12)
+
+- feat: pet damage share after combat, same-spot double-click fishing, wand key always sends your pet
+- Pet damage share (new, resource display): when a fight ends, a percentage fades in next to the pet health bar for a few seconds, showing how much of your damage your pets dealt. Toggle it in the display's Edit Mode panel
+- Double-Click Fishing: a double-click now casts even when the mouse doesn't move between the clicks
+- Double-Click Fishing: only casts with a fishing rod equipped
+- Wand & Pet Attack Key (renamed from Shoot Wand Key): the key now always sends your pet to attack as well; the separate pet option is gone
+
 ## v8-14 (2026-11-11)
 
 - feat: pet happiness line, right-click menu fixes, Auto Party Chat and fishing tweaks
