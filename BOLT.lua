@@ -35,6 +35,7 @@ local function PrintHelp()
         { "/bolt camp", "Show what the camp bar sees (WoW: Forever)" },
         { "/bolt edge", "Show how far the minimap may go past the screen edge" },
         { "/bolt range", "Show what the nameplate range dot checks on your target" },
+        { "/bolt dots", "Show what the nameplate DoT overlay reads on your target (WoW: Forever)" },
         { "/bolt reset", "Clear any stuck Skyriding key overrides" },
         { "/bolt reload", "Reload the UI" },
     }
@@ -119,6 +120,15 @@ commands.range = function()
     local mod = BOLT.modules.nameplatesEnhancement
     if mod then
         mod:PrintRangeDebug()
+    else
+        BOLT:Print("Nameplates module is not loaded.")
+    end
+end
+
+commands.dots = function()
+    local mod = BOLT.modules.nameplatesEnhancement
+    if mod then
+        mod:PrintDotDebug()
     else
         BOLT:Print("Nameplates module is not loaded.")
     end

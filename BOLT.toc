@@ -27,6 +27,18 @@ Core\ButtonUtils.lua
 Core\NativeArt.lua
 Core\EditMode.lua
 
+# DoT tracking for the nameplate DoT overlay (WoW: Forever); loaded before the modules.
+Modules\DotTracking\Setup.lua
+Modules\DotTracking\Languages.lua
+Modules\DotTracking\Language_deDE.lua
+Modules\DotTracking\Language_esES.lua
+Modules\DotTracking\Language_frFR.lua
+Modules\DotTracking\Language_koKR.lua
+Modules\DotTracking\Language_ptBR.lua
+Modules\DotTracking\Language_zhCN.lua
+Modules\DotTracking\Language_ruRU.lua
+Modules\DotTracking\DotTracking.lua
+
 Modules\GameMenu.lua
 Modules\UnitFrames.lua
 Modules\FrameVisibility.lua

@@ -111,6 +111,10 @@ BOLT.defaults = {
             interruptCue = true,
             rangeHint = true,
             interruptColor = { r = 0.3, g = 1.0, b = 0.45 },
+            dotOverlay = true, -- WoW: Forever only
+            dotWaitFirstTick = true, -- a DoT counts once its first tick has landed
+            dotColor = { r = 0.85, g = 0.55, b = 1.0 },
+            dotKillColor = { r = 1.0, g = 0.82, b = 0.0 },
         },
         campfire = {
             autoSit = true,   -- sit again on a spot where the fire warmed you, when it would gain something

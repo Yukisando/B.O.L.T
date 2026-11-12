@@ -155,6 +155,16 @@ local PAGES = {
                     { type = "color", label = "Color:", path = { "nameplatesEnhancement", "interruptColor" }, indent = 24,
                         default = { r = 0.3, g = 1.0, b = 0.45 }, requires = { "nameplatesEnhancement", "interruptCue" } },
                     { type = "checkbox", label = "Range dot on enemy nameplates: dark red when out of your reach (measured with your interrupt or a basic attack), yellow when too close to shoot (hunters), none when in reach", path = { "nameplatesEnhancement", "rangeHint" } },
+                    { type = "checkbox", label = "DoT overlay: a striped shield over the health your DoTs (and your pet's) will still take; if it covers it all, they'll kill", path = { "nameplatesEnhancement", "dotOverlay" },
+                        available = function() return BOLT.isForever end },
+                    { type = "checkbox", label = "Count a DoT only once its first tick has landed", path = { "nameplatesEnhancement", "dotWaitFirstTick" },
+                        indent = 24, requires = { "nameplatesEnhancement", "dotOverlay" }, available = function() return BOLT.isForever end },
+                    { type = "color", label = "Color:", path = { "nameplatesEnhancement", "dotColor" }, indent = 24,
+                        default = { r = 0.85, g = 0.55, b = 1.0 }, requires = { "nameplatesEnhancement", "dotOverlay" },
+                        available = function() return BOLT.isForever end },
+                    { type = "color", label = "When they will kill it:", path = { "nameplatesEnhancement", "dotKillColor" }, indent = 24,
+                        default = { r = 1.0, g = 0.82, b = 0.0 }, requires = { "nameplatesEnhancement", "dotOverlay" },
+                        available = function() return BOLT.isForever end },
                 },
             },
             {
@@ -1005,7 +1015,23 @@ function Config:OnEnable()
     self:RefreshAll()
 end
 
+-- Opening the settings panel is protected in combat (ADDON_ACTION_BLOCKED on OpenSettingsPanel): wait for
+-- combat to end, then open it.
 function Config:Open()
+    if InCombatLockdown() then
+        if not self.openAfterCombat then
+            self.openAfterCombat = CreateFrame("Frame")
+            self.openAfterCombat:SetScript("OnEvent", function(frame)
+                frame:UnregisterEvent("PLAYER_REGEN_ENABLED")
+                Config:Open()
+            end)
+        end
+        if not self.openAfterCombat:IsEventRegistered("PLAYER_REGEN_ENABLED") then
+            self.openAfterCombat:RegisterEvent("PLAYER_REGEN_ENABLED")
+            BOLT:Print("Settings will open when combat ends.")
+        end
+        return
+    end
     Settings.OpenToCategory(self.category:GetID())
 end
 

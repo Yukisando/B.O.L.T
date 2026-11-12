@@ -10,7 +10,9 @@ local AutoSell = {
     displayName = "Auto Sell",
 }
 
-local ICON = "Interface\\Buttons\\UI-GroupLoot-Coin-Up"
+-- The money frame's gold coin exists on every client; the group-loot coin used before didn't
+-- show on WoW: Forever (2026-11-12).
+local ICON = "Interface\\MoneyFrame\\UI-GoldIcon"
 local ICON_SIZE = 14
 local SELL_DELAY = 0.1 -- seconds between two sales; the server drops sales sent too fast
 local BAGANATOR_WIDGET = "bolt_sell_list"

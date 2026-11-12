@@ -26,11 +26,12 @@ local function ShootName()
 end
 
 function WandShoot:MacroText()
-    -- "!" keeps a second press from stopping the wand.
+    -- "!" keeps a second press from stopping the wand. Shoot goes before /petattack: with the pet
+    -- line first, only the pet attacked and the wand never started (2026-11-12).
     return table.concat({
         "/target [@mouseover,harm,nodead]",
-        "/petattack [harm,nodead]",
         "/cast [harm,nodead] !" .. ShootName(),
+        "/petattack [harm,nodead]",
     }, "\n")
 end
 
@@ -41,13 +42,17 @@ function WandShoot:Apply()
         return
     end
     self.eventFrame:UnregisterEvent("PLAYER_REGEN_ENABLED")
+    -- Run the macro once per key press (on the press or the release, per ActionButtonUseKeyDown).
+    -- Running it on both would recast Shoot, which can stop the wand.
+    local onDown = GetCVarBool("ActionButtonUseKeyDown")
+    self.button:RegisterForClicks(onDown and "AnyDown" or "AnyUp")
+    self.button:SetAttribute("useOnKeyDown", onDown)
     self.button:SetAttribute("type", self.active and "macro" or nil)
     self.button:SetAttribute("macrotext", self.active and self:MacroText() or nil)
 end
 
 function WandShoot:OnInitialize()
     local button = CreateFrame("Button", BUTTON_NAME, UIParent, "SecureActionButtonTemplate")
-    button:RegisterForClicks("AnyDown", "AnyUp")
     self.button = button
     self.eventFrame = CreateFrame("Frame")
     self.eventFrame:SetScript("OnEvent", function() self:Apply() end)

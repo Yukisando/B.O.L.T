@@ -54,6 +54,7 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 - **Target Emphasis**: Your target's nameplate is larger and the others fade slightly (the game's own nameplate settings, restored to their defaults when turned off)
 - **Interrupt Cue**: An enemy cast bar gets an outline and your interrupt's icon when the cast can be interrupted *and* your interrupt is off cooldown, so you know at a glance whether to kick. Works with Midnight's combat restrictions (the game itself decides whether to show the cue)
 - **Range Hint**: Enemies out of your reach get a slightly darker health bar, measured with your interrupt (or a basic attack for classes and specs without one)
+- **DoT Overlay** (WoW: Forever): A striped shield, like Blizzard's absorb shields, sits over the right end of an enemy's health bar, as wide as the damage your DoTs and your pet's DoTs will still deal. When it covers all the health left, it turns gold: those DoTs alone will kill it. Optionally a DoT only counts once its first tick has landed. Both colors can be changed. `/bolt dots` lists what it counts on your target. The combat log is closed to addons, so BOLT reads each DoT from its spell description, matches the hits on the mob to it, and learns your real tick sizes from Blizzard's damage meter after each fight, so it gets more accurate as you play
 - **Combat Persistent**: Colors survive entering combat and threat updates via a secure post-hook on Blizzard's health color system
 
 #### Auto-hide UI

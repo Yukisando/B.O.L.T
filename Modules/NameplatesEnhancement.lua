@@ -6,6 +6,8 @@
 --                  interrupt is off cooldown
 --   range hint     a dot above the top left of an enemy's health bar: dark red out of your reach,
 --                  yellow in melee range when your reach has a minimum range (hunters)
+--   DoT overlay    striped shield over an enemy's health, as wide as the damage your DoTs will
+--                  still deal; gold when they will kill it (WoW: Forever, Modules/DotTracking)
 --
 -- Midnight hides some unit data from addons in combat ("secret" values), including whether a
 -- cast can be interrupted. The cue never tests that value in Lua: it hands it to the game with
@@ -405,9 +407,185 @@ local function UpdateRange(frame)
     dot:Show()
 end
 
+---------------------------------------------------------------------------
+-- DoT overlay (WoW: Forever)
+---------------------------------------------------------------------------
+-- A reverse shield over an enemy's health bar: it starts at the right end of the health left and runs back over
+-- it, as wide as the damage your DoTs will still deal. It turns the "kill" color when it covers all the health
+-- left: those DoTs alone will finish the mob.
+--
+-- The tracking is in Modules/DotTracking: the combat log is closed to addons, so it reads each DoT from the
+-- spell description at cast time, matches UNIT_COMBAT hits to it by school and timing, and learns your real tick
+-- sizes from the damage meter after each fight. Your pet's DoTs count too (its casts are reported the same way).
+--
+-- Enemy health is secret on Forever, so Lua never compares it with the damage. Status bars accept secret
+-- values and do it instead:
+--   shield  a reverse-filling bar as wide as the health bar, its right end pinned to the end of the health fill,
+--           max = max health, value = DoT damage. Its fill spans the damage on the health's scale; the part past
+--           the bar's left edge is clipped.
+--   kill    a very long bar, max = current health, value = DoT damage, ending at the bar's left edge. The
+--           kill-colored layer rides the end of its fill and is clipped to the health left, so it only slides
+--           in when the fill is (all but) full, i.e. damage >= health.
+
+local DOTS_SUPPORTED = BOLT.isForever and BOLT.DotTracking ~= nil
+local DEFAULT_DOT_COLOR = { r = 0.85, g = 0.55, b = 1.0 }
+local DEFAULT_DOT_KILL_COLOR = { r = 1.0, g = 0.82, b = 0.0 }
+local SHIELD_STRIPES = "Interface\\RaidFrame\\Shield-Overlay" -- Blizzard's absorb shield stripes
+local KILL_BAR_LENGTH = 100000 -- the kill color shows from damage >= 99.9% of health on a 100px bar
+
+local function DotTracking()
+    return DOTS_SUPPORTED and BOLT.DotTracking or nil
+end
+
+-- What your DoTs on the unit's mob still have to deal (0 when none, or when it can't be told).
+local function PendingDotDamage(unit)
+    local tracking = DotTracking()
+    if not (tracking and tracking.dotBreakdownForUnit) then return 0 end
+    local ok, _, total = pcall(tracking.dotBreakdownForUnit, unit)
+    if not ok or type(total) ~= "number" then return 0 end
+    return total
+end
+
+-- Two textures painting one region: a faint tint and Blizzard's shield stripes over it.
+local function AddShieldTextures(parent, region, level)
+    local tint = parent:CreateTexture(nil, "ARTWORK", nil, level)
+    tint:SetTexture(WHITE)
+    tint:SetAllPoints(region)
+    local stripes = parent:CreateTexture(nil, "ARTWORK", nil, level + 1)
+    stripes:SetTexture(SHIELD_STRIPES, "REPEAT", "REPEAT")
+    stripes:SetHorizTile(true)
+    stripes:SetVertTile(true)
+    stripes:SetAllPoints(region)
+    return { tint = tint, stripes = stripes }
+end
+
+local function PaintShield(textures, color)
+    textures.tint:SetVertexColor(color.r, color.g, color.b, 0.25)
+    textures.stripes:SetVertexColor(color.r, color.g, color.b, 0.75)
+end
+
+local function NewStatusBar(parent)
+    local bar = CreateFrame("StatusBar", nil, parent)
+    bar:SetStatusBarTexture(WHITE)
+    bar:SetStatusBarColor(0, 0, 0, 0) -- only its fill's position is used
+    bar:SetMinMaxValues(0, 1)
+    bar:SetValue(0)
+    return bar
+end
+
+local function GetDotOverlay(healthBar)
+    local overlay = healthBar.boltDotOverlay
+    if overlay then return overlay end
+    local fill = healthBar:GetStatusBarTexture()
+
+    -- Everything is clipped to the health bar.
+    overlay = CreateFrame("Frame", nil, healthBar)
+    overlay:SetAllPoints(healthBar)
+    overlay:SetClipsChildren(true)
+    overlay:SetFrameLevel(healthBar:GetFrameLevel() + 1)
+
+    local shield = NewStatusBar(overlay)
+    shield:SetReverseFill(true)
+    shield:SetPoint("TOPRIGHT", fill, "TOPRIGHT")
+    shield:SetPoint("BOTTOMRIGHT", fill, "BOTTOMRIGHT")
+    overlay.shield = shield
+    local shieldFill = shield:GetStatusBarTexture()
+    overlay.normal = AddShieldTextures(shield, shieldFill, 0)
+
+    -- The kill layer: clipped to the health left (all the shield covers once it's lethal), carried by the long
+    -- bar's fill end. It's as wide as the whole bar, so at full fill it covers the window whatever the health.
+    local killWindow = CreateFrame("Frame", nil, shield)
+    killWindow:SetPoint("TOPLEFT", overlay, "TOPLEFT")
+    killWindow:SetPoint("BOTTOMRIGHT", fill, "BOTTOMRIGHT")
+    killWindow:SetClipsChildren(true)
+    killWindow:SetFrameLevel(shield:GetFrameLevel() + 1)
+    local killBar = NewStatusBar(killWindow)
+    killBar:SetPoint("TOPRIGHT", killWindow, "TOPLEFT")
+    killBar:SetPoint("BOTTOMRIGHT", killWindow, "BOTTOMLEFT")
+    killBar:SetWidth(KILL_BAR_LENGTH)
+    overlay.killBar = killBar
+    local killRegion = killBar:CreateTexture(nil, "BACKGROUND")
+    killRegion:SetPoint("TOPLEFT", killBar:GetStatusBarTexture(), "TOPRIGHT")
+    killRegion:SetPoint("BOTTOMLEFT", killBar:GetStatusBarTexture(), "BOTTOMRIGHT")
+    killRegion:SetAlpha(0)
+    overlay.killRegion = killRegion
+    overlay.kill = AddShieldTextures(killBar, killRegion, 0)
+
+    overlay:Hide()
+    healthBar.boltDotOverlay = overlay
+    return overlay
+end
+
+local function UpdateDots(frame)
+    local healthBar = frame.healthBar
+    if not healthBar then return end
+    local overlay = healthBar.boltDotOverlay
+    local function Off() if overlay then overlay:Hide() end end
+
+    local unit = frame.unit
+    if not (DOTS_SUPPORTED and IsOn("dotOverlay") and IsPlateUnit(unit)) then return Off() end
+    local pending = PendingDotDamage(unit)
+    if pending <= 0 then return Off() end
+    local width = healthBar:GetWidth()
+    if BOLT.IsSecret(width) or not width or width <= 0 then return Off() end
+
+    overlay = GetDotOverlay(healthBar)
+    PaintShield(overlay.normal, Cfg("dotColor") or DEFAULT_DOT_COLOR)
+    PaintShield(overlay.kill, Cfg("dotKillColor") or DEFAULT_DOT_KILL_COLOR)
+    overlay.shield:SetWidth(width)
+    overlay.killRegion:SetWidth(width)
+    -- Health and max health may be secret: only widgets get them.
+    local okMax = pcall(overlay.shield.SetMinMaxValues, overlay.shield, 0, UnitHealthMax(unit))
+    local okHealth = pcall(overlay.killBar.SetMinMaxValues, overlay.killBar, 0, UnitHealth(unit))
+    if not (okMax and okHealth) then return Off() end
+    overlay.shield:SetValue(pending)
+    overlay.killBar:SetValue(pending)
+    overlay:Show()
+end
+
+-- The tracking runs only while the overlay is on, and redraws the plates when its numbers move.
+local function SetDotTracking(on)
+    local tracking = DotTracking()
+    if not tracking then return end
+    tracking.enabled = on and true or false
+    tracking.refresh = on and function() ForEachPlate(UpdateDots) end or function() end
+    -- "Count a DoT only once its first tick lands" (the tracking's waitFirstTick: always / off).
+    if tracking.db then tracking.db.waitFirstTick = Cfg("dotWaitFirstTick") and "always" or "off" end
+end
+
+-- /bolt dots: what the tracking holds for your target.
+function Nameplates:PrintDotDebug()
+    local tracking = DotTracking()
+    if not tracking then
+        BOLT:Print("The DoT overlay only runs on WoW: Forever.")
+        return
+    end
+    if not tracking.enabled then
+        BOLT:Print("The DoT overlay is off (/bolt, Nameplates).")
+        return
+    end
+    if not UnitExists("target") then
+        BOLT:Print("Target an enemy you've put DoTs on.")
+        return
+    end
+    local ok, list, total = pcall(tracking.dotBreakdownForUnit, "target")
+    if not ok then
+        BOLT:Print("Couldn't read the tracking: " .. tostring(list))
+        return
+    end
+    local now = GetTime()
+    for _, dot in ipairs(list) do
+        BOLT:Print(("  %s%s: %d damage left, %.1fs left%s"):format(tostring(dot.name), dot.fromPet and " (pet)" or "",
+            math.floor(dot.damage + 0.5), (dot.expiresAt or now) - now, dot.provisional and " (still casting)" or ""))
+    end
+    BOLT:Print(("Your DoTs on the target still have to deal %d damage (%d DoT(s) counted)."):format(
+        math.floor((total or 0) + 0.5), #list))
+end
+
 local function UpdatePlate(frame)
     UpdateCue(frame)
     UpdateRange(frame)
+    UpdateDots(frame)
 end
 
 local function UpdateAllCues()
@@ -487,8 +665,12 @@ function Nameplates:RegisterEvents()
             pcall(events.RegisterEvent, events, event)
         end
         events:RegisterUnitEvent("UNIT_PET", "player")
+    end
+    if Cfg("interruptCue") or Cfg("rangeHint") then
         events:SetScript("OnUpdate", OnUpdate)
     end
+    -- The DoT overlay is redrawn by its tracking (10 times a second and on casts and hits), not from here.
+    SetDotTracking(Cfg("dotOverlay"))
 end
 
 function Nameplates:OnEnable()
@@ -510,6 +692,7 @@ end
 function Nameplates:OnDisable()
     self.eventFrame:UnregisterAllEvents()
     self.eventFrame:SetScript("OnUpdate", nil)
+    SetDotTracking(false)
     self:ApplyTargetCVars()
     UpdateAllCues()
 end
@@ -524,7 +707,7 @@ function Nameplates:OnSettingChanged(key)
     self:LoadColors()
     if key == "targetEmphasis" then
         self:ApplyTargetCVars()
-    elseif key == "interruptCue" or key == "rangeHint" then
+    elseif key == "interruptCue" or key == "rangeHint" or key == "dotOverlay" or key == "dotWaitFirstTick" then
         self:RegisterEvents()
     end
     -- Only recolor; calling Blizzard's update from addon code would taint the plates.
@@ -557,5 +740,8 @@ end
 
 Nameplates.DEFAULT_MANA_COLOR = DEFAULT_MANA_COLOR
 Nameplates.DEFAULT_INTERRUPT_COLOR = DEFAULT_INTERRUPT_COLOR
+Nameplates.DEFAULT_DOT_COLOR = DEFAULT_DOT_COLOR
+Nameplates.DEFAULT_DOT_KILL_COLOR = DEFAULT_DOT_KILL_COLOR
+Nameplates.DOTS_SUPPORTED = DOTS_SUPPORTED
 
 BOLT:RegisterModule("nameplatesEnhancement", Nameplates)
