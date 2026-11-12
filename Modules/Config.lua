@@ -236,15 +236,14 @@ local PAGES = {
         sections = {
             {
                 module = "wandShoot",
-                description = "One key to start your wand: it targets the enemy under the mouse (or keeps your current target) and starts Shoot. Pressing it again doesn't stop the wand. Works in combat.",
+                description = "One key for your wand and your pet: it targets the enemy under the mouse (or keeps your current target), sends your pet to attack it and starts your wand's Shoot. Without a pet out it just shoots. Pressing it again doesn't stop the wand. Works in combat.",
                 options = {
-                    { type = "keybind", label = "Shoot wand:", binding = "CLICK BOLTWandShootButton:LeftButton" },
-                    { type = "checkbox", label = "Also send your pet to attack", path = { "wandShoot", "petAttack" } },
+                    { type = "keybind", label = "Wand + pet attack:", binding = "CLICK BOLTWandShootButton:LeftButton" },
                 },
             },
             {
                 module = "doubleClickFishing",
-                description = "Double right-click on the world to cast Fishing. It stays out of the way in combat, while mounted, with a character under the mouse, with loot open, and while your line is already in the water.",
+                description = "Double right-click on the world to cast Fishing while a fishing rod is equipped. It stays out of the way in combat, while mounted, with a character under the mouse, with loot open, and while your line is already in the water.",
             },
             {
                 module = "skyriding",

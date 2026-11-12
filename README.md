@@ -38,6 +38,7 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 - **Hide Them Your Way**: Hide the Player Frame and/or the Target Frame, then pick when each comes back: in combat, with a target (any target, attackable only or not attackable only), or on mouse hover
 - **Personal Resource Display**: Turn on Blizzard's health and power bars under your character. When Edit Mode shows it only in combat, it can also show with a target (any, attackable only or not attackable only), fade to an opacity of your choice instead of hiding, and open your menu on right-click (Shift + right-click for your target's)
 - **Pet Health Bar**: A half-height bar on top of the Personal Resource Display's health bar shows your pet's health, with the same gold-bordered art, width and spacing as its other bars. Shows while you have a pet out
+- **Pet Damage Share**: When a fight ends, a percentage fades in next to the pet health bar for a few seconds: how much of your damage your pets dealt (you 20 + pet 20 = 50%). Read from Blizzard's damage meter
 - **Your Own Immersive Mode**: Hide both frames and turn on the Personal Resource Display. (This replaces the old Immersive Mode toggle; if you had it on, your setup carries over)
 - **In Edit Mode**: Select the Player Frame, Target Frame or Personal Resource Display; BOLT's options sit in a "B.O.L.T" block under Blizzard's settings. Every frame shows while you edit
 
@@ -120,13 +121,13 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 
 ### Gameplay
 
-#### Shoot Wand Key (WoW: Forever)
+#### Wand & Pet Attack Key (WoW: Forever)
 
-- **One Key**: Targets the enemy under the mouse (or keeps your target), sends your pet in and starts wand Shoot; set the key in BOLT settings or Key Bindings
+- **One Key for Wand and Pet**: Targets the enemy under the mouse (or keeps your target), sends your pet to attack it and starts wand Shoot. Without a pet out it just shoots. Set the key in BOLT settings or Key Bindings ("Shoot Wand + Pet Attack" under B.O.L.T)
 
 #### Double-Click Fishing
 
-- **Quick Cast**: Double right-click on the world to cast Fishing; ignored in combat, while mounted, over a character, with loot open or while already fishing. A quick right-click followed by holding the button down within 0.4 s also casts, instead of turning the camera
+- **Quick Cast**: Double right-click on the world to cast Fishing, with a fishing rod equipped; works without moving the mouse between the clicks. Ignored in combat, while mounted, over a character, with loot open or while already fishing. A quick right-click followed by holding the button down within 0.4 s also casts, instead of turning the camera
 
 #### Skyriding
 

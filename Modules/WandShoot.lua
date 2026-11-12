@@ -1,15 +1,15 @@
--- B.O.L.T Shoot Wand Key Module (WoW: Forever only)
--- One key that targets the enemy under the mouse (or keeps your current target) and starts wand
--- Shoot, and can send your pet in too.
+-- B.O.L.T Wand & Pet Attack Key Module (WoW: Forever only)
+-- One key that targets the enemy under the mouse (or keeps your current target), sends your pet
+-- in and starts wand Shoot. Pet attack is always part of it since 2026-11-12 (it was an option).
 --
 -- Addons can't cast from their own code, so the key clicks a secure macro button
 -- (binding "CLICK BOLTWandShootButton:LeftButton"), which works in and out of combat. The macro
--- is rebuilt when the pet option changes, out of combat only.
+-- is set out of combat only.
 
 local ADDON_NAME, BOLT = ...
 
 local WandShoot = {
-    displayName = "Shoot Wand Key",
+    displayName = "Wand & Pet Attack Key",
 }
 
 local SHOOT_SPELL_ID = 5019 -- wand Shoot
@@ -26,13 +26,12 @@ local function ShootName()
 end
 
 function WandShoot:MacroText()
-    local lines = { "/target [@mouseover,harm,nodead]" }
-    if BOLT:GetConfig("wandShoot", "petAttack") then
-        table.insert(lines, "/petattack [harm,nodead]")
-    end
     -- "!" keeps a second press from stopping the wand.
-    table.insert(lines, "/cast [harm,nodead] !" .. ShootName())
-    return table.concat(lines, "\n")
+    return table.concat({
+        "/target [@mouseover,harm,nodead]",
+        "/petattack [harm,nodead]",
+        "/cast [harm,nodead] !" .. ShootName(),
+    }, "\n")
 end
 
 -- Attribute changes on a secure button are blocked in combat; wait for it to end.

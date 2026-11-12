@@ -12,7 +12,7 @@
 -- Personal Resource Display: on/off (CVar nameplateShowSelf), and with Edit Mode's "In Combat"
 -- visibility: also show with a target (any, attackable or not attackable), an out-of-combat opacity instead of hiding,
 -- and right-click menus (yours; Shift for your target's) on its bars. Also a half-height pet
--- health bar on top of its health bar.
+-- health bar on top of its health bar, and the pets' share of your damage after each fight.
 
 local ADDON_NAME, BOLT = ...
 local EditMode = BOLT.EditMode
@@ -547,6 +547,114 @@ function FrameVisibility:UpdatePetBar()
 end
 
 ---------------------------------------------------------------------------
+-- Pet damage share: when combat ends, "38%" fades in to the right of the pet health bar for a few
+-- seconds: how much of your damage (yours + your pets') the pets dealt in that fight.
+-- The combat log is closed to addons on both clients, so this reads Blizzard's damage meter
+-- (C_DamageMeter). It folds pet damage into the owner's line, but each pet spell carries the
+-- pet's name in creatureName (Blizzard's meter shows them as "Claw (Wolf)"). In combat the
+-- numbers are secret, so they're only read once combat is over.
+---------------------------------------------------------------------------
+
+local PET_DAMAGE_HOLD = 4      -- seconds fully shown
+local PET_DAMAGE_READ_DELAY = 0.3 -- lets the meter close the fight's session first
+
+local petDamageText, petDamageAnim, petDamageEvents
+
+local function PetDamageAvailable()
+    return C_DamageMeter and C_DamageMeter.GetCombatSessionSourceFromType
+        and Enum.DamageMeterSessionType and Enum.DamageMeterType and true or false
+end
+
+local function ReadPetShare()
+    local ok, source = pcall(C_DamageMeter.GetCombatSessionSourceFromType,
+        Enum.DamageMeterSessionType.Current, Enum.DamageMeterType.DamageDone, UnitGUID("player"))
+    if not (ok and source and source.combatSpells) then return end
+    local total = source.totalAmount
+    if BOLT.IsSecret(total) or not total or total <= 0 then return end
+    local pet = 0
+    for _, spell in ipairs(source.combatSpells) do
+        local creature, amount = spell.creatureName, spell.totalAmount
+        if BOLT.IsSecret(creature) or BOLT.IsSecret(amount) then return end
+        if creature and creature ~= "" and amount then pet = pet + amount end
+    end
+    if pet <= 0 then return end
+    return math.min(100, math.floor(pet / total * 100 + 0.5))
+end
+
+local function BuildPetDamageText()
+    -- On UIParent, not the display: the display usually hides the moment combat ends.
+    petDamageText = UIParent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    petDamageText:SetTextColor(PET_COLOR[1], PET_COLOR[2], PET_COLOR[3])
+    local font, size = petDamageText:GetFont()
+    if font then petDamageText:SetFont(font, size, "OUTLINE") end
+    petDamageText:Hide()
+    petDamageAnim = petDamageText:CreateAnimationGroup()
+    local fadeIn = petDamageAnim:CreateAnimation("Alpha")
+    fadeIn:SetFromAlpha(0)
+    fadeIn:SetToAlpha(1)
+    fadeIn:SetDuration(0.2)
+    fadeIn:SetOrder(1)
+    local fadeOut = petDamageAnim:CreateAnimation("Alpha")
+    fadeOut:SetFromAlpha(1)
+    fadeOut:SetToAlpha(0)
+    fadeOut:SetDuration(0.6)
+    fadeOut:SetStartDelay(PET_DAMAGE_HOLD)
+    fadeOut:SetOrder(2)
+    petDamageAnim:SetScript("OnFinished", function() petDamageText:Hide() end)
+end
+
+local function AnchorPetDamageText()
+    local display = Display()
+    if not display then return false end
+    petDamageText:ClearAllPoints()
+    -- Next to the pet bar when it has been placed (it keeps its spot while hidden), else where
+    -- it would sit: just above the display's health bars. +10 clears the bar art's border.
+    if petBar and petAnchoredTo then
+        petDamageText:SetPoint("LEFT", petBar, "RIGHT", 10, 0)
+    else
+        petDamageText:SetPoint("BOTTOMLEFT", display.HealthBarsContainer or display, "TOPRIGHT", 10, 2)
+    end
+    petDamageText:SetScale(display:GetEffectiveScale() / UIParent:GetEffectiveScale())
+    return true
+end
+
+local function ShowPetShare()
+    if not (DisplayCfg("petDamage") and FrameVisibility:IsDisplayOn()) then return end
+    local share = ReadPetShare()
+    if not share then return end
+    if not petDamageText then BuildPetDamageText() end
+    if not AnchorPetDamageText() then return end
+    petDamageText:SetFormattedText("%d%%", share)
+    petDamageAnim:Stop()
+    petDamageText:SetAlpha(1)
+    petDamageText:Show()
+    petDamageAnim:Play()
+end
+
+function FrameVisibility:UpdatePetDamage()
+    local on = DisplayCfg("petDamage") == true and PetDamageAvailable()
+    if not petDamageEvents then
+        if not on then return end
+        petDamageEvents = CreateFrame("Frame")
+        petDamageEvents:SetScript("OnEvent", function(_, event)
+            if event == "PLAYER_REGEN_ENABLED" then
+                C_Timer.After(PET_DAMAGE_READ_DELAY, ShowPetShare)
+            elseif petDamageText then -- a new fight started: drop the last one's number
+                petDamageAnim:Stop()
+                petDamageText:Hide()
+            end
+        end)
+    end
+    if on then
+        petDamageEvents:RegisterEvent("PLAYER_REGEN_ENABLED")
+        petDamageEvents:RegisterEvent("PLAYER_REGEN_DISABLED")
+    else
+        petDamageEvents:UnregisterAllEvents()
+        if petDamageText then petDamageAnim:Stop() petDamageText:Hide() end
+    end
+end
+
+---------------------------------------------------------------------------
 -- Edit Mode: a B.O.L.T block under the Player, Target and Personal Resource Display dialogs
 ---------------------------------------------------------------------------
 
@@ -617,6 +725,10 @@ function FrameVisibility:RegisterEditMode()
             desc = "A thin line above the pet health bar: faint green when happy, amber when content, pulsing red when it's unhappy and needs feeding.",
             hidden = function() return displayOff() or not DisplayCfg("petHealth") or not GetPetHappiness end,
         }),
+        EditMode:Checkbox("Pet damage after combat", { "frameVisibility", "display", "petDamage" }, {
+            desc = "When a fight ends, a percentage fades in next to the pet health bar for a few seconds: the share of your damage your pets dealt (yours + theirs = 100%). Read from Blizzard's damage meter.",
+            hidden = function() return displayOff() or not PetDamageAvailable() end,
+        }),
     })
 end
 
@@ -629,6 +741,7 @@ function FrameVisibility:OnLayoutChanged()
     RefreshDisplay()
     self:UpdateMenuCatcher()
     self:UpdatePetBar()
+    self:UpdatePetDamage()
 end
 
 function FrameVisibility:OnSettingChanged(key, path)
@@ -636,6 +749,7 @@ function FrameVisibility:OnSettingChanged(key, path)
         RefreshDisplay()
         self:UpdateMenuCatcher()
         self:UpdatePetBar()
+        self:UpdatePetDamage()
     else
         self:ApplyFrames()
     end
@@ -663,6 +777,7 @@ function FrameVisibility:OnEnable()
     RefreshDisplay()
     self:UpdateMenuCatcher()
     self:UpdatePetBar()
+    self:UpdatePetDamage()
 end
 
 BOLT:RegisterModule("frameVisibility", FrameVisibility)

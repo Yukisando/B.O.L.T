@@ -48,6 +48,7 @@ BOLT.defaults = {
                 rightClickMenus = false, -- right-click it for your menu, Shift + right-click for the target's
                 petHealth = true,        -- half-height pet health bar on top of its health bar
                 petHappiness = true,     -- thin mood line above the pet health bar (hunter pets)
+                petDamage = true,        -- pets' share of your damage, shown briefly after combat
             },
         },
         autoHide = {
@@ -79,9 +80,6 @@ BOLT.defaults = {
             showFPS = false,
             statsPosition = "TOPRIGHT",
             copyTargetMount = true,
-        },
-        wandShoot = {
-            petAttack = true, -- the Shoot Wand key also sends your pet in
         },
         skyriding = {
             enablePitchControl = true,
