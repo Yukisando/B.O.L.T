@@ -6,6 +6,14 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-16 (2026-11-12)
+
+- feat: nameplate DoT overlay, wand key starts the wand again, sell-list coin shows in bags
+- DoT overlay (WoW: Forever, nameplates): a striped shield over an enemy's health bar shows the damage your DoTs and your pet's DoTs will still deal; it turns gold when they'll kill it on their own. Optionally counts a DoT only after its first tick. Both colors can be changed, and /bolt dots lists what it counts on your target
+- Wand & Pet Attack Key: the wand starts shooting again along with your pet attacking (before, only the pet attacked), and the key acts once per press
+- Auto Sell: the coin on items in your sell list shows again in your bags, Baganator included
+- Settings: opening BOLT's settings in combat no longer gets blocked; they open as soon as combat ends
+
 ## v8-15 (2026-11-12)
 
 - feat: pet damage share after combat, same-spot double-click fishing, wand key always sends your pet
