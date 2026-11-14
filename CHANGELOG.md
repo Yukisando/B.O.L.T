@@ -6,6 +6,10 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-19 (2026-11-14)
+
+- feat: cheetah warning for hunters in combat
+
 ## v8-18 (2026-11-14)
 
 - fix: double-click fishing casts on the second click's release, camera zoom defers to DynamicCam
