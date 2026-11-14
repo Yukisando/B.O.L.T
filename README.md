@@ -130,7 +130,11 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 
 #### Double-Click Fishing
 
-- **Quick Cast**: Double right-click on the world to cast Fishing, with a fishing rod equipped; works without moving the mouse between the clicks. Ignored in combat, while mounted, over a character, with loot open or while already fishing. A quick right-click followed by holding the button down within 0.4 s also casts, instead of turning the camera
+- **Quick Cast**: Double right-click on the world to cast Fishing, with a fishing rod equipped; works without moving the mouse between the clicks. Ignored in combat, while mounted, over a character, with loot open or while already fishing.
+
+#### Cheetah Warning (hunters)
+
+- **Combat Alert**: A warning and a sound when combat starts while Aspect of the Cheetah or of the Pack is on you, repeated every few seconds until you change aspect or combat ends
 
 #### Skyriding
 

@@ -319,6 +319,10 @@ local PAGES = {
                 },
             },
             {
+                module = "cheetahWarning",
+                description = "Hunters: a warning and a sound when combat starts while Aspect of the Cheetah or of the Pack is on you, repeated every few seconds until you change aspect or combat ends.",
+            },
+            {
                 module = "doubleClickFishing",
                 description = "Double right-click on the world to cast Fishing while a fishing rod is equipped. It stays out of the way in combat, while mounted, with a character under the mouse, with loot open, and while your line is already in the water.",
             },

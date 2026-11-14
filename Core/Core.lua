@@ -161,6 +161,7 @@ BOLT.defaultModuleStates = {
     doubleClickFishing = false,
     wowheadLink = true,
     cameraZoom = true,
+    cheetahWarning = true,
     autoRepSwitch = false,
     autoSell = false,
     campfire = false,
