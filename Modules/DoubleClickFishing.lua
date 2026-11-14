@@ -1,13 +1,16 @@
 -- B.O.L.T Double-Click Fishing Module
 -- Double right-click on the world to cast Fishing, with a fishing rod equipped.
 --
--- Addons can't cast from their own code. The second press of a quick right-click pair binds
--- BUTTON2 to a secure button that casts Fishing, from inside that press's GLOBAL_MOUSE_DOWN, so
--- the same click lands on the binding (the way Better Fishing does it). The button starts
--- mouselook on the press and stops it on the release: without that, a click whose mouse didn't
--- move is a world click and its release never reaches the binding, so double-clicks only worked
--- when the mouse moved between the clicks (2026-11-12). A secure snippet clears the binding once
--- the click has cast; a timer and combat start clear it too.
+-- Addons can't cast from their own code, so a quick right-click on the world arms the
+-- double-click: BUTTON2 is bound to a secure button that casts Fishing, for as long as a second
+-- click may follow. The second click casts on its RELEASE, always (useOnKeyDown = false):
+-- - a second click at the exact same spot is a system double-click, and WoW doesn't hand its
+--   press to the binding at all, only its release;
+-- - with "cast on key down" on (ActionButtonUseKeyDown), the secure button ignores releases
+--   unless useOnKeyDown is false. Earlier versions missed one or the other, so they only cast
+--   when the mouse moved between the clicks, or never (fixed 2026-11-14).
+-- A secure snippet clears the binding once it has cast (so it also works if combat starts); a
+-- timer clears it if no second click comes.
 -- Skipped in combat, while mounted, with a unit under the mouse, with a loot window open, while
 -- already fishing (so a double-click on the bobber doesn't recast), or without a rod equipped.
 
@@ -18,9 +21,9 @@ local DoubleClickFishing = {
 }
 
 local BUTTON_NAME = "BOLTFishingButton"
-local MAX_HOLD = 0.3 -- a longer press is turning the camera, not a click
-local MAX_GAP = 0.4  -- seconds between the two presses; slower is two single clicks
-local MIN_GAP = 0.04 -- faster is one click reported twice
+local MAX_HOLD = 0.3     -- a longer first press is turning the camera, not a click
+local MAX_GAP = 0.45     -- seconds after the first click for the second one to start
+local SECOND_HOLD = 1.5  -- once the second press started, how long its release may take
 
 -- Fishing cast spells: modern one first, then the old ranks (Classic-style clients).
 local FISHING_IDS = { 131474, 7620, 7731, 7732, 18248, 33095, 51294, 88868, 110410 }
@@ -94,62 +97,69 @@ function DoubleClickFishing:CanCast()
 end
 
 function DoubleClickFishing:ClearBinding()
+    self.token = (self.token or 0) + 1
     if self.bound and not InCombatLockdown() then
         ClearOverrideBindings(self.button)
     end
     self.bound = false
+    self.secondPress = false
+end
+
+-- Clears the binding after `delay` seconds unless something re-armed or cleared it since.
+function DoubleClickFishing:ClearAfter(delay)
+    local token = self.token
+    C_Timer.After(delay, function()
+        if self.token == token and self.bound then self:ClearBinding() end
+    end)
 end
 
 function DoubleClickFishing:OnMouseDown(mouseButton)
     if mouseButton ~= "RightButton" then return end
-    local now = GetTime()
-    local first, released = self.firstPress, self.firstReleased
-    self.firstPress, self.firstReleased = now, false
-    if self.bound or not first then return end
-    local gap = now - first
-    -- The first click must have been a click (released quickly), not a camera turn.
-    if gap < MIN_GAP or gap > MAX_GAP or not released then return end
-    if not self:CanCast() then return end
-    local spell = FishingSpellName()
-    if not spell then return end
-
-    self.firstPress = nil
-    self.button:SetAttribute("spell", spell)
-    self.button:SetAttribute("useKeyDowns", GetCVarBool("ActionButtonUseKeyDown"))
-    SetOverrideBindingClick(self.button, true, "BUTTON2", BUTTON_NAME)
-    self.bound = true
-    self.bindToken = (self.bindToken or 0) + 1
-    local token = self.bindToken
-    C_Timer.After(1, function()
-        if token == self.bindToken then self:ClearBinding() end
-    end)
+    if self.bound then
+        -- The second click started: give its release time to reach the binding.
+        if not self.secondPress then
+            self.secondPress = true
+            self.token = self.token + 1
+            self:ClearAfter(SECOND_HOLD)
+        end
+        return
+    end
+    self.pressTime = GetTime()
 end
 
 function DoubleClickFishing:OnMouseUp(mouseButton)
     if mouseButton ~= "RightButton" then return end
-    self.firstReleased = self.firstPress ~= nil and GetTime() - self.firstPress <= MAX_HOLD
+    if self.bound then return end -- the second click's release; the button handles it
+    local pressTime = self.pressTime
+    self.pressTime = nil
+    if not pressTime or GetTime() - pressTime > MAX_HOLD then return end
+    if not self:CanCast() then return end
+    local spell = FishingSpellName()
+    if not spell then return end
+
+    -- A quick click on the world: arm the second click.
+    self.button:SetAttribute("spell", spell)
+    SetOverrideBindingClick(self.button, true, "BUTTON2", BUTTON_NAME)
+    self.bound = true
+    self.secondPress = false
+    self.token = (self.token or 0) + 1
+    self:ClearAfter(MAX_GAP)
 end
 
 function DoubleClickFishing:OnInitialize()
     local button = CreateFrame("Button", BUTTON_NAME, nil, "SecureActionButtonTemplate")
-    button:RegisterForClicks("AnyDown", "AnyUp")
+    -- Releases only, whatever "cast on key down" says: see the top of the file.
+    button:RegisterForClicks("AnyUp")
     button:SetAttribute("type", "spell")
-    button:SetScript("PostClick", function(_, _, down)
-        if down then
-            MouselookStart()
-        else
-            MouselookStop()
-        end
-    end)
-    -- The button casts on the press or the release (ActionButtonUseKeyDown); drop the binding
-    -- on that edge, from secure code so it also works if combat started in between.
+    button:SetAttribute("useOnKeyDown", false)
+    -- Drop the binding as soon as it has cast, from secure code so it also works in combat.
     SecureHandlerWrapScript(button, "PostClick", button, [[
-        if (self:GetAttribute("useKeyDowns") and down) or not down then
-            self:ClearBindings()
-        end
+        self:ClearBindings()
     ]])
-    button:HookScript("PostClick", function(_, _, down)
-        if not down or self.button:GetAttribute("useKeyDowns") then self.bound = false end
+    button:HookScript("PostClick", function()
+        self.bound = false
+        self.secondPress = false
+        self.token = (self.token or 0) + 1
     end)
     self.button = button
 

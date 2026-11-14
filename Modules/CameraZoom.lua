@@ -43,6 +43,13 @@ end
 -- BOLT starts its modules once the player is logged in (Core.lua TryStart), so this runs once
 -- per login or /reload (or when the module is turned on). The delay lets the server's copy land.
 function CameraZoom:OnEnable()
+    -- DynamicCam sets this CVar from its own profile, again at every situation change, so a
+    -- value set here wouldn't last. Its own "max camera distance" setting is the one to change.
+    local loaded = C_AddOns and C_AddOns.IsAddOnLoaded or IsAddOnLoaded
+    if loaded and loaded("DynamicCam") then
+        BOLT:Print("Max Camera Distance: DynamicCam controls the camera distance. Set 'Maximum Camera Distance' in DynamicCam's options (39 yards is the max); B.O.L.T leaves it alone.")
+        return
+    end
     C_Timer.After(DELAY, function() CameraZoom:Apply() end)
 end
 
