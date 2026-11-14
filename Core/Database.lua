@@ -69,6 +69,74 @@ local function MigrateTargetKinds(profile)
     end
 end
 
+-- Auto-hide had one on/off and one rule per fixed part (mainBar, actionBars, unitFrames...),
+-- until 2026-11-14; before that, one opacity and target choice shared by all. It became fade
+-- groups: elements (each bar, each frame) join one of four groups, each group with its own rule.
+-- Parts with the same rule land in the same group (up to four groups).
+local OLD_AUTOHIDE_PARTS = {
+    { "mainBar", { "mainBar", "microMenu", "bags" } },
+    { "actionBars", { "bar2", "bar3", "bar4", "bar5", "bar6", "bar7", "bar8", "stanceBar", "petBar" } },
+    { "xpBar", { "xpBar" } },
+    { "buffs", { "buffs" } },
+    { "debuffs", { "debuffs" } },
+    { "unitFrames", { "playerFrame", "petFrame", "focusFrame", "partyFrames" } },
+    { "questTracker", { "questTracker" } },
+    { "minimap", { "minimap" } },
+    { "minimapButtons", { "minimapButtons" } },
+}
+local RULE_FIELDS = { "hover", "combat", "target", "group", "instance", "mounted", "alpha" }
+
+local function MigrateAutoHideGroups(settings)
+    local autoHide = type(settings) == "table" and settings.autoHide
+    if type(autoHide) ~= "table" then return end
+    local old = false
+    for _, part in ipairs(OLD_AUTOHIDE_PARTS) do
+        if type(autoHide[part[1]]) == "boolean" then old = true end
+    end
+    if not old then return end
+
+    local defaults = BOLT.defaults.profile.autoHide
+    local base = CopyTable(defaults.groups.g1)
+    if autoHide.idleAlpha ~= nil then base.alpha = autoHide.idleAlpha end
+    if autoHide.showWithTarget ~= nil then base.target = autoHide.showWithTarget end
+    local oldRules = type(autoHide.rules) == "table" and autoHide.rules or {}
+
+    local groups, members, bySignature, count = {}, {}, {}, 0
+    for _, part in ipairs(OLD_AUTOHIDE_PARTS) do
+        local key, elements = part[1], part[2]
+        local id = "none"
+        if autoHide[key] == true then
+            local rule = CopyTable(base)
+            if type(oldRules[key]) == "table" then
+                for _, field in ipairs(RULE_FIELDS) do
+                    if oldRules[key][field] ~= nil then rule[field] = oldRules[key][field] end
+                end
+            end
+            local signature = {}
+            for _, field in ipairs(RULE_FIELDS) do table.insert(signature, tostring(rule[field])) end
+            signature = table.concat(signature, "|")
+            id = bySignature[signature]
+            if not id then
+                if count < 4 then
+                    count = count + 1
+                    id = "g" .. count
+                    groups[id] = rule
+                    bySignature[signature] = id
+                else
+                    id = "g4"
+                end
+            end
+        end
+        for _, element in ipairs(elements) do members[element] = id end
+        autoHide[key] = nil
+    end
+    for id, rule in pairs(defaults.groups) do
+        if not groups[id] then groups[id] = CopyTable(rule) end
+    end
+    autoHide.groups, autoHide.members = groups, members
+    autoHide.rules, autoHide.idleAlpha, autoHide.showWithTarget = nil, nil, nil
+end
+
 -- UI modules: switched on and off per Edit Mode layout.
 BOLT.LAYOUT_MODULES = {
     unitFrames = true,
@@ -249,6 +317,7 @@ function BOLT:InitializeDatabase()
         layout.modules = layout.modules or {}
         layout.settings = layout.settings or {}
         layout.frames = layout.frames or {}
+        MigrateAutoHideGroups(layout.settings)
         MergeDefaults(layout.settings, layoutDefaults)
         for name in pairs(self.LAYOUT_MODULES) do
             if layout.modules[name] == nil then

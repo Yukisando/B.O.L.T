@@ -24,8 +24,6 @@ end
 
 -- The per-frame settings of a module that does several frames at once.
 local GROUP_KEYS = {
-    autoHide = { "mainBar", "actionBars", "xpBar", "buffs", "debuffs", "unitFrames", "questTracker",
-        "minimap", "minimapButtons" },
     unitFrames = { "player", "target", "targetOfTarget", "pet", "party", "castBars" },
 }
 
@@ -89,42 +87,91 @@ end
 -- Auto-hide UI
 ---------------------------------------------------------------------------
 
-local FADE_DESC = "Fades out, and comes back when you hover it, are in combat or have a target (pick which below), and while you drag a spell onto bars."
+-- Each frame picks a fade group ("Fades with"), and under it edits that group's conditions.
+-- The conditions belong to the group: every frame in the group follows them, so they're bound
+-- to whichever group the frame is in at the moment, not to the frame.
+local SHARED = " This is a setting of the whole group: every frame in it follows it."
 
--- "Fade out until needed" for this frame, plus the shared choices once it's on.
-local function Fade(key, desc)
-    if not BOLT.modules.autoHide then return {} end
-    local notFaded = function() return not On("autoHide", key) end
-    local visibility = BOLT.modules.frameVisibility
-    return List(
-        FramePart("autoHide", key, "Fade out until needed", desc or FADE_DESC),
-        EditMode:Slider("  Opacity while faded", { "autoHide", "idleAlpha" }, {
-            min = 0, max = 100, step = 5, format = EditMode.Percent,
-            desc = "Shared by every part of the UI that fades out.",
-            hidden = notFaded,
-        }),
-        visibility and EditMode:Dropdown("  Comes back with a target", { "autoHide", "showWithTarget" },
-            visibility.TARGET_CHOICES, {
-                desc = "Which targets bring faded parts back (not while mounted). Shared by every part of the UI that fades out.",
-                hidden = notFaded,
-            })
-    )
+local function GroupChoices()
+    local autoHide = BOLT.modules.autoHide
+    local values = { { text = "Never (always shown)", value = autoHide.NONE } }
+    for _, id in ipairs(autoHide.GROUP_IDS) do
+        table.insert(values, { text = autoHide.GroupName(id), value = id })
+    end
+    return values
 end
 
-local MAIN_STRIP = "Fades out with the main bar, micro menu and bags (one strip). " .. FADE_DESC
+-- "Fades with" for one element, then (unless conditions = false) its group's rule.
+local function Fade(elementKey, label, conditions)
+    local autoHide = BOLT.modules.autoHide
+    if not autoHide then return {} end
+    local element = autoHide.ELEMENT_BY_KEY[elementKey]
+    local function Group() return autoHide.MemberOf(elementKey) end
+    local function Faded() return Active("autoHide") and Group() ~= autoHide.NONE end
+    local notFaded = function() return not Faded() end
+    local function Get(field)
+        return function() return autoHide.RuleValue(autoHide.Rule(Group()), field) end
+    end
+    local function Set(field)
+        return function(value)
+            local id = Group()
+            if id ~= autoHide.NONE then BOLT:SetSetting({ "autoHide", "groups", id, field }, value) end
+        end
+    end
 
-local OTHER_BARS = { "Bar2", "Bar3", "RightBar1", "RightBar2", "ExtraBar1", "ExtraBar2", "ExtraBar3",
-    "StanceBar", "PetActionBar" }
+    local settings = {
+        EditMode:Dropdown(label or "Fades with", nil, GroupChoices(), {
+            desc = ("Puts the %s in a fade group: the frames of a group fade in and out together, by the group's conditions. Hovering any of them shows the whole group. Groups are also on the B.O.L.T settings page (Auto-hide UI)."):format(element.label:lower()),
+            default = autoHide.NONE, keepOnReset = true,
+            get = function() return Active("autoHide") and Group() or autoHide.NONE end,
+            set = function(value) autoHide.SetMember(elementKey, value) end,
+        }),
+    }
+    if conditions == false then return settings end
+
+    for _, condition in ipairs(autoHide.CONDITIONS) do
+        table.insert(settings, EditMode:Checkbox("  Shows: " .. condition.label:lower(), nil, {
+            desc = "The group comes back while this is true." .. SHARED,
+            default = false, keepOnReset = true, hidden = notFaded,
+            get = Get(condition.key), set = Set(condition.key),
+        }))
+    end
+    local visibility = BOLT.modules.frameVisibility
+    if visibility then
+        table.insert(settings, EditMode:Dropdown("  Shows with a target", nil, visibility.TARGET_CHOICES, {
+            desc = "Which targets bring the group back." .. SHARED,
+            default = "OFF", keepOnReset = true, hidden = notFaded,
+            get = Get("target"), set = Set("target"),
+        }))
+    end
+    table.insert(settings, EditMode:Checkbox("  Not while mounted", nil, {
+        desc = "While mounted or on a flight path, only hover and combat bring the group back." .. SHARED,
+        default = false, keepOnReset = true, hidden = notFaded,
+        get = Get("mounted"), set = Set("mounted"),
+    }))
+    table.insert(settings, EditMode:Slider("  Opacity while faded", nil, {
+        min = 0, max = 100, step = 5, format = EditMode.Percent,
+        desc = "How visible the group stays while faded out." .. SHARED,
+        keepOnReset = true, hidden = notFaded,
+        get = Get("alpha"), set = Set("alpha"),
+    }))
+    return settings
+end
+
+-- Edit Mode's action bar index names, to BOLT's element keys.
+local BARS = {
+    { "MainBar", "mainBar" }, { "Bar2", "bar2" }, { "Bar3", "bar3" }, { "RightBar1", "bar4" },
+    { "RightBar2", "bar5" }, { "ExtraBar1", "bar6" }, { "ExtraBar2", "bar7" }, { "ExtraBar3", "bar8" },
+    { "StanceBar", "stanceBar" }, { "PetActionBar", "petBar" },
+}
 
 local function RegisterAutoHide()
     local indices = "EditModeActionBarSystemIndices"
-    EditMode:AddSystemSettings("ActionBar", indices, "MainBar", Fade("mainBar", MAIN_STRIP))
-    for _, bar in ipairs(OTHER_BARS) do
-        EditMode:AddSystemSettings("ActionBar", indices, bar,
-            Fade("actionBars", "Fades out with all the other action bars (not the main bar). " .. FADE_DESC))
+    for _, bar in ipairs(BARS) do
+        EditMode:AddSystemSettings("ActionBar", indices, bar[1], Fade(bar[2]))
     end
-    EditMode:AddSystemSettings("MicroMenu", nil, nil, Fade("mainBar", MAIN_STRIP))
-    EditMode:AddSystemSettings("Bags", nil, nil, Fade("mainBar", MAIN_STRIP))
+    EditMode:AddSystemSettings("MicroMenu", nil, nil, Fade("microMenu"))
+    EditMode:AddSystemSettings("Bags", nil, nil, Fade("bags"))
     EditMode:AddSystemSettings("StatusTrackingBar", nil, nil, Fade("xpBar"))
     EditMode:AddSystemSettings("AuraFrame", "EditModeAuraFrameSystemIndices", "BuffFrame", Fade("buffs"))
     EditMode:AddSystemSettings("AuraFrame", "EditModeAuraFrameSystemIndices", "DebuffFrame", Fade("debuffs"))
@@ -228,10 +275,12 @@ local function RegisterMinimap()
         }))
     end
     if BOLT.modules.autoHide then
-        table.insert(settings, FramePart("autoHide", "minimap", "Fade the minimap out until needed",
-            "Comes back when you hover it or one of its buttons, have a target or are in combat."))
-        table.insert(settings, FramePart("autoHide", "minimapButtons", "Fade its buttons out until needed",
-            "The buttons come back when you hover them or the minimap."))
+        for _, setting in ipairs(Fade("minimapButtons", "Its buttons fade with", false)) do
+            table.insert(settings, setting)
+        end
+        for _, setting in ipairs(Fade("minimap", "The map fades with")) do
+            table.insert(settings, setting)
+        end
     end
     EditMode:AddSystemSettings("Minimap", nil, nil, settings)
     HookMinimapEdge()
@@ -258,17 +307,17 @@ local function RegisterUnitFrames()
     ), true)
     EditMode:AddSystemSettings("UnitFrame", indices, "Focus", List(
         Flat("target", "Flat style for target and focus"),
-        unpack(Fade("unitFrames", "Fades out with the pet, focus and party frames. " .. FADE_DESC))
+        unpack(Fade("focusFrame"))
     ))
     EditMode:AddSystemSettings("UnitFrame", indices, "Pet", List(
         Flat("pet"),
-        unpack(Fade("unitFrames", "Fades out with the pet, focus and party frames. " .. FADE_DESC))
+        unpack(Fade("petFrame"))
     ))
     EditMode:AddSystemSettings("UnitFrame", indices, "Party", List(
         Flat("party"),
         ModuleToggle("partyFramesCenterGrowth", "Keep raid-style party frames centered",
             "They stay centered as members join or leave. Needs Raid-Style Party Frames above."),
-        unpack(Fade("unitFrames", "Fades out with the pet, focus and party frames. " .. FADE_DESC))
+        unpack(Fade("partyFrames"))
     ))
     if BOLT.modules.unitFrames then
         EditMode:AddSystemSettings("CastBar", nil, nil, {
@@ -292,6 +341,13 @@ end
 -- Turning a multi-frame module on from the settings page with nothing picked would do nothing:
 -- start from the defaults then.
 function EditModeOptions:EnsureSomethingOn(module)
+    local autoHide = BOLT.modules.autoHide
+    if module == "autoHide" and autoHide then
+        if autoHide.HasMembers() then return end
+        local defaults = BOLT.defaults.profile.autoHide.members
+        for key, id in pairs(defaults) do BOLT:SetConfig(id, "autoHide", "members", key) end
+        return
+    end
     local keys = GROUP_KEYS[module]
     if not keys then return end
     for _, key in ipairs(keys) do

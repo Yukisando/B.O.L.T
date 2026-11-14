@@ -204,7 +204,8 @@ function EditMode:Checkbox(name, path, opts)
     }
 end
 
--- opts: min, max, step, format(value) -> string, desc, disabled(), hidden(), get(), set(value)
+-- opts: min, max, step, format(value) -> string, desc, disabled(), hidden(), get(), set(value),
+-- keepOnReset (as for Checkbox)
 function EditMode:Slider(name, path, opts)
     opts = opts or {}
     local default = opts.default
@@ -221,8 +222,11 @@ function EditMode:Slider(name, path, opts)
         disabled = opts.disabled,
         hidden = opts.hidden,
         get = opts.get or function() return BOLT:GetConfig(unpack(path)) end,
-        set = opts.set and function(_, value) opts.set(value) end
-            or function(_, value) BOLT:SetSetting(path, value) end,
+        set = function(_, value, fromReset)
+            -- Changes pass fromReset = false; "Reset to default" passes true.
+            if opts.keepOnReset and fromReset ~= false then return end
+            if opts.set then opts.set(value) else BOLT:SetSetting(path, value) end
+        end,
     }
 end
 
@@ -240,8 +244,11 @@ function EditMode:Dropdown(name, path, values, opts)
         disabled = opts.disabled,
         hidden = opts.hidden,
         get = opts.get or function() return BOLT:GetConfig(unpack(path)) end,
-        set = opts.set and function(_, value) opts.set(value) end
-            or function(_, value) BOLT:SetSetting(path, value) end,
+        set = function(_, value, fromReset)
+            -- Changes pass fromReset = false; "Reset to default" passes true.
+            if opts.keepOnReset and fromReset ~= false then return end
+            if opts.set then opts.set(value) else BOLT:SetSetting(path, value) end
+        end,
     }
 end
 

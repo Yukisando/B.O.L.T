@@ -52,17 +52,24 @@ BOLT.defaults = {
             },
         },
         autoHide = {
-            mainBar = true,     -- main action bar, micro menu and bags, as one strip
-            actionBars = true,  -- the other action bars
-            xpBar = true,
-            minimapButtons = true,
-            buffs = false,
-            debuffs = false,
-            unitFrames = false,
-            questTracker = false,
-            minimap = false,
-            idleAlpha = 0, -- percent opacity while hidden
-            showWithTarget = "ANY", -- which targets bring it back: OFF, ANY, HOSTILE, FRIENDLY
+            -- Fade groups: what brings each group back (any one is enough): hover (any member),
+            -- combat, target (OFF, ANY, HOSTILE, FRIENDLY), group (in a party or raid), instance
+            -- (dungeon, raid, arena, battleground). mounted: while mounted or on a flight path only
+            -- hover and combat count. alpha: percent opacity while faded.
+            groups = {
+                g1 = { hover = true, combat = true, target = "ANY", group = false, instance = false, mounted = true, alpha = 0 },
+                g2 = { hover = true, combat = false, target = "OFF", group = false, instance = false, mounted = true, alpha = 0 },
+                g3 = { hover = true, combat = true, target = "OFF", group = false, instance = false, mounted = true, alpha = 0 },
+                g4 = { hover = false, combat = true, target = "OFF", group = false, instance = false, mounted = true, alpha = 0 },
+            },
+            -- The fade group of each element (AutoHide.ELEMENTS), or "none" to never fade it.
+            members = {
+                mainBar = "g1", microMenu = "g1", bags = "g1",
+                bar2 = "g1", bar3 = "g1", bar4 = "g1", bar5 = "g1", bar6 = "g1", bar7 = "g1", bar8 = "g1",
+                stanceBar = "g1", petBar = "g1", xpBar = "g1", minimapButtons = "g1",
+                buffs = "none", debuffs = "none", playerFrame = "none", petFrame = "none",
+                focusFrame = "none", partyFrames = "none", questTracker = "none", minimap = "none",
+            },
         },
         gameMenu = {
             showLeaveGroup = true,
@@ -153,6 +160,7 @@ BOLT.defaultModuleStates = {
     wandShoot = false,
     doubleClickFishing = false,
     wowheadLink = true,
+    cameraZoom = true,
     autoRepSwitch = false,
     autoSell = false,
     campfire = false,

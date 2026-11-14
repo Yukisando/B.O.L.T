@@ -1,8 +1,16 @@
 -- B.O.L.T Auto-hide UI Module
--- Fades parts of Blizzard's UI out until they're needed. A group fades in when you hover it,
--- have a target (any, attackable or not attackable: autoHide.showWithTarget) or are in combat; it stays hidden while mounted or on a flight path unless
--- you're in combat. Everything shows in Edit Mode, and action bars show while you drag a
--- spell or item onto them.
+-- Fades parts of Blizzard's UI out until they're needed, through fade groups.
+--
+-- Elements: the parts of the UI that can fade (main bar, micro menu, bags, each action bar,
+-- XP bar, buffs, unit frames, quest tracker, minimap...). Each one joins one fade group, or none
+-- (autoHide.members[element] = "g1".."g4" or "none").
+-- Fade groups (autoHide.groups.g1..g4): the members of a group fade in and out together, as one.
+-- A group's rule lists what brings it back, any one being enough: hovering any of its members,
+-- combat, a target (any, attackable or not attackable), being in a group, being in an
+-- instance. With "mounted" on, only hover and combat count while mounted or on a flight path.
+-- Tick nothing and the group stays faded. Each group has its own opacity while faded.
+-- Everything shows in Edit Mode, and a group holding an action bar shows while you drag a spell
+-- or item.
 --
 -- Only alpha changes, which Blizzard allows on protected frames in combat: bars stay
 -- clickable and keybinds keep working while hidden.
@@ -18,9 +26,61 @@ local FADE_OUT = 0.5        -- seconds from shown to hidden
 local FADE_OUT_DELAY = 1    -- grace period after the last reason to show
 local RESCAN_INTERVAL = 2   -- addons add minimap buttons late; pick them up
 
-local function Cfg(key)
-    return BOLT:GetConfig("autoHide", key)
+---------------------------------------------------------------------------
+-- Fade groups and their rules
+---------------------------------------------------------------------------
+
+AutoHide.GROUP_IDS = { "g1", "g2", "g3", "g4" }
+AutoHide.NONE = "none"
+
+local DEFAULT_RULE = { hover = true, combat = true, target = "ANY", group = false, instance = false,
+    mounted = true, alpha = 0 }
+
+-- The on/off conditions of a rule, in the order the settings show them. The target condition
+-- (a choice of target kind) and "mounted" sit beside these.
+AutoHide.CONDITIONS = {
+    { key = "hover", label = "Mouse over", short = "hover" },
+    { key = "combat", label = "In combat", short = "combat" },
+    { key = "group", label = "In a group", short = "group" },
+    { key = "instance", label = "In a dungeon, raid, arena or battleground", short = "instance" },
+}
+
+local TARGET_SHORT = { ANY = "target", HOSTILE = "enemy target", FRIENDLY = "friendly target" }
+
+function AutoHide.GroupName(id)
+    return "Group " .. (tostring(id):match("%d+") or "?")
 end
+
+function AutoHide.Rule(id)
+    local rule = BOLT:GetConfig("autoHide", "groups", id)
+    if type(rule) ~= "table" then return DEFAULT_RULE end
+    return rule
+end
+
+function AutoHide.RuleValue(rule, field)
+    local value = rule[field]
+    if value == nil then return DEFAULT_RULE[field] end
+    return value
+end
+
+local Rule, RuleValue = AutoHide.Rule, AutoHide.RuleValue
+
+-- "hover, combat, target" for menus and tooltips.
+function AutoHide.Summary(id)
+    local rule = Rule(id)
+    local parts = {}
+    for _, condition in ipairs(AutoHide.CONDITIONS) do
+        if RuleValue(rule, condition.key) then table.insert(parts, condition.short) end
+    end
+    local target = TARGET_SHORT[RuleValue(rule, "target")]
+    if target then table.insert(parts, target) end
+    if #parts == 0 then return "never shows" end
+    return table.concat(parts, ", ")
+end
+
+---------------------------------------------------------------------------
+-- Elements
+---------------------------------------------------------------------------
 
 local function Named(names)
     local frames = {}
@@ -30,6 +90,11 @@ local function Named(names)
         end
     end
     return frames
+end
+
+local function NamedList(...)
+    local names = { ... }
+    return function() return Named(names) end
 end
 
 -- The minimap's surroundings: zone name, tracking, calendar, mail and the like, plus the
@@ -72,71 +137,50 @@ local function MinimapButtons()
     return frames
 end
 
-local GROUPS = {
-    {
-        -- The bottom row reads as one strip, so it shows as one: hovering the main bar, the
-        -- micro menu or the bags reveals all three.
-        key = "mainBar",
-        showWhileDragging = true,
-        frames = function()
-            return Named({ "MainActionBar", "MainMenuBar", "MicroMenuContainer", "BagsBar", "MicroButtonAndBagsBar" })
-        end,
-    },
-    {
-        key = "actionBars",
-        showWhileDragging = true,
-        frames = function()
-            return Named({ "MultiBarBottomLeft", "MultiBarBottomRight", "MultiBarRight", "MultiBarLeft",
-                "MultiBar5", "MultiBar6", "MultiBar7", "StanceBar", "PetActionBar", "MultiCastActionBarFrame" })
-        end,
-    },
+-- bar: an action bar (its group shows while you drag a spell or item).
+-- hover: extra frames whose hover counts for this element, when its frames don't cover it.
+AutoHide.ELEMENTS = {
+    { key = "mainBar", label = "Main action bar", bar = true, frames = NamedList("MainActionBar", "MainMenuBar") },
+    { key = "microMenu", label = "Micro menu", frames = NamedList("MicroMenuContainer", "MicroButtonAndBagsBar") },
+    { key = "bags", label = "Bags", frames = NamedList("BagsBar") },
+    { key = "bar2", label = "Action bar 2", bar = true, frames = NamedList("MultiBarBottomLeft") },
+    { key = "bar3", label = "Action bar 3", bar = true, frames = NamedList("MultiBarBottomRight") },
+    { key = "bar4", label = "Action bar 4 (right)", bar = true, frames = NamedList("MultiBarRight") },
+    { key = "bar5", label = "Action bar 5 (right)", bar = true, frames = NamedList("MultiBarLeft") },
+    { key = "bar6", label = "Action bar 6", bar = true, frames = NamedList("MultiBar5") },
+    { key = "bar7", label = "Action bar 7", bar = true, frames = NamedList("MultiBar6") },
+    { key = "bar8", label = "Action bar 8", bar = true, frames = NamedList("MultiBar7") },
+    { key = "stanceBar", label = "Stance bar", bar = true, frames = NamedList("StanceBar") },
+    { key = "petBar", label = "Pet bar", bar = true, frames = NamedList("PetActionBar", "MultiCastActionBarFrame") },
     {
         -- The bar containers animate their own alpha, so we fade their manager. The manager's
         -- own rectangle doesn't cover the bars (Edit Mode places the containers), so hover is
         -- checked on the containers themselves.
-        key = "xpBar",
-        frames = function()
-            return Named({ "StatusTrackingBarManager" })
-        end,
-        hover = function()
-            return Named({ "MainStatusTrackingBarContainer", "SecondaryStatusTrackingBarContainer" })
-        end,
+        key = "xpBar", label = "Experience bar",
+        frames = NamedList("StatusTrackingBarManager"),
+        hover = NamedList("MainStatusTrackingBarContainer", "SecondaryStatusTrackingBarContainer"),
     },
+    { key = "buffs", label = "Buffs", frames = NamedList("BuffFrame") },
+    { key = "debuffs", label = "Debuffs", frames = NamedList("DebuffFrame") },
     {
-        key = "buffs",
+        key = "playerFrame", label = "Player frame",
         frames = function()
-            return Named({ "BuffFrame" })
-        end,
-    },
-    {
-        key = "debuffs",
-        frames = function()
-            return Named({ "DebuffFrame" })
-        end,
-    },
-    {
-        -- Target and focus only exist while you have one, and a target shows the UI anyway.
-        key = "unitFrames",
-        frames = function()
-            local frames = Named({ "PetFrame", "FocusFrame", "PartyFrame", "CompactPartyFrame" })
             -- The Player Frame's own hide/show options (Edit Mode) win over auto-hide.
             local visibility = BOLT.modules.frameVisibility
             if PlayerFrame and not (visibility and visibility:Controls("player")) then
-                table.insert(frames, 1, PlayerFrame)
+                return { PlayerFrame }
             end
-            return frames
+            return {}
         end,
     },
+    { key = "petFrame", label = "Pet frame", frames = NamedList("PetFrame") },
+    { key = "focusFrame", label = "Focus frame", frames = NamedList("FocusFrame") },
+    { key = "partyFrames", label = "Party frames", frames = NamedList("PartyFrame", "CompactPartyFrame") },
+    { key = "questTracker", label = "Quest tracker", frames = NamedList("ObjectiveTrackerFrame", "QuestWatchFrame", "WatchFrame") },
     {
-        key = "questTracker",
-        frames = function()
-            return Named({ "ObjectiveTrackerFrame", "QuestWatchFrame", "WatchFrame" })
-        end,
-    },
-    {
-        -- The map itself; its buttons are their own group. Hovering a button reveals the map too,
-        -- since addon buttons sit on the map and would otherwise stay faded with it.
-        key = "minimap",
+        -- The map itself; its buttons are their own element. Hovering a button counts as
+        -- hovering the map, since addon buttons sit on the map.
+        key = "minimap", label = "Minimap",
         frames = function()
             local frames = Named({ "MinimapBackdrop", "Minimap" })
             if MinimapCluster and MinimapCluster.MinimapContainer then
@@ -146,17 +190,34 @@ local GROUPS = {
         end,
         hover = MinimapButtons,
     },
-    {
-        key = "minimapButtons",
-        frames = MinimapButtons,
-        -- Hovering the map reveals its buttons.
-        hover = function()
-            return Named({ "Minimap" })
-        end,
-    },
+    { key = "minimapButtons", label = "Minimap buttons", frames = MinimapButtons, hover = NamedList("Minimap") },
 }
 
-local state = {} -- [group key] = { group, frames, hover, alpha, holdUntil }
+local ELEMENT_BY_KEY = {}
+for _, element in ipairs(AutoHide.ELEMENTS) do ELEMENT_BY_KEY[element.key] = element end
+AutoHide.ELEMENT_BY_KEY = ELEMENT_BY_KEY
+
+-- The fade group an element belongs to, or NONE.
+function AutoHide.MemberOf(elementKey)
+    local id = BOLT:GetConfig("autoHide", "members", elementKey)
+    if type(id) ~= "string" or not BOLT:GetConfig("autoHide", "groups", id) then return AutoHide.NONE end
+    return id
+end
+
+function AutoHide.HasMembers()
+    for _, element in ipairs(AutoHide.ELEMENTS) do
+        if AutoHide.MemberOf(element.key) ~= AutoHide.NONE then return true end
+    end
+    return false
+end
+
+---------------------------------------------------------------------------
+-- Fading
+---------------------------------------------------------------------------
+
+-- [group id] = { frames, hover, bar, alpha, holdUntil }
+local state = {}
+local faded = {} -- [frame] = true for every frame BOLT is fading, to give alpha back
 
 local function Hovered(frames)
     for _, frame in ipairs(frames) do
@@ -175,18 +236,41 @@ local function SetAlpha(frames, alpha)
     end
 end
 
-local function Rescan()
-    for _, entry in pairs(state) do
-        local frames = entry.group.frames()
-        -- A frame that left the group gets its alpha back.
-        local keep = {}
-        for _, frame in ipairs(frames) do keep[frame] = true end
-        for _, frame in ipairs(entry.frames) do
-            if not keep[frame] then frame:SetAlpha(1) end
+-- Rebuilds every group's frame list from the members. Frames that left every group get their
+-- alpha back. Keeps each group's current alpha so nothing flashes.
+local function Rebuild()
+    local wanted, now = {}, GetTime()
+    local seen = {}
+    for _, element in ipairs(AutoHide.ELEMENTS) do
+        local id = AutoHide.MemberOf(element.key)
+        if id ~= AutoHide.NONE then
+            local group = wanted[id]
+            if not group then
+                local old = state[id]
+                group = { frames = {}, hover = {}, bar = false,
+                    alpha = old and old.alpha or 1, holdUntil = old and old.holdUntil or now + FADE_OUT_DELAY }
+                wanted[id] = group
+            end
+            for _, frame in ipairs(element.frames()) do
+                if not seen[frame] then
+                    seen[frame] = true
+                    table.insert(group.frames, frame)
+                end
+            end
+            if element.hover then
+                for _, frame in ipairs(element.hover()) do table.insert(group.hover, frame) end
+            end
+            group.bar = group.bar or element.bar == true
         end
-        entry.frames = frames
-        entry.hover = entry.group.hover and entry.group.hover() or nil
     end
+    for frame in pairs(faded) do
+        if not seen[frame] then
+            frame:SetAlpha(1)
+            faded[frame] = nil
+        end
+    end
+    for frame in pairs(seen) do faded[frame] = true end
+    state = wanted
 end
 
 local function IsEditing()
@@ -203,66 +287,62 @@ local function OnUpdate(_, elapsed)
     sinceRescan = sinceRescan + elapsed
     if sinceRescan >= RESCAN_INTERVAL then
         sinceRescan = 0
-        Rescan()
+        Rebuild()
     end
 
     local now = GetTime()
     local inCombat = InCombatLockdown() or UnitAffectingCombat("player")
     local mounted = IsMounted() or UnitOnTaxi("player")
-    -- Combat always shows; a fitting target shows unless you're mounted or flying a taxi.
-    local visibility = BOLT.modules.frameVisibility
-    local targetKind = Cfg("showWithTarget") or "ANY"
-    local hasTarget = visibility and visibility.TargetFits(targetKind) or (targetKind ~= "OFF" and UnitExists("target"))
-    local wanted = inCombat or (hasTarget and not mounted) or IsEditing()
+    local editing = IsEditing()
     local dragging = GetCursorInfo() ~= nil
-    local idleAlpha = (Cfg("idleAlpha") or 0) / 100
+    local inGroup = IsInGroup()
+    local inInstance, instanceType = IsInInstance()
+    inInstance = inInstance and instanceType ~= "none" and instanceType ~= "neighborhood"
+    local visibility = BOLT.modules.frameVisibility
+    local targetFits = {} -- [kind] = bool, worked out once per frame
+    local function TargetFits(kind)
+        if not kind or kind == "OFF" then return false end
+        if targetFits[kind] == nil then
+            if visibility then
+                targetFits[kind] = visibility.TargetFits(kind) and true or false
+            else
+                targetFits[kind] = UnitExists("target") and true or false
+            end
+        end
+        return targetFits[kind]
+    end
 
-    for _, entry in pairs(state) do
-        local show = wanted
-            or (entry.group.showWhileDragging and dragging)
-            or Hovered(entry.frames)
-            or (entry.hover ~= nil and Hovered(entry.hover))
+    for id, group in pairs(state) do
+        local rule = Rule(id)
+        local quiet = mounted and RuleValue(rule, "mounted")
+        local show = editing
+            or (group.bar and dragging)
+            or (RuleValue(rule, "combat") and inCombat)
+            or (RuleValue(rule, "hover") and (Hovered(group.frames) or Hovered(group.hover)))
+            or (not quiet and (
+                TargetFits(RuleValue(rule, "target"))
+                or (RuleValue(rule, "group") and inGroup)
+                or (RuleValue(rule, "instance") and inInstance)))
         if show then
-            entry.holdUntil = now + FADE_OUT_DELAY
+            group.holdUntil = now + FADE_OUT_DELAY
         end
 
-        local goal = (show or now < entry.holdUntil) and 1 or idleAlpha
-        local alpha = entry.alpha
+        local goal = (show or now < group.holdUntil) and 1 or (RuleValue(rule, "alpha") or 0) / 100
+        local alpha = group.alpha
         if alpha < goal then
             alpha = math.min(goal, alpha + elapsed / FADE_IN)
         elseif alpha > goal then
             alpha = math.max(goal, alpha - elapsed / FADE_OUT)
         end
-        entry.alpha = alpha
-        SetAlpha(entry.frames, alpha)
-    end
-end
-
-function AutoHide:BuildGroups()
-    for _, group in ipairs(GROUPS) do
-        local entry = state[group.key]
-        if Cfg(group.key) then
-            if not entry then
-                state[group.key] = {
-                    group = group,
-                    frames = group.frames(),
-                    hover = group.hover and group.hover() or nil,
-                    alpha = 1,
-                    holdUntil = GetTime() + FADE_OUT_DELAY,
-                }
-            end
-        elseif entry then
-            SetAlpha(entry.frames, 1)
-            state[group.key] = nil
-        end
+        group.alpha = alpha
+        SetAlpha(group.frames, alpha)
     end
 end
 
 function AutoHide:RestoreAll()
-    for key, entry in pairs(state) do
-        SetAlpha(entry.frames, 1)
-        state[key] = nil
-    end
+    for frame in pairs(faded) do frame:SetAlpha(1) end
+    faded = {}
+    state = {}
 end
 
 function AutoHide:OnInitialize()
@@ -270,7 +350,7 @@ function AutoHide:OnInitialize()
 end
 
 function AutoHide:OnEnable()
-    self:BuildGroups()
+    Rebuild()
     self.driver:SetScript("OnUpdate", OnUpdate)
 end
 
@@ -280,7 +360,17 @@ function AutoHide:OnDisable()
 end
 
 function AutoHide:OnSettingChanged()
-    self:BuildGroups()
+    Rebuild()
+end
+
+-- Puts an element in a fade group (or NONE). Turns the module on when something joins a group,
+-- and off when nothing is left in any group.
+function AutoHide.SetMember(elementKey, id)
+    BOLT:SetSetting({ "autoHide", "members", elementKey }, id)
+    local hasMembers = AutoHide.HasMembers()
+    if hasMembers ~= BOLT:IsModuleEnabled("autoHide") then
+        BOLT:SetModuleEnabled("autoHide", hasMembers)
+    end
 end
 
 BOLT:RegisterModule("autoHide", AutoHide)

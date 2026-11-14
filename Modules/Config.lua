@@ -71,6 +71,82 @@ local function ToggleList(section, label, allText, entries)
     }
 end
 
+-- Auto-hide fade groups: for each group, the frames in it and what brings it back, then its
+-- opacity. Picking a frame for a group takes it out of the group it was in. The target kinds in
+-- the conditions list act as one choice: picking one replaces the other.
+local TARGET_ENTRIES = {
+    { value = "target:ANY", label = "Any target", kind = "ANY" },
+    { value = "target:HOSTILE", label = "Attackable target", kind = "HOSTILE" },
+    { value = "target:FRIENDLY", label = "Not attackable target", kind = "FRIENDLY" },
+}
+
+local function TargetEntry(value)
+    for _, entry in ipairs(TARGET_ENTRIES) do
+        if entry.value == value then return entry end
+    end
+end
+
+local function AutoHideGroup(options, autoHide, id)
+    local function Path(field) return { "autoHide", "groups", id, field } end
+    local function Value(field) return autoHide.RuleValue(autoHide.Rule(id), field) end
+
+    table.insert(options, { type = "header", label = autoHide.GroupName(id) })
+    table.insert(options, {
+        type = "multiselect", label = "Frames:", width = 330,
+        options = function()
+            local list = {}
+            for _, element in ipairs(autoHide.ELEMENTS) do
+                table.insert(list, { value = element.key, label = element.label })
+            end
+            return list
+        end,
+        isSelected = function(key) return autoHide.MemberOf(key) == id end,
+        toggle = function(key, selected) autoHide.SetMember(key, selected and id or autoHide.NONE) end,
+    })
+    table.insert(options, {
+        type = "multiselect", label = "Shows on:", width = 230,
+        options = function()
+            local list = {}
+            for _, condition in ipairs(autoHide.CONDITIONS) do
+                table.insert(list, { value = condition.key, label = condition.label })
+            end
+            for _, entry in ipairs(TARGET_ENTRIES) do
+                table.insert(list, { value = entry.value, label = entry.label })
+            end
+            table.insert(list, { value = "mounted", label = "Not while mounted (hover and combat still count)" })
+            return list
+        end,
+        isSelected = function(value)
+            local entry = TargetEntry(value)
+            if entry then return Value("target") == entry.kind end
+            return Value(value) and true or false
+        end,
+        toggle = function(value, selected)
+            local entry = TargetEntry(value)
+            if entry then
+                SetSetting(Path("target"), selected and entry.kind or "OFF")
+            else
+                SetSetting(Path(value), selected)
+            end
+        end,
+    })
+    table.insert(options, {
+        type = "slider", label = "Faded:", width = 110, sameRow = true,
+        path = Path("alpha"), min = 0, max = 100, step = 5,
+        format = function(value) return ("%d%%"):format(value) end,
+    })
+end
+
+local function AutoHideOptions()
+    local autoHide = Module("autoHide")
+    if not autoHide then return {} end
+    local options = {}
+    for _, id in ipairs(autoHide.GROUP_IDS) do
+        AutoHideGroup(options, autoHide, id)
+    end
+    return options
+end
+
 local BUTTON_SIDES = {
     { value = "TOP", label = "Top, under the title" },
     { value = "BOTTOM", label = "Bottom" },
@@ -169,23 +245,10 @@ local PAGES = {
             },
             {
                 module = "autoHide",
-                description = "Hides parts of the UI until you need them. They fade in when you hover them, have a target or are in combat, and stay hidden while mounted or on a flight path unless you're in combat. Everything shows in Edit Mode; action bars also show while you drag a spell or item.",
-                editMode = "select an action bar, the bags, micro menu, experience bar, buffs, debuffs, quest tracker, minimap, or the pet, focus or party frames, and tick Fade out until needed.",
-                options = {
-                    ToggleList("autoHide", "Hide:", "Everything", {
-                        { "mainBar", "Main bar, micro menu and bags" },
-                        { "actionBars", "Other action bars" },
-                        { "xpBar", "Experience bar" },
-                        { "buffs", "Buffs" },
-                        { "debuffs", "Debuffs" },
-                        { "unitFrames", "Unit frames" },
-                        { "questTracker", "Quest tracker" },
-                        { "minimap", "Minimap" },
-                        { "minimapButtons", "Minimap buttons" },
-                    }),
-                    { type = "slider", label = "Opacity while hidden:", path = { "autoHide", "idleAlpha" },
-                        min = 0, max = 100, step = 5, format = function(value) return ("%d%%"):format(value) end },
-                },
+                description = "Hides parts of the UI until you need them, in fade groups. Put frames in a group, then tick what brings the group back: mouse over, combat, a target, being in a group or in an instance. Any one is enough; tick nothing and the group stays faded. A group fades in and out as one: hovering any of its frames shows them all. Everything shows in Edit Mode; a group with an action bar also shows while you drag a spell or item.",
+                editMode = "select any of these frames and pick its group under \"Fades with\"; the group's conditions are listed under it.",
+                keepOptions = true, -- the group editor stays here, under the Edit Mode button
+                options = AutoHideOptions,
             },
             {
                 module = "partyFramesCenterGrowth",
@@ -226,6 +289,10 @@ local PAGES = {
                     { type = "checkbox", label = "Ready alert: a sound, a glow and a taskbar flash when Camp Benefits lands", path = { "campfire", "readyAlert" } },
                     { type = "checkbox", label = "Show the camp recipes you can craft", path = { "campfire", "showCraft" } },
                 },
+            },
+            {
+                module = "cameraZoom",
+                description = "Lets the camera zoom out as far as the game allows, past the limit of Blizzard's own slider. Turning it off puts the game's default back.",
             },
             {
                 module = "autoRepSwitch",
@@ -877,9 +944,17 @@ function Config:BuildSection(page, spec)
 
     -- Sections whose options live in Edit Mode: only the switch above and a button here.
     local options = spec.options or {}
+    if type(options) == "function" then options = options() end
     local text = spec.description
     if spec.editMode and BOLT.EditMode and BOLT.EditMode.available then
-        options = { { type = "button", label = "Open Edit Mode", width = 150, onClick = OpenEditMode } }
+        local button = { type = "button", label = "Open Edit Mode", width = 150, onClick = OpenEditMode }
+        if spec.keepOptions then
+            local all = { button }
+            for _, option in ipairs(options) do table.insert(all, option) end
+            options = all
+        else
+            options = { button }
+        end
         text = (text and text .. "\n\n" or "") .. "|cffffd100Options in Edit Mode:|r " .. spec.editMode
     end
     if BOLT:IsLayoutModule(spec.module) then
