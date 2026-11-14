@@ -6,6 +6,16 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-17 (2026-11-14)
+
+- feat: fade groups for auto-hide, max camera distance
+- Auto-hide UI is now four fade groups: each frame (every action bar, micro menu, bags, XP bar,
+-   buffs, unit frames, quest tracker, minimap...) joins one group or none, and each group has its
+-   own conditions (mouse over, combat, target kind, in a group, in an instance, not while mounted)
+-   and opacity. Edited on the settings page or from any frame in Edit Mode; old setups carry over.
+- New Max Camera Distance module (on by default): sets the highest camera zoom-out the client
+-   accepts, once per login or reload.
+
 ## v8-16 (2026-11-12)
 
 - feat: nameplate DoT overlay, wand key starts the wand again, sell-list coin shows in bags
