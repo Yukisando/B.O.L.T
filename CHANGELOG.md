@@ -6,6 +6,10 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-18 (2026-11-14)
+
+- fix: double-click fishing casts on the second click's release, camera zoom defers to DynamicCam
+
 ## v8-17 (2026-11-14)
 
 - feat: fade groups for auto-hide, max camera distance
