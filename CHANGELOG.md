@@ -6,6 +6,19 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-23 (2026-11-15)
+
+- feat: Chat section, a quiet Blizzard chat window to replace chat addons
+- New Chat section in Social: the chat window, the sound on new messages and the popups in one place
+- Clean chat window: no borders, tab backgrounds or scroll bar; tabs and a soft background fade in together while the mouse is over it
+- Chat buttons (menu, channels, voice, social) hidden
+- Input box only while typing (Blizzard's IM style), and an option to put it above the window
+- The last 100 lines of each tab come back after a reload or login
+- Copy chat: right-click a tab or type /copychat to copy a tab's text
+- Edit Mode: the chat window can join a fade group (stays shown while you type) and, like the minimap, go past the screen edges
+- Chat Popups ignore your own messages, in dungeons and raids too
+- With Chattynator on, the chat window is left alone
+
 ## v8-22 (2026-11-15)
 
 - feat: Chat Popups for whispers and party chat
