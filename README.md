@@ -220,7 +220,7 @@ Requires [Total RP 3](https://www.curseforge.com/wow/addons/total-rp-3) to be in
 #### Everyday Emotes
 
 - **One Key per Emote**: Hello, Goodbye, Thanks and Sit each get a keybind slot in the Roleplay settings (also under B.O.L.T in Key Bindings). Emotes are aimed at your target when you have one. Total RP 3 not needed
-- **Thank Your Buffers** (on by default): when another player buffs you, you /thank them 2 seconds later. Out of combat only, once a minute per player
+- **Thank Your Buffers** (on by default): when another player buffs you, you /thank them 2 seconds later. Out of combat and outside instances (dungeons, raids, battlegrounds), once a minute per player
 
 ## Installation
 

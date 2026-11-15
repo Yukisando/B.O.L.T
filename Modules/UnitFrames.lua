@@ -32,19 +32,28 @@ local FOREVER = BOLT.isForever
 -- healthH, manaH       height of Blizzard's bar fill art (kept native, masked to its compartment)
 -- healthPad, manaPad   margin {left, top, right} of that fill art to hide - its transparent edge plus the
 --                      darker bevel columns at its ends - so the fill runs flat right up to the borders
+-- healthFill, manaFill { w, h, x0, y0, x1, y1 }: the fill texture's size, then its flat colored part (x1, y1
+--                      exclusive), leaving out the darker shading Blizzard draws at its ends and edges.
+--                      The bar is sized so that part covers its compartment exactly, stretched if need be:
+--                      every bar fills its slot right up to the border, like the Personal Resource Display.
+--                      Compartments are the slot's inside, measured to the border (Forever, 2026-11-15).
 
 local ART
 if FOREVER then
     ART = {
         player = { cap = { 182, 198 }, mid = 150, native = "right", texW = 198, texH = 71, left = 4,
-            inset = 7, edge = 4, top = 11, name = { 16, 27 }, health = { 32, 45 }, mana = { 49, 56 }, healthH = 20, manaH = 10,
-            healthPad = { 3, 4, 3 }, manaPad = { 3, 1, 3 } },
+            inset = 5.5, edge = 4, top = 11, name = { 16, 27 }, health = { 31.5, 45.5 }, mana = { 47.5, 56.5 },
+            healthFill = { 124, 20, 4, 4.5, 121, 16.5 }, manaFill = { 124, 10, 3, 1.5, 121.5, 9 } },
         target = { cap = { 0, 12 }, mid = 60, native = "left", texW = 194, texH = 68, width = 190,
-            inset = 5, edge = 3, top = 7, name = { 13, 24 }, health = { 30, 42 }, mana = { 46, 53 }, healthH = 20, manaH = 10,
-            healthPad = { 4, 4, 4 }, manaPad = { 8, 1, 7 } },
+            inset = 4.5, edge = 3, top = 7, name = { 13, 24 }, health = { 28, 42 }, mana = { 44, 53 },
+            healthFill = { 126, 20, 4.5, 4.5, 122, 16.5 }, manaFill = { 134, 10, 8, 1.5, 126.5, 9 } },
+        -- target of target and pet (TargetofTarget art and bars)
         small = { cap = { 100, 120 }, mid = 80, native = "right", texW = 120, texH = 49, left = 2,
-            inset = 7, edge = 4, top = 3, name = { 8, 15 }, health = { 20, 27 }, mana = { 31, 35 }, healthH = 10, manaH = 7,
-            healthPad = { 2, 1, 3 }, manaPad = { 4, 1, 4 } },
+            inset = 5.5, edge = 4, top = 3, name = { 8, 15 }, health = { 18.5, 28.5 }, mana = { 30.5, 36.5 },
+            healthFill = { 70, 10, 2, 1, 68, 9 }, manaFill = { 74, 7, 4.5, 1.5, 70.5, 6 } },
+        party = { cap = { 100, 120 }, mid = 80, native = "right", texW = 120, texH = 49, left = 2,
+            inset = 5, edge = 4, top = 3, name = { 8, 15 }, health = { 18, 28 }, mana = { 30, 36 },
+            healthFill = { 70, 10, 2, 1, 67, 9.5 }, manaFill = { 74, 7, 4, 2, 71, 6 } },
     }
 else
     ART = {
@@ -58,6 +67,7 @@ else
             inset = 7, edge = 5, top = 3, name = { 3, 15 }, health = { 18, 26 }, mana = { 29, 34 }, healthH = 10, manaH = 7,
             healthPad = { 0, 1, 0 }, manaPad = { 2, 1, 0 } },
     }
+    ART.party = ART.small
 end
 
 -- Glows Blizzard drives (combat, threat, resting), redrawn along the stretched box.
@@ -174,11 +184,31 @@ local function CompartmentRect(art, rows)
     return { inset, rows[1], art.width - inset, rows[2] }
 end
 
--- The bar itself: the compartment grown by the fill art's transparent margin, at native height.
-local function BarRect(art, rows, barHeight, pad)
+-- The bar itself. With a measured fill ({ w, h, x0, y0, x1, y1 }): sized so the fill's colored
+-- part lands exactly on the compartment. Otherwise: the compartment grown by the fill art's
+-- transparent margin, at native height.
+local function BarRect(art, rows, barHeight, pad, fill)
     local inset = art.spec.inset
+    if fill then
+        local w, h, x0, y0, x1, y1 = unpack(fill)
+        local left, right = inset, art.width - inset
+        local sx = (right - left) / (x1 - x0)
+        local sy = (rows[2] - rows[1]) / (y1 - y0)
+        local barLeft, barTop = left - x0 * sx, rows[1] - y0 * sy
+        return { barLeft, barTop, barLeft + w * sx, barTop + h * sy }
+    end
     local top = rows[1] - pad[2]
     return { inset - pad[1], top, art.width - inset + pad[3], top + barHeight }
+end
+
+local function HealthRect(art)
+    local spec = art.spec
+    return BarRect(art, spec.health, spec.healthH, spec.healthPad, spec.healthFill)
+end
+
+local function ManaRect(art)
+    local spec = art.spec
+    return BarRect(art, spec.mana, spec.manaH, spec.manaPad, spec.manaFill)
 end
 
 local function FitRect(art, region, rect)
@@ -246,7 +276,7 @@ local function LayoutPlayer(frame)
     local art, spec = skin.art, ART.player
     local container = PlayerFrame_GetHealthBarContainer()
     local healthBar = PlayerFrame_GetHealthBar()
-    local healthRect = BarRect(art, spec.health, spec.healthH, spec.healthPad)
+    local healthRect = HealthRect(art)
 
     -- The container carries Blizzard's health extras (temporary max health loss); the bar
     -- hangs off its top-left exactly as Blizzard hangs it, so Blizzard's re-anchoring agrees.
@@ -257,7 +287,7 @@ local function LayoutPlayer(frame)
     healthBar:SetPoint("TOPLEFT", container, "TOPLEFT", 0, BAR_ABOVE_CONTAINER)
     healthBar:SetSize(healthRect[3] - healthRect[1], healthRect[4] - healthRect[2])
 
-    FitRect(art, PlayerFrame_GetManaBar(), BarRect(art, spec.mana, spec.manaH, spec.manaPad))
+    FitRect(art, PlayerFrame_GetManaBar(), ManaRect(art))
 end
 
 local function SkinPlayer()
@@ -333,7 +363,7 @@ local function LayoutTarget(frame)
     local main = frame.TargetFrameContent.TargetFrameContentMain
     local container = main.HealthBarsContainer
     local healthBar = container.HealthBar
-    local healthRect = BarRect(art, spec.health, spec.healthH, spec.healthPad)
+    local healthRect = HealthRect(art)
 
     -- Every target change Blizzard re-sets the container's bottom-right and re-hangs the bar
     -- from its top-left. Our top-left and the bar's width survive that, even in combat.
@@ -344,7 +374,7 @@ local function LayoutTarget(frame)
     healthBar:SetPoint("TOPLEFT", container, "TOPLEFT", 0, BAR_ABOVE_CONTAINER)
     healthBar:SetSize(healthRect[3] - healthRect[1], healthRect[4] - healthRect[2])
 
-    FitRect(art, main.ManaBar, BarRect(art, spec.mana, spec.manaH, spec.manaPad))
+    FitRect(art, main.ManaBar, ManaRect(art))
 end
 
 -- Elite and rare dragons wrap the end of the box instead of the portrait.
@@ -417,17 +447,17 @@ end
 local function LayoutSmall(frame)
     local skin = skins[frame]
     if not skin then return end
-    local art, spec = skin.art, ART.small
-    local healthRect = BarRect(art, spec.health, spec.healthH, spec.healthPad)
+    local art = skin.art
+    local healthRect = HealthRect(art)
     FitRect(art, skin.healthContainer, healthRect)
     FitRect(art, skin.healthBar, healthRect)
-    FitRect(art, skin.manaBar, BarRect(art, spec.mana, spec.manaH, spec.manaPad))
+    FitRect(art, skin.manaBar, ManaRect(art))
 end
 
--- parts = { atlas, x, y, conceal = {...}, glows = {{spec, source}}, healthContainer, healthBar,
+-- parts = { spec, atlas, x, y, conceal = {...}, glows = {{spec, source}}, healthContainer, healthBar,
 --           manaBar, healthMask, manaMask, name }
 local function SkinSmall(frame, parts)
-    local spec = ART.small
+    local spec = parts.spec or ART.small
     local skin = skins[frame]
     if not skin then
         local art = BuildArt(frame, spec, parts.atlas, frame, parts.x + spec.left, parts.y, spec.texW - spec.left)
@@ -483,9 +513,10 @@ end
 local function SkinPartyMember(frame)
     if not (IsOn("party") and frame and frame.HealthBarContainer) then return end
     local overlay = frame.PartyMemberOverlay
-    local spec = ART.small
+    local spec = ART.party
     -- Blizzard draws the party frame art at (1, -2) from the frame's top-left.
     local art = SkinSmall(frame, {
+        spec = spec,
         atlas = "UI-HUD-UnitFrame-Party-PortraitOn", x = 1, y = -2,
         conceal = { frame.Portrait, frame.Texture, frame.VehicleTexture },
         glows = { { GLOW.partyCombat, frame.Flash }, { GLOW.partyStatus, overlay and overlay.Status } },

@@ -481,7 +481,7 @@ local PAGES = {
                     { type = "keybind", label = "Hello:", binding = "BOLT_EMOTE_HELLO" },
                     { type = "keybind", label = "Goodbye:", binding = "BOLT_EMOTE_BYE" },
                     { type = "keybind", label = "Thanks:", binding = "BOLT_EMOTE_THANKS" },
-                    { type = "checkbox", label = "Thank players who buff you (2 seconds later, out of combat, once a minute per player)", path = { "roleplay", "autoThankBuffs" } },
+                    { type = "checkbox", label = "Thank players who buff you (2 seconds later, out of combat and outside instances, once a minute per player)", path = { "roleplay", "autoThankBuffs" } },
                     { type = "keybind", label = "Sit:", binding = "BOLT_EMOTE_SIT" },
                 },
             },

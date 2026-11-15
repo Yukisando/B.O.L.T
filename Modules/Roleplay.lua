@@ -72,8 +72,14 @@ function BOLT_EmoteSit() DoEmote("SIT") end
 ---------------------------------------------------------------------------
 -- Auto-thank: another player buffs you, you /thank them 2 seconds later.
 -- Skipped in combat (aura data can be secret there on Midnight, and nobody wants emote spam
--- mid-pull) and at most once a minute per player, so a paladin rebuffing the raid gets one thanks.
+-- mid-pull), inside instances (dungeon and raid buffs are routine there), and at most once a
+-- minute per player, so a paladin rebuffing the raid gets one thanks.
 ---------------------------------------------------------------------------
+
+local function InInstance()
+    local inInstance, instanceType = IsInInstance()
+    return inInstance and instanceType ~= "none"
+end
 
 local THANK_DELAY = 2
 local THANK_COOLDOWN = 60
@@ -92,13 +98,13 @@ local function ThankCaster(aura)
     if lastThanked[name] and now - lastThanked[name] < THANK_COOLDOWN then return end
     lastThanked[name] = now
     C_Timer.After(THANK_DELAY, function()
-        if InCombatLockdown() or not BOLT:GetConfig("roleplay", "autoThankBuffs") then return end
+        if InCombatLockdown() or InInstance() or not BOLT:GetConfig("roleplay", "autoThankBuffs") then return end
         DoEmote("THANK", name)
     end)
 end
 
 local function OnPlayerAura(_, _, unit, updateInfo)
-    if unit ~= "player" or InCombatLockdown() then return end
+    if unit ~= "player" or InCombatLockdown() or InInstance() then return end
     if not BOLT:GetConfig("roleplay", "autoThankBuffs") then return end
     if BOLT.IsSecret(updateInfo) or type(updateInfo) ~= "table" then return end
     -- Fields can be secret even when the table isn't (seen out of combat too): testing one

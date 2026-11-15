@@ -64,11 +64,35 @@ function checkboxMixin:SetEnabled(enabled)
 	self.Label:SetTextColor((enabled and WHITE_FONT_COLOR or DISABLED_FONT_COLOR):GetRGB())
 end
 
+-- SetPropagateMouseMotion is protected in combat (BOLT, 2026-11-15): a checkbox created then,
+-- by selecting a system in Edit Mode mid-fight, gets it once combat ends.
+local pendingPropagate = {}
+local propagateWatcher
+
+local function propagateMouseMotion(button)
+	if not InCombatLockdown() then
+		button:SetPropagateMouseMotion(true)
+		return
+	end
+	table.insert(pendingPropagate, button)
+	if not propagateWatcher then
+		propagateWatcher = CreateFrame('Frame')
+		propagateWatcher:SetScript('OnEvent', function(watcher)
+			for _, pending in ipairs(pendingPropagate) do
+				pending:SetPropagateMouseMotion(true)
+			end
+			wipe(pendingPropagate)
+			watcher:UnregisterEvent('PLAYER_REGEN_ENABLED')
+		end)
+	end
+	propagateWatcher:RegisterEvent('PLAYER_REGEN_ENABLED')
+end
+
 lib.internal:CreatePool(lib.SettingType.Checkbox, function()
 	local frame = CreateFrame('Frame', nil, UIParent, 'EditModeSettingCheckboxTemplate')
 	frame:SetScript('OnLeave', DefaultTooltipMixin.OnLeave)
 	frame:SetScript('OnEnter', showTooltip)
-	frame.Button:SetPropagateMouseMotion(true)
+	propagateMouseMotion(frame.Button)
 	return Mixin(frame, checkboxMixin)
 end, function(_, frame)
 	frame:Hide()
