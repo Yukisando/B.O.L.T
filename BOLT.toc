@@ -61,6 +61,7 @@ Modules\SavedInstances.lua
 Modules\NameplatesEnhancement.lua
 Modules\PartyFramesCenterGrowth.lua
 Modules\ChatNotifier.lua
+Modules\ChatPopups.lua
 Modules\AutoPartyChat.lua
 Modules\WowheadLink.lua
 Modules\KeyShare.lua

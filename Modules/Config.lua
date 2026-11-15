@@ -381,6 +381,23 @@ local PAGES = {
                 },
             },
             {
+                module = "chatPopups",
+                description = "Whispers and party chat also show up as small popups, like an instant messenger, so you don't miss them. More lines from the same person stay in one popup. Hover to keep one up, left-click to reply, right-click to close it.",
+                editMode = "select Chat Popups to move the box, pick which way the popups stack, how many show at once, how long they stay and their width.",
+                options = {
+                    { type = "multiselect", label = "Chats:", width = 300,
+                        isSelected = function(value) return Module("chatPopups"):IsChannelEnabled(value) end,
+                        toggle = function(value, selected) Module("chatPopups"):SetChannelEnabled(value, selected) end,
+                        options = function()
+                            local list = {}
+                            for _, channel in ipairs(Module("chatPopups").CHANNEL_TYPES) do
+                                table.insert(list, { value = channel.event, label = channel.label })
+                            end
+                            return list
+                        end },
+                },
+            },
+            {
                 module = "autoPartyChat",
                 description = "When you join a group, the chat box switches to Party (Raid in a raid, Instance in a dungeon finder group), and back to Say when you leave. It switches even from a whisper or a channel, since that is often how you asked for the invite. Leaving only puts Say back if the box was still on the group.",
             },

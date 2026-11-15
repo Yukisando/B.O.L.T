@@ -100,6 +100,9 @@ BOLT.defaults = {
             channels = {},
             soundID = 8959,
         },
+        chatPopups = {
+            channels = { WHISPER = true, BN_WHISPER = true, PARTY = true, PARTY_LEADER = true },
+        },
         soundMuter = {
             mutedSoundIDs = {},
         },
@@ -171,6 +174,7 @@ BOLT.defaultModuleStates = {
     campfire = false,
     smartTeleport = false,
     chatNotifier = false,
+    chatPopups = true,
     autoPartyChat = false,
     achievementTracker = false,
     savedInstances = false,
@@ -190,6 +194,7 @@ BOLT.trackingMenuModules = {
     autoRepSwitch = true,
     skyriding = true,
     chatNotifier = true,
+    chatPopups = true,
     keyShare = true,
     achievementTracker = true,
 }

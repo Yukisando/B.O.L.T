@@ -159,6 +159,13 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 - **Throttled Alerts**: Rapid messages are throttled so sounds don't overlap
 - **Self-Filtering**: Your own messages are ignored
 
+#### Chat Popups
+
+- **Instant Messenger Feel**: whispers and party chat also appear as small, quiet popups (sender in class color, the message under it) so you don't miss them; more lines from the same person stay in one popup
+- **Pick Your Chats**: whisper, Battle.net whisper and party by default; instance, raid and guild can be added
+- **Quick Reply**: hover to keep a popup up, left-click to reply, right-click to close it
+- **Edit Mode**: move the box, choose whether popups stack up or down, how many show at once, how long they stay and their width
+
 #### Auto Party Chat
 
 - **Group Channel by Default**: Joining a group switches the chat box to Party, Raid or Instance chat to match the group
