@@ -6,6 +6,13 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-20 (2026-11-15)
+
+- feat: unit frame bars fill their whole slot
+- Health and power bars on the player, target, focus, target of target, pet and party frames fill their slot right up to the border, without dark shading at the ends
+- Thank Your Buffers no longer thanks anyone inside dungeons, raids, battlegrounds or arenas
+- Selecting a frame in Edit Mode during combat no longer causes a blocked-action error
+
 ## v8-19 (2026-11-14)
 
 - feat: cheetah warning for hunters in combat
