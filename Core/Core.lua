@@ -96,6 +96,13 @@ BOLT.defaults = {
             invertPitch = true,
             requireMouseButton = true,
         },
+        chat = {
+            clean = true,       -- no borders, tab backgrounds or scroll bar; tabs on hover
+            hideButtons = true, -- menu, channels, voice and social buttons
+            history = true,     -- last lines of each tab come back after a reload or login
+            copyMenu = true,    -- "Copy chat" in a tab's right-click menu
+            inputTop = false,   -- input box above the window instead of below
+        },
         chatNotifier = {
             channels = {},
             soundID = 8959,
@@ -111,6 +118,7 @@ BOLT.defaults = {
         -- Set from the Minimap's Edit Mode dialog.
         screenEdges = {
             minimapEdge = "MAP",
+            chatEdge = "TEXT",   -- chat window: BLIZZARD, TEXT (text and input box on screen) or FREE
         },
         minimap = {
             buttons = "BOTTOM", -- side of the map for the button bar: TOP, BOTTOM, LEFT or RIGHT

@@ -350,10 +350,27 @@ local PAGES = {
         title = "Social",
         sections = {
             {
-                module = "chatNotifier",
-                description = "Plays a sound when a new message arrives in the channels you pick.",
+                module = "chat",
+                description = "Blizzard's chat, made quiet: everything in one place for the chat window, the sound on new messages and the popups. With Chattynator turned on, the chat window is left alone (turn it off in the addon list to use this).",
+                editMode = "select the chat window and pick its group under \"Fades with\" to fade it with the rest of your UI (it stays shown while you type); select Chat Popups to move the popups.",
+                keepOptions = true,
                 options = {
-                    { type = "dropdown", label = "Sound:", width = 170,
+                    { type = "header", label = "Chat window" },
+                    { type = "checkbox", label = "Clean window: no borders, tab backgrounds or scroll bar; tabs and a soft background only while the mouse is over it", path = { "chat", "clean" } },
+                    { type = "checkbox", label = "Hide the chat buttons (menu, channels, voice, social)", path = { "chat", "hideButtons" } },
+                    { type = "checkbox", label = "Input box only while typing (Blizzard's \"IM style\")",
+                        get = function() return (C_CVar and C_CVar.GetCVar or GetCVar)("chatStyle") == "im" end,
+                        set = function(value) pcall(C_CVar and C_CVar.SetCVar or SetCVar, "chatStyle", value and "im" or "classic") end },
+                    { type = "checkbox", label = "Input box on top (above the tabs) instead of below the window", path = { "chat", "inputTop" } },
+                    { type = "checkbox", label = "Keep the last lines of each tab after a reload or login", path = { "chat", "history" } },
+                    { type = "checkbox", label = "\"Copy chat\" in a tab's right-click menu (also /copychat)", path = { "chat", "copyMenu" } },
+                    { type = "button", label = "Copy chat", width = 120, onClick = function() Module("chat"):ShowCopy() end },
+                    { type = "header", label = "Sound on new messages" },
+                    { type = "checkbox", label = "Play a sound when a message arrives in the chats you pick",
+                        get = function() return BOLT:IsModuleEnabled("chatNotifier") end,
+                        set = function(value) BOLT:SetModuleEnabled("chatNotifier", value) end },
+                    { type = "dropdown", label = "Sound:", width = 170, indent = 24,
+                        enabledIf = function() return BOLT:IsModuleEnabled("chatNotifier") end,
                         get = function() return Module("chatNotifier"):GetSoundID() end,
                         set = function(value)
                             Module("chatNotifier"):SetSoundID(value)
@@ -367,8 +384,10 @@ local PAGES = {
                             return list
                         end },
                     { type = "button", label = "Preview", width = 70, sameRow = true,
+                        enabledIf = function() return BOLT:IsModuleEnabled("chatNotifier") end,
                         onClick = function() Module("chatNotifier"):PlayNotification() end },
-                    { type = "multiselect", label = "Channels:", width = 300,
+                    { type = "multiselect", label = "Chats:", width = 300, indent = 24,
+                        enabledIf = function() return BOLT:IsModuleEnabled("chatNotifier") end,
                         isSelected = function(value) return Module("chatNotifier"):IsChannelEnabled(value) end,
                         toggle = function(value, selected) Module("chatNotifier"):SetChannelEnabled(value, selected) end,
                         options = function()
@@ -378,14 +397,12 @@ local PAGES = {
                             end
                             return list
                         end },
-                },
-            },
-            {
-                module = "chatPopups",
-                description = "Whispers and party chat also show up as small popups, like an instant messenger, so you don't miss them. More lines from the same person stay in one popup. Hover to keep one up, left-click to reply, right-click to close it.",
-                editMode = "select Chat Popups to move the box, pick which way the popups stack, how many show at once, how long they stay and their width.",
-                options = {
-                    { type = "multiselect", label = "Chats:", width = 300,
+                    { type = "header", label = "Popups" },
+                    { type = "checkbox", label = "Show new messages as small popups too (hover keeps one up, left-click replies, right-click closes)",
+                        get = function() return BOLT:IsModuleEnabled("chatPopups") end,
+                        set = function(value) BOLT:SetModuleEnabled("chatPopups", value) end },
+                    { type = "multiselect", label = "Chats:", width = 300, indent = 24,
+                        enabledIf = function() return BOLT:IsModuleEnabled("chatPopups") end,
                         isSelected = function(value) return Module("chatPopups"):IsChannelEnabled(value) end,
                         toggle = function(value, selected) Module("chatPopups"):SetChannelEnabled(value, selected) end,
                         options = function()
@@ -935,6 +952,7 @@ end
 ---------------------------------------------------------------------------
 
 local function IsOptionEnabled(option)
+    if option.enabledIf then return option.enabledIf() and true or false end
     return not option.requires or GetSetting(option.requires) and true or false
 end
 

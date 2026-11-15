@@ -287,6 +287,77 @@ local function RegisterMinimap()
 end
 
 ---------------------------------------------------------------------------
+-- Chat window: screen edge and fade group
+---------------------------------------------------------------------------
+
+-- Blizzard keeps the chat window's whole Edit Mode box on screen, tabs and padding included.
+-- "TEXT" keeps only the text area on screen (tabs and input box may go past the edge, on any
+-- side), so the chat can sit snug in a corner; "FREE" lets it go anywhere (Edit Mode's "Reset To Default Position" brings it back).
+local CHAT_EDGE_CHOICES = {
+    { text = "Keep the whole window on screen", value = "BLIZZARD" },
+    { text = "Keep only the text on screen", value = "TEXT" },
+    { text = "Free, it can leave the screen", value = "FREE" },
+}
+
+local applyingChatEdge = false
+
+local function ApplyChatEdge()
+    if applyingChatEdge then return end
+    applyingChatEdge = true
+    local mode = BOLT:GetConfig("screenEdges", "chatEdge") or "TEXT"
+    local chat = BOLT.modules.chat
+    local frames = chat and chat.ChatFrames and chat.ChatFrames() or { ChatFrame1 }
+    for _, frame in ipairs(frames) do
+        frame:SetClampedToScreen(mode ~= "FREE")
+        if mode == "TEXT" then
+            frame:SetClampRectInsets(0, 0, 0, 0)
+        elseif frame.UpdateClampOffsets then
+            pcall(frame.UpdateClampOffsets, frame) -- Blizzard's own insets back
+        else
+            frame:SetClampRectInsets(0, 0, 0, 0)
+        end
+    end
+    applyingChatEdge = false
+end
+
+local function RegisterChat()
+    local settings = {
+        EditMode:Dropdown("Screen edge", { "screenEdges", "chatEdge" }, CHAT_EDGE_CHOICES, {
+            desc = "How far you can drag the chat window. Only the text (the default) lets the tabs, the input box and the empty space around it go past any screen edge, so the chat sits snug in the corner (put the input box on the other side if it would leave the screen). Free lets it leave the screen entirely.",
+            set = function(value)
+                BOLT:SetConfig(value, "screenEdges", "chatEdge")
+                ApplyChatEdge()
+            end,
+        }),
+    }
+    table.insert(settings, EditMode:Checkbox("Input box on top", { "chat", "inputTop" }, {
+        desc = "Puts the input box above the chat window (over the tabs) instead of below it, so the window can sit at the bottom of the screen.",
+    }))
+    for _, setting in ipairs(Fade("chat")) do table.insert(settings, setting) end
+    EditMode:AddSystemSettings("ChatFrame", nil, nil, settings)
+
+    -- Blizzard puts its insets back when it lays the window out.
+    local main = ChatFrame1
+    if main and main.UpdateClampOffsets then
+        hooksecurefunc(main, "UpdateClampOffsets", function()
+            -- In Blizzard's own mode its insets are the right ones (and re-applying them would loop).
+            if (BOLT:GetConfig("screenEdges", "chatEdge") or "TEXT") ~= "BLIZZARD" then
+                C_Timer.After(0, ApplyChatEdge)
+            end
+        end)
+    end
+    if main then main:HookScript("OnSizeChanged", function() C_Timer.After(0, ApplyChatEdge) end) end
+    local later = function() C_Timer.After(0, ApplyChatEdge) end
+    EditMode.lib:RegisterCallback("enter", later)
+    EditMode.lib:RegisterCallback("exit", later)
+    EditMode.lib:RegisterCallback("layout", later)
+    if FCF_OpenTemporaryWindow then hooksecurefunc("FCF_OpenTemporaryWindow", later) end
+    local events = CreateFrame("Frame")
+    events:RegisterEvent("PLAYER_ENTERING_WORLD")
+    events:SetScript("OnEvent", function() C_Timer.After(1, ApplyChatEdge) end)
+end
+
+---------------------------------------------------------------------------
 -- Unit frames and cast bars: flat style; party frames
 ---------------------------------------------------------------------------
 
@@ -335,6 +406,7 @@ function EditModeOptions:OnInitialize()
     if not EditMode.available then return end
     RegisterAutoHide()
     RegisterMinimap()
+    RegisterChat()
     RegisterUnitFrames()
 end
 

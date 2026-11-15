@@ -60,6 +60,7 @@ Modules\SmartTeleportSuggestions.lua
 Modules\SavedInstances.lua
 Modules\NameplatesEnhancement.lua
 Modules\PartyFramesCenterGrowth.lua
+Modules\Chat.lua
 Modules\ChatNotifier.lua
 Modules\ChatPopups.lua
 Modules\AutoPartyChat.lua

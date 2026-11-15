@@ -151,20 +151,20 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 
 ### Social
 
-#### Chat Notifier
+#### Chat
 
-- **Channel Sound Alerts**: Plays a notification sound when a new message appears in monitored chat channels
-- **Configurable Channels**: Pick which channels to monitor from a checklist (Guild, Party, Raid, Whisper, Say, Yell, Instance, Custom Channels, etc.)
-- **Multiple Sound Options**: Choose from several built-in notification sounds with a preview button
-- **Throttled Alerts**: Rapid messages are throttled so sounds don't overlap
-- **Self-Filtering**: Your own messages are ignored
+Blizzard's own chat window, made quiet, with everything chat in one place (a replacement for chat addons like Chattynator; with Chattynator on, the window is left alone):
 
-#### Chat Popups
-
-- **Instant Messenger Feel**: whispers and party chat also appear as small, quiet popups (sender in class color, the message under it) so you don't miss them; more lines from the same person stay in one popup
-- **Pick Your Chats**: whisper, Battle.net whisper and party by default; instance, raid and guild can be added
-- **Quick Reply**: hover to keep a popup up, left-click to reply, right-click to close it
-- **Edit Mode**: move the box, choose whether popups stack up or down, how many show at once, how long they stay and their width
+- **Clean Window**: no borders, tab backgrounds or scroll bar; the tabs and a soft dark background show only while the mouse is over the chat (a tab with new messages still shows)
+- **No Button Clutter**: the menu, channels, voice and social buttons are hidden (setting)
+- **Input Box Only While Typing**: Blizzard's IM style, one click away
+- **History**: the last 100 lines of each tab come back, slightly dimmed, after a reload or login
+- **Copy Chat**: right-click a tab (or /copychat) to get its text as plain text to select and copy
+- **Fade Group**: in Edit Mode, put the chat window in a fade group with the rest of your UI; it stays shown while you type
+- **Screen Edge**: like the minimap, only the text has to stay on screen: the tabs, input box and empty space can go past any edge so the chat sits snug in a corner (or set it free, or back to Blizzard's), in its Edit Mode dialog
+- **Input Box Above or Below**: put the input box on top of the window (Edit Mode or settings), handy with the chat at the bottom of the screen
+- **Sound on New Messages**: a sound when a message arrives in the chats you pick, with a choice of sounds and a preview; your own messages are ignored and rapid messages don't stack
+- **Popups**: whispers and party chat also show as small Blizzard-style popups (sender in class color, the message in its chat color) so you don't miss them; more lines from the same person stay in one popup; hover keeps one up, left-click replies, right-click closes. In Edit Mode: move the box, stack up or down, how many show at once, how long they stay and their width
 
 #### Auto Party Chat
 

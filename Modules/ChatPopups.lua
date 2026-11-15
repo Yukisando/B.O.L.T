@@ -342,12 +342,35 @@ end
 -- Lifecycle
 ---------------------------------------------------------------------------
 
+-- Your own lines. By name or GUID when the game lets us read them; in instances both can be
+-- secret, so a line in a chat you just sent to also counts as yours.
+local SENT_WINDOW = 2 -- seconds between sending and the echo arriving
+local lastSent = {} -- [chat type] = GetTime() of your last message there
+
+local function OnSend(_, chatType)
+    if type(chatType) == "string" and not IsSecret(chatType) then
+        lastSent[chatType:upper()] = GetTime()
+    end
+end
+
+local function IsMine(suffix, sender, guid)
+    if BOLT:IsPlayerName(sender) then return true end
+    if guid and not IsSecret(guid) and guid == UnitGUID("player") then return true end
+    if not IsSecret(sender) and not IsSecret(guid) then return false end
+    local now = GetTime()
+    for chatType, sentAt in pairs(lastSent) do
+        -- PARTY covers PARTY_LEADER, INSTANCE_CHAT covers INSTANCE_CHAT_LEADER, and so on.
+        if now - sentAt < SENT_WINDOW and suffix:sub(1, #chatType) == chatType then return true end
+    end
+    return false
+end
+
 function ChatPopups:OnChatEvent(event, message, sender, ...)
     local suffix = event:sub(10) -- strip "CHAT_MSG_"
     local channel = BY_EVENT[suffix]
     if not channel or not self:IsChannelEnabled(suffix) then return end
-    if BOLT:IsPlayerName(sender) then return end
     local guid = select(10, ...) -- arg12
+    if IsMine(suffix, sender, guid) then return end
     -- Battle.net whispers: arg13 is the presence ID used to reply; the name arg2 works too.
     Push(suffix, channel, sender, guid, message)
 end
@@ -357,6 +380,13 @@ function ChatPopups:OnInitialize()
     self.eventFrame:SetScript("OnEvent", function(_, event, ...)
         self:OnChatEvent(event, ...)
     end)
+    -- After-the-fact hooks: they only note the chat type, nothing about the send changes.
+    if C_ChatInfo and C_ChatInfo.SendChatMessage then
+        hooksecurefunc(C_ChatInfo, "SendChatMessage", OnSend)
+    end
+    if SendChatMessage and SendChatMessage ~= (C_ChatInfo and C_ChatInfo.SendChatMessage) then
+        hooksecurefunc("SendChatMessage", OnSend)
+    end
 end
 
 function ChatPopups:OnEnable()

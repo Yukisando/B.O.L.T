@@ -191,6 +191,30 @@ AutoHide.ELEMENTS = {
         hover = MinimapButtons,
     },
     { key = "minimapButtons", label = "Minimap buttons", frames = MinimapButtons, hover = NamedList("Minimap") },
+    {
+        -- The chat windows and their tabs (the input box is a child of its window). The group
+        -- stays shown while you type.
+        key = "chat", label = "Chat window",
+        frames = function()
+            local frames = {}
+            local chat = BOLT.modules.chat
+            for _, chatFrame in ipairs(chat and chat.ChatFrames and chat.ChatFrames() or Named({ "ChatFrame1" })) do
+                table.insert(frames, chatFrame)
+                -- The clean chat window fades its own tabs; two faders would fight over them.
+                local tab = _G[chatFrame:GetName() .. "Tab"]
+                if tab and not (chat and chat.IsClean and chat.IsClean()) then table.insert(frames, tab) end
+            end
+            for _, frame in ipairs(Named({ "GeneralDockManager", "QuickJoinToastButton",
+                "ChatFrameToggleVoiceDeafenButton", "ChatFrameToggleVoiceMuteButton" })) do
+                table.insert(frames, frame)
+            end
+            return frames
+        end,
+        active = function()
+            local chat = BOLT.modules.chat
+            return chat and chat.IsTyping and chat.IsTyping() or false
+        end,
+    },
 }
 
 local ELEMENT_BY_KEY = {}
@@ -215,7 +239,7 @@ end
 -- Fading
 ---------------------------------------------------------------------------
 
--- [group id] = { frames, hover, bar, alpha, holdUntil }
+-- [group id] = { frames, hover, active, bar, alpha, holdUntil }
 local state = {}
 local faded = {} -- [frame] = true for every frame BOLT is fading, to give alpha back
 
@@ -247,7 +271,7 @@ local function Rebuild()
             local group = wanted[id]
             if not group then
                 local old = state[id]
-                group = { frames = {}, hover = {}, bar = false,
+                group = { frames = {}, hover = {}, active = {}, bar = false,
                     alpha = old and old.alpha or 1, holdUntil = old and old.holdUntil or now + FADE_OUT_DELAY }
                 wanted[id] = group
             end
@@ -260,6 +284,7 @@ local function Rebuild()
             if element.hover then
                 for _, frame in ipairs(element.hover()) do table.insert(group.hover, frame) end
             end
+            if element.active then table.insert(group.active, element.active) end
             group.bar = group.bar or element.bar == true
         end
     end
@@ -315,7 +340,11 @@ local function OnUpdate(_, elapsed)
     for id, group in pairs(state) do
         local rule = Rule(id)
         local quiet = mounted and RuleValue(rule, "mounted")
-        local show = editing
+        local busy = false
+        for _, active in ipairs(group.active) do
+            if active() then busy = true break end
+        end
+        local show = editing or busy
             or (group.bar and dragging)
             or (RuleValue(rule, "combat") and inCombat)
             or (RuleValue(rule, "hover") and (Hovered(group.frames) or Hovered(group.hover)))
