@@ -88,6 +88,9 @@ BOLT.defaults = {
             statsPosition = "TOPRIGHT",
             copyTargetMount = true,
         },
+        myDamage = {
+            hideBlizzard = true, -- hide Blizzard's damage meter window while the panel is on
+        },
         skyriding = {
             enablePitchControl = true,
             invertPitch = true,
@@ -162,6 +165,7 @@ BOLT.defaultModuleStates = {
     wowheadLink = true,
     cameraZoom = true,
     cheetahWarning = true,
+    myDamage = true,
     autoRepSwitch = false,
     autoSell = false,
     campfire = false,

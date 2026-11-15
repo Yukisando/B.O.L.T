@@ -132,6 +132,11 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 
 - **Quick Cast**: Double right-click on the world to cast Fishing, with a fishing rod equipped; works without moving the mouse between the clicks. Ignored in combat, while mounted, over a character, with loot open or while already fishing.
 
+#### My Damage
+
+- **Just Your Numbers**: a small, quiet panel with your rank in the group (#2 of 5, gold when you're first), your dps, and your own spells and pets, best first, each with a thin bar. Current fight, then the last one once combat ends
+- **Replaces Blizzard's Window**: Blizzard's damage meter window is hidden (setting); the meter itself must stay on in the game options, since the panel reads it. Move the panel, set its width and how many spells it lists in Edit Mode
+
 #### Cheetah Warning (hunters)
 
 - **Combat Alert**: A warning and a sound when combat starts while Aspect of the Cheetah or of the Pack is on you, repeated every few seconds until you change aspect or combat ends

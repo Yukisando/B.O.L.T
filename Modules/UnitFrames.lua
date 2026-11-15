@@ -36,20 +36,21 @@ local FOREVER = BOLT.isForever
 --                      exclusive), leaving out the darker shading Blizzard draws at its ends and edges.
 --                      The bar is sized so that part covers its compartment exactly, stretched if need be:
 --                      every bar fills its slot right up to the border, like the Personal Resource Display.
---                      Compartments are the slot's inside, measured to the border (Forever, 2026-11-15).
+--                      Compartments are the slot's inside, measured to the border and rounded inward to whole
+--                      pixels: a mask edge on a half pixel blends the fill over the border (Forever, 2026-11-15).
 
 local ART
 if FOREVER then
     ART = {
         player = { cap = { 182, 198 }, mid = 150, native = "right", texW = 198, texH = 71, left = 4,
-            inset = 5.5, edge = 4, top = 11, name = { 16, 27 }, health = { 31.5, 45.5 }, mana = { 47.5, 56.5 },
+            inset = 6, edge = 4, top = 11, name = { 16, 27 }, health = { 32, 45 }, mana = { 48, 56 },
             healthFill = { 124, 20, 4, 4.5, 121, 16.5 }, manaFill = { 124, 10, 3, 1.5, 121.5, 9 } },
         target = { cap = { 0, 12 }, mid = 60, native = "left", texW = 194, texH = 68, width = 190,
-            inset = 4.5, edge = 3, top = 7, name = { 13, 24 }, health = { 28, 42 }, mana = { 44, 53 },
+            inset = 5, edge = 3, top = 7, name = { 13, 24 }, health = { 28, 42 }, mana = { 44, 53 },
             healthFill = { 126, 20, 4.5, 4.5, 122, 16.5 }, manaFill = { 134, 10, 8, 1.5, 126.5, 9 } },
         -- target of target and pet (TargetofTarget art and bars)
         small = { cap = { 100, 120 }, mid = 80, native = "right", texW = 120, texH = 49, left = 2,
-            inset = 5.5, edge = 4, top = 3, name = { 8, 15 }, health = { 18.5, 28.5 }, mana = { 30.5, 36.5 },
+            inset = 6, edge = 4, top = 3, name = { 8, 15 }, health = { 19, 28 }, mana = { 31, 36 },
             healthFill = { 70, 10, 2, 1, 68, 9 }, manaFill = { 74, 7, 4.5, 1.5, 70.5, 6 } },
         party = { cap = { 100, 120 }, mid = 80, native = "right", texW = 120, texH = 49, left = 2,
             inset = 5, edge = 4, top = 3, name = { 8, 15 }, health = { 18, 28 }, mana = { 30, 36 },
@@ -201,13 +202,90 @@ local function BarRect(art, rows, barHeight, pad, fill)
     return { inset - pad[1], top, art.width - inset + pad[3], top + barHeight }
 end
 
+---------------------------------------------------------------------------
+-- Bar fill: the Personal Resource Display's flat bar art, tinted the way it tints its own bars,
+-- so every unit frame bar looks like the display's (Nathan, 2026-11-15). Blizzard's unit frame
+-- fill atlases carry their own shading and margins; this art fills its frame edge to edge, so
+-- the bar sits exactly on its compartment.
+---------------------------------------------------------------------------
+
+local flatFill -- atlas name, false when the client doesn't have it
+local function FlatFill()
+    if flatFill == nil then
+        flatFill = NativeArt.ResolveAtlas("UI-HUD-CoolDownManager-Bar") or false
+    end
+    return flatFill
+end
+
+local PRD_MANA = { r = 0.1, g = 0.25, b = 1.0 } -- the display's own mana blue
+-- The flat art (124 x 10) darkens over its first and last 2.5 columns. On a long display bar
+-- that reads as a soft edge; on a short unit frame bar it looks like a heavy shadow, so the
+-- darkest 1.5 columns at each end go under the border (clipped by the compartment mask).
+local FLAT_FILL = { 124, 10, 1.5, 0, 122.5, 10 }
+local restyled = {}  -- [statusBar] = "health" | "power"
+local restyling = false
+
+local function HealthColor()
+    local color = PERSONAL_RESOURCE_DISPLAY_DEFAULT_HEALTH_COLOR
+    if color then return color.r, color.g, color.b end
+    return 0, 1, 0
+end
+
+local function PowerColor(bar)
+    local unit = bar.unit
+    if not unit or BOLT.IsSecret(unit) then return PRD_MANA.r, PRD_MANA.g, PRD_MANA.b end
+    local powerType, token = UnitPowerType(unit)
+    local info = (token == "MANA" and PRD_MANA) or (PowerBarColor and (PowerBarColor[token] or PowerBarColor[powerType]))
+    if not info then info = PRD_MANA end
+    return info.r, info.g, info.b
+end
+
+local function Restyle(bar)
+    local kind = restyled[bar]
+    local fill = FlatFill()
+    if not (kind and fill) or restyling then return end
+    restyling = true
+    local texture = bar:GetStatusBarTexture()
+    if not (texture and texture:GetAtlas() == fill) then
+        bar:SetStatusBarTexture(fill)
+        texture = bar:GetStatusBarTexture()
+        if texture and texture.SetSnapToPixelGrid then
+            texture:SetSnapToPixelGrid(false)
+            texture:SetTexelSnappingBias(0)
+        end
+    end
+    if kind == "health" then
+        -- Blizzard's bars are white-tinted atlases; a real tint (class colours) is kept.
+        local r, g, b = bar:GetStatusBarColor()
+        if r > 0.99 and g > 0.99 and b > 0.99 then
+            bar:SetStatusBarColor(HealthColor())
+        end
+    else
+        bar:SetStatusBarColor(PowerColor(bar))
+    end
+    restyling = false
+end
+
+-- Blizzard swaps the fill on power type changes, vehicles and art changes: put ours back.
+local function Flatten(bar, kind)
+    if not bar or not FlatFill() then return end
+    if not restyled[bar] then
+        restyled[bar] = kind
+        hooksecurefunc(bar, "SetStatusBarTexture", Restyle)
+        hooksecurefunc(bar, "SetStatusBarColor", Restyle)
+    end
+    Restyle(bar)
+end
+
 local function HealthRect(art)
     local spec = art.spec
+    if FlatFill() then return BarRect(art, spec.health, nil, nil, FLAT_FILL) end
     return BarRect(art, spec.health, spec.healthH, spec.healthPad, spec.healthFill)
 end
 
 local function ManaRect(art)
     local spec = art.spec
+    if FlatFill() then return BarRect(art, spec.mana, nil, nil, FLAT_FILL) end
     return BarRect(art, spec.mana, spec.manaH, spec.manaPad, spec.manaFill)
 end
 
@@ -223,8 +301,28 @@ local function SetMasks(art, healthMask, manaMask)
     NativeArt.SetRectMask(manaMask, art, CompartmentRect(art, spec.mana))
 end
 
+-- First names only: Blizzard writes the full name on every update; keep what's before the
+-- first space. Secret names (some units on Midnight) are left as they are.
+local firstNameHooked = {}
+local settingName = false
+local function FirstNameOnly(fontString)
+    if settingName or not UnitFrames.active then return end
+    local text = fontString:GetText()
+    if BOLT.IsSecret(text) or type(text) ~= "string" then return end
+    local first = text:match("^(%S+)%s")
+    if not first then return end
+    settingName = true
+    fontString:SetText(first)
+    settingName = false
+end
+
 local function PlaceName(art, fontString)
     if not fontString then return end
+    if not firstNameHooked[fontString] then
+        firstNameHooked[fontString] = true
+        hooksecurefunc(fontString, "SetText", FirstNameOnly)
+    end
+    FirstNameOnly(fontString)
     local spec = art.spec
     fontString:ClearAllPoints()
     art:Anchor(fontString, "CENTER", art.width / 2, Middle(spec.name))
@@ -318,6 +416,8 @@ local function SkinPlayer()
     PlaceName(art, PlayerName)
     PlaceLevel(art, main.LevelBackgroundCircle, PlayerLevelText, "left")
     SetMasks(art, PlayerFrame_GetHealthBarContainer().HealthBarMask, PlayerFrame_GetManaBar().ManaBarMask)
+    Flatten(PlayerFrame_GetHealthBar(), "health")
+    Flatten(PlayerFrame_GetManaBar(), "power")
 
     -- Icons that hung off the portrait move to the left end of the box.
     local medallionX = spec.edge
@@ -412,6 +512,8 @@ local function SkinTarget(frame)
     PlaceName(art, main.Name)
     PlaceLevel(art, main.LevelBackgroundCircle, main.LevelText, "right")
     SetMasks(art, main.HealthBarsContainer.HealthBarMask, main.ManaBar.ManaBarMask)
+    Flatten(main.HealthBarsContainer.HealthBar, "health")
+    Flatten(main.ManaBar, "power")
     -- The reaction-colour strip behind the name goes (concealed, so the threat percentage that
     -- hangs off it keeps its place over the name compartment).
     FitRect(art, main.ReputationColor, CompartmentRect(art, spec.name))
@@ -475,6 +577,8 @@ local function SkinSmall(frame, parts)
     local art = skin.art
     PlaceName(art, parts.name)
     SetMasks(art, parts.healthMask, parts.manaMask)
+    Flatten(parts.healthBar, "health")
+    Flatten(parts.manaBar, "power")
     RunLayout(frame, LayoutSmall)
     return art
 end

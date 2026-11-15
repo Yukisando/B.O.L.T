@@ -319,6 +319,15 @@ local PAGES = {
                 },
             },
             {
+                module = "myDamage",
+                description = "A small, quiet panel with only your damage: your rank in the group and your own spells and pets, best first, for the current fight (the last one once it ends). It reads Blizzard's damage meter, so that has to stay on in the game options; its window is hidden instead.",
+                editMode = "select My Damage to move it, and set how many spells it lists and its width.",
+                keepOptions = true,
+                options = {
+                    { type = "checkbox", label = "Hide Blizzard's damage meter window", path = { "myDamage", "hideBlizzard" } },
+                },
+            },
+            {
                 module = "cheetahWarning",
                 description = "Hunters: a warning and a sound when combat starts while Aspect of the Cheetah or of the Pack is on you, repeated every few seconds until you change aspect or combat ends.",
             },
