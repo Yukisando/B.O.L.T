@@ -6,6 +6,13 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-21 (2026-11-15)
+
+- feat: My Damage panel, unit frame bars like the resource display, first names only
+- New My Damage panel: your rank in the group, your dps and your own spells and pets, best first; it replaces Blizzard's damage meter window (setting) and moves in Edit Mode
+- Unit frame health and power bars use the Personal Resource Display's bar look, fitted inside their borders with soft ends
+- Unit frames show first names only
+
 ## v8-20 (2026-11-15)
 
 - feat: unit frame bars fill their whole slot
