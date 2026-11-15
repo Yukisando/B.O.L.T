@@ -6,6 +6,14 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-22 (2026-11-15)
+
+- feat: Chat Popups for whispers and party chat
+- New Chat Popups (Social): whispers and party chat also show as small Blizzard-style popups so you don't miss them
+- More lines from the same person stay in one popup; hover to keep it up, left-click to reply, right-click to close
+- Pick which chats pop up (whisper, Battle.net whisper and party by default; instance, raid and guild optional)
+- Edit Mode: move the box, stack up or down, how many show at once, how long they stay and their width
+
 ## v8-21 (2026-11-15)
 
 - feat: My Damage panel, unit frame bars like the resource display, first names only
