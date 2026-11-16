@@ -6,6 +6,12 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-28 (2026-11-16)
+
+- fix: pet health bar shows your pet's mood
+- The pet health bar now takes your hunter pet's mood as its color: green when happy, amber when content, red when it's unhappy and needs feeding. It replaces the thin line above the bar
+- Fixed: pet happiness never showed on WoW: Forever
+
 ## v8-27 (2026-11-16)
 
 - feat: hide Battle.net notifications
