@@ -431,53 +431,26 @@ local function AnchorPetBar()
 end
 
 ---------------------------------------------------------------------------
--- Pet happiness: a 2px line just above the pet health bar. Its length and colour follow the
--- pet's mood (a third and red = unhappy, two thirds and amber = content, full and faint green =
--- happy); unhappy also breathes slowly so it catches the eye when the pet needs feeding.
--- Only hunter pets have a mood, and only on clients with GetPetHappiness; elsewhere it stays hidden.
+-- Pet happiness: the pet health bar's colour follows the pet's mood: the usual green when happy,
+-- amber when content, red when it's unhappy and needs feeding.
+-- Only hunter pets have a mood, and only on clients that have pet happiness; elsewhere the bar
+-- keeps its green. WoW: Forever reads it with C_PetInfo.GetPetHappiness (no global
+-- GetPetHappiness there, which kept the mood hidden until 2026-11-16); older clients have the global.
 ---------------------------------------------------------------------------
 
 local MOODS = {
-    [1] = { 0.9, 0.25, 0.2, 0.9 },  -- unhappy: feed it
-    [2] = { 0.95, 0.75, 0.25, 0.6 }, -- content: feed it soon
-    [3] = { 0.45, 0.85, 0.3, 0.25 }, -- happy: barely there
+    [1] = { 0.9, 0.25, 0.2 },   -- unhappy: feed it
+    [2] = { 0.95, 0.7, 0.2 },   -- content: feed it soon
+    [3] = PET_COLOR,            -- happy
 }
 
-local moodLine, moodPulse
+local PetHappiness = (C_PetInfo and C_PetInfo.GetPetHappiness) or GetPetHappiness
 
-local function BuildMoodLine()
-    moodLine = petBar:CreateTexture(nil, "OVERLAY")
-    moodLine:SetTexture(WHITE)
-    moodLine:SetHeight(2)
-    moodLine:SetPoint("BOTTOMLEFT", petBar, "TOPLEFT", 0, 4) -- clears the bar art's top border
-    moodLine:Hide()
-    moodPulse = moodLine:CreateAnimationGroup()
-    moodPulse:SetLooping("BOUNCE")
-    local fade = moodPulse:CreateAnimation("Alpha")
-    fade:SetFromAlpha(1)
-    fade:SetToAlpha(0.35)
-    fade:SetDuration(1.2)
-    fade:SetSmoothing("IN_OUT")
-end
-
-local function UpdateMoodLine()
-    local happiness = DisplayCfg("petHappiness") and GetPetHappiness and HasPetUI
-        and select(2, HasPetUI()) and GetPetHappiness()
-    local mood = happiness and MOODS[happiness]
-    if not mood then
-        if moodLine then moodPulse:Stop() moodLine:Hide() end
-        return
-    end
-    if not moodLine then BuildMoodLine() end
-    local width = petBar:GetWidth()
-    moodLine:SetWidth(math.max(1, (Readable(width, 1)) * happiness / 3))
-    moodLine:SetVertexColor(mood[1], mood[2], mood[3], mood[4])
-    moodLine:Show()
-    if happiness == 1 then
-        if not moodPulse:IsPlaying() then moodPulse:Play() end
-    else
-        moodPulse:Stop()
-    end
+local function UpdateMoodColor()
+    local happiness = DisplayCfg("petHappiness") and PetHappiness and HasPetUI
+        and select(2, HasPetUI()) and PetHappiness()
+    local color = happiness and MOODS[happiness] or PET_COLOR
+    petBar:SetStatusBarColor(color[1], color[2], color[3])
 end
 
 -- UnitHealth/UnitHealthMax can be secret values in combat on Midnight; status bars accept them
@@ -490,7 +463,7 @@ local function UpdatePetBar()
     petBar:SetMinMaxValues(0, UnitHealthMax("pet"))
     petBar:SetValue(UnitHealth("pet"))
     petBar:Show()
-    UpdateMoodLine()
+    UpdateMoodColor()
 end
 
 local function BuildPetBar()
@@ -517,8 +490,6 @@ local function BuildPetBar()
         background:SetPoint("BOTTOMRIGHT", 1, -1)
     end
 
-    petBar:SetScript("OnSizeChanged", UpdateMoodLine)
-
     petEvents = CreateFrame("Frame")
     petEvents:SetScript("OnEvent", UpdatePetBar)
 end
@@ -534,10 +505,11 @@ function FrameVisibility:UpdatePetBar()
         petEvents:RegisterUnitEvent("UNIT_MAXHEALTH", "pet")
         petEvents:RegisterUnitEvent("UNIT_PET", "player")
         petEvents:RegisterEvent("PLAYER_ENTERING_WORLD")
-        if GetPetHappiness then
-            -- UNIT_HAPPINESS only exists on clients with pet happiness; there, happiness is
-            -- also a pet power, so power updates cover clients that only send those.
-            pcall(petEvents.RegisterUnitEvent, petEvents, "UNIT_HAPPINESS", "pet")
+        if PetHappiness then
+            -- UNIT_HAPPINESS only exists on clients with pet happiness (Blizzard's own indicator
+            -- listens to it unfiltered); happiness is also a pet power on some clients, so power
+            -- updates cover those.
+            pcall(petEvents.RegisterEvent, petEvents, "UNIT_HAPPINESS")
             petEvents:RegisterUnitEvent("UNIT_POWER_UPDATE", "pet")
         end
     else
@@ -811,9 +783,9 @@ function FrameVisibility:RegisterEditMode()
             desc = "A half-height bar on top of your health bar with your pet's health, in the same style. Shows while you have a pet out.",
             hidden = displayOff,
         }),
-        EditMode:Checkbox("  Pet happiness", { "frameVisibility", "display", "petHappiness" }, {
-            desc = "A thin line above the pet health bar: faint green when happy, amber when content, pulsing red when it's unhappy and needs feeding.",
-            hidden = function() return displayOff() or not DisplayCfg("petHealth") or not GetPetHappiness end,
+        EditMode:Checkbox("  Color by pet happiness", { "frameVisibility", "display", "petHappiness" }, {
+            desc = "The pet health bar takes your pet's mood as its colour: green when happy, amber when content, red when it's unhappy and needs feeding.",
+            hidden = function() return displayOff() or not DisplayCfg("petHealth") or not PetHappiness end,
         }),
         EditMode:Checkbox("Pet damage after combat", { "frameVisibility", "display", "petDamage" }, {
             desc = "When a fight ends, a percentage fades in next to the pet health bar for a few seconds: the share of your damage your pets dealt (yours + theirs = 100%). Read from Blizzard's damage meter.",
