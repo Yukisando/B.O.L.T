@@ -51,6 +51,7 @@ Modules\Skyriding.lua
 Modules\WandShoot.lua
 Modules\DoubleClickFishing.lua
 Modules\CameraZoom.lua
+Modules\TrackerMemory.lua
 Modules\CheetahWarning.lua
 Modules\MyDamage.lua
 Modules\AutoRepSwitch.lua

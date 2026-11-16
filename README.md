@@ -66,6 +66,10 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 - **Edit Mode Friendly**: Everything shows in Edit Mode; action bars also show while you drag a spell or item
 - **Adjustable Opacity**: Choose how visible hidden parts stay
 
+#### Objective Tracker Memory
+
+- **Stays How You Left It**: collapse "All Objectives" and it stays collapsed after a reload or relog, on every character (always on)
+
 #### Party Frames Center Growth
 
 - **Centered Raid-Style Party Growth**: Keeps raid-style party frames centered instead of visually drifting from a fixed corner as the group fills
