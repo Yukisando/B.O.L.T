@@ -316,6 +316,8 @@ local PAGES = {
                 description = "One key for your wand and your pet: it targets the enemy under the mouse (or keeps your current target), sends your pet to attack it and starts your wand's Shoot. Without a pet out it just shoots. Pressing it again doesn't stop the wand. Works in combat.",
                 options = {
                     { type = "keybind", label = "Wand + pet attack:", binding = "CLICK BOLTWandShootButton:LeftButton" },
+                    { type = "checkbox", label = "Also put the pet in Assist mode (it keeps attacking what you attack)", path = { "wandShoot", "petAssist" },
+                        available = function() return Module("wandShoot"):CanAssist() end },
                 },
             },
             {
@@ -329,7 +331,7 @@ local PAGES = {
             },
             {
                 module = "cheetahWarning",
-                description = "Hunters: a warning and a sound when combat starts while Aspect of the Cheetah or of the Pack is on you, repeated every few seconds until you change aspect or combat ends.",
+                description = "Hunters: a quiet gold hint and a soft ping when combat starts while Aspect of the Cheetah or of the Pack is on you, then a silent reminder every few seconds until you change aspect or combat ends.",
             },
             {
                 module = "doubleClickFishing",
@@ -357,6 +359,8 @@ local PAGES = {
                 options = {
                     { type = "header", label = "Chat window" },
                     { type = "checkbox", label = "Clean window: no borders, tab backgrounds or scroll bar; tabs and a soft background only while the mouse is over it", path = { "chat", "clean" } },
+                    { type = "checkbox", label = "Show the messages only while the mouse is over the chat or you type", path = { "chat", "hoverOnly" },
+                        indent = 24, requires = { "chat", "clean" } },
                     { type = "checkbox", label = "Hide the chat buttons (menu, channels, voice, social)", path = { "chat", "hideButtons" } },
                     { type = "checkbox", label = "Input box only while typing (Blizzard's \"IM style\")",
                         get = function() return (C_CVar and C_CVar.GetCVar or GetCVar)("chatStyle") == "im" end,
@@ -398,7 +402,7 @@ local PAGES = {
                             return list
                         end },
                     { type = "header", label = "Popups" },
-                    { type = "checkbox", label = "Show new messages as small popups too (hover keeps one up, left-click replies, right-click closes)",
+                    { type = "checkbox", label = "Show new messages as small popups too",
                         get = function() return BOLT:IsModuleEnabled("chatPopups") end,
                         set = function(value) BOLT:SetModuleEnabled("chatPopups", value) end },
                     { type = "multiselect", label = "Chats:", width = 300, indent = 24,
@@ -412,6 +416,9 @@ local PAGES = {
                             end
                             return list
                         end },
+                    { type = "checkbox", label = "Click-through: the mouse goes through the popups (off: hover keeps one up, left-click replies in that chat, right-click whispers the sender, or closes a whisper)",
+                        path = { "chatPopups", "clickThrough" }, indent = 24,
+                        enabledIf = function() return BOLT:IsModuleEnabled("chatPopups") end },
                 },
             },
             {

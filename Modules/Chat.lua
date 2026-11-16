@@ -5,6 +5,8 @@
 --   * Clean window: the window's border art, the tab backgrounds and the scroll bar go; tabs
 --     show only while the mouse is over the chat (a tab with new messages still shows), and a
 --     soft dark background fades in under the text on hover.
+--   * Text on hover only: the messages themselves show only while the mouse is over the chat
+--     or you type (new messages pop up through ChatPopups instead).
 --   * Chat buttons (menu, channels, voice, social) hidden. Emotes and languages are still typed.
 --   * History: the last lines of each tab come back after a reload or login, a little dimmed.
 --   * Copy chat: a tab's right-click menu (and the settings page) opens the tab's text as plain
@@ -228,7 +230,17 @@ local function Step(current, goal, full, elapsed)
     return math.max(goal, current - step)
 end
 
--- Background and tabs fade in together as soon as the mouse is over the chat (or you type).
+---------------------------------------------------------------------------
+-- Text on hover only
+---------------------------------------------------------------------------
+
+local hoverOnly = false
+
+local function ResetText(chatFrame)
+    if chatFrame.FontStringContainer then chatFrame.FontStringContainer:SetAlpha(1) end
+end
+
+-- Background, tabs and text fade in together as soon as the mouse is over the chat (or you type).
 local driver = CreateFrame("Frame")
 driver:Hide()
 driver:SetScript("OnUpdate", function(_, elapsed)
@@ -250,10 +262,22 @@ driver:SetScript("OnUpdate", function(_, elapsed)
                 or (typing and chatFrame == SELECTED_CHAT_FRAME)
             bg:SetAlpha(Step(bg:GetAlpha(), shown and HOVER_ALPHA or 0, HOVER_ALPHA, elapsed))
 
+            -- Only the text: the window itself stays as it is, so fade groups keep working.
+            local container = chatFrame.FontStringContainer
+            if container then
+                local goal = (not hoverOnly or shown) and 1 or 0
+                local alpha = Step(container:GetAlpha(), goal, 1, elapsed)
+                if alpha ~= container:GetAlpha() then container:SetAlpha(alpha) end
+            end
+
             local tab = Tab(chatFrame)
             if tab and tabAlpha[tab] then
                 local goal = 0
-                if tab.alerting then goal = 1 elseif shown then goal = TabShownAlpha(tab) end
+                if shown then
+                    goal = TabShownAlpha(tab)
+                elseif tab.alerting and not hoverOnly then
+                    goal = 1
+                end
                 local alpha = Step(tabAlpha[tab], goal, 1, elapsed)
                 if alpha ~= tabAlpha[tab] or math.abs(tab:GetAlpha() - alpha) > 0.001 then
                     SetTabAlpha(tab, alpha)
@@ -297,12 +321,16 @@ function Chat:ApplyWindow()
     local allowed = not self:ChattynatorLoaded()
     local clean = allowed and Cfg("clean") and true or false
     local hideButtons = allowed and Cfg("hideButtons") and true or false
+    hoverOnly = clean and Cfg("hoverOnly") and true or false
 
     if clean then
         for _, chatFrame in ipairs(ChatFrames()) do StyleFrame(chatFrame) end
         driver:Show()
     elseif cleanOn then
-        for _, chatFrame in ipairs(ChatFrames()) do UnstyleFrame(chatFrame) end
+        for _, chatFrame in ipairs(ChatFrames()) do
+            UnstyleFrame(chatFrame)
+            ResetText(chatFrame)
+        end
         driver:Hide()
     end
     cleanOn = clean

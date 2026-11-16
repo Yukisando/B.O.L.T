@@ -1,7 +1,7 @@
 -- B.O.L.T Cheetah Warning Module (hunters)
 -- Warns when combat starts while Aspect of the Cheetah (or of the Pack) is on you: on Forever and
--- older clients it dazes you on every hit. A raid-warning style message and a sound, then a
--- reminder every few seconds for as long as the aspect stays up in combat.
+-- older clients it dazes you on every hit. A quiet gold line and a soft ping, then a silent
+-- reminder line every few seconds for as long as the aspect stays up in combat.
 
 local ADDON_NAME, BOLT = ...
 
@@ -40,14 +40,14 @@ local function ActiveAspect()
     end
 end
 
-function CheetahWarning:Warn(name)
-    local text = ("%s is on in combat!"):format(name or "Aspect of the Cheetah")
-    if RaidNotice_AddMessage and RaidWarningFrame then
-        RaidNotice_AddMessage(RaidWarningFrame, text, ChatTypeInfo["RAID_WARNING"])
-    else
-        UIErrorsFrame:AddMessage(text, 1, 0.2, 0.2)
+-- A quiet hint: a gold line where the game prints "Out of range" and the like, with a soft ping
+-- the first time only (reminders are silent).
+function CheetahWarning:Warn(name, first)
+    local text = ("%s is still on"):format(name or "Aspect of the Cheetah")
+    if UIErrorsFrame then
+        UIErrorsFrame:AddMessage(text, 1, 0.82, 0)
     end
-    PlaySound(SOUNDKIT.RAID_WARNING or 8959, "Master")
+    if first then PlaySound(3175, "SFX") end -- map ping
 end
 
 -- combatStarting: called from PLAYER_REGEN_DISABLED, when the combat flag may not be set yet.
@@ -57,7 +57,7 @@ function CheetahWarning:Check(combatStarting)
     if not combatStarting and not UnitAffectingCombat("player") then return end
     local name = ActiveAspect()
     if not name then return end
-    self:Warn(name)
+    self:Warn(name, combatStarting)
     local token = self.token
     C_Timer.After(REPEAT, function()
         if self.token == token then self:Check() end

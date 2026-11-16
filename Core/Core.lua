@@ -88,6 +88,9 @@ BOLT.defaults = {
             statsPosition = "TOPRIGHT",
             copyTargetMount = true,
         },
+        wandShoot = {
+            petAssist = true, -- the key also puts the pet in Assist mode
+        },
         myDamage = {
             hideBlizzard = true, -- hide Blizzard's damage meter window while the panel is on
         },
@@ -98,6 +101,7 @@ BOLT.defaults = {
         },
         chat = {
             clean = true,       -- no borders, tab backgrounds or scroll bar; tabs on hover
+            hoverOnly = true,   -- the text shows only on hover or while typing
             hideButtons = true, -- menu, channels, voice and social buttons
             history = true,     -- last lines of each tab come back after a reload or login
             copyMenu = true,    -- "Copy chat" in a tab's right-click menu
@@ -108,6 +112,7 @@ BOLT.defaults = {
             soundID = 8959,
         },
         chatPopups = {
+            clickThrough = true, -- the mouse goes through the popups to the world
             channels = { WHISPER = true, BN_WHISPER = true, PARTY = true, PARTY_LEADER = true },
         },
         soundMuter = {

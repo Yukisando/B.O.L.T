@@ -1,6 +1,7 @@
 -- B.O.L.T Wand & Pet Attack Key Module (WoW: Forever only)
 -- One key that targets the enemy under the mouse (or keeps your current target), sends your pet
 -- in and starts wand Shoot. Pet attack is always part of it since 2026-11-12 (it was an option).
+-- It also puts the pet in Assist mode (setting, on by default), so it keeps helping you after.
 --
 -- Addons can't cast from their own code, so the key clicks a secure macro button
 -- (binding "CLICK BOLTWandShootButton:LeftButton"), which works in and out of combat. The macro
@@ -25,14 +26,23 @@ local function ShootName()
     return name or "Shoot"
 end
 
+-- Assist mode (the pet attacks what you attack) only exists where the client has it.
+function WandShoot:CanAssist()
+    return C_PetInfo ~= nil and C_PetInfo.PetAssistMode ~= nil
+end
+
 function WandShoot:MacroText()
     -- "!" keeps a second press from stopping the wand. Shoot goes before /petattack: with the pet
     -- line first, only the pet attacked and the wand never started (2026-11-12).
-    return table.concat({
+    local lines = {
         "/target [@mouseover,harm,nodead]",
         "/cast [harm,nodead] !" .. ShootName(),
-        "/petattack [harm,nodead]",
-    }, "\n")
+    }
+    if BOLT:GetConfig("wandShoot", "petAssist") and self:CanAssist() then
+        table.insert(lines, "/petassist [@pet,exists]")
+    end
+    table.insert(lines, "/petattack [harm,nodead]")
+    return table.concat(lines, "\n")
 end
 
 -- Attribute changes on a secure button are blocked in combat; wait for it to end.

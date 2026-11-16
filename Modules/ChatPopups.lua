@@ -9,8 +9,10 @@
 --
 -- Each popup is the bronze Blizzard panel the camp bar and square minimap use (a dark tooltip
 -- panel where that art doesn't exist), the sender in class color and the message in the chat's
--- own color, like it would read in the chat window. More lines from the same person in a row go into the same popup. Hovering keeps a popup up,
--- left-click replies (whisper back, or opens party chat), right-click closes it.
+-- own color, like it would read in the chat window. More lines from the same person in a row go
+-- into the same popup. Popups are click-through by default (setting). Otherwise hovering keeps a
+-- popup up, left-click replies in that chat (whisper back, or opens party chat) and right-click
+-- whispers the sender of a group message (a whisper popup just closes).
 -- In instances the sender and the text can be secret values: they are only handed to
 -- FontString:SetText, never compared or cut, so those popups never merge.
 
@@ -165,9 +167,16 @@ local function CreateToast()
     toast.text:SetWordWrap(true)
     if toast.text.SetMaxLines then toast.text:SetMaxLines(4) end
 
+    -- Left: answer in that chat. Right: whisper the sender of a group message (a whisper
+    -- popup just closes, since left-click already whispers back).
     toast:SetScript("OnClick", function(self, button)
         if self.preview then return end
-        if button == "LeftButton" then Reply(self) end
+        if button == "LeftButton" then
+            Reply(self)
+        elseif self.chatType ~= "WHISPER" and self.chatType ~= "BN_WHISPER"
+            and self.sender and not IsSecret(self.sender) then
+            ChatCall("ChatFrame_SendTell", "SendTell", self.sender)
+        end
         Release(self)
     end)
     toast:SetScript("OnEnter", function(self) self.hovered = true self:SetAlpha(1) end)
@@ -245,6 +254,7 @@ local function Push(chatType, channel, sender, guid, message, preview)
 
     toast.expires = GetTime() + Duration()
     toast:SetAlpha(1)
+    toast:EnableMouse(not BOLT:GetConfig("chatPopups", "clickThrough"))
     toast:Show()
     table.insert(toasts, 1, toast)
     while #toasts > MaxCount() do Release(toasts[#toasts]) end
@@ -396,6 +406,14 @@ function ChatPopups:OnEnable()
         self.eventFrame:RegisterEvent("CHAT_MSG_" .. channel.event)
     end
     if EditMode:IsActive() then ShowPreview() end
+end
+
+function ChatPopups:OnSettingChanged()
+    local through = BOLT:GetConfig("chatPopups", "clickThrough")
+    for _, toast in ipairs(toasts) do
+        toast:EnableMouse(not through)
+        if through then toast.hovered = false end
+    end
 end
 
 function ChatPopups:OnDisable()

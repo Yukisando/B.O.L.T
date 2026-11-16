@@ -130,7 +130,7 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 
 #### Wand & Pet Attack Key (WoW: Forever)
 
-- **One Key for Wand and Pet**: Targets the enemy under the mouse (or keeps your target), sends your pet to attack it and starts wand Shoot. Without a pet out it just shoots. Set the key in BOLT settings or Key Bindings ("Shoot Wand + Pet Attack" under B.O.L.T)
+- **One Key for Wand and Pet**: Targets the enemy under the mouse (or keeps your target), sends your pet to attack it and starts wand Shoot. It also puts your pet in Assist mode (setting, on by default) so it keeps attacking what you attack. Without a pet out it just shoots. Set the key in BOLT settings or Key Bindings ("Shoot Wand + Pet Attack" under B.O.L.T)
 
 #### Double-Click Fishing
 
@@ -143,7 +143,7 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 
 #### Cheetah Warning (hunters)
 
-- **Combat Alert**: A warning and a sound when combat starts while Aspect of the Cheetah or of the Pack is on you, repeated every few seconds until you change aspect or combat ends
+- **Combat Hint**: a quiet gold line and a soft ping when combat starts while Aspect of the Cheetah or of the Pack is on you, then a silent reminder every few seconds until you change aspect or combat ends
 
 #### Skyriding
 
@@ -160,6 +160,7 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 Blizzard's own chat window, made quiet, with everything chat in one place (a replacement for chat addons like Chattynator; with Chattynator on, the window is left alone):
 
 - **Clean Window**: no borders, tab backgrounds or scroll bar; the tabs and a soft dark background show only while the mouse is over the chat (a tab with new messages still shows)
+- **Messages Only When You Look**: the chat text shows only while the mouse is over it or you type; new messages reach you through the popups instead (setting)
 - **No Button Clutter**: the menu, channels, voice and social buttons are hidden (setting)
 - **Input Box Only While Typing**: Blizzard's IM style, one click away
 - **History**: the last 100 lines of each tab come back, slightly dimmed, after a reload or login
@@ -168,7 +169,7 @@ Blizzard's own chat window, made quiet, with everything chat in one place (a rep
 - **Screen Edge**: like the minimap, only the text has to stay on screen: the tabs, input box and empty space can go past any edge so the chat sits snug in a corner (or set it free, or back to Blizzard's), in its Edit Mode dialog
 - **Input Box Above or Below**: put the input box on top of the window (Edit Mode or settings), handy with the chat at the bottom of the screen
 - **Sound on New Messages**: a sound when a message arrives in the chats you pick, with a choice of sounds and a preview; your own messages are ignored and rapid messages don't stack
-- **Popups**: whispers and party chat also show as small Blizzard-style popups (sender in class color, the message in its chat color) so you don't miss them; more lines from the same person stay in one popup; hover keeps one up, left-click replies, right-click closes. In Edit Mode: move the box, stack up or down, how many show at once, how long they stay and their width
+- **Popups**: whispers and party chat also show as small Blizzard-style popups (sender in class color, the message in its chat color) so you don't miss them; more lines from the same person stay in one popup; click-through by default; turned off, hover keeps one up, left-click replies in that chat, right-click whispers the sender (or closes a whisper). In Edit Mode: move the box, stack up or down, how many show at once, how long they stay and their width
 
 #### Auto Party Chat
 
