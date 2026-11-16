@@ -343,6 +343,36 @@ end
 
 function Chat.IsClean() return cleanOn end
 
+---------------------------------------------------------------------------
+-- Battle.net toasts: the game's own Social settings turn the common ones off (no sound either);
+-- the toast frame is also kept hidden for any other kind. Turning the option off puts them back.
+-- Works with Chattynator too: the toasts aren't part of the chat window.
+---------------------------------------------------------------------------
+
+local TOAST_CVARS = { "showToastOnline", "showToastOffline", "showToastBroadcast", "showToastFriendRequest" }
+local toastsHidden, toastHooked = false, false
+
+local function SetToastCVars(on)
+    local set = C_CVar and C_CVar.SetCVar or SetCVar
+    for _, name in ipairs(TOAST_CVARS) do pcall(set, name, on and "1" or "0") end
+end
+
+function Chat:ApplyToasts()
+    local hide = Cfg("hideBnetToasts") and true or false
+    if hide == toastsHidden then return end
+    toastsHidden = hide
+    SetToastCVars(not hide)
+    local toast = BNToastFrame
+    if not toast then return end
+    if hide and not toastHooked then
+        toastHooked = true
+        hooksecurefunc(toast, "Show", function(frame)
+            if toastsHidden then frame:Hide() end
+        end)
+    end
+    if hide then toast:Hide() end
+end
+
 -- Temporary whisper windows and new tabs come later: style them as they open.
 local function OnNewWindow()
     if cleanOn or buttonsHidden or Cfg("inputTop") then Chat:ApplyWindow() end
@@ -513,10 +543,12 @@ end
 function Chat:OnEnable()
     self:RestoreHistory()
     self:ApplyWindow()
+    self:ApplyToasts()
 end
 
 function Chat:OnSettingChanged()
     self:ApplyWindow()
+    self:ApplyToasts()
 end
 
 BOLT:RegisterModule("chat", Chat)

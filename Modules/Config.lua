@@ -368,6 +368,7 @@ local PAGES = {
                         set = function(value) pcall(C_CVar and C_CVar.SetCVar or SetCVar, "chatStyle", value and "im" or "classic") end },
                     { type = "checkbox", label = "Input box on top (above the tabs) instead of below the window", path = { "chat", "inputTop" } },
                     { type = "checkbox", label = "Keep the last lines of each tab after a reload or login", path = { "chat", "history" } },
+                    { type = "checkbox", label = "Hide Battle.net notifications (friend online or offline, broadcasts, friend requests)", path = { "chat", "hideBnetToasts" } },
                     { type = "checkbox", label = "\"Copy chat\" in a tab's right-click menu (also /copychat)", path = { "chat", "copyMenu" } },
                     { type = "button", label = "Copy chat", width = 120, onClick = function() Module("chat"):ShowCopy() end },
                     { type = "header", label = "Sound on new messages" },

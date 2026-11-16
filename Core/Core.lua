@@ -107,6 +107,7 @@ BOLT.defaults = {
             history = true,     -- last lines of each tab come back after a reload or login
             copyMenu = true,    -- "Copy chat" in a tab's right-click menu
             inputTop = false,   -- input box above the window instead of below
+            hideBnetToasts = true, -- no Battle.net popups (friend online/offline, broadcasts, requests)
         },
         chatNotifier = {
             channels = {},
