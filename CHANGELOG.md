@@ -6,6 +6,15 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-26 (2026-11-16)
+
+- fix: double-click fishing rebuilt, ammo count, friendly target plate, tracker fold fix
+- Double-Click Fishing works again: a double right-click on the world casts Fishing even when the mouse doesn't move between the clicks
+- New /bolt fish command shows why the last right-click did or didn't ready Double-Click Fishing
+- Ammo Count (new, resource display): each shot briefly shows how many arrows or bullets you have left, orange under 300 and red under 150
+- Friendly Target Plate (new, Nameplates): a friend you target gets their nameplate with health, other friendly nameplates stay hidden (not in instances)
+- Fixed: folding the objective tracker could break it in instances
+
 ## v8-25 (2026-11-16)
 
 - feat: chat shows only on hover, click-through popups, quieter cheetah hint, pet assist
