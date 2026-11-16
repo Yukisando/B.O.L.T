@@ -6,6 +6,12 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-24 (2026-11-16)
+
+- feat: objective tracker stays collapsed, simpler camera distance
+- All Objectives stays collapsed after a reload or relog when you collapsed it (every character)
+- Max Camera Distance sets the zoom-out right at login, without the delay
+
 ## v8-23 (2026-11-15)
 
 - feat: Chat section, a quiet Blizzard chat window to replace chat addons
