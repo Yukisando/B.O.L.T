@@ -6,6 +6,11 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-27 (2026-11-16)
+
+- feat: hide Battle.net notifications
+- Chat: Battle.net notifications (friend online or offline, broadcasts, friend requests) are hidden, with no sound. Turn it off in Social > Chat to get them back
+
 ## v8-26 (2026-11-16)
 
 - fix: double-click fishing rebuilt, ammo count, friendly target plate, tracker fold fix
