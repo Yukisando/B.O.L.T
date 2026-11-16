@@ -41,6 +41,7 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 - **Personal Resource Display**: Turn on Blizzard's health and power bars under your character. When Edit Mode shows it only in combat, it can also show with a target (any, attackable only or not attackable only), fade to an opacity of your choice instead of hiding, and open your menu on right-click (Shift + right-click for your target's)
 - **Pet Health Bar**: A half-height bar on top of the Personal Resource Display's health bar shows your pet's health, with the same gold-bordered art, width and spacing as its other bars. Shows while you have a pet out
 - **Pet Damage Share**: When a fight ends, a percentage fades in next to the pet health bar for a few seconds: how much of your damage your pets dealt (you 20 + pet 20 = 50%). Read from Blizzard's damage meter
+- **Ammo Count**: Each shot that uses an arrow or bullet briefly shows how many you have left, on the other side of the pet health bar: white, orange under 300, red under 150
 - **Your Own Immersive Mode**: Hide both frames and turn on the Personal Resource Display. (This replaces the old Immersive Mode toggle; if you had it on, your setup carries over)
 - **In Edit Mode**: Select the Player Frame, Target Frame or Personal Resource Display; BOLT's options sit in a "B.O.L.T" block under Blizzard's settings. Every frame shows while you edit
 
@@ -54,6 +55,7 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 
 - **Mana User Highlighting**: Enemy nameplate health bars are colored for mana users (healers/casters), optionally only in dungeons, raids and scenarios, with a color of your choice
 - **Target Emphasis**: Your target's nameplate is larger and the others fade slightly (the game's own nameplate settings, restored to their defaults when turned off)
+- **Friendly Target Plate**: A friend you target gets their nameplate with health; every other friendly nameplate stays hidden. Not in instances, where the game doesn't let addons hide friendly nameplates
 - **Interrupt Cue**: An enemy cast bar gets an outline and your interrupt's icon when the cast can be interrupted *and* your interrupt is off cooldown, so you know at a glance whether to kick. Works with Midnight's combat restrictions (the game itself decides whether to show the cue)
 - **Range Hint**: Enemies out of your reach get a slightly darker health bar, measured with your interrupt (or a basic attack for classes and specs without one)
 - **DoT Overlay** (WoW: Forever): A striped shield, like Blizzard's absorb shields, sits over the right end of an enemy's health bar, as wide as the damage your DoTs and your pet's DoTs will still deal. When it covers all the health left, it turns gold: those DoTs alone will kill it. Optionally a DoT only counts once its first tick has landed. Both colors can be changed. `/bolt dots` lists what it counts on your target. The combat log is closed to addons, so BOLT reads each DoT from its spell description, matches the hits on the mob to it, and learns your real tick sizes from Blizzard's damage meter after each fight, so it gets more accurate as you play

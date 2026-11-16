@@ -655,6 +655,96 @@ function FrameVisibility:UpdatePetDamage()
 end
 
 ---------------------------------------------------------------------------
+-- Ammo count: each time a shot uses up ammo, your arrows or bullets left show in white to the
+-- left of the pet health bar (opposite the pet damage share), then fade after a moment.
+-- The count is read on inventory and bag updates; it only shows when it went down.
+---------------------------------------------------------------------------
+
+local AMMO_SLOT = INVSLOT_AMMO or 0
+local AMMO_HOLD = 1.5 -- seconds fully shown after the last shot
+
+local ammoText, ammoAnim, ammoEvents, lastAmmo
+
+local function AmmoCount()
+    if not GetInventoryItemTexture("player", AMMO_SLOT) then return nil end
+    local count = GetInventoryItemCount("player", AMMO_SLOT)
+    if BOLT.IsSecret(count) then return nil end
+    return count
+end
+
+local function BuildAmmoText()
+    ammoText = UIParent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    ammoText:SetTextColor(1, 1, 1)
+    local font, size = ammoText:GetFont()
+    if font then ammoText:SetFont(font, size, "OUTLINE") end
+    ammoText:Hide()
+    ammoAnim = ammoText:CreateAnimationGroup()
+    local fadeOut = ammoAnim:CreateAnimation("Alpha")
+    fadeOut:SetFromAlpha(1)
+    fadeOut:SetToAlpha(0)
+    fadeOut:SetDuration(0.4)
+    fadeOut:SetStartDelay(AMMO_HOLD)
+    ammoAnim:SetScript("OnFinished", function() ammoText:Hide() end)
+end
+
+local function AnchorAmmoText()
+    local display = Display()
+    if not display then return false end
+    ammoText:ClearAllPoints()
+    if petBar and petAnchoredTo then
+        ammoText:SetPoint("RIGHT", petBar, "LEFT", -10, 0)
+    else
+        ammoText:SetPoint("BOTTOMRIGHT", display.HealthBarsContainer or display, "TOPLEFT", -10, 2)
+    end
+    ammoText:SetScale(display:GetEffectiveScale() / UIParent:GetEffectiveScale())
+    return true
+end
+
+local function ShowAmmo(count)
+    if not FrameVisibility:IsDisplayOn() then return end
+    if not ammoText then BuildAmmoText() end
+    if not AnchorAmmoText() then return end
+    ammoText:SetText(count)
+    -- White, orange under 300, red under 150.
+    if count < 150 then
+        ammoText:SetTextColor(1, 0.25, 0.2)
+    elseif count < 300 then
+        ammoText:SetTextColor(1, 0.6, 0.1)
+    else
+        ammoText:SetTextColor(1, 1, 1)
+    end
+    -- Back to full on every shot; the fade only starts once you stop shooting.
+    ammoAnim:Stop()
+    ammoText:SetAlpha(1)
+    ammoText:Show()
+    ammoAnim:Play()
+end
+
+local function CheckAmmo()
+    local count = AmmoCount()
+    if count and lastAmmo and count < lastAmmo then ShowAmmo(count) end
+    lastAmmo = count
+end
+
+function FrameVisibility:UpdateAmmoCount()
+    local on = DisplayCfg("ammoCount") == true
+    if not ammoEvents then
+        if not on then return end
+        ammoEvents = CreateFrame("Frame")
+        ammoEvents:SetScript("OnEvent", CheckAmmo)
+    end
+    if on then
+        ammoEvents:RegisterUnitEvent("UNIT_INVENTORY_CHANGED", "player")
+        ammoEvents:RegisterEvent("BAG_UPDATE")
+        ammoEvents:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+        lastAmmo = AmmoCount()
+    else
+        ammoEvents:UnregisterAllEvents()
+        if ammoText then ammoAnim:Stop() ammoText:Hide() end
+    end
+end
+
+---------------------------------------------------------------------------
 -- Edit Mode: a B.O.L.T block under the Player, Target and Personal Resource Display dialogs
 ---------------------------------------------------------------------------
 
@@ -729,6 +819,10 @@ function FrameVisibility:RegisterEditMode()
             desc = "When a fight ends, a percentage fades in next to the pet health bar for a few seconds: the share of your damage your pets dealt (yours + theirs = 100%). Read from Blizzard's damage meter.",
             hidden = function() return displayOff() or not PetDamageAvailable() end,
         }),
+        EditMode:Checkbox("Ammo count after each shot", { "frameVisibility", "display", "ammoCount" }, {
+            desc = "Each shot that uses an arrow or bullet briefly shows how many you have left, in white to the left of the pet health bar.",
+            hidden = function() return displayOff() or not BOLT.isForever end,
+        }),
     })
 end
 
@@ -742,6 +836,7 @@ function FrameVisibility:OnLayoutChanged()
     self:UpdateMenuCatcher()
     self:UpdatePetBar()
     self:UpdatePetDamage()
+    self:UpdateAmmoCount()
 end
 
 function FrameVisibility:OnSettingChanged(key, path)
@@ -750,6 +845,7 @@ function FrameVisibility:OnSettingChanged(key, path)
         self:UpdateMenuCatcher()
         self:UpdatePetBar()
         self:UpdatePetDamage()
+        self:UpdateAmmoCount()
     else
         self:ApplyFrames()
     end
@@ -778,6 +874,7 @@ function FrameVisibility:OnEnable()
     self:UpdateMenuCatcher()
     self:UpdatePetBar()
     self:UpdatePetDamage()
+    self:UpdateAmmoCount()
 end
 
 BOLT:RegisterModule("frameVisibility", FrameVisibility)

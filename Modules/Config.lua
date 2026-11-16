@@ -227,6 +227,7 @@ local PAGES = {
                     { type = "checkbox", label = "Only in instances (dungeons, raids, scenarios)", path = { "nameplatesEnhancement", "instanceOnly" },
                         indent = 24, requires = { "nameplatesEnhancement", "manaUsers" } },
                     { type = "checkbox", label = "Larger nameplate for your target, the others slightly faded", path = { "nameplatesEnhancement", "targetEmphasis" } },
+                    { type = "checkbox", label = "Show a friend's nameplate (with health) only while you target them; other friendly nameplates stay hidden (not in instances)", path = { "nameplatesEnhancement", "friendlyTarget" } },
                     { type = "checkbox", label = "Outline enemy casts you can interrupt right now (interruptible, and your interrupt is ready)", path = { "nameplatesEnhancement", "interruptCue" } },
                     { type = "color", label = "Color:", path = { "nameplatesEnhancement", "interruptColor" }, indent = 24,
                         default = { r = 0.3, g = 1.0, b = 0.45 }, requires = { "nameplatesEnhancement", "interruptCue" } },

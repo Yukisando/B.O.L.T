@@ -35,6 +35,7 @@ local function PrintHelp()
         { "/bolt camp", "Show what the camp bar sees (WoW: Forever)" },
         { "/bolt edge", "Show how far the minimap may go past the screen edge" },
         { "/bolt range", "Show what the nameplate range dot checks on your target" },
+        { "/bolt fish", "Show why the last right-click did or didn't ready Double-Click Fishing" },
         { "/bolt dots", "Show what the nameplate DoT overlay reads on your target (WoW: Forever)" },
         { "/bolt reset", "Clear any stuck Skyriding key overrides" },
         { "/bolt reload", "Reload the UI" },
@@ -122,6 +123,15 @@ commands.range = function()
         mod:PrintRangeDebug()
     else
         BOLT:Print("Nameplates module is not loaded.")
+    end
+end
+
+commands.fish = function()
+    local mod = BOLT.modules.doubleClickFishing
+    if mod and mod.PrintDebug then
+        mod:PrintDebug()
+    else
+        BOLT:Print("Double-Click Fishing is not loaded.")
     end
 end
 

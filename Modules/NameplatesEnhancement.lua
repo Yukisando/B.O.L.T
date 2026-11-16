@@ -2,6 +2,9 @@
 -- Small fixes on top of Blizzard's nameplates:
 --   mana users     enemy healers and casters get a recolored health bar
 --   target         your target's plate is larger and the others fade a little (game settings)
+--   friendly target  a friend you target gets their plate (with health); other friendly plates
+--                  stay invisible. Instances are left out: friendly plates there are closed to
+--                  addons ("forbidden"), so they can't be hidden and stay off.
 --   interrupt cue  an enemy cast bar lights up when the spell can be interrupted and your
 --                  interrupt is off cooldown
 --   range hint     a dot above the top left of an enemy's health bar: dark red out of your reach,
@@ -123,6 +126,63 @@ function Nameplates:ApplyTargetCVars()
                 C_CVar.SetCVar(name, wanted)
             end
         end
+    end
+end
+
+---------------------------------------------------------------------------
+-- Friendly target
+---------------------------------------------------------------------------
+-- The game shows friendly plates for everyone or no one. With this on, they are on outside
+-- instances and each one is invisible (alpha 0) unless it is your target. The game settings
+-- change out of combat only; going back to their defaults when turned off.
+
+local FRIEND_CVARS = { "nameplateShowFriendlyPlayers", "nameplateShowFriendlyNpcs" }
+
+local function FriendTargetApplies()
+    if not IsOn("friendlyTarget") then return false end
+    local inInstance, instanceType = IsInInstance()
+    return not (inInstance and instanceType ~= "none")
+end
+
+function Nameplates:ApplyFriendCVars()
+    if InCombatLockdown() then
+        cvarsPending = true
+        self.eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+        return
+    end
+    local wanted = FriendTargetApplies()
+    for _, name in ipairs(FRIEND_CVARS) do
+        if C_CVar.GetCVarInfo(name) then
+            local value = wanted and "1" or C_CVar.GetCVarDefault(name)
+            if value and C_CVar.GetCVar(name) ~= value then C_CVar.SetCVar(name, value) end
+        end
+    end
+end
+
+local function IsFriendPlate(frame, unit)
+    if frame.IsFriend then return frame:IsFriend() end
+    local ok, friend = pcall(UnitIsFriend, "player", unit)
+    return ok and not BOLT.IsSecret(friend) and friend == true
+end
+
+local function UpdateFriendTarget(frame)
+    local unit = frame.unit
+    local hide = IsOn("friendlyTarget") and IsPlateUnit(unit) and IsFriendPlate(frame, unit)
+    if not hide then
+        if frame.boltFriendHidden then
+            frame.boltFriendHidden = nil
+            frame:SetAlpha(1)
+        end
+        return
+    end
+    frame.boltFriendHidden = true
+    local ok, isTarget = pcall(UnitIsUnit, unit, "target")
+    if not ok then
+        frame:SetAlpha(0)
+    elseif BOLT.IsSecret(isTarget) then
+        frame:SetAlphaFromBoolean(isTarget, 1, 0)
+    else
+        frame:SetAlpha(isTarget and 1 or 0)
     end
 end
 
@@ -583,6 +643,7 @@ function Nameplates:PrintDotDebug()
 end
 
 local function UpdatePlate(frame)
+    UpdateFriendTarget(frame)
     UpdateCue(frame)
     UpdateRange(frame)
     UpdateDots(frame)
@@ -623,9 +684,16 @@ local function OnEvent(_, event, unit)
     elseif event == "SPELLS_CHANGED" or event == "PLAYER_TALENT_UPDATE" or event == "UNIT_PET" then
         Nameplates:FindInterrupt()
         UpdateAllCues()
+    elseif event == "PLAYER_TARGET_CHANGED" then
+        ForEachPlate(UpdateFriendTarget)
+    elseif event == "PLAYER_ENTERING_WORLD" then
+        Nameplates:ApplyFriendCVars()
     elseif event == "PLAYER_REGEN_ENABLED" then
         Nameplates.eventFrame:UnregisterEvent("PLAYER_REGEN_ENABLED")
-        if cvarsPending then Nameplates:ApplyTargetCVars() end
+        if cvarsPending then
+            Nameplates:ApplyTargetCVars()
+            Nameplates:ApplyFriendCVars()
+        end
     elseif IsPlateUnit(unit) then
         local plate = C_NamePlate.GetNamePlateForUnit(unit)
         if plate and plate.UnitFrame then UpdateCue(plate.UnitFrame) end
@@ -653,6 +721,8 @@ function Nameplates:RegisterEvents()
     events:RegisterEvent("NAME_PLATE_UNIT_ADDED")
     events:RegisterEvent("UNIT_DISPLAYPOWER")
     events:RegisterEvent("UNIT_POWER_BAR_SHOW")
+    events:RegisterEvent("PLAYER_TARGET_CHANGED")
+    events:RegisterEvent("PLAYER_ENTERING_WORLD")
     if cvarsPending then events:RegisterEvent("PLAYER_REGEN_ENABLED") end
     if Cfg("interruptCue") then
         for _, event in ipairs(CAST_EVENTS) do
@@ -686,6 +756,7 @@ function Nameplates:OnEnable()
 
     self:RegisterEvents()
     self:ApplyTargetCVars()
+    self:ApplyFriendCVars()
     ForEachPlate(SetUpFrame)
 end
 
@@ -694,11 +765,13 @@ function Nameplates:OnDisable()
     self.eventFrame:SetScript("OnUpdate", nil)
     SetDotTracking(false)
     self:ApplyTargetCVars()
+    self:ApplyFriendCVars()
     UpdateAllCues()
 end
 
 function Nameplates:OnLayoutChanged()
     self:ApplyTargetCVars()
+    self:ApplyFriendCVars()
     self:RegisterEvents()
     self:OnSettingChanged()
 end
@@ -707,6 +780,8 @@ function Nameplates:OnSettingChanged(key)
     self:LoadColors()
     if key == "targetEmphasis" then
         self:ApplyTargetCVars()
+    elseif key == "friendlyTarget" then
+        self:ApplyFriendCVars()
     elseif key == "interruptCue" or key == "rangeHint" or key == "dotOverlay" or key == "dotWaitFirstTick" then
         self:RegisterEvents()
     end

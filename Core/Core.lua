@@ -49,6 +49,7 @@ BOLT.defaults = {
                 petHealth = true,        -- half-height pet health bar on top of its health bar
                 petHappiness = true,     -- thin mood line above the pet health bar (hunter pets)
                 petDamage = true,        -- pets' share of your damage, shown briefly after combat
+                ammoCount = true,        -- arrows/bullets left, shown briefly after each shot
             },
         },
         autoHide = {
@@ -134,6 +135,7 @@ BOLT.defaults = {
             manaColor = { r = 0.2, g = 0.4, b = 1.0 },
             instanceOnly = false,
             targetEmphasis = true,
+            friendlyTarget = true, -- friendly plates only for the friend you target
             interruptCue = true,
             rangeHint = true,
             interruptColor = { r = 0.3, g = 1.0, b = 0.45 },

@@ -2,17 +2,19 @@
 -- Double right-click on the world to cast Fishing, with a fishing rod equipped.
 --
 -- Addons can't cast from their own code, so a quick right-click on the world arms the
--- double-click: BUTTON2 is bound to a secure button that casts Fishing, for as long as a second
--- click may follow. The second click casts on its RELEASE, always (useOnKeyDown = false):
--- - a second click at the exact same spot is a system double-click, and WoW doesn't hand its
---   press to the binding at all, only its release;
--- - with "cast on key down" on (ActionButtonUseKeyDown), the secure button ignores releases
---   unless useOnKeyDown is false. Earlier versions missed one or the other, so they only cast
---   when the mouse moved between the clicks, or never (fixed 2026-11-14).
--- A secure snippet clears the binding once it has cast (so it also works if combat starts); a
--- timer clears it if no second click comes.
+-- double-click: an invisible secure button that casts Fishing covers the world (BACKGROUND strata,
+-- so the UI stays on top of it) for as long as a second click may follow. The second click lands
+-- on that button as a real mouse click, which is how action buttons cast, so it works whatever
+-- "cast on key down" says. Left clicks pass through it to the world.
+--
+-- Why not a key binding (2026-11-16): every earlier version bound BUTTON2 to the button for the
+-- second click. A second click at the same spot is a system double-click, which WoW never hands to
+-- key bindings, so those versions only cast when the mouse moved between the clicks, or never.
+--
+-- A second press held down is a camera turn: the cover hides and mouselook takes over.
 -- Skipped in combat, while mounted, with a unit under the mouse, with a loot window open, while
 -- already fishing (so a double-click on the bobber doesn't recast), or without a rod equipped.
+-- /bolt fish prints why the last right-click did or didn't arm.
 
 local ADDON_NAME, BOLT = ...
 
@@ -22,27 +24,37 @@ local DoubleClickFishing = {
 
 local BUTTON_NAME = "BOLTFishingButton"
 local MAX_HOLD = 0.3     -- a longer first press is turning the camera, not a click
-local MAX_GAP = 0.45     -- seconds after the first click for the second one to start
-local SECOND_HOLD = 1.5  -- once the second press started, how long its release may take
+local MAX_GAP = 0.5      -- seconds after the first click for the second one to start
+local TURN_HOLD = 0.25   -- a second press held longer than this is a camera turn
 
 -- Fishing cast spells: modern one first, then the old ranks (Classic-style clients).
 local FISHING_IDS = { 131474, 7620, 7731, 7732, 18248, 33095, 51294, 88868, 110410 }
 local IS_FISHING_ID = {}
 for _, id in ipairs(FISHING_IDS) do IS_FISHING_ID[id] = true end
 
--- Ask both APIs: on Forever an old rank can be missing from one and present in the other.
+local function SpellName(id)
+    if C_Spell and C_Spell.GetSpellName then return C_Spell.GetSpellName(id) end
+    return GetSpellInfo and (GetSpellInfo(id)) or nil
+end
+
 local function IsKnown(id)
     if IsPlayerSpell and IsPlayerSpell(id) then return true end
     if C_SpellBook and C_SpellBook.IsSpellKnown and C_SpellBook.IsSpellKnown(id) then return true end
     return IsSpellKnown ~= nil and IsSpellKnown(id) == true
 end
 
--- The known Fishing spell's name; casting by name picks the best rank. nil if the player can't fish.
+-- Casting by name picks the best known rank. If no ID reads as known (some clients disagree),
+-- the plain "Fishing" name still casts: a rod is equipped, so the player can fish.
 local function FishingSpellName()
     for _, id in ipairs(FISHING_IDS) do
         if IsKnown(id) then
-            return C_Spell.GetSpellName(id)
+            local name = SpellName(id)
+            if name then return name end
         end
+    end
+    for _, id in ipairs(FISHING_IDS) do
+        local name = SpellName(id)
+        if name then return name end
     end
 end
 
@@ -84,82 +96,120 @@ local function HasRodEquipped()
     return false
 end
 
-function DoubleClickFishing:CanCast()
-    return not InCombatLockdown()
-        and not IsMounted()
-        and not (IsFlying and IsFlying())
-        and not UnitExists("mouseover")
-        and GetNumLootItems() == 0
-        and not IsMouseButtonDown("LeftButton")
-        and MouseOverWorld()
-        and not IsFishing()
-        and HasRodEquipped()
+-- nil when the cast may go ahead, else the reason it may not (for /bolt fish).
+function DoubleClickFishing:BlockReason()
+    if InCombatLockdown() then return "in combat" end
+    if IsMounted() then return "mounted" end
+    if IsFlying and IsFlying() then return "flying" end
+    if UnitExists("mouseover") then return "a unit is under the mouse" end
+    if GetNumLootItems() > 0 then return "loot window open" end
+    if IsMouseButtonDown("LeftButton") then return "left button held" end
+    if not MouseOverWorld() then return "mouse over a UI frame" end
+    if IsFishing() then return "already fishing" end
+    if not HasRodEquipped() then return "no fishing rod equipped" end
+    if not FishingSpellName() then return "no Fishing spell found" end
 end
 
-function DoubleClickFishing:ClearBinding()
+function DoubleClickFishing:Disarm()
     self.token = (self.token or 0) + 1
-    if self.bound and not InCombatLockdown() then
-        ClearOverrideBindings(self.button)
+    self.armed = false
+    if self.button and not InCombatLockdown() then
+        self.button:Hide()
     end
-    self.bound = false
-    self.secondPress = false
 end
 
--- Clears the binding after `delay` seconds unless something re-armed or cleared it since.
-function DoubleClickFishing:ClearAfter(delay)
+function DoubleClickFishing:Arm()
+    local button = self.button
+    button:SetAttribute("spell", FishingSpellName())
+    button:Show()
+    self.armed = true
+    self.token = (self.token or 0) + 1
     local token = self.token
-    C_Timer.After(delay, function()
-        if self.token == token and self.bound then self:ClearBinding() end
+    C_Timer.After(MAX_GAP, function()
+        -- Still up and no second press started on it: the double-click didn't come.
+        if self.token == token and self.armed and not self.pressing then self:Disarm() end
     end)
 end
 
+-- First click: a quick right-click on the world. GLOBAL_MOUSE_* fire for world clicks too.
 function DoubleClickFishing:OnMouseDown(mouseButton)
-    if mouseButton ~= "RightButton" then return end
-    if self.bound then
-        -- The second click started: give its release time to reach the binding.
-        if not self.secondPress then
-            self.secondPress = true
-            self.token = self.token + 1
-            self:ClearAfter(SECOND_HOLD)
-        end
-        return
-    end
+    if mouseButton ~= "RightButton" or self.armed then return end
     self.pressTime = GetTime()
 end
 
 function DoubleClickFishing:OnMouseUp(mouseButton)
-    if mouseButton ~= "RightButton" then return end
-    if self.bound then return end -- the second click's release; the button handles it
+    if mouseButton ~= "RightButton" or self.armed then return end
     local pressTime = self.pressTime
     self.pressTime = nil
-    if not pressTime or GetTime() - pressTime > MAX_HOLD then return end
-    if not self:CanCast() then return end
-    local spell = FishingSpellName()
-    if not spell then return end
+    if not pressTime then return end -- e.g. the second click's release, after it cast
+    if GetTime() - pressTime > MAX_HOLD then
+        self.lastResult = "held too long (camera turn)"
+        return
+    end
+    local reason = self:BlockReason()
+    if reason then
+        self.lastResult = "not armed: " .. reason
+        return
+    end
+    self.lastResult = "armed, waiting for the second click"
+    self:Arm()
+end
 
-    -- A quick click on the world: arm the second click.
-    self.button:SetAttribute("spell", spell)
-    SetOverrideBindingClick(self.button, true, "BUTTON2", BUTTON_NAME)
-    self.bound = true
-    self.secondPress = false
-    self.token = (self.token or 0) + 1
-    self:ClearAfter(MAX_GAP)
+-- Second press on the cover: a click casts on release; held down, it becomes a camera turn.
+function DoubleClickFishing:OnCoverMouseDown(mouseButton)
+    if mouseButton ~= "RightButton" then return end
+    self.pressing = true
+    local token = self.token
+    C_Timer.After(TURN_HOLD, function()
+        if self.token ~= token or not self.armed then return end
+        if IsMouseButtonDown("RightButton") then
+            self.pressing = false
+            self.lastResult = "second press held: camera turn, no cast"
+            self:Disarm()
+            MouselookStart()
+        end
+    end)
 end
 
 function DoubleClickFishing:OnInitialize()
+    -- Parentless so it also works with the UI hidden (Alt+Z); BACKGROUND keeps every UI frame
+    -- above it, so it only ever covers the 3D world.
     local button = CreateFrame("Button", BUTTON_NAME, nil, "SecureActionButtonTemplate")
-    -- Releases only, whatever "cast on key down" says: see the top of the file.
-    button:RegisterForClicks("AnyUp")
+    button:SetFrameStrata("BACKGROUND")
+    button:SetFrameLevel(0)
+    button:SetAllPoints(UIParent)
+    button:RegisterForClicks("RightButtonUp")
     button:SetAttribute("type", "spell")
     button:SetAttribute("useOnKeyDown", false)
-    -- Drop the binding as soon as it has cast, from secure code so it also works in combat.
+    if button.SetPassThroughButtons then
+        pcall(button.SetPassThroughButtons, button, "LeftButton")
+    end
+    button:Hide()
+    -- Hide right after the cast, from secure code so it also works if combat started.
     SecureHandlerWrapScript(button, "PostClick", button, [[
-        self:ClearBindings()
+        self:Hide()
     ]])
     button:HookScript("PostClick", function()
-        self.bound = false
-        self.secondPress = false
+        self.pressing = false
+        self.armed = false
         self.token = (self.token or 0) + 1
+        self.lastResult = "cast Fishing"
+    end)
+    button:HookScript("OnMouseDown", function(_, mouseButton)
+        self:OnCoverMouseDown(mouseButton)
+    end)
+    button:HookScript("OnMouseUp", function()
+        -- A release that didn't make a click (e.g. left button): clean up.
+        C_Timer.After(0, function()
+            if self.pressing then
+                self.pressing = false
+                if self.armed then self:Disarm() end
+            end
+        end)
+    end)
+    button:HookScript("OnHide", function()
+        self.armed = false
+        self.pressing = false
     end)
     self.button = button
 
@@ -170,7 +220,7 @@ function DoubleClickFishing:OnInitialize()
         elseif event == "GLOBAL_MOUSE_UP" then
             self:OnMouseUp(...)
         elseif event == "PLAYER_REGEN_DISABLED" then
-            self:ClearBinding()
+            self:Disarm()
         end
     end)
     self.eventFrame = frame
@@ -184,7 +234,14 @@ end
 
 function DoubleClickFishing:OnDisable()
     self.eventFrame:UnregisterAllEvents()
-    self:ClearBinding()
+    self:Disarm()
+end
+
+function DoubleClickFishing:PrintDebug()
+    BOLT:Print("Double-Click Fishing")
+    print("  Last right-click: " .. (self.lastResult or "none seen yet"))
+    print("  Right now: " .. (self:BlockReason() or "ready (would arm)"))
+    print("  Spell: " .. tostring(FishingSpellName()) .. ", rod equipped: " .. tostring(HasRodEquipped()))
 end
 
 BOLT:RegisterModule("doubleClickFishing", DoubleClickFishing)

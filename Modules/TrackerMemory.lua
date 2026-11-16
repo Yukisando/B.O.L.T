@@ -4,6 +4,10 @@
 -- Only your own clicks on its collapse button are remembered: the game opening it by itself
 -- (tracking a new quest, say) doesn't change what comes back next time.
 -- Always on, no setting.
+--
+-- The fold is visual only: the tracker's parts go invisible and a copy of the "expand" button sits
+-- on its header. Calling Blizzard's SetCollapsed from addon code tainted the whole tracker, and
+-- its next update then failed on secret auras in instances (Blizzard_MawBuffs, 2026-11-16).
 
 local ADDON_NAME, BOLT = ...
 
@@ -13,43 +17,88 @@ local TrackerMemory = {
 }
 
 local hooked = false
+local folded = false
+local expandButton, keeper
 
 local function Tracker()
     local tracker = ObjectiveTrackerFrame
-    if tracker and tracker.SetCollapsed and tracker.IsCollapsed then return tracker end
+    if tracker and tracker.IsCollapsed and tracker.Header and tracker.Header.MinimizeButton then
+        return tracker
+    end
 end
 
-local function Remember(tracker)
-    BOLTDB.trackerCollapsed = tracker:IsCollapsed() and true or false
+-- Everything under the header: the modules and the background.
+local function SetPartsAlpha(tracker, alpha)
+    for _, module in ipairs(tracker.modules or {}) do
+        if module:GetAlpha() ~= alpha then module:SetAlpha(alpha) end
+    end
+    if tracker.NineSlice and tracker.NineSlice:GetAlpha() ~= alpha then
+        tracker.NineSlice:SetAlpha(alpha)
+    end
 end
 
-local function Hook(tracker)
+local function Unfold(tracker)
+    if not folded then return end
+    folded = false
+    keeper:Hide()
+    expandButton:Hide()
+    SetPartsAlpha(tracker, 1)
+end
+
+local function Fold(tracker)
+    if folded then return end
+    folded = true
+    expandButton:Show()
+    keeper:Show()
+    SetPartsAlpha(tracker, 0)
+end
+
+local function Setup(tracker)
     if hooked then return end
-    local button = tracker.Header and tracker.Header.MinimizeButton
-    if not button then return end
     hooked = true
-    button:HookScript("OnClick", function() Remember(tracker) end)
+    local button = tracker.Header.MinimizeButton
+
+    -- Blizzard's own button: a real collapse or expand, remembered as is.
+    button:HookScript("OnClick", function()
+        BOLTDB.trackerCollapsed = tracker:IsCollapsed() and true or false
+    end)
+
+    -- Our "expand" button over it while the tracker is folded.
+    expandButton = CreateFrame("Button", nil, tracker.Header)
+    expandButton:SetAllPoints(button)
+    expandButton:SetFrameLevel(button:GetFrameLevel() + 5)
+    expandButton:SetNormalAtlas("ui-questtrackerbutton-expand-all")
+    expandButton:SetPushedAtlas("ui-questtrackerbutton-expand-all-pressed")
+    expandButton:SetHighlightAtlas("ui-questtrackerbutton-red-highlight", "ADD")
+    expandButton:Hide()
+    expandButton:SetScript("OnClick", function()
+        PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
+        BOLTDB.trackerCollapsed = false
+        Unfold(tracker)
+    end)
+
+    -- Blizzard shows modules and fades their art while it updates: keep them hidden while folded.
+    keeper = CreateFrame("Frame", nil, tracker.Header)
+    keeper:Hide()
+    keeper:SetScript("OnUpdate", function()
+        if tracker:IsCollapsed() then Unfold(tracker) else SetPartsAlpha(tracker, 0) end
+    end)
+
+    -- The game opening the tracker by itself (a new quest tracked) shows it, like Blizzard does.
+    hooksecurefunc(tracker, "ForceExpand", function() Unfold(tracker) end)
 end
 
 function TrackerMemory:Apply()
     local tracker = Tracker()
     if not tracker then return end
-    Hook(tracker)
-    if BOLTDB.trackerCollapsed and not tracker:IsCollapsed() then
-        -- The tracker holds quest item buttons, which can't change in combat.
-        if InCombatLockdown() then
-            self.eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-            return
-        end
-        tracker:SetCollapsed(true)
-    end
+    Setup(tracker)
+    if BOLTDB.trackerCollapsed and not tracker:IsCollapsed() then Fold(tracker) end
 end
 
 function TrackerMemory:OnInitialize()
     self.eventFrame = CreateFrame("Frame")
     self.eventFrame:SetScript("OnEvent", function(frame, event, name)
-        if event == "PLAYER_REGEN_ENABLED" then frame:UnregisterEvent(event) end
-        if event == "ADDON_LOADED" and name ~= "Blizzard_ObjectiveTracker" then return end
+        if name ~= "Blizzard_ObjectiveTracker" then return end
         self:Apply()
     end)
     self.eventFrame:RegisterEvent("ADDON_LOADED")
