@@ -6,6 +6,14 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-25 (2026-11-16)
+
+- feat: chat shows only on hover, click-through popups, quieter cheetah hint, pet assist
+- Chat messages show only while the mouse is over the chat or you type; new ones reach you through the popups
+- Chat Popups are click-through by default; turned off, left-click replies in that chat and right-click whispers the sender of a group message
+- The Aspect of the Cheetah warning is now a quiet gold hint with one soft ping instead of a raid warning
+- The wand and pet attack key also puts your pet in Assist mode (setting, on by default)
+
 ## v8-24 (2026-11-16)
 
 - feat: objective tracker stays collapsed, simpler camera distance
