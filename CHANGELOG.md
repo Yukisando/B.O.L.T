@@ -6,6 +6,15 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-30 (2026-11-17)
+
+- feat: clickable pet bar, target and target-of-target bars, ranged timer on the health bar
+- Pet health bar: click it like the Pet Frame (left-click targets your pet, right-click opens its menu); hovering shows its percentage and health and brings a faded Personal Resource Display back in full
+- Target Bars (new, Personal Resource Display): your target's health under the power bar in the same style as the pet bar, red for enemies, class colour for players
+- Your target's target shares that row in its last third when it's someone other than you; otherwise the target bar takes the whole row
+- Click the target bars like unit frames and hover them for their numbers; each can be turned off in Edit Mode
+- Ranged Attack Timer: on the Personal Resource Display it is now a faint light sweep across your health bar instead of a bar of its own
+
 ## v8-29 (2026-11-17)
 
 - feat: info popups for skill ups, pet abilities, money and more, softer cheetah chime
