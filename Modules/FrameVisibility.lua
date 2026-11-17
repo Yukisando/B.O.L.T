@@ -249,7 +249,10 @@ displayFader.goal = 1
 displayFader:SetScript("OnUpdate", function(self, elapsed)
     local display = Display()
     if not display then return self:Hide() end
-    local goal = display:IsMouseOver() and 1 or self.goal
+    -- The pet bar's click button lives on UIParent (see the pet clicker), so it counts separately.
+    local petClicker = FrameVisibility.petClicker
+    local hovered = display:IsMouseOver() or (petClicker and petClicker:IsShown() and petClicker:IsMouseOver())
+    local goal = hovered and 1 or self.goal
     local alpha = display:GetAlpha()
     if alpha < goal then
         display:SetAlpha(math.min(goal, alpha + elapsed / FADE_IN))
@@ -468,17 +471,73 @@ local function UpdateMoodColor()
     petBar:SetStatusBarColor(color[1], color[2], color[3])
 end
 
+---------------------------------------------------------------------------
+-- Hover text, like the display's own health bar: percentage on the left, health on the right,
+-- only while the pointer is over the pet bar. In the same font as the display's text.
+-- In combat health can be secret: UnitHealthPercent (with a 0-100 curve) and AbbreviateLargeNumbers
+-- take secret values and so does SetText, but plain Lua maths on them errors, hence the pcall.
+---------------------------------------------------------------------------
+
+local petHovered
+
+local function DisplayTextFont()
+    local display = Display()
+    local container = display and display.HealthBarsContainer
+    local bar = container and (container.healthBar or container.HealthBar)
+    local text = bar and (bar.LeftText or bar.RightText or bar.TextString)
+    return text and text.GetFontObject and text:GetFontObject() or TextStatusBarText
+end
+
+local function PetHealthTexts()
+    local health, maxHealth = UnitHealth("pet"), UnitHealthMax("pet")
+    local percent
+    if UnitHealthPercent and CurveConstants and CurveConstants.ScaleTo100 then
+        percent = UnitHealthPercent("pet", true, CurveConstants.ScaleTo100)
+    elseif not (BOLT.IsSecret(health) or BOLT.IsSecret(maxHealth)) and maxHealth > 0 then
+        percent = health / maxHealth * 100
+    end
+    local left = percent and string.format("%.0f%%", percent) or ""
+    local right = AbbreviateLargeNumbers and AbbreviateLargeNumbers(health) or tostring(health)
+    return left, right
+end
+
+local function UpdatePetText()
+    if not (petBar and petBar.leftText) then return end
+    local ok, left, right = false, nil, nil
+    if petHovered and petBar:IsShown() then ok, left, right = pcall(PetHealthTexts) end
+    if not ok then
+        petBar.leftText:Hide()
+        petBar.rightText:Hide()
+        return
+    end
+    local font = DisplayTextFont()
+    for _, text in ipairs({ petBar.leftText, petBar.rightText }) do
+        if font then text:SetFontObject(font) end
+    end
+    petBar.leftText:SetText(left)
+    petBar.rightText:SetText(right)
+    petBar.leftText:Show()
+    petBar.rightText:Show()
+end
+
+local function SetPetHovered(hovered)
+    petHovered = hovered
+    UpdatePetText()
+end
+
 -- UnitHealth/UnitHealthMax can be secret values in combat on Midnight; status bars accept them
 -- as they are, so they go straight in without being compared.
 local function UpdatePetBar()
     if not (DisplayCfg("petHealth") and UnitExists("pet") and AnchorPetBar()) then
         petBar:Hide()
+        UpdatePetText()
         return
     end
     petBar:SetMinMaxValues(0, UnitHealthMax("pet"))
     petBar:SetValue(UnitHealth("pet"))
     petBar:Show()
     UpdateMoodColor()
+    UpdatePetText()
 end
 
 local function BuildPetBar()
@@ -504,6 +563,17 @@ local function BuildPetBar()
         background:SetPoint("TOPLEFT", -1, 1)
         background:SetPoint("BOTTOMRIGHT", 1, -1)
     end
+
+    -- On an overlay frame so the text sits above the border art.
+    local textLayer = CreateFrame("Frame", nil, petBar)
+    textLayer:SetAllPoints()
+    textLayer:SetFrameLevel(petBar:GetFrameLevel() + 2)
+    petBar.leftText = textLayer:CreateFontString(nil, "OVERLAY", "TextStatusBarText")
+    petBar.leftText:SetPoint("LEFT", petBar, "LEFT", 2, 0)
+    petBar.leftText:Hide()
+    petBar.rightText = textLayer:CreateFontString(nil, "OVERLAY", "TextStatusBarText")
+    petBar.rightText:SetPoint("RIGHT", petBar, "RIGHT", -2, 0)
+    petBar.rightText:Hide()
 
     petEvents = CreateFrame("Frame")
     petEvents:SetScript("OnEvent", UpdatePetBar)
@@ -536,7 +606,7 @@ end
 
 ---------------------------------------------------------------------------
 -- Clicking the pet bar works like the Pet Frame: left-click targets your pet, right-click opens
--- its menu (Dismiss, Rename, Abandon...). Hovering it shows the pet's tooltip.
+-- its menu (Dismiss, Rename, Abandon...). Hovering it shows its text and fades the display in.
 -- Same reasons as the menu catcher above: a secure unit button on UIParent with coordinates
 -- copied from where the bar sits, moved only out of combat. RegisterUnitWatch shows and hides it
 -- with the pet, which keeps working in combat (the pet dies, you summon another).
@@ -582,16 +652,131 @@ function FrameVisibility:UpdatePetClicker()
         clicker:SetAttribute("unit", "pet")
         clicker:SetAttribute("*type1", "target")
         clicker:SetAttribute("*type2", "togglemenu")
-        clicker:SetScript("OnEnter", function(button)
-            GameTooltip_SetDefaultAnchor(GameTooltip, button)
-            GameTooltip:SetUnit("pet")
-            GameTooltip:Show()
-        end)
-        clicker:SetScript("OnLeave", GameTooltip_Hide)
+        clicker:SetScript("OnEnter", function() SetPetHovered(true) end)
+        clicker:SetScript("OnLeave", function() SetPetHovered(false) end)
+        clicker:SetScript("OnHide", function() SetPetHovered(false) end)
         self.petClicker = clicker
         FollowDisplay(display, function(combatStarting) self:SyncPetClicker(combatStarting) end)
     end
     self:SyncPetClicker()
+end
+
+---------------------------------------------------------------------------
+-- Target lines: your target's health as a thin strip along the bottom edge of your own health
+-- bar, and its target's health as a hairline in the gap under it. Coloured by reaction (players
+-- by class), no text, no border; only there while there is a unit to show. Children of the
+-- display, so they fade and hide with it. Not clickable: too thin to hit, and right-click on the
+-- health bar already belongs to the menu catcher.
+-- "targettarget" fires no unit events of its own (Blizzard's frame polls it too), so a light
+-- ticker refreshes both while you have a target.
+---------------------------------------------------------------------------
+
+local TARGET_LINE_HEIGHT = 2
+local TOT_LINE_HEIGHT = 1.5
+local LINE_TICK = 0.2
+local REACTION_COLORS = {
+    hostile = { 0.85, 0.2, 0.15 },
+    neutral = { 0.9, 0.75, 0.2 },
+    friendly = { 0.3, 0.8, 0.3 },
+}
+
+local targetLine, totLine, lineTicker
+
+local function UnitLineColor(unit)
+    if UnitIsPlayer(unit) then
+        local class = Plain(select(2, UnitClass(unit)))
+        local color = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
+        if color then return color.r, color.g, color.b end
+    end
+    local reaction = Plain(UnitReaction(unit, "player"))
+    local color = not reaction and REACTION_COLORS.neutral
+        or reaction <= 3 and REACTION_COLORS.hostile
+        or reaction == 4 and REACTION_COLORS.neutral
+        or REACTION_COLORS.friendly
+    return color[1], color[2], color[3]
+end
+
+-- Health values can be secret in combat; status bars take them as they are.
+local function FillLine(line, unit, on)
+    if not (on and UnitExists(unit)) then
+        line:Hide()
+        return
+    end
+    line:SetMinMaxValues(0, UnitHealthMax(unit))
+    line:SetValue(UnitIsDeadOrGhost(unit) and 0 or UnitHealth(unit))
+    line:SetStatusBarColor(UnitLineColor(unit))
+    line:Show()
+end
+
+local function UpdateTargetLines()
+    local on = DisplayCfg("targetLine")
+    FillLine(targetLine, "target", on)
+    FillLine(totLine, "targettarget", on and DisplayCfg("targetOfTargetLine"))
+    lineTicker:SetShown(on and DisplayCfg("targetOfTargetLine") and UnitExists("target") or false)
+end
+
+local function MakeLine(parent, height, backAlpha)
+    local line = CreateFrame("StatusBar", nil, parent)
+    line:SetStatusBarTexture(WHITE)
+    line:SetHeight(height)
+    line:Hide()
+    local back = line:CreateTexture(nil, "BACKGROUND")
+    back:SetAllPoints()
+    back:SetColorTexture(0, 0, 0, backAlpha)
+    return line
+end
+
+local function AnchorTargetLines()
+    local display = Display()
+    if not display then return false end
+    local container = display.HealthBarsContainer or display
+    if targetLine:GetParent() ~= display then
+        targetLine:SetParent(display)
+        totLine:SetParent(display)
+    end
+    -- Inside the health bar's bottom edge, drawn above its fill.
+    targetLine:ClearAllPoints()
+    targetLine:SetPoint("BOTTOMLEFT", container, "BOTTOMLEFT", 0, 0)
+    targetLine:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
+    targetLine:SetFrameLevel(container:GetFrameLevel() + 5)
+    -- In the padding between health and power.
+    totLine:ClearAllPoints()
+    totLine:SetPoint("TOPLEFT", container, "BOTTOMLEFT", 0, -1)
+    totLine:SetPoint("TOPRIGHT", container, "BOTTOMRIGHT", 0, -1)
+    totLine:SetFrameLevel(container:GetFrameLevel() + 5)
+    return true
+end
+
+function FrameVisibility:UpdateTargetLines()
+    local on = DisplayCfg("targetLine") == true
+    if not targetLine then
+        if not on then return end
+        targetLine = MakeLine(UIParent, TARGET_LINE_HEIGHT, 0.55)
+        totLine = MakeLine(UIParent, TOT_LINE_HEIGHT, 0.35)
+        self.targetLineEvents = CreateFrame("Frame")
+        self.targetLineEvents:SetScript("OnEvent", UpdateTargetLines)
+        lineTicker = CreateFrame("Frame")
+        lineTicker:Hide()
+        local elapsedSince = 0
+        lineTicker:SetScript("OnUpdate", function(_, elapsed)
+            elapsedSince = elapsedSince + elapsed
+            if elapsedSince < LINE_TICK then return end
+            elapsedSince = 0
+            UpdateTargetLines()
+        end)
+    end
+    local events = self.targetLineEvents
+    if on and AnchorTargetLines() then
+        events:RegisterEvent("PLAYER_TARGET_CHANGED")
+        events:RegisterEvent("PLAYER_ENTERING_WORLD")
+        events:RegisterUnitEvent("UNIT_HEALTH", "target")
+        events:RegisterUnitEvent("UNIT_MAXHEALTH", "target")
+        events:RegisterUnitEvent("UNIT_FACTION", "target")
+        events:RegisterUnitEvent("UNIT_TARGET", "target")
+    else
+        events:UnregisterAllEvents()
+    end
+    UpdateTargetLines()
 end
 
 ---------------------------------------------------------------------------
@@ -863,6 +1048,14 @@ function FrameVisibility:RegisterEditMode()
             desc = "The pet health bar takes your pet's mood as its colour: green when happy, amber when content, red when it's unhappy and needs feeding.",
             hidden = function() return displayOff() or not DisplayCfg("petHealth") or not PetHappiness end,
         }),
+        EditMode:Checkbox("Target health line", { "frameVisibility", "display", "targetLine" }, {
+            desc = "Your target's health as a thin strip along the bottom of your health bar: red when hostile, yellow neutral, green friendly, class colour for players. No text, only there while you have a target.",
+            hidden = displayOff,
+        }),
+        EditMode:Checkbox("  Target of target line", { "frameVisibility", "display", "targetOfTargetLine" }, {
+            desc = "Your target's target as an even thinner line in the gap under your health bar, coloured the same way. Handy to see who the mob is hitting or how the tank is doing.",
+            hidden = function() return displayOff() or not DisplayCfg("targetLine") end,
+        }),
         EditMode:Checkbox("Pet damage after combat", { "frameVisibility", "display", "petDamage" }, {
             desc = "When a fight ends, a percentage fades in next to the pet health bar for a few seconds: the share of your damage your pets dealt (yours + theirs = 100%). Read from Blizzard's damage meter.",
             hidden = function() return displayOff() or not PetDamageAvailable() end,
@@ -883,6 +1076,7 @@ function FrameVisibility:OnLayoutChanged()
     RefreshDisplay()
     self:UpdateMenuCatcher()
     self:UpdatePetBar()
+    self:UpdateTargetLines()
     self:UpdatePetDamage()
     self:UpdateAmmoCount()
 end
@@ -892,6 +1086,7 @@ function FrameVisibility:OnSettingChanged(key, path)
         RefreshDisplay()
         self:UpdateMenuCatcher()
         self:UpdatePetBar()
+        self:UpdateTargetLines()
         self:UpdatePetDamage()
         self:UpdateAmmoCount()
     else
@@ -922,6 +1117,7 @@ function FrameVisibility:OnEnable()
     RefreshDisplay()
     self:UpdateMenuCatcher()
     self:UpdatePetBar()
+    self:UpdateTargetLines()
     self:UpdatePetDamage()
     self:UpdateAmmoCount()
 end

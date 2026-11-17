@@ -50,6 +50,8 @@ BOLT.defaults = {
                 petHappiness = true,     -- thin mood line above the pet health bar (hunter pets)
                 petDamage = true,        -- pets' share of your damage, shown briefly after combat
                 ammoCount = true,        -- arrows/bullets left, shown briefly after each shot
+                targetLine = true,       -- target's health as a thin strip along the bottom of its health bar
+                targetOfTargetLine = true, -- target of target's health as a hairline under it
             },
         },
         autoHide = {
