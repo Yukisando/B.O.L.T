@@ -328,6 +328,26 @@ local function DisplayShowsInCombat(display)
     return setting and display.GetVisibleSetting and display:GetVisibleSetting() == setting.InCombat
 end
 
+-- Runs sync whenever the display may have moved, resized, shown or hidden: out of combat, and
+-- once more as combat starts. Shared by the menu catcher and the pet bar's click button.
+local function FollowDisplay(display, sync)
+    display:HookScript("OnShow", function() sync() end)
+    display:HookScript("OnHide", function() sync() end)
+    if display.HealthBarsContainer then
+        display.HealthBarsContainer:HookScript("OnSizeChanged", function() sync() end)
+    end
+    hooksecurefunc(display, "UpdateShownState", function() sync() end)
+    if EditMode.lib then
+        -- Next frame: the display's isInEditMode flag may not be set yet when this fires.
+        EditMode.lib:RegisterCallback("enter", function() C_Timer.After(0, function() sync() end) end)
+        EditMode.lib:RegisterCallback("exit", function() sync() end)
+    end
+    local combat = CreateFrame("Frame")
+    combat:RegisterEvent("PLAYER_REGEN_DISABLED")
+    combat:RegisterEvent("PLAYER_REGEN_ENABLED")
+    combat:SetScript("OnEvent", function(_, event) sync(event == "PLAYER_REGEN_DISABLED") end)
+end
+
 function FrameVisibility:SyncMenuCatcher(combatStarting)
     local catcher, display = self.menuCatcher, Display()
     if not (catcher and display) or InCombatLockdown() then return end
@@ -373,18 +393,7 @@ function FrameVisibility:UpdateMenuCatcher()
         self.menuCatcher = catcher
 
         -- Follow the display out of combat: shown/hidden, Edit Mode resizes and moves.
-        local sync = function() self:SyncMenuCatcher() end
-        display:HookScript("OnShow", sync)
-        display:HookScript("OnHide", sync)
-        display.HealthBarsContainer:HookScript("OnSizeChanged", sync)
-        hooksecurefunc(display, "UpdateShownState", sync)
-        if EditMode.lib then EditMode.lib:RegisterCallback("exit", sync) end
-        local combat = CreateFrame("Frame")
-        combat:RegisterEvent("PLAYER_REGEN_DISABLED")
-        combat:RegisterEvent("PLAYER_REGEN_ENABLED")
-        combat:SetScript("OnEvent", function(_, event)
-            self:SyncMenuCatcher(event == "PLAYER_REGEN_DISABLED")
-        end)
+        FollowDisplay(display, function(combatStarting) self:SyncMenuCatcher(combatStarting) end)
     end
     self:SyncMenuCatcher()
 end
@@ -408,18 +417,24 @@ local function Readable(value, fallback)
     return fallback
 end
 
-local function AnchorPetBar()
-    local display = Display()
-    if not display then return false end
+-- Where the pet bar goes: just above the health container, half the power bar's height.
+local function PetBarLayout(display)
     local container = display.HealthBarsContainer or display
-    if petBar:GetParent() ~= display then petBar:SetParent(display) end
     local power = display.PowerBar
     local height = power and Readable(power:GetHeight(), DEFAULT_POWER_HEIGHT) or DEFAULT_POWER_HEIGHT
     local padding = display.GetBarPadding and Readable(display:GetBarPadding(), DEFAULT_PADDING) or DEFAULT_PADDING
+    return container, padding, math.max(PET_MIN_HEIGHT, math.floor(height / 2 + 0.5))
+end
+
+local function AnchorPetBar()
+    local display = Display()
+    if not display then return false end
+    if petBar:GetParent() ~= display then petBar:SetParent(display) end
+    local container, padding, height = PetBarLayout(display)
     petBar:ClearAllPoints()
     petBar:SetPoint("BOTTOMLEFT", container, "TOPLEFT", 0, padding)
     petBar:SetPoint("BOTTOMRIGHT", container, "TOPRIGHT", 0, padding)
-    petBar:SetHeight(math.max(PET_MIN_HEIGHT, math.floor(height / 2 + 0.5)))
+    petBar:SetHeight(height)
     if petAnchoredTo ~= container then
         petAnchoredTo = container
         -- Edit Mode changes to the display's size reach the container; follow them.
@@ -516,6 +531,67 @@ function FrameVisibility:UpdatePetBar()
         petEvents:UnregisterAllEvents()
     end
     UpdatePetBar()
+    self:UpdatePetClicker()
+end
+
+---------------------------------------------------------------------------
+-- Clicking the pet bar works like the Pet Frame: left-click targets your pet, right-click opens
+-- its menu (Dismiss, Rename, Abandon...). Hovering it shows the pet's tooltip.
+-- Same reasons as the menu catcher above: a secure unit button on UIParent with coordinates
+-- copied from where the bar sits, moved only out of combat. RegisterUnitWatch shows and hides it
+-- with the pet, which keeps working in combat (the pet dies, you summon another).
+---------------------------------------------------------------------------
+
+function FrameVisibility:SyncPetClicker(combatStarting)
+    local clicker, display = self.petClicker, Display()
+    if not (clicker and display) or InCombatLockdown() then return end
+    local container, padding, height = PetBarLayout(display)
+    local left, right = Plain(container:GetLeft()), Plain(container:GetRight())
+    local top = Plain(container:GetTop())
+    local wanted = DisplayCfg("petHealth") and not display.isInEditMode
+        and (combatStarting and DisplayShowsInCombat(display) or display:IsVisible())
+    if not (wanted and left and right and top) then
+        UnregisterUnitWatch(clicker)
+        clicker:Hide()
+        return
+    end
+    local ratio = container:GetEffectiveScale() / UIParent:GetEffectiveScale()
+    clicker:ClearAllPoints()
+    -- One extra pixel around the bar so it isn't fiddly to hit.
+    clicker:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", left * ratio, (top + padding - 1) * ratio)
+    clicker:SetSize(math.max(1, (right - left) * ratio), (height + 2) * ratio)
+    clicker:SetFrameStrata(display:GetFrameStrata())
+    clicker:SetFrameLevel(display:GetFrameLevel() + 10)
+    RegisterUnitWatch(clicker)
+end
+
+function FrameVisibility:UpdatePetClicker()
+    local display = Display()
+    if not display then return end
+    if InCombatLockdown() then
+        self.petClickerPending = true
+        self.eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+        return
+    end
+    self.petClickerPending = nil
+    if not self.petClicker then
+        if not DisplayCfg("petHealth") then return end
+        local clicker = CreateFrame("Button", "BOLTPetBarClicker", UIParent, "SecureUnitButtonTemplate")
+        clicker:Hide()
+        clicker:RegisterForClicks("AnyUp")
+        clicker:SetAttribute("unit", "pet")
+        clicker:SetAttribute("*type1", "target")
+        clicker:SetAttribute("*type2", "togglemenu")
+        clicker:SetScript("OnEnter", function(button)
+            GameTooltip_SetDefaultAnchor(GameTooltip, button)
+            GameTooltip:SetUnit("pet")
+            GameTooltip:Show()
+        end)
+        clicker:SetScript("OnLeave", GameTooltip_Hide)
+        self.petClicker = clicker
+        FollowDisplay(display, function(combatStarting) self:SyncPetClicker(combatStarting) end)
+    end
+    self:SyncPetClicker()
 end
 
 ---------------------------------------------------------------------------
@@ -780,7 +856,7 @@ function FrameVisibility:RegisterEditMode()
             hidden = displayOff,
         }),
         EditMode:Checkbox("Pet health bar", { "frameVisibility", "display", "petHealth" }, {
-            desc = "A half-height bar on top of your health bar with your pet's health, in the same style. Shows while you have a pet out.",
+            desc = "A half-height bar on top of your health bar with your pet's health, in the same style. Shows while you have a pet out. Click it like the Pet Frame: left-click targets your pet, right-click opens its menu.",
             hidden = displayOff,
         }),
         EditMode:Checkbox("  Color by pet happiness", { "frameVisibility", "display", "petHappiness" }, {
@@ -830,6 +906,7 @@ function FrameVisibility:OnInitialize()
             self.eventFrame:UnregisterEvent("PLAYER_REGEN_ENABLED")
             if self.pending then self:ApplyFrames() end
             if self.menuPending then self:UpdateMenuCatcher() end
+            if self.petClickerPending then self:UpdatePetClicker() end
         end
     end)
     self:HookDisplay()
