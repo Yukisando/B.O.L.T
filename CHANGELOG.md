@@ -6,6 +6,13 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-29 (2026-11-17)
+
+- feat: info popups for skill ups, pet abilities, money and more, softer cheetah chime
+- Info Popups (new, Chat Popups): thin one-line strips in the popup box for skill ups ("Bows 138 (+1)"), your pet learning an ability, level ups, money gained or spent, reputation, experience and new spells
+- Each info popup is its own setting under Social > Chat > Info popups; money, experience, reputation and skill ups add up into one strip while it is on screen
+- The Aspect of the Cheetah warning now plays a soft chime instead of the minimap ping sound
+
 ## v8-28 (2026-11-16)
 
 - fix: pet health bar shows your pet's mood
