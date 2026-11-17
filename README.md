@@ -40,7 +40,7 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 - **Hide Them Your Way**: Hide the Player Frame and/or the Target Frame, then pick when each comes back: in combat, with a target (any target, attackable only or not attackable only), or on mouse hover
 - **Personal Resource Display**: Turn on Blizzard's health and power bars under your character. When Edit Mode shows it only in combat, it can also show with a target (any, attackable only or not attackable only), fade to an opacity of your choice instead of hiding, and open your menu on right-click (Shift + right-click for your target's)
 - **Pet Health Bar**: A half-height bar on top of the Personal Resource Display's health bar shows your pet's health, with the same gold-bordered art, width and spacing as its other bars. Shows while you have a pet out. Click it like the Pet Frame: left-click targets your pet, right-click opens its menu. Hovering it shows its percentage and health like the display's own bars, and brings a faded display back in full
-- **Target Bars**: Your target's health under the Personal Resource Display's power bar, in the same style and height as the pet bar, with your target's target sharing the row in its last third. Red for hostile, yellow neutral, green friendly, class colour for players. Click them like unit frames (left-click selects, right-click opens the menu) and hover them for percentage and health
+- **Target Bars**: Your target's health under the Personal Resource Display's power bar, in the same style and height as the pet bar, with your target's target sharing the row in its last third when it has one that isn't you (otherwise the target takes the whole row). Red for hostile, yellow neutral, green friendly, class colour for players. Click them like unit frames (left-click selects, right-click opens the menu) and hover them for percentage and health
 - **Pet Damage Share**: When a fight ends, a percentage fades in next to the pet health bar for a few seconds: how much of your damage your pets dealt (you 20 + pet 20 = 50%). Read from Blizzard's damage meter
 - **Ammo Count**: Each shot that uses an arrow or bullet briefly shows how many you have left, on the other side of the pet health bar: white, orange under 300, red under 150
 - **Your Own Immersive Mode**: Hide both frames and turn on the Personal Resource Display. (This replaces the old Immersive Mode toggle; if you had it on, your setup carries over)
@@ -49,7 +49,7 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 #### Ranged Attack Timer
 
 - **Shot Timer**: A bar fills between your automatic shots (Auto Shot; on WoW: Forever also wand Shoot), so you can fit casts and moves between them
-- **Built In**: One more bar under the Personal Resource Display, in the same style and width, following it as you change it in Edit Mode; floats on its own when the Personal Resource Display is off (or "Attach" is unticked). Move the floating bar and set its width in Edit Mode
+- **Built In**: A faint light sweep across the Personal Resource Display's health bar, so it adds no clutter; becomes a bar that floats on its own when the Personal Resource Display is off (or "Attach" is unticked). Move the floating bar and set its width in Edit Mode
 - Only offered to classes with a repeating ranged attack. Melee swings can't be timed: the game keeps the combat log from addons
 
 #### Nameplates

@@ -1,9 +1,9 @@
 -- B.O.L.T Ranged Attack Timer Module
 -- A bar that fills between automatic shots (Auto Shot, and wand Shoot on WoW: Forever), so casts
--- and moves can be timed between them. It is a child of the Personal Resource Display, drawn with
--- the same bar art, sitting as one more bar under its health/power stack. With the Personal
--- Resource Display turned off (or "Attach" unticked) it floats on its own; move it and set its
--- width in Edit Mode ("Ranged Attack Timer").
+-- and moves can be timed between them. On the Personal Resource Display it is a faint light sweep
+-- across its health bar, so it adds no row of its own (the pet and target bars sit around it).
+-- With the display turned off (or "Attach" unticked) it is a bar that floats on its own; move it
+-- and set its width in Edit Mode ("Ranged Attack Timer").
 --
 -- Only repeating shots are timed: they are the player's own spell casts, which addons always see.
 -- Melee swings would need the combat log, which the game keeps from addons.
@@ -26,8 +26,8 @@ local CLASSES = BOLT.isForever
     or { HUNTER = true }
 
 local COLOR = { 1, 0.76, 0.18 }  -- amber, apart from health green and power blue
-local DEFAULT_HEIGHT = 10        -- Personal Resource Display's power bar height when unreadable
-local DEFAULT_PADDING = 4
+local OVERLAY_COLOR = { 1, 1, 1, 0.22 } -- over the health bar: light enough to read the health under it
+local DEFAULT_HEIGHT = 10        -- the floating bar's height
 local FLOAT_WIDTH = 200
 local FLOAT_Y = -170             -- below the character, where the Personal Resource Display sits
 local WHITE = "Interface\\Buttons\\WHITE8X8"
@@ -50,11 +50,6 @@ local function ReadSpeed()
         speed = value
     end
     return speed
-end
-
-local function Readable(value, fallback)
-    if value and not BOLT.IsSecret(value) and value > 0 then return value end
-    return fallback
 end
 
 -- The display can be out of combat-hidden right now (first shot of a pull lands before it shows),
@@ -82,22 +77,35 @@ local function PlaceHolder()
     holder:SetSize(EditMode:Get(EDIT_KEY, "width", FLOAT_WIDTH), DEFAULT_HEIGHT)
 end
 
+-- Overlay: a flat light fill with no border. Floating: the display's own bar art in amber.
+local function SetOverlayStyle(overlay)
+    if bar.overlay == overlay then return end
+    bar.overlay = overlay
+    if overlay then
+        bar:SetStatusBarTexture(WHITE)
+        bar:SetStatusBarColor(unpack(OVERLAY_COLOR))
+    else
+        bar:SetStatusBarTexture(NativeArt.ResolveAtlas("UI-HUD-CoolDownManager-Bar") or WHITE)
+        bar:SetStatusBarColor(COLOR[1], COLOR[2], COLOR[3])
+    end
+    bar.background:SetShown(not overlay)
+end
+
 local function Anchor()
     local prd = PersonalResourceDisplayFrame
     bar:ClearAllPoints()
-    if Attached() then
-        -- A child of the display: same scale, shown and hidden with it, and its bottom edge
-        -- follows every bar Blizzard adds or hides above.
+    local health = prd and (prd.HealthBarsContainer or prd)
+    if Attached() and health then
+        -- A child of the display (same scale, shown and hidden with it), laid over its health bar
+        -- and drawn above the health fill.
         if bar:GetParent() ~= prd then bar:SetParent(prd) end
-        local padding = prd.GetBarPadding and Readable(prd:GetBarPadding(), DEFAULT_PADDING)
-            or DEFAULT_PADDING
-        local power = prd.PowerBar
-        bar:SetPoint("TOPLEFT", prd, "BOTTOMLEFT", 0, -padding)
-        bar:SetPoint("TOPRIGHT", prd, "BOTTOMRIGHT", 0, -padding)
-        bar:SetHeight(power and Readable(power:GetHeight(), DEFAULT_HEIGHT) or DEFAULT_HEIGHT)
+        bar:SetAllPoints(health)
+        bar:SetFrameLevel(health:GetFrameLevel() + 4)
+        SetOverlayStyle(true)
     else
         if bar:GetParent() ~= UIParent then bar:SetParent(UIParent) end
         bar:SetAllPoints(holder)
+        SetOverlayStyle(false)
     end
 end
 
@@ -134,8 +142,8 @@ local function BuildHolder()
     PlaceHolder()
 
     if not EditMode.available then return end
-    local attach = EditMode:Checkbox("Attach under the Personal Resource Display", { "rangedTimer", "attach" }, {
-        desc = "While the Personal Resource Display is on, the timer is one more bar under it. Untick to keep it here.",
+    local attach = EditMode:Checkbox("Overlay on the Personal Resource Display", { "rangedTimer", "attach" }, {
+        desc = "While the Personal Resource Display is on, the timer is a faint sweep across its health bar. Untick to keep it here as a bar of its own.",
     })
     EditMode:AddFrame({
         key = EDIT_KEY,
@@ -162,8 +170,8 @@ local function BuildHolder()
     })
     -- The same choice under the Personal Resource Display's own Edit Mode dialog.
     EditMode:AddSystemSettings("PersonalResourceDisplay", nil, nil, {
-        EditMode:Checkbox("Ranged attack timer under it", { "rangedTimer", "attach" }, {
-            desc = "B.O.L.T's bar that fills between your auto shots. Off, it floats on its own (select it to move it).",
+        EditMode:Checkbox("Ranged attack timer on its health bar", { "rangedTimer", "attach" }, {
+            desc = "B.O.L.T's timer between your auto shots, as a faint sweep across the health bar. Off, it floats on its own as a bar (select it to move it).",
             hidden = function() return not RangedTimer.active or not PersonalDisplayOn() end,
         }),
     }, true)
@@ -218,6 +226,7 @@ local function Build()
     bar:SetStatusBarColor(COLOR[1], COLOR[2], COLOR[3])
 
     local background = bar:CreateTexture(nil, "BACKGROUND")
+    bar.background = background
     if back then
         background:SetAtlas(back)
         background:SetPoint("TOPLEFT", -2, 3)

@@ -447,9 +447,17 @@ local function BarOn(key)
     return DisplayCfg("targetBar") == true and DisplayCfg("targetOfTargetBar") == true
 end
 
+-- The target of target gets its third of the row only when there is one and it isn't you;
+-- otherwise the target bar takes the whole row.
+local function ShowsTargetOfTarget()
+    return BarOn("targettarget") and UnitExists("targettarget")
+        and Plain(UnitIsUnit("targettarget", "player")) ~= true
+end
+
 -- Where a bar goes: the frame it hangs from (above the health bars or under the power bar), its
 -- span across that frame's width as fractions, the gap to leave on each side, and its height.
-local function BarLayout(key, display)
+-- fullRow lays the target out as if it had the row to itself (its click button always does).
+local function BarLayout(key, display, fullRow)
     local container = display.HealthBarsContainer or display
     local power = display.PowerBar
     local powerHeight = power and Readable(power:GetHeight(), DEFAULT_POWER_HEIGHT) or DEFAULT_POWER_HEIGHT
@@ -464,7 +472,7 @@ local function BarLayout(key, display)
         layout.ref, layout.above = power or container, false
         if key == "targettarget" then
             layout.from, layout.gapLeft = 1 - TOT_SHARE, ROW_GAP / 2
-        elseif BarOn("targettarget") then
+        elseif not fullRow and ShowsTargetOfTarget() then
             layout.to, layout.gapRight = 1 - TOT_SHARE, ROW_GAP / 2
         end
     end
@@ -599,7 +607,9 @@ end
 local function UpdateBar(key)
     local bar = bars[key]
     if not bar then return end
-    if not (BarOn(key) and UnitExists(key) and bar.anchored) then
+    local shown = BarOn(key) and UnitExists(key) and bar.anchored
+    if key == "targettarget" then shown = shown and ShowsTargetOfTarget() end
+    if not shown then
         bar:Hide()
     else
         bar:SetMinMaxValues(0, UnitHealthMax(key))
@@ -612,7 +622,21 @@ end
 
 -- "targettarget" fires no unit events of its own (Blizzard's frame polls it too), so a light
 -- ticker refreshes it while you have a target.
+local splitShown
+
 local function UpdateTargetBars()
+    local split = ShowsTargetOfTarget() and true or false
+    if split ~= splitShown then
+        splitShown = split
+        local display = Display()
+        if display and bars.target then bars.target.anchored = AnchorBar("target", display) end
+        -- Out of combat the target-of-target click button can be pointed at the target straight
+        -- away; in combat its secure click wrapper does that (see the bar clickers).
+        local clicker = FrameVisibility.clickers and FrameVisibility.clickers.targettarget
+        if clicker and not InCombatLockdown() then
+            clicker:SetAttribute("unit", split and "targettarget" or "target")
+        end
+    end
     UpdateBar("target")
     UpdateBar("targettarget")
     if totTicker then totTicker:SetShown(BarOn("targettarget") and UnitExists("target") or false) end
@@ -689,7 +713,7 @@ function FrameVisibility:UpdateUnitBars()
             since = since + elapsed
             if since < TOT_TICK then return end
             since = 0
-            UpdateBar("targettarget")
+            UpdateTargetBars()
         end)
     end
     if barEvents then
@@ -735,7 +759,7 @@ function FrameVisibility:SyncBarClickers(combatStarting)
         and (combatStarting and DisplayShowsInCombat(display) or display:IsVisible())
     local ratio = (display.HealthBarsContainer or display):GetEffectiveScale() / UIParent:GetEffectiveScale()
     for key, clicker in pairs(self.clickers) do
-        local layout = BarLayout(key, display)
+        local layout = BarLayout(key, display, true)
         local left, right = Plain(layout.ref:GetLeft()), Plain(layout.ref:GetRight())
         local edge = Plain(layout.above and layout.ref:GetTop() or layout.ref:GetBottom())
         if shows and BarOn(key) and left and right and edge then
@@ -748,7 +772,8 @@ function FrameVisibility:SyncBarClickers(combatStarting)
             clicker:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", x1 * ratio, (bottom - 1) * ratio)
             clicker:SetSize(math.max(1, (x2 - x1) * ratio), (layout.height + 2) * ratio)
             clicker:SetFrameStrata(display:GetFrameStrata())
-            clicker:SetFrameLevel(display:GetFrameLevel() + 10)
+            -- The target of target's button sits over the right third of the target's.
+            clicker:SetFrameLevel(display:GetFrameLevel() + (key == "targettarget" and 11 or 10))
             RegisterUnitWatch(clicker)
         else
             UnregisterUnitWatch(clicker)
@@ -757,16 +782,44 @@ function FrameVisibility:SyncBarClickers(combatStarting)
     end
 end
 
+-- When the target bar has the whole row, the target of target's button (which can't be resized
+-- in combat) stands in for the target: hover shows the target's numbers, and before each click a
+-- secure snippet points it at the target. UnitIsUnit is looked up rather than assumed, as the
+-- secure environment only offers some unit functions; without it the click falls back to the
+-- unit set out of combat.
+local TOT_CLICK_SNIPPET = [[
+    local me = UnitIsUnit and UnitIsUnit("targettarget", "player")
+    self:SetAttribute("unit", me and "target" or "targettarget")
+]]
+local clickWrapper
+
+local function HoverKey(key)
+    if key == "targettarget" and not ShowsTargetOfTarget() then return "target" end
+    return key
+end
+
 local function BuildClicker(key)
     local clicker = CreateFrame("Button", CLICKER_NAMES[key], UIParent, "SecureUnitButtonTemplate")
     clicker:Hide()
     clicker:RegisterForClicks("AnyUp")
-    clicker:SetAttribute("unit", key)
+    clicker:SetAttribute("unit", HoverKey(key))
     clicker:SetAttribute("*type1", "target")
     clicker:SetAttribute("*type2", "togglemenu")
-    clicker:SetScript("OnEnter", function() SetBarHovered(key, true) end)
-    clicker:SetScript("OnLeave", function() SetBarHovered(key, false) end)
-    clicker:SetScript("OnHide", function() SetBarHovered(key, false) end)
+    local hoveredKey
+    clicker:SetScript("OnEnter", function()
+        hoveredKey = HoverKey(key)
+        SetBarHovered(hoveredKey, true)
+    end)
+    local function leave()
+        if hoveredKey then SetBarHovered(hoveredKey, false) end
+        hoveredKey = nil
+    end
+    clicker:SetScript("OnLeave", leave)
+    clicker:SetScript("OnHide", leave)
+    if key == "targettarget" and SecureHandlerWrapScript then
+        clickWrapper = clickWrapper or CreateFrame("Frame", nil, UIParent, "SecureHandlerBaseTemplate")
+        SecureHandlerWrapScript(clicker, "OnClick", clickWrapper, TOT_CLICK_SNIPPET)
+    end
     return clicker
 end
 
