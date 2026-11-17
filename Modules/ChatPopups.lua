@@ -15,6 +15,13 @@
 -- whispers the sender of a group message (a whisper popup just closes).
 -- In instances the sender and the text can be secret values: they are only handed to
 -- FontString:SetText, never compared or cut, so those popups never merge.
+--
+-- Info popups share the box: a thin one-line strip (icon, coloured edge, text) for skill ups,
+-- your pet learning an ability, level ups, money, reputation, experience and new spells. Each
+-- kind is its own setting. Money and experience add up into one strip while it is on screen,
+-- skill ups and reputation per skill or faction. They are always click-through.
+--
+--   |# Bows 138 (+1)                      |
 
 local ADDON_NAME, BOLT = ...
 local NativeArt = BOLT.NativeArt
@@ -57,9 +64,24 @@ local PAD = 9 -- clear of the panel's border
 local BOX = { atlas = "ui-hud-minimap-header-button", corner = 7, midX = 76, midY = 11 }
 local MAX_LINES = 3 -- lines kept in a merged popup
 
+local INFO_HEIGHT = 22
+local INFO_ICON = 16
+
 local box
 local toasts = {} -- shown, newest first
 local pool = {}
+local infoPool = {}
+
+-- Info popup kinds, in the order the settings list them.
+ChatPopups.INFO_TYPES = {
+    { key = "skill", label = "Skill ups" },
+    { key = "pet", label = "Your pet learns an ability" },
+    { key = "level", label = "Level up" },
+    { key = "money", label = "Money gained or spent" },
+    { key = "rep", label = "Reputation" },
+    { key = "xp", label = "Experience" },
+    { key = "spell", label = "New spells" },
+}
 
 local function IsSecret(value) return BOLT.IsSecret(value) end
 
@@ -74,6 +96,20 @@ end
 
 function ChatPopups:SetChannelEnabled(eventSuffix, enabled)
     BOLT:GetConfig("chatPopups", "channels")[eventSuffix] = enabled or false
+end
+
+function ChatPopups:IsInfoEnabled(key)
+    local info = BOLT:GetConfig("chatPopups", "info")
+    return type(info) == "table" and info[key] == true
+end
+
+function ChatPopups:SetInfoEnabled(key, enabled)
+    local info = BOLT:GetConfig("chatPopups", "info")
+    if type(info) ~= "table" then
+        info = {}
+        BOLT:SetConfig(info, "chatPopups", "info")
+    end
+    info[key] = enabled or false
 end
 
 ---------------------------------------------------------------------------
@@ -112,7 +148,12 @@ local function Release(toast)
     end
     toast:Hide()
     toast.sender, toast.chatType, toast.lines = nil, nil, nil
-    table.insert(pool, toast)
+    if toast.isInfo then
+        toast.infoKey, toast.data = nil, nil
+        table.insert(infoPool, toast)
+    else
+        table.insert(pool, toast)
+    end
     Layout()
 end
 
@@ -190,6 +231,10 @@ end
 
 local function SizeToast(toast)
     toast:SetWidth(Width())
+    if toast.isInfo then
+        toast:SetHeight(INFO_HEIGHT)
+        return
+    end
     local textHeight = toast.text:GetStringHeight() or 12
     if IsSecret(textHeight) then textHeight = 12 end
     toast:SetHeight(math.floor(PAD * 2 + 14 + 3 + textHeight + 0.5))
@@ -261,6 +306,70 @@ local function Push(chatType, channel, sender, guid, message, preview)
     Layout()
 end
 
+---------------------------------------------------------------------------
+-- Info popups: thin strips, one line each
+---------------------------------------------------------------------------
+
+local function CreateInfoToast()
+    local toast = CreateFrame("Frame", nil, box)
+    toast.isInfo = true
+    toast:EnableMouse(false)
+
+    -- Dark on the left, fading out to the right, so it reads as a strip rather than a panel.
+    local bg = toast:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(1, 1, 1, 1)
+    local ok = CreateColor and pcall(bg.SetGradient, bg, "HORIZONTAL",
+        CreateColor(0, 0, 0, 0.8), CreateColor(0, 0, 0, 0.15))
+    if not ok then bg:SetColorTexture(0, 0, 0, 0.6) end
+
+    toast.edge = toast:CreateTexture(nil, "ARTWORK")
+    toast.edge:SetPoint("TOPLEFT")
+    toast.edge:SetPoint("BOTTOMLEFT")
+    toast.edge:SetWidth(2)
+    toast.edge:SetColorTexture(1, 1, 1, 1)
+
+    toast.icon = toast:CreateTexture(nil, "ARTWORK")
+    toast.icon:SetSize(INFO_ICON, INFO_ICON)
+    toast.icon:SetPoint("LEFT", 7, 0)
+    toast.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+    toast.text = toast:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    toast.text:SetPoint("LEFT", toast.icon, "RIGHT", 6, 0)
+    toast.text:SetPoint("RIGHT", -6, 0)
+    toast.text:SetJustifyH("LEFT")
+    toast.text:SetWordWrap(false)
+    return toast
+end
+
+local function FindInfo(key)
+    if not key then return end
+    for _, toast in ipairs(toasts) do
+        if toast.infoKey == key then return toast end
+    end
+end
+
+-- Shows (or updates, when `key` is already on screen) a one-line info popup.
+-- `data` stays on the popup so callers can add up amounts while it is shown.
+local function PushInfo(key, color, icon, text, data, preview)
+    if not box then return end
+    local toast = FindInfo(key)
+    if not toast then
+        toast = table.remove(infoPool) or CreateInfoToast()
+        toast.infoKey, toast.preview = key, preview
+        toast:Show()
+        table.insert(toasts, 1, toast)
+        while #toasts > MaxCount() do Release(toasts[#toasts]) end
+    end
+    toast.data = data
+    toast.edge:SetVertexColor(color[1], color[2], color[3])
+    toast.icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+    toast.text:SetText(text)
+    toast.expires = GetTime() + Duration()
+    toast:SetAlpha(1)
+    Layout()
+end
+
 local function OnUpdate()
     local now = GetTime()
     for i = #toasts, 1, -1 do
@@ -298,10 +407,13 @@ local function ClearPreview()
     end
 end
 
+local ShowInfoPreview
+
 local function ShowPreview()
     ClearPreview()
     Push("PARTY", BY_EVENT.PARTY, "Jaina", nil, "pull after this drink", true)
     Push("WHISPER", BY_EVENT.WHISPER, "Thrall", nil, "hey, want to run Deadmines?", true)
+    ShowInfoPreview()
 end
 
 local function Build()
@@ -349,6 +461,276 @@ local function Build()
 end
 
 ---------------------------------------------------------------------------
+-- Info events
+---------------------------------------------------------------------------
+
+local COLORS = {
+    skill = { 0.35, 0.65, 1 },
+    pet = { 0.45, 0.85, 0.3 },
+    level = { 1, 0.82, 0 },
+    money = { 1, 0.82, 0 },
+    repUp = { 0.3, 0.85, 0.4 },
+    repDown = { 0.9, 0.3, 0.25 },
+    xp = { 0.65, 0.45, 1 },
+    spell = { 1, 0.9, 0.6 },
+}
+local ICONS = {
+    skill = "Interface\\Icons\\INV_Misc_Book_09",
+    level = "Interface\\Icons\\Spell_Holy_DivineSpirit",
+    money = "Interface\\Icons\\INV_Misc_Coin_01",
+    rep = "Interface\\Icons\\INV_Scroll_03",
+    xp = "Interface\\Icons\\Spell_Holy_SurgeOfLight",
+}
+local GREEN, RED, GREY = "|cff40ff40", "|cffff5040", "|cffa0a0a0"
+
+local function Number(value)
+    if BreakUpLargeNumbers then return BreakUpLargeNumbers(value) end
+    return tostring(value)
+end
+
+local function Coins(copper)
+    if GetMoneyString then return GetMoneyString(copper, true) end
+    if C_CurrencyInfo and C_CurrencyInfo.GetCoinTextureString then
+        return C_CurrencyInfo.GetCoinTextureString(copper)
+    end
+    return GetCoinTextureString and GetCoinTextureString(copper) or tostring(copper)
+end
+
+local function SpellName(id)
+    if C_Spell and C_Spell.GetSpellName then return C_Spell.GetSpellName(id) end
+    return GetSpellInfo and (GetSpellInfo(id)) or nil
+end
+
+local function SpellIcon(spell)
+    if C_Spell and C_Spell.GetSpellTexture then return C_Spell.GetSpellTexture(spell) end
+    return GetSpellTexture and GetSpellTexture(spell) or nil
+end
+
+-- "Claw (Rank 2)" when the spell has a rank, else just its name.
+local function SpellLabel(id)
+    local name = SpellName(id)
+    if not name then return end
+    local rank = C_Spell and C_Spell.GetSpellSubtext and C_Spell.GetSpellSubtext(id)
+    if type(rank) == "string" and rank ~= "" then return ("%s (%s)"):format(name, rank) end
+    return name
+end
+
+-- Lua pattern from a Blizzard format string ("Your skill in %s has increased to %d.").
+local function PatternFrom(format)
+    if type(format) ~= "string" then return end
+    local pattern = format:gsub("%%%d%$s", "\1"):gsub("%%%d%$d", "\2"):gsub("%%s", "\1"):gsub("%%d", "\2")
+    pattern = pattern:gsub("[%(%)%.%+%-%*%?%[%]%^%$%%]", "%%%0")
+    pattern = pattern:gsub("\1", "(.+)"):gsub("\2", "(%%d+)")
+    return "^" .. pattern .. "$"
+end
+
+local SKILL_PATTERN = PatternFrom(SKILL_RANK_UP)
+local REP_UP = PatternFrom(FACTION_STANDING_INCREASED)
+local REP_DOWN = PatternFrom(FACTION_STANDING_DECREASED)
+local PET_LEARN = { PatternFrom(ERR_PET_LEARN_ABILITY_S), PatternFrom(ERR_PET_LEARN_SPELL_S) }
+
+local function Readable(message)
+    return type(message) == "string" and not IsSecret(message)
+end
+
+-- Skill ups: "Bows 138 (+1)", adding up per skill while the popup is shown.
+local function OnSkill(message)
+    if not (SKILL_PATTERN and Readable(message)) then return end
+    local skill, rank = message:match(SKILL_PATTERN)
+    rank = tonumber(rank)
+    if not (skill and rank) then return end
+    local key = "skill:" .. skill
+    local shown = FindInfo(key)
+    local gained = (shown and shown.data or 0) + 1
+    PushInfo(key, COLORS.skill, SpellIcon(skill) or ICONS.skill,
+        ("%s %d %s(+%d)|r"):format(skill, rank, GREEN, gained), gained)
+end
+
+-- Reputation: "+25 Stormwind", adding up per faction.
+local function OnFaction(message)
+    if not Readable(message) then return end
+    local faction, amount, sign
+    if REP_UP then
+        faction, amount = message:match(REP_UP)
+        sign = 1
+    end
+    if not faction and REP_DOWN then
+        faction, amount = message:match(REP_DOWN)
+        sign = -1
+    end
+    amount = tonumber(amount)
+    if not (faction and amount) then return end
+    local key = "rep:" .. faction
+    local shown = FindInfo(key)
+    local total = (shown and shown.data or 0) + sign * amount
+    local up = total >= 0
+    PushInfo(key, up and COLORS.repUp or COLORS.repDown, ICONS.rep,
+        ("%s%s%s|r %s"):format(up and GREEN or RED, up and "+" or "-", Number(math.abs(total)), faction), total)
+end
+
+-- Pet abilities: what's new in the pet's spellbook since we last looked at the same pet.
+-- The system message ("Your pet has learned ...") is a backup for clients where the pet
+-- spellbook can't be read; a name shown in the last few seconds isn't shown twice.
+local petSpells = {} -- [pet GUID] = { [spellID] = true }
+local petShown = {}  -- [label] = GetTime()
+
+local function ShowPetLearned(label, icon)
+    local now = GetTime()
+    if petShown[label] and now - petShown[label] < 10 then return end
+    petShown[label] = now
+    PushInfo("pet:" .. label, COLORS.pet, icon, ("Your pet learned %s%s|r"):format(GREEN, label))
+end
+
+local function ReadPetSpells()
+    local set, count = {}, 0
+    local bank = Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Pet
+    if C_SpellBook and C_SpellBook.HasPetSpells and C_SpellBook.GetSpellBookItemInfo and bank then
+        for i = 1, C_SpellBook.HasPetSpells() or 0 do
+            local info = C_SpellBook.GetSpellBookItemInfo(i, bank)
+            local id = info and (info.spellID or info.actionID)
+            if id and not IsSecret(id) then
+                set[id] = true
+                count = count + 1
+            end
+        end
+    elseif HasPetSpells and GetSpellBookItemInfo then
+        for i = 1, HasPetSpells() or 0 do
+            local _, id = GetSpellBookItemInfo(i, BOOKTYPE_PET or "pet")
+            if id then
+                set[id] = true
+                count = count + 1
+            end
+        end
+    end
+    return set, count
+end
+
+local petCheckQueued = false
+
+local function CheckPetSpells()
+    petCheckQueued = false
+    local guid = UnitGUID("pet")
+    if not guid or IsSecret(guid) then return end
+    local ok, set, count = pcall(ReadPetSpells)
+    if not ok or count == 0 then return end -- just summoned: the spellbook fills a moment later
+    local known = petSpells[guid]
+    petSpells[guid] = set
+    if not known or not ChatPopups:IsInfoEnabled("pet") then return end
+    for id in pairs(set) do
+        if not known[id] then
+            local label = SpellLabel(id)
+            if label then ShowPetLearned(label, SpellIcon(id)) end
+        end
+    end
+end
+
+local function QueuePetCheck()
+    if petCheckQueued then return end
+    petCheckQueued = true
+    C_Timer.After(0.3, CheckPetSpells)
+end
+
+local function OnSystem(message)
+    if not Readable(message) then return end
+    for _, pattern in ipairs(PET_LEARN) do
+        local spell = message:match(pattern)
+        if spell then
+            ShowPetLearned(spell, SpellIcon(spell))
+            return
+        end
+    end
+end
+
+-- Money and experience: differences since the last update, adding up while shown.
+local lastMoney, lastXP, lastXPMax, lastLevel
+
+local function SnapshotPlayer()
+    lastMoney = GetMoney()
+    lastXP, lastXPMax, lastLevel = UnitXP("player"), UnitXPMax("player"), UnitLevel("player")
+end
+
+local function OnMoney()
+    local money = GetMoney()
+    local delta = lastMoney and money - lastMoney or 0
+    lastMoney = money
+    if delta == 0 or not ChatPopups:IsInfoEnabled("money") then return end
+    local shown = FindInfo("money")
+    local total = (shown and shown.data or 0) + delta
+    local text
+    if total >= 0 then
+        text = GREEN .. "+|r " .. Coins(total)
+    else
+        text = RED .. "-|r " .. Coins(-total)
+    end
+    PushInfo("money", COLORS.money, ICONS.money, text, total)
+end
+
+local function OnXP()
+    local xp, max, level = UnitXP("player"), UnitXPMax("player"), UnitLevel("player")
+    if IsSecret(xp) or IsSecret(max) then return end
+    local delta
+    if lastLevel and lastXP and level > lastLevel then
+        delta = (lastXPMax or 0) - lastXP + xp -- crossed into a new level
+    else
+        delta = xp - (lastXP or xp)
+    end
+    lastXP, lastXPMax, lastLevel = xp, max, level
+    if delta <= 0 or not ChatPopups:IsInfoEnabled("xp") then return end
+    local shown = FindInfo("xp")
+    local total = (shown and shown.data or 0) + delta
+    local percent = max > 0 and math.floor(xp / max * 100) or 0
+    PushInfo("xp", COLORS.xp, ICONS.xp,
+        ("+%s XP %s(%d%% of level %d)|r"):format(Number(total), GREY, percent, level), total)
+end
+
+local function OnLevelUp(level)
+    if not ChatPopups:IsInfoEnabled("level") then return end
+    PushInfo("level", COLORS.level, ICONS.level, ("|cffffd100Level %s reached!|r"):format(tostring(level)))
+end
+
+local function OnSpellLearned(spellID)
+    if not spellID or IsSecret(spellID) or not ChatPopups:IsInfoEnabled("spell") then return end
+    local label = SpellLabel(spellID)
+    if not label then return end
+    PushInfo("spell:" .. spellID, COLORS.spell, SpellIcon(spellID), "New spell: |cffffffff" .. label .. "|r")
+end
+
+function ChatPopups:OnInfoEvent(event, ...)
+    if event == "PLAYER_MONEY" then
+        OnMoney()
+    elseif event == "PLAYER_XP_UPDATE" then
+        OnXP()
+    elseif event == "PLAYER_LEVEL_UP" then
+        OnLevelUp(...)
+    elseif event == "CHAT_MSG_SKILL" then
+        if self:IsInfoEnabled("skill") then OnSkill(...) end
+    elseif event == "CHAT_MSG_COMBAT_FACTION_CHANGE" then
+        if self:IsInfoEnabled("rep") then OnFaction(...) end
+    elseif event == "CHAT_MSG_SYSTEM" then
+        if self:IsInfoEnabled("pet") then OnSystem(...) end
+    elseif event == "LEARNED_SPELL_IN_TAB" or event == "LEARNED_SPELL_IN_SKILL_LINE" then
+        OnSpellLearned(...)
+    elseif event == "PLAYER_ENTERING_WORLD" then
+        SnapshotPlayer()
+        QueuePetCheck()
+    else -- the pet or its spellbook may have changed
+        QueuePetCheck()
+    end
+end
+
+local INFO_EVENTS = {
+    "PLAYER_MONEY", "PLAYER_XP_UPDATE", "PLAYER_LEVEL_UP", "PLAYER_ENTERING_WORLD",
+    "CHAT_MSG_SKILL", "CHAT_MSG_COMBAT_FACTION_CHANGE", "CHAT_MSG_SYSTEM",
+    "LEARNED_SPELL_IN_TAB", "LEARNED_SPELL_IN_SKILL_LINE",
+    "PET_BAR_UPDATE", "SPELLS_CHANGED", "UNIT_PET",
+}
+
+ShowInfoPreview = function()
+    PushInfo("preview:skill", COLORS.skill, ICONS.skill, "Bows 138 " .. GREEN .. "(+1)|r", nil, true)
+    PushInfo("preview:money", COLORS.money, ICONS.money, GREEN .. "+|r " .. Coins(12410), nil, true)
+end
+
+---------------------------------------------------------------------------
 -- Lifecycle
 ---------------------------------------------------------------------------
 
@@ -390,6 +772,10 @@ function ChatPopups:OnInitialize()
     self.eventFrame:SetScript("OnEvent", function(_, event, ...)
         self:OnChatEvent(event, ...)
     end)
+    self.infoFrame = CreateFrame("Frame")
+    self.infoFrame:SetScript("OnEvent", function(_, event, ...)
+        self:OnInfoEvent(event, ...)
+    end)
     -- After-the-fact hooks: they only note the chat type, nothing about the send changes.
     if C_ChatInfo and C_ChatInfo.SendChatMessage then
         hooksecurefunc(C_ChatInfo, "SendChatMessage", OnSend)
@@ -405,6 +791,12 @@ function ChatPopups:OnEnable()
     for _, channel in ipairs(self.CHANNEL_TYPES) do
         self.eventFrame:RegisterEvent("CHAT_MSG_" .. channel.event)
     end
+    for _, event in ipairs(INFO_EVENTS) do
+        -- Not every event exists on every client (the learned-spell one was renamed in 11.0).
+        pcall(self.infoFrame.RegisterEvent, self.infoFrame, event)
+    end
+    SnapshotPlayer()
+    QueuePetCheck()
     if EditMode:IsActive() then ShowPreview() end
 end
 
@@ -418,6 +810,7 @@ end
 
 function ChatPopups:OnDisable()
     self.eventFrame:UnregisterAllEvents()
+    self.infoFrame:UnregisterAllEvents()
     for i = #toasts, 1, -1 do Release(toasts[i]) end
     if box then box:Hide() end
 end

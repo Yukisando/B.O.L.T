@@ -332,7 +332,7 @@ local PAGES = {
             },
             {
                 module = "cheetahWarning",
-                description = "Hunters: a quiet gold hint and a soft ping when combat starts while Aspect of the Cheetah or of the Pack is on you, then a silent reminder every few seconds until you change aspect or combat ends.",
+                description = "Hunters: a quiet gold hint and a soft chime when combat starts while Aspect of the Cheetah or of the Pack is on you, then a silent reminder every few seconds until you change aspect or combat ends.",
             },
             {
                 module = "doubleClickFishing",
@@ -421,6 +421,17 @@ local PAGES = {
                     { type = "checkbox", label = "Click-through: the mouse goes through the popups (off: hover keeps one up, left-click replies in that chat, right-click whispers the sender, or closes a whisper)",
                         path = { "chatPopups", "clickThrough" }, indent = 24,
                         enabledIf = function() return BOLT:IsModuleEnabled("chatPopups") end },
+                    { type = "multiselect", label = "Info popups:", width = 300, indent = 24, emptyText = "None",
+                        enabledIf = function() return BOLT:IsModuleEnabled("chatPopups") end,
+                        isSelected = function(value) return Module("chatPopups"):IsInfoEnabled(value) end,
+                        toggle = function(value, selected) Module("chatPopups"):SetInfoEnabled(value, selected) end,
+                        options = function()
+                            local list = {}
+                            for _, info in ipairs(Module("chatPopups").INFO_TYPES) do
+                                table.insert(list, { value = info.key, label = info.label })
+                            end
+                            return list
+                        end },
                 },
             },
             {

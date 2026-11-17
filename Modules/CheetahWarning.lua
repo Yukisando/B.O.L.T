@@ -40,14 +40,17 @@ local function ActiveAspect()
     end
 end
 
--- A quiet hint: a gold line where the game prints "Out of range" and the like, with a soft ping
--- the first time only (reminders are silent).
+-- A quiet hint: a gold line where the game prints "Out of range" and the like, with a soft chime
+-- the first time only (reminders are silent). The chime is the alarm clock's, which nothing else
+-- plays; the map ping used before (until 2026-11-17) sounded like someone pinging the minimap.
+local CHIME = SOUNDKIT and SOUNDKIT.ALARM_CLOCK_WARNING_2 or 12867
+
 function CheetahWarning:Warn(name, first)
     local text = ("%s is still on"):format(name or "Aspect of the Cheetah")
     if UIErrorsFrame then
         UIErrorsFrame:AddMessage(text, 1, 0.82, 0)
     end
-    if first then PlaySound(3175, "SFX") end -- map ping
+    if first then PlaySound(CHIME, "SFX") end
 end
 
 -- combatStarting: called from PLAYER_REGEN_DISABLED, when the combat flag may not be set yet.

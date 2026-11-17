@@ -145,7 +145,7 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 
 #### Cheetah Warning (hunters)
 
-- **Combat Hint**: a quiet gold line and a soft ping when combat starts while Aspect of the Cheetah or of the Pack is on you, then a silent reminder every few seconds until you change aspect or combat ends
+- **Combat Hint**: a quiet gold line and a soft chime when combat starts while Aspect of the Cheetah or of the Pack is on you, then a silent reminder every few seconds until you change aspect or combat ends
 
 #### Skyriding
 
@@ -172,6 +172,7 @@ Blizzard's own chat window, made quiet, with everything chat in one place (a rep
 - **Input Box Above or Below**: put the input box on top of the window (Edit Mode or settings), handy with the chat at the bottom of the screen
 - **Sound on New Messages**: a sound when a message arrives in the chats you pick, with a choice of sounds and a preview; your own messages are ignored and rapid messages don't stack
 - **Popups**: whispers and party chat also show as small Blizzard-style popups (sender in class color, the message in its chat color) so you don't miss them; more lines from the same person stay in one popup; click-through by default; turned off, hover keeps one up, left-click replies in that chat, right-click whispers the sender (or closes a whisper). In Edit Mode: move the box, stack up or down, how many show at once, how long they stay and their width
+- **Info Popups**: thin one-line strips in the same box for skill ups ("Bows 138 (+1)"), your pet learning an ability, level ups, money gained or spent, reputation, experience and new spells. Each one is its own setting; money, experience, reputation and skill ups add up into one strip while it is on screen
 
 #### Auto Party Chat
 
