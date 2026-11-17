@@ -6,7 +6,7 @@ Supports **Midnight (12.1.5)** and **WoW: Forever**. On Forever, modules built o
 
 All modules can be toggled independently. New installs start with every module disabled — turn on what you want from the settings panel (`/bolt`) or via the quick toggles in the minimap tracking dropdown.
 
-**Edit Mode**: BOLT's own frames (camp bar, floating ranged timer) move in Edit Mode like Blizzard's. Your whole UI setup is saved with each Edit Mode layout and shared by all your characters: positions, every Edit Mode option, and whether the UI modules (Unit Frames, Minimap, Auto-hide UI, Tooltips, Nameplates, Party Frames Center Growth, Ranged Attack Timer, Campfire) are on. Switching layout switches that setup too, and a new layout starts as a copy of the one you were on. Select a Blizzard frame (Player, Target, Personal Resource Display, Minimap, action bars, micro menu, bags, experience bar, buffs, quest tracker, cast bar, focus, pet and party frames) and a "B.O.L.T" block under its settings says what BOLT can do to that frame, such as "Fades with" (its fade group) or "Flat style (no round portrait)". Picking one turns its module on when needed. Those options live in Edit Mode: the settings page turns modules on and off and has an "Open Edit Mode" button.
+**Edit Mode**: BOLT's own frames (camp bar, floating swing timer) move in Edit Mode like Blizzard's. Your whole UI setup is saved with each Edit Mode layout and shared by all your characters: positions, every Edit Mode option, and whether the UI modules (Unit Frames, Minimap, Auto-hide UI, Tooltips, Nameplates, Party Frames Center Growth, Swing Timer, Campfire) are on. Switching layout switches that setup too, and a new layout starts as a copy of the one you were on. Select a Blizzard frame (Player, Target, Personal Resource Display, Minimap, action bars, micro menu, bags, experience bar, buffs, quest tracker, cast bar, focus, pet and party frames) and a "B.O.L.T" block under its settings says what BOLT can do to that frame, such as "Fades with" (its fade group) or "Flat style (no round portrait)". Picking one turns its module on when needed. Those options live in Edit Mode: the settings page turns modules on and off and has an "Open Edit Mode" button.
 
 **Fade groups** (Auto-hide UI): put frames (each action bar, micro menu, bags, XP bar, buffs, unit frames, quest tracker, minimap...) in up to four groups. Each group has its own conditions: mouse over, combat, a target (any, attackable, not attackable), in a group, in an instance, not while mounted, and its opacity while faded. A group fades in and out as one. Edit the groups on the settings page or from any of their frames in Edit Mode.
 
@@ -46,11 +46,11 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 - **Your Own Immersive Mode**: Hide both frames and turn on the Personal Resource Display. (This replaces the old Immersive Mode toggle; if you had it on, your setup carries over)
 - **In Edit Mode**: Select the Player Frame, Target Frame or Personal Resource Display; BOLT's options sit in a "B.O.L.T" block under Blizzard's settings. Every frame shows while you edit
 
-#### Ranged Attack Timer
+#### Swing Timer
 
-- **Shot Timer**: A bar fills between your automatic shots (Auto Shot; on WoW: Forever also wand Shoot), so you can fit casts and moves between them
-- **Built In**: A faint light sweep across the Personal Resource Display's health bar, so it adds no clutter; becomes a bar that floats on its own when the Personal Resource Display is off (or "Attach" is unticked). Move the floating bar and set its width in Edit Mode
-- Only offered to classes with a repeating ranged attack. Melee swings can't be timed: the game keeps the combat log from addons
+- **Every Swing on WoW: Forever**: Fills between your auto attacks: main hand, off hand and ranged, read from the game's own swing timer (which it turns off so you don't see both), so you can fit casts and moves between them
+- **Built In**: A faint light sweep across the Personal Resource Display's health bar for your main hand and ranged attacks, and across its power bar for your off hand, so it adds no clutter. Becomes floating bars when the Personal Resource Display is off (or "Attach" is unticked); move them and set their width in Edit Mode
+- On Midnight the game reports no swings, so only Auto Shot is timed there (hunters)
 
 #### Nameplates
 

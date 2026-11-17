@@ -210,11 +210,13 @@ local PAGES = {
             },
             {
                 module = "rangedTimer",
-                description = (BOLT.isForever and "A bar that fills between your Auto Shots and wand shots" or "A bar that fills between your Auto Shots")
-                    .. ", so you can fit casts and moves between them. It sits under the Personal Resource Display in the same style, or floats on its own when that display is off.",
-                editMode = "select Ranged Attack Timer to attach it or let it float, move it and set its width.",
+                description = (BOLT.isForever
+                    and "Fills between your auto attacks (main hand, off hand and ranged, read from the game's own swing timer, which it replaces)"
+                    or "A bar that fills between your Auto Shots")
+                    .. ", so you can fit casts and moves between them. A faint sweep across the Personal Resource Display's health bar (the off hand across its power bar), or bars that float on their own when that display is off.",
+                editMode = "select Swing Timer to attach it or let it float, move it and set its width.",
                 options = {
-                    { type = "checkbox", label = "Attach it under the Personal Resource Display when that display is on", path = { "rangedTimer", "attach" } },
+                    { type = "checkbox", label = "Show it on the Personal Resource Display's bars when that display is on", path = { "rangedTimer", "attach" } },
                 },
             },
             {
@@ -1107,7 +1109,7 @@ function Config:BuildMainPanel()
     version:SetPoint("TOPLEFT", heading, "BOTTOMLEFT", 0, -8)
 
     local help = AddLabel(panel, "Pick a category on the left to configure each module. Type /bolt help for chat commands."
-        .. "\n\nEdit Mode: B.O.L.T's frames (camp bar, ranged timer) move like Blizzard's, and selecting a Blizzard frame shows a B.O.L.T block with what B.O.L.T can do to it. Options for those live only there; these pages turn the modules on and off."
+        .. "\n\nEdit Mode: B.O.L.T's frames (camp bar, swing timer) move like Blizzard's, and selecting a Blizzard frame shows a B.O.L.T block with what B.O.L.T can do to it. Options for those live only there; these pages turn the modules on and off."
         .. (BOLT.isForever and "\n\nRunning on WoW: Forever - modules for modern-only systems are hidden." or ""))
     help:SetPoint("TOPLEFT", version, "BOTTOMLEFT", 0, -16)
     help:SetWidth(560)

@@ -4,7 +4,7 @@
 -- needed", "Flat style"), and turns its module on or off as needed: checked means it's happening.
 -- The settings page only holds the module on/off switches and an "Open Edit Mode" button.
 -- The Player, Target and Personal Resource Display blocks start in FrameVisibility; BOLT's own
--- frames (camp bar, ranged timer) have their own Edit Mode dialogs in their modules.
+-- frames (camp bar, swing timer) have their own Edit Mode dialogs in their modules.
 
 local ADDON_NAME, BOLT = ...
 local EditMode = BOLT.EditMode

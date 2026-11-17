@@ -2,7 +2,7 @@
 -- BOLT plugs into Blizzard's Edit Mode through LibEditMode (Libs\LibEditMode, loaded in
 -- "namespaced" mode so it lives on BOLT.LibEditMode and needs no LibStub).
 --
---   * BOLT's own frames (camp bar, ranged timer...) are registered with EditMode:AddFrame: they
+--   * BOLT's own frames (camp bar, swing timer...) are registered with EditMode:AddFrame: they
 --     get the blue Edit Mode selection, drag to move, and a settings dialog. Positions and
 --     per-frame choices are saved per Edit Mode layout in BOLTDB.layouts[layout].frames[key],
 --     shared by every character (Core/Database.lua).
