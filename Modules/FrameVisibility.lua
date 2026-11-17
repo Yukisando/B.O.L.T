@@ -249,9 +249,11 @@ displayFader.goal = 1
 displayFader:SetScript("OnUpdate", function(self, elapsed)
     local display = Display()
     if not display then return self:Hide() end
-    -- The pet bar's click button lives on UIParent (see the pet clicker), so it counts separately.
-    local petClicker = FrameVisibility.petClicker
-    local hovered = display:IsMouseOver() or (petClicker and petClicker:IsShown() and petClicker:IsMouseOver())
+    -- The unit bars' click buttons live on UIParent (see the bar clickers), so they count separately.
+    local hovered = display:IsMouseOver()
+    for _, clicker in pairs(FrameVisibility.clickers or {}) do
+        hovered = hovered or (clicker:IsShown() and clicker:IsMouseOver())
+    end
     local goal = hovered and 1 or self.goal
     local alpha = display:GetAlpha()
     if alpha < goal then
@@ -402,47 +404,100 @@ function FrameVisibility:UpdateMenuCatcher()
 end
 
 ---------------------------------------------------------------------------
--- Pet health bar: half the height of the display's other bars, drawn with its own bar art and
--- sitting on top of its health bar. A child of the display, so it shows, hides, fades and scales
--- with it; it only shows while you have a pet out.
+-- Unit bars: small health bars on the display for your pet (on top of its health bar), your
+-- target and your target's target (one row under its power bar: the target on the left two
+-- thirds, its target on the right third). Half the height of the power bar, drawn with the
+-- display's own bar art. Children of the display, so they show, hide, fade and scale with it;
+-- each only shows while its unit exists.
 ---------------------------------------------------------------------------
 
 local PET_COLOR = { 0.45, 0.85, 0.3 } -- a softer green than the player's own health
 local DEFAULT_PADDING = 4
 local DEFAULT_POWER_HEIGHT = 10 -- the display's power bar height when unreadable
-local PET_MIN_HEIGHT = 5
+local BAR_MIN_HEIGHT = 5
+local ROW_GAP = 8 -- between the target and target-of-target bars: their border art spills past the fill
+local TOT_SHARE = 1 / 3
+local TOT_TICK = 0.2
 local WHITE = "Interface\\Buttons\\WHITE8X8"
+local REACTION_COLORS = {
+    hostile = { 0.85, 0.25, 0.2 },
+    neutral = { 0.9, 0.75, 0.2 },
+    friendly = { 0.35, 0.8, 0.3 },
+}
 
-local petBar, petAnchoredTo, petEvents
+local BAR_KEYS = { "pet", "target", "targettarget" }
+local CLICKER_NAMES = {
+    pet = "BOLTPetBarClicker",
+    target = "BOLTTargetBarClicker",
+    targettarget = "BOLTTargetOfTargetBarClicker",
+}
+
+local bars = {}
+local petBar -- bars.pet, kept by name for the pet damage and ammo texts that sit beside it
+local barEvents, totTicker, barsAnchoredTo
 
 local function Readable(value, fallback)
     if value and not BOLT.IsSecret(value) and value > 0 then return value end
     return fallback
 end
 
--- Where the pet bar goes: just above the health container, half the power bar's height.
-local function PetBarLayout(display)
-    local container = display.HealthBarsContainer or display
-    local power = display.PowerBar
-    local height = power and Readable(power:GetHeight(), DEFAULT_POWER_HEIGHT) or DEFAULT_POWER_HEIGHT
-    local padding = display.GetBarPadding and Readable(display:GetBarPadding(), DEFAULT_PADDING) or DEFAULT_PADDING
-    return container, padding, math.max(PET_MIN_HEIGHT, math.floor(height / 2 + 0.5))
+local function BarOn(key)
+    if key == "pet" then return DisplayCfg("petHealth") == true end
+    if key == "target" then return DisplayCfg("targetBar") == true end
+    return DisplayCfg("targetBar") == true and DisplayCfg("targetOfTargetBar") == true
 end
 
-local function AnchorPetBar()
+-- Where a bar goes: the frame it hangs from (above the health bars or under the power bar), its
+-- span across that frame's width as fractions, the gap to leave on each side, and its height.
+local function BarLayout(key, display)
+    local container = display.HealthBarsContainer or display
+    local power = display.PowerBar
+    local powerHeight = power and Readable(power:GetHeight(), DEFAULT_POWER_HEIGHT) or DEFAULT_POWER_HEIGHT
+    local layout = {
+        padding = display.GetBarPadding and Readable(display:GetBarPadding(), DEFAULT_PADDING) or DEFAULT_PADDING,
+        height = math.max(BAR_MIN_HEIGHT, math.floor(powerHeight / 2 + 0.5)),
+        from = 0, to = 1, gapLeft = 0, gapRight = 0,
+    }
+    if key == "pet" then
+        layout.ref, layout.above = container, true
+    else
+        layout.ref, layout.above = power or container, false
+        if key == "targettarget" then
+            layout.from, layout.gapLeft = 1 - TOT_SHARE, ROW_GAP / 2
+        elseif BarOn("targettarget") then
+            layout.to, layout.gapRight = 1 - TOT_SHARE, ROW_GAP / 2
+        end
+    end
+    return layout
+end
+
+local function AnchorBar(key, display)
+    local bar, layout = bars[key], BarLayout(key, display)
+    local width = Readable(layout.ref:GetWidth())
+    if not width then return false end
+    if bar:GetParent() ~= display then bar:SetParent(display) end
+    local y = layout.above and layout.padding or -layout.padding
+    local edge = layout.above and "TOP" or "BOTTOM"
+    local side = layout.above and "BOTTOM" or "TOP"
+    bar:ClearAllPoints()
+    bar:SetPoint(side .. "LEFT", layout.ref, edge .. "LEFT", width * layout.from + layout.gapLeft, y)
+    bar:SetPoint(side .. "RIGHT", layout.ref, edge .. "RIGHT", -width * (1 - layout.to) - layout.gapRight, y)
+    bar:SetHeight(layout.height)
+    return true
+end
+
+local function AnchorBars()
     local display = Display()
     if not display then return false end
-    if petBar:GetParent() ~= display then petBar:SetParent(display) end
-    local container, padding, height = PetBarLayout(display)
-    petBar:ClearAllPoints()
-    petBar:SetPoint("BOTTOMLEFT", container, "TOPLEFT", 0, padding)
-    petBar:SetPoint("BOTTOMRIGHT", container, "TOPRIGHT", 0, padding)
-    petBar:SetHeight(height)
-    if petAnchoredTo ~= container then
-        petAnchoredTo = container
+    for _, key in ipairs(BAR_KEYS) do
+        if bars[key] then bars[key].anchored = AnchorBar(key, display) end
+    end
+    local container = display.HealthBarsContainer or display
+    if barsAnchoredTo ~= container then
+        barsAnchoredTo = container
         -- Edit Mode changes to the display's size reach the container; follow them.
         container:HookScript("OnSizeChanged", function()
-            if petBar:IsShown() and petAnchoredTo == container then AnchorPetBar() end
+            if barsAnchoredTo == container then AnchorBars() end
         end)
     end
     return true
@@ -454,6 +509,7 @@ end
 -- Only hunter pets have a mood, and only on clients that have pet happiness; elsewhere the bar
 -- keeps its green. WoW: Forever reads it with C_PetInfo.GetPetHappiness (no global
 -- GetPetHappiness there, which kept the mood hidden until 2026-11-16); older clients have the global.
+-- Target bars take the reaction colour, or the class colour for players.
 ---------------------------------------------------------------------------
 
 local MOODS = {
@@ -464,21 +520,33 @@ local MOODS = {
 
 local PetHappiness = (C_PetInfo and C_PetInfo.GetPetHappiness) or GetPetHappiness
 
-local function UpdateMoodColor()
-    local happiness = DisplayCfg("petHappiness") and PetHappiness and HasPetUI
-        and select(2, HasPetUI()) and PetHappiness()
-    local color = happiness and MOODS[happiness] or PET_COLOR
-    petBar:SetStatusBarColor(color[1], color[2], color[3])
+local function BarColor(key)
+    local color
+    if key == "pet" then
+        local happiness = DisplayCfg("petHappiness") and PetHappiness and HasPetUI
+            and select(2, HasPetUI()) and PetHappiness()
+        color = happiness and MOODS[happiness] or PET_COLOR
+    else
+        if UnitIsPlayer(key) then
+            local class = Plain(select(2, UnitClass(key)))
+            local classColor = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
+            if classColor then return classColor.r, classColor.g, classColor.b end
+        end
+        local reaction = Plain(UnitReaction(key, "player"))
+        color = not reaction and REACTION_COLORS.neutral
+            or reaction <= 3 and REACTION_COLORS.hostile
+            or reaction == 4 and REACTION_COLORS.neutral
+            or REACTION_COLORS.friendly
+    end
+    return color[1], color[2], color[3]
 end
 
 ---------------------------------------------------------------------------
 -- Hover text, like the display's own health bar: percentage on the left, health on the right,
--- only while the pointer is over the pet bar. In the same font as the display's text.
+-- only while the pointer is over the bar. In the same font as the display's text.
 -- In combat health can be secret: UnitHealthPercent (with a 0-100 curve) and AbbreviateLargeNumbers
 -- take secret values and so does SetText, but plain Lua maths on them errors, hence the pcall.
 ---------------------------------------------------------------------------
-
-local petHovered
 
 local function DisplayTextFont()
     local display = Display()
@@ -488,11 +556,11 @@ local function DisplayTextFont()
     return text and text.GetFontObject and text:GetFontObject() or TextStatusBarText
 end
 
-local function PetHealthTexts()
-    local health, maxHealth = UnitHealth("pet"), UnitHealthMax("pet")
+local function HealthTexts(unit)
+    local health, maxHealth = UnitHealth(unit), UnitHealthMax(unit)
     local percent
     if UnitHealthPercent and CurveConstants and CurveConstants.ScaleTo100 then
-        percent = UnitHealthPercent("pet", true, CurveConstants.ScaleTo100)
+        percent = UnitHealthPercent(unit, true, CurveConstants.ScaleTo100)
     elseif not (BOLT.IsSecret(health) or BOLT.IsSecret(maxHealth)) and maxHealth > 0 then
         percent = health / maxHealth * 100
     end
@@ -501,58 +569,73 @@ local function PetHealthTexts()
     return left, right
 end
 
-local function UpdatePetText()
-    if not (petBar and petBar.leftText) then return end
+local function UpdateBarText(bar)
     local ok, left, right = false, nil, nil
-    if petHovered and petBar:IsShown() then ok, left, right = pcall(PetHealthTexts) end
+    if bar.hovered and bar:IsShown() then ok, left, right = pcall(HealthTexts, bar.unit) end
     if not ok then
-        petBar.leftText:Hide()
-        petBar.rightText:Hide()
+        bar.leftText:Hide()
+        bar.rightText:Hide()
         return
     end
     local font = DisplayTextFont()
-    for _, text in ipairs({ petBar.leftText, petBar.rightText }) do
+    for _, text in ipairs({ bar.leftText, bar.rightText }) do
         if font then text:SetFontObject(font) end
     end
-    petBar.leftText:SetText(left)
-    petBar.rightText:SetText(right)
-    petBar.leftText:Show()
-    petBar.rightText:Show()
+    bar.leftText:SetText(left)
+    bar.rightText:SetText(right)
+    bar.leftText:Show()
+    bar.rightText:Show()
 end
 
-local function SetPetHovered(hovered)
-    petHovered = hovered
-    UpdatePetText()
+local function SetBarHovered(key, hovered)
+    local bar = bars[key]
+    if not bar then return end
+    bar.hovered = hovered
+    UpdateBarText(bar)
 end
 
 -- UnitHealth/UnitHealthMax can be secret values in combat on Midnight; status bars accept them
 -- as they are, so they go straight in without being compared.
-local function UpdatePetBar()
-    if not (DisplayCfg("petHealth") and UnitExists("pet") and AnchorPetBar()) then
-        petBar:Hide()
-        UpdatePetText()
-        return
+local function UpdateBar(key)
+    local bar = bars[key]
+    if not bar then return end
+    if not (BarOn(key) and UnitExists(key) and bar.anchored) then
+        bar:Hide()
+    else
+        bar:SetMinMaxValues(0, UnitHealthMax(key))
+        bar:SetValue(UnitIsDeadOrGhost(key) and 0 or UnitHealth(key))
+        bar:SetStatusBarColor(BarColor(key))
+        bar:Show()
     end
-    petBar:SetMinMaxValues(0, UnitHealthMax("pet"))
-    petBar:SetValue(UnitHealth("pet"))
-    petBar:Show()
-    UpdateMoodColor()
-    UpdatePetText()
+    UpdateBarText(bar)
 end
 
-local function BuildPetBar()
-    petBar = CreateFrame("StatusBar", "BOLTPetHealthBar", UIParent)
-    petBar:SetMinMaxValues(0, 1)
-    petBar:SetValue(1)
-    petBar:Hide()
+-- "targettarget" fires no unit events of its own (Blizzard's frame polls it too), so a light
+-- ticker refreshes it while you have a target.
+local function UpdateTargetBars()
+    UpdateBar("target")
+    UpdateBar("targettarget")
+    if totTicker then totTicker:SetShown(BarOn("targettarget") and UnitExists("target") or false) end
+end
+
+local function UpdateBars()
+    UpdateBar("pet")
+    UpdateTargetBars()
+end
+
+local function BuildBar(key)
+    local bar = CreateFrame("StatusBar", nil, UIParent)
+    bar.unit = key
+    bar:SetMinMaxValues(0, 1)
+    bar:SetValue(1)
+    bar:Hide()
 
     -- The display's own bar art (PersonalResourceStatusBar template): the background atlas
     -- carries the gold border, drawn a little past the fill on every side.
     local fill = BOLT.NativeArt.ResolveAtlas("UI-HUD-CoolDownManager-Bar")
     local back = BOLT.NativeArt.ResolveAtlas("UI-HUD-CoolDownManager-Bar-BG")
-    petBar:SetStatusBarTexture(fill or WHITE)
-    petBar:SetStatusBarColor(PET_COLOR[1], PET_COLOR[2], PET_COLOR[3])
-    local background = petBar:CreateTexture(nil, "BACKGROUND")
+    bar:SetStatusBarTexture(fill or WHITE)
+    local background = bar:CreateTexture(nil, "BACKGROUND")
     if back then
         background:SetAtlas(back)
         background:SetPoint("TOPLEFT", -2, 3)
@@ -565,218 +648,147 @@ local function BuildPetBar()
     end
 
     -- On an overlay frame so the text sits above the border art.
-    local textLayer = CreateFrame("Frame", nil, petBar)
+    local textLayer = CreateFrame("Frame", nil, bar)
     textLayer:SetAllPoints()
-    textLayer:SetFrameLevel(petBar:GetFrameLevel() + 2)
-    petBar.leftText = textLayer:CreateFontString(nil, "OVERLAY", "TextStatusBarText")
-    petBar.leftText:SetPoint("LEFT", petBar, "LEFT", 2, 0)
-    petBar.leftText:Hide()
-    petBar.rightText = textLayer:CreateFontString(nil, "OVERLAY", "TextStatusBarText")
-    petBar.rightText:SetPoint("RIGHT", petBar, "RIGHT", -2, 0)
-    petBar.rightText:Hide()
-
-    petEvents = CreateFrame("Frame")
-    petEvents:SetScript("OnEvent", UpdatePetBar)
+    textLayer:SetFrameLevel(bar:GetFrameLevel() + 2)
+    bar.leftText = textLayer:CreateFontString(nil, "OVERLAY", "TextStatusBarText")
+    bar.leftText:SetPoint("LEFT", bar, "LEFT", 2, 0)
+    bar.leftText:Hide()
+    bar.rightText = textLayer:CreateFontString(nil, "OVERLAY", "TextStatusBarText")
+    bar.rightText:SetPoint("RIGHT", bar, "RIGHT", -2, 0)
+    bar.rightText:Hide()
+    return bar
 end
 
-function FrameVisibility:UpdatePetBar()
-    local on = DisplayCfg("petHealth") == true
-    if not petBar then
-        if not on then return end
-        BuildPetBar()
-    end
-    if on then
-        petEvents:RegisterUnitEvent("UNIT_HEALTH", "pet")
-        petEvents:RegisterUnitEvent("UNIT_MAXHEALTH", "pet")
-        petEvents:RegisterUnitEvent("UNIT_PET", "player")
-        petEvents:RegisterEvent("PLAYER_ENTERING_WORLD")
-        if PetHappiness then
-            -- UNIT_HAPPINESS only exists on clients with pet happiness (Blizzard's own indicator
-            -- listens to it unfiltered); happiness is also a pet power on some clients, so power
-            -- updates cover those.
-            pcall(petEvents.RegisterEvent, petEvents, "UNIT_HAPPINESS")
-            petEvents:RegisterUnitEvent("UNIT_POWER_UPDATE", "pet")
-        end
+local function OnBarEvent(_, event, unit)
+    if unit == "pet" or event == "UNIT_PET" or event == "UNIT_HAPPINESS" then
+        UpdateBar("pet")
+    elseif unit == "target" or event == "PLAYER_TARGET_CHANGED" then
+        UpdateTargetBars()
     else
-        petEvents:UnregisterAllEvents()
+        UpdateBars()
     end
-    UpdatePetBar()
-    self:UpdatePetClicker()
+end
+
+function FrameVisibility:UpdateUnitBars()
+    local any = false
+    for _, key in ipairs(BAR_KEYS) do
+        if BarOn(key) then
+            any = true
+            if not bars[key] then bars[key] = BuildBar(key) end
+        end
+    end
+    petBar = bars.pet
+    if any and not barEvents then
+        barEvents = CreateFrame("Frame")
+        barEvents:SetScript("OnEvent", OnBarEvent)
+        totTicker = CreateFrame("Frame")
+        totTicker:Hide()
+        local since = 0
+        totTicker:SetScript("OnUpdate", function(_, elapsed)
+            since = since + elapsed
+            if since < TOT_TICK then return end
+            since = 0
+            UpdateBar("targettarget")
+        end)
+    end
+    if barEvents then
+        barEvents:UnregisterAllEvents()
+        if any then barEvents:RegisterEvent("PLAYER_ENTERING_WORLD") end
+        if BarOn("pet") then
+            barEvents:RegisterUnitEvent("UNIT_HEALTH", "pet", "target")
+            barEvents:RegisterUnitEvent("UNIT_MAXHEALTH", "pet", "target")
+            barEvents:RegisterUnitEvent("UNIT_PET", "player")
+            if PetHappiness then
+                -- UNIT_HAPPINESS only exists on clients with pet happiness (Blizzard's own indicator
+                -- listens to it unfiltered); happiness is also a pet power on some clients, so power
+                -- updates cover those.
+                pcall(barEvents.RegisterEvent, barEvents, "UNIT_HAPPINESS")
+                barEvents:RegisterUnitEvent("UNIT_POWER_UPDATE", "pet")
+            end
+        end
+        if BarOn("target") then
+            barEvents:RegisterUnitEvent("UNIT_HEALTH", "pet", "target")
+            barEvents:RegisterUnitEvent("UNIT_MAXHEALTH", "pet", "target")
+            barEvents:RegisterEvent("PLAYER_TARGET_CHANGED")
+            barEvents:RegisterUnitEvent("UNIT_FACTION", "target")
+            barEvents:RegisterUnitEvent("UNIT_TARGET", "target")
+        end
+    end
+    AnchorBars()
+    UpdateBars()
+    self:UpdateBarClickers()
 end
 
 ---------------------------------------------------------------------------
--- Clicking the pet bar works like the Pet Frame: left-click targets your pet, right-click opens
--- its menu (Dismiss, Rename, Abandon...). Hovering it shows its text and fades the display in.
--- Same reasons as the menu catcher above: a secure unit button on UIParent with coordinates
--- copied from where the bar sits, moved only out of combat. RegisterUnitWatch shows and hides it
--- with the pet, which keeps working in combat (the pet dies, you summon another).
+-- Clicking a unit bar works like a unit frame: left-click selects the unit, right-click opens its
+-- menu (the pet's Dismiss, Rename...). Hovering shows its text and fades the display in.
+-- Same reasons as the menu catcher above: secure unit buttons on UIParent with coordinates
+-- copied from where the bars sit, moved only out of combat. RegisterUnitWatch shows and hides
+-- each with its unit, which keeps working in combat (the pet dies, you change target).
 ---------------------------------------------------------------------------
 
-function FrameVisibility:SyncPetClicker(combatStarting)
-    local clicker, display = self.petClicker, Display()
-    if not (clicker and display) or InCombatLockdown() then return end
-    local container, padding, height = PetBarLayout(display)
-    local left, right = Plain(container:GetLeft()), Plain(container:GetRight())
-    local top = Plain(container:GetTop())
-    local wanted = DisplayCfg("petHealth") and not display.isInEditMode
+function FrameVisibility:SyncBarClickers(combatStarting)
+    local display = Display()
+    if not (self.clickers and display) or InCombatLockdown() then return end
+    local shows = not display.isInEditMode
         and (combatStarting and DisplayShowsInCombat(display) or display:IsVisible())
-    if not (wanted and left and right and top) then
-        UnregisterUnitWatch(clicker)
-        clicker:Hide()
-        return
+    local ratio = (display.HealthBarsContainer or display):GetEffectiveScale() / UIParent:GetEffectiveScale()
+    for key, clicker in pairs(self.clickers) do
+        local layout = BarLayout(key, display)
+        local left, right = Plain(layout.ref:GetLeft()), Plain(layout.ref:GetRight())
+        local edge = Plain(layout.above and layout.ref:GetTop() or layout.ref:GetBottom())
+        if shows and BarOn(key) and left and right and edge then
+            local width = right - left
+            local x1 = left + width * layout.from + layout.gapLeft
+            local x2 = right - width * (1 - layout.to) - layout.gapRight
+            local bottom = layout.above and edge + layout.padding or edge - layout.padding - layout.height
+            clicker:ClearAllPoints()
+            -- One extra pixel around the bar so it isn't fiddly to hit.
+            clicker:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", x1 * ratio, (bottom - 1) * ratio)
+            clicker:SetSize(math.max(1, (x2 - x1) * ratio), (layout.height + 2) * ratio)
+            clicker:SetFrameStrata(display:GetFrameStrata())
+            clicker:SetFrameLevel(display:GetFrameLevel() + 10)
+            RegisterUnitWatch(clicker)
+        else
+            UnregisterUnitWatch(clicker)
+            clicker:Hide()
+        end
     end
-    local ratio = container:GetEffectiveScale() / UIParent:GetEffectiveScale()
-    clicker:ClearAllPoints()
-    -- One extra pixel around the bar so it isn't fiddly to hit.
-    clicker:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", left * ratio, (top + padding - 1) * ratio)
-    clicker:SetSize(math.max(1, (right - left) * ratio), (height + 2) * ratio)
-    clicker:SetFrameStrata(display:GetFrameStrata())
-    clicker:SetFrameLevel(display:GetFrameLevel() + 10)
-    RegisterUnitWatch(clicker)
 end
 
-function FrameVisibility:UpdatePetClicker()
+local function BuildClicker(key)
+    local clicker = CreateFrame("Button", CLICKER_NAMES[key], UIParent, "SecureUnitButtonTemplate")
+    clicker:Hide()
+    clicker:RegisterForClicks("AnyUp")
+    clicker:SetAttribute("unit", key)
+    clicker:SetAttribute("*type1", "target")
+    clicker:SetAttribute("*type2", "togglemenu")
+    clicker:SetScript("OnEnter", function() SetBarHovered(key, true) end)
+    clicker:SetScript("OnLeave", function() SetBarHovered(key, false) end)
+    clicker:SetScript("OnHide", function() SetBarHovered(key, false) end)
+    return clicker
+end
+
+function FrameVisibility:UpdateBarClickers()
     local display = Display()
     if not display then return end
     if InCombatLockdown() then
-        self.petClickerPending = true
+        self.clickersPending = true
         self.eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
         return
     end
-    self.petClickerPending = nil
-    if not self.petClicker then
-        if not DisplayCfg("petHealth") then return end
-        local clicker = CreateFrame("Button", "BOLTPetBarClicker", UIParent, "SecureUnitButtonTemplate")
-        clicker:Hide()
-        clicker:RegisterForClicks("AnyUp")
-        clicker:SetAttribute("unit", "pet")
-        clicker:SetAttribute("*type1", "target")
-        clicker:SetAttribute("*type2", "togglemenu")
-        clicker:SetScript("OnEnter", function() SetPetHovered(true) end)
-        clicker:SetScript("OnLeave", function() SetPetHovered(false) end)
-        clicker:SetScript("OnHide", function() SetPetHovered(false) end)
-        self.petClicker = clicker
-        FollowDisplay(display, function(combatStarting) self:SyncPetClicker(combatStarting) end)
+    self.clickersPending = nil
+    for _, key in ipairs(BAR_KEYS) do
+        if BarOn(key) then
+            if not self.clickers then
+                self.clickers = {}
+                FollowDisplay(display, function(combatStarting) self:SyncBarClickers(combatStarting) end)
+            end
+            self.clickers[key] = self.clickers[key] or BuildClicker(key)
+        end
     end
-    self:SyncPetClicker()
-end
-
----------------------------------------------------------------------------
--- Target lines: your target's health as a thin strip along the bottom edge of your own health
--- bar, and its target's health as a hairline in the gap under it. Coloured by reaction (players
--- by class), no text, no border; only there while there is a unit to show. Children of the
--- display, so they fade and hide with it. Not clickable: too thin to hit, and right-click on the
--- health bar already belongs to the menu catcher.
--- "targettarget" fires no unit events of its own (Blizzard's frame polls it too), so a light
--- ticker refreshes both while you have a target.
----------------------------------------------------------------------------
-
-local TARGET_LINE_HEIGHT = 2
-local TOT_LINE_HEIGHT = 1.5
-local LINE_TICK = 0.2
-local REACTION_COLORS = {
-    hostile = { 0.85, 0.2, 0.15 },
-    neutral = { 0.9, 0.75, 0.2 },
-    friendly = { 0.3, 0.8, 0.3 },
-}
-
-local targetLine, totLine, lineTicker
-
-local function UnitLineColor(unit)
-    if UnitIsPlayer(unit) then
-        local class = Plain(select(2, UnitClass(unit)))
-        local color = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
-        if color then return color.r, color.g, color.b end
-    end
-    local reaction = Plain(UnitReaction(unit, "player"))
-    local color = not reaction and REACTION_COLORS.neutral
-        or reaction <= 3 and REACTION_COLORS.hostile
-        or reaction == 4 and REACTION_COLORS.neutral
-        or REACTION_COLORS.friendly
-    return color[1], color[2], color[3]
-end
-
--- Health values can be secret in combat; status bars take them as they are.
-local function FillLine(line, unit, on)
-    if not (on and UnitExists(unit)) then
-        line:Hide()
-        return
-    end
-    line:SetMinMaxValues(0, UnitHealthMax(unit))
-    line:SetValue(UnitIsDeadOrGhost(unit) and 0 or UnitHealth(unit))
-    line:SetStatusBarColor(UnitLineColor(unit))
-    line:Show()
-end
-
-local function UpdateTargetLines()
-    local on = DisplayCfg("targetLine")
-    FillLine(targetLine, "target", on)
-    FillLine(totLine, "targettarget", on and DisplayCfg("targetOfTargetLine"))
-    lineTicker:SetShown(on and DisplayCfg("targetOfTargetLine") and UnitExists("target") or false)
-end
-
-local function MakeLine(parent, height, backAlpha)
-    local line = CreateFrame("StatusBar", nil, parent)
-    line:SetStatusBarTexture(WHITE)
-    line:SetHeight(height)
-    line:Hide()
-    local back = line:CreateTexture(nil, "BACKGROUND")
-    back:SetAllPoints()
-    back:SetColorTexture(0, 0, 0, backAlpha)
-    return line
-end
-
-local function AnchorTargetLines()
-    local display = Display()
-    if not display then return false end
-    local container = display.HealthBarsContainer or display
-    if targetLine:GetParent() ~= display then
-        targetLine:SetParent(display)
-        totLine:SetParent(display)
-    end
-    -- Inside the health bar's bottom edge, drawn above its fill.
-    targetLine:ClearAllPoints()
-    targetLine:SetPoint("BOTTOMLEFT", container, "BOTTOMLEFT", 0, 0)
-    targetLine:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
-    targetLine:SetFrameLevel(container:GetFrameLevel() + 5)
-    -- In the padding between health and power.
-    totLine:ClearAllPoints()
-    totLine:SetPoint("TOPLEFT", container, "BOTTOMLEFT", 0, -1)
-    totLine:SetPoint("TOPRIGHT", container, "BOTTOMRIGHT", 0, -1)
-    totLine:SetFrameLevel(container:GetFrameLevel() + 5)
-    return true
-end
-
-function FrameVisibility:UpdateTargetLines()
-    local on = DisplayCfg("targetLine") == true
-    if not targetLine then
-        if not on then return end
-        targetLine = MakeLine(UIParent, TARGET_LINE_HEIGHT, 0.55)
-        totLine = MakeLine(UIParent, TOT_LINE_HEIGHT, 0.35)
-        self.targetLineEvents = CreateFrame("Frame")
-        self.targetLineEvents:SetScript("OnEvent", UpdateTargetLines)
-        lineTicker = CreateFrame("Frame")
-        lineTicker:Hide()
-        local elapsedSince = 0
-        lineTicker:SetScript("OnUpdate", function(_, elapsed)
-            elapsedSince = elapsedSince + elapsed
-            if elapsedSince < LINE_TICK then return end
-            elapsedSince = 0
-            UpdateTargetLines()
-        end)
-    end
-    local events = self.targetLineEvents
-    if on and AnchorTargetLines() then
-        events:RegisterEvent("PLAYER_TARGET_CHANGED")
-        events:RegisterEvent("PLAYER_ENTERING_WORLD")
-        events:RegisterUnitEvent("UNIT_HEALTH", "target")
-        events:RegisterUnitEvent("UNIT_MAXHEALTH", "target")
-        events:RegisterUnitEvent("UNIT_FACTION", "target")
-        events:RegisterUnitEvent("UNIT_TARGET", "target")
-    else
-        events:UnregisterAllEvents()
-    end
-    UpdateTargetLines()
+    self:SyncBarClickers()
 end
 
 ---------------------------------------------------------------------------
@@ -842,7 +854,7 @@ local function AnchorPetDamageText()
     petDamageText:ClearAllPoints()
     -- Next to the pet bar when it has been placed (it keeps its spot while hidden), else where
     -- it would sit: just above the display's health bars. +10 clears the bar art's border.
-    if petBar and petAnchoredTo then
+    if petBar and petBar.anchored then
         petDamageText:SetPoint("LEFT", petBar, "RIGHT", 10, 0)
     else
         petDamageText:SetPoint("BOTTOMLEFT", display.HealthBarsContainer or display, "TOPRIGHT", 10, 2)
@@ -924,7 +936,7 @@ local function AnchorAmmoText()
     local display = Display()
     if not display then return false end
     ammoText:ClearAllPoints()
-    if petBar and petAnchoredTo then
+    if petBar and petBar.anchored then
         ammoText:SetPoint("RIGHT", petBar, "LEFT", -10, 0)
     else
         ammoText:SetPoint("BOTTOMRIGHT", display.HealthBarsContainer or display, "TOPLEFT", -10, 2)
@@ -1048,13 +1060,13 @@ function FrameVisibility:RegisterEditMode()
             desc = "The pet health bar takes your pet's mood as its colour: green when happy, amber when content, red when it's unhappy and needs feeding.",
             hidden = function() return displayOff() or not DisplayCfg("petHealth") or not PetHappiness end,
         }),
-        EditMode:Checkbox("Target health line", { "frameVisibility", "display", "targetLine" }, {
-            desc = "Your target's health as a thin strip along the bottom of your health bar: red when hostile, yellow neutral, green friendly, class colour for players. No text, only there while you have a target.",
+        EditMode:Checkbox("Target health bar", { "frameVisibility", "display", "targetBar" }, {
+            desc = "Your target's health under your power bar, in the same style as the pet bar: red when hostile, yellow neutral, green friendly, class colour for players. Click it like a unit frame and hover it for its numbers.",
             hidden = displayOff,
         }),
-        EditMode:Checkbox("  Target of target line", { "frameVisibility", "display", "targetOfTargetLine" }, {
-            desc = "Your target's target as an even thinner line in the gap under your health bar, coloured the same way. Handy to see who the mob is hitting or how the tank is doing.",
-            hidden = function() return displayOff() or not DisplayCfg("targetLine") end,
+        EditMode:Checkbox("  Target of target", { "frameVisibility", "display", "targetOfTargetBar" }, {
+            desc = "Your target's target on the same row, in the last third: see who the mob is hitting or how the tank is doing. Click it to select them.",
+            hidden = function() return displayOff() or not DisplayCfg("targetBar") end,
         }),
         EditMode:Checkbox("Pet damage after combat", { "frameVisibility", "display", "petDamage" }, {
             desc = "When a fight ends, a percentage fades in next to the pet health bar for a few seconds: the share of your damage your pets dealt (yours + theirs = 100%). Read from Blizzard's damage meter.",
@@ -1075,8 +1087,7 @@ function FrameVisibility:OnLayoutChanged()
     self:ApplyFrames()
     RefreshDisplay()
     self:UpdateMenuCatcher()
-    self:UpdatePetBar()
-    self:UpdateTargetLines()
+    self:UpdateUnitBars()
     self:UpdatePetDamage()
     self:UpdateAmmoCount()
 end
@@ -1085,8 +1096,7 @@ function FrameVisibility:OnSettingChanged(key, path)
     if path and path[2] == "display" then
         RefreshDisplay()
         self:UpdateMenuCatcher()
-        self:UpdatePetBar()
-        self:UpdateTargetLines()
+        self:UpdateUnitBars()
         self:UpdatePetDamage()
         self:UpdateAmmoCount()
     else
@@ -1101,7 +1111,7 @@ function FrameVisibility:OnInitialize()
             self.eventFrame:UnregisterEvent("PLAYER_REGEN_ENABLED")
             if self.pending then self:ApplyFrames() end
             if self.menuPending then self:UpdateMenuCatcher() end
-            if self.petClickerPending then self:UpdatePetClicker() end
+            if self.clickersPending then self:UpdateBarClickers() end
         end
     end)
     self:HookDisplay()
@@ -1116,8 +1126,7 @@ function FrameVisibility:OnEnable()
     self:ApplyFrames()
     RefreshDisplay()
     self:UpdateMenuCatcher()
-    self:UpdatePetBar()
-    self:UpdateTargetLines()
+    self:UpdateUnitBars()
     self:UpdatePetDamage()
     self:UpdateAmmoCount()
 end
