@@ -109,6 +109,7 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 #### Campfire Rest (WoW: Forever)
 
 - **Camp Bar**: While you have the Campfire Nearby buff, a slim bar fades in beside the minimap: what to do now, a bar counting down the minute to Camp Benefits (then their time left), and a Sit button. Right-click it to hide it until the next fire
+- **Right-Click to Sit**: Hover a campfire and the cursor turns into the interact cursor with "Right-click to sit" beside it; a quick right-click sits you down by the fire (a held right-click still turns the camera)
 - **Sit by the Fire**: Click Sit; the bar tells you if you're too far once you sit, and remembers where the fire warmed you so it can sit you down again there (option)
 - **Ready Alert**: A sound, a glow and a taskbar flash when Camp Benefits lands, so you can look away during the minute of sitting (option)
 - **Camp Drawer**: Click the bar for the camp benefits you got (one row per camp object) and your camp gear: every camp object you carry or can craft, built in for all professions and tiers, each with its own Place and Craft buttons, cooldowns and missing reagents

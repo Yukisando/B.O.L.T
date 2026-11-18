@@ -1280,6 +1280,9 @@ function Campfire:RegisterEditMode()
             EditMode:Checkbox("Sit down on its own", { "campfire", "autoSit" }, {
                 desc = "Sit again when you stop where the fire warmed you, if you have no camp benefits yet or just placed an object.",
             }),
+            EditMode:Checkbox("Right-click a campfire to sit", { "campfire", "rightClickSit" }, {
+                desc = "Hovering a campfire shows the interact cursor and \"Right-click to sit\"; a quick right-click sits you down.",
+            }),
             EditMode:Checkbox("Ready alert", { "campfire", "readyAlert" }, {
                 desc = "A sound, a glow and a taskbar flash when Camp Benefits lands.",
             }),
@@ -1340,12 +1343,88 @@ end
 -- Lifecycle
 ---------------------------------------------------------------------------
 
+---------------------------------------------------------------------------
+-- Right-click a campfire to sit. Hovering a fire turns the cursor into the game's interact cursor
+-- with a small "Right-click to sit" beside it; a quick right-click (not a held camera turn) sits.
+-- Addons can't ask what world object is under the mouse, but the game names it in the tooltip
+-- (owned by UIParent, no unit), and GLOBAL_MOUSE_* fire for clicks on the world.
+---------------------------------------------------------------------------
+
+local CLICK_HOLD = 0.3 -- a right-click held longer turns the camera
+local INTERACT_CURSOR = "Interface\\CURSOR\\Interact"
+local hoverHint, hoverWatch, rightDownAt
+local hoveringFire = false
+
+local function MouseOverWorld()
+    local focus = GetMouseFoci and GetMouseFoci()[1] or (GetMouseFocus and GetMouseFocus())
+    return focus == nil or focus == WorldFrame
+end
+
+local function FireUnderMouse()
+    if not (GameTooltip:IsShown() and GameTooltip:GetAlpha() > 0.5) or UnitExists("mouseover") then return false end
+    local owner = GameTooltip:GetOwner()
+    if owner and owner ~= UIParent and owner ~= WorldFrame then return false end
+    if not MouseOverWorld() then return false end
+    local title = GameTooltipTextLeft1 and GameTooltipTextLeft1:GetText()
+    if not title or BOLT.IsSecret(title) then return false end
+    return title:find("Campfire$") ~= nil
+end
+
+local function SetHovering(on)
+    if hoveringFire == on then return end
+    hoveringFire = on
+    hoverHint:SetShown(on)
+    if not on then ResetCursor() end
+end
+
+local function BuildHoverHint()
+    hoverHint = CreateFrame("Frame", nil, UIParent)
+    hoverHint:SetFrameStrata("TOOLTIP")
+    hoverHint:SetSize(1, 1)
+    hoverHint:Hide()
+    local text = hoverHint:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    text:SetPoint("LEFT", hoverHint, "LEFT", 0, 0)
+    text:SetText("Right-click to sit")
+    text:SetShadowOffset(1, -1)
+    hoverHint.text = text
+
+    hoverWatch = CreateFrame("Frame")
+    hoverWatch:SetScript("OnUpdate", function()
+        local on = BOLT:GetConfig("campfire", "rightClickSit", true) and CanSit() and FireUnderMouse()
+        SetHovering(on and true or false)
+        if not hoveringFire then return end
+        SetCursor(INTERACT_CURSOR)
+        local x, y = GetCursorPosition()
+        local scale = UIParent:GetEffectiveScale()
+        hoverHint:ClearAllPoints()
+        hoverHint:SetPoint("LEFT", UIParent, "BOTTOMLEFT", x / scale + 22, y / scale - 12)
+    end)
+    hoverWatch:Hide()
+end
+
+local function OnWorldClick(event, mouseButton)
+    if mouseButton ~= "RightButton" then return end
+    if event == "GLOBAL_MOUSE_DOWN" then
+        rightDownAt = hoveringFire and GetTime() or nil
+        return
+    end
+    local pressedAt = rightDownAt
+    rightDownAt = nil
+    if pressedAt and GetTime() - pressedAt <= CLICK_HOLD and FireUnderMouse() and CanSit() then
+        Sit()
+    end
+end
+
 function Campfire:OnInitialize()
     BuildBar()
+    BuildHoverHint()
     self:RegisterEditMode()
     self.eventFrame = CreateFrame("Frame")
     self.eventFrame:SetScript("OnEvent", function(_, event, unit, _, spellID)
-        if event == "PLAYER_REGEN_DISABLED" then
+        if event == "GLOBAL_MOUSE_DOWN" or event == "GLOBAL_MOUSE_UP" then
+            OnWorldClick(event, unit)
+            return
+        elseif event == "PLAYER_REGEN_DISABLED" then
             -- Fires just before combat lockdown: last chance to hide the secure buttons.
             Conceal(true)
             return
@@ -1393,9 +1472,10 @@ function Campfire:OnEnable()
     for _, event in ipairs({ "PLAYER_STARTED_MOVING", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED",
         "PLAYER_MOUNT_DISPLAY_CHANGED", "PLAYER_DEAD", "PLAYER_UNGHOST", "PLAYER_ENTERING_WORLD",
         "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "BAG_UPDATE_DELAYED", "BAG_UPDATE_COOLDOWN",
-        "SKILL_LINES_CHANGED", "LEARNED_SPELL_IN_SKILL_LINE" }) do
+        "SKILL_LINES_CHANGED", "LEARNED_SPELL_IN_SKILL_LINE", "GLOBAL_MOUSE_DOWN", "GLOBAL_MOUSE_UP" }) do
         events:RegisterEvent(event)
     end
+    hoverWatch:Show()
     state.dirty = true
     if EditMode:IsActive() then
         ShowPreview()
@@ -1408,6 +1488,8 @@ function Campfire:OnDisable()
     self.eventFrame:UnregisterAllEvents()
     state.pendingCraft, state.openedForCraft = nil, false
     state.preview = false
+    hoverWatch:Hide()
+    SetHovering(false)
     Conceal(true)
 end
 
