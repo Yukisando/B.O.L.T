@@ -848,9 +848,15 @@ end
 -- Totem nodes: the hunter's hawk (and any other totem-slot summon) as small round nodes centred
 -- above the pet bar, or above the health bar without one: the spell's icon in the game's own
 -- totem ring, with a radial sweep counting down its time. Hover one for its tooltip.
--- Read like Blizzard's TotemFrame: GetTotemInfo per slot on PLAYER_TOTEM_UPDATE. Its values can
--- be secret (SecretWhenTotemSlotSecret); cooldowns and textures take secrets as they are, and a
--- slot whose "have totem" can't be read keeps its last state.
+-- WoW: Forever keeps totem slots secret from addons (GetTotemInfo is SecretWhenTotemSlotSecret, and
+-- it is, even out of combat), so "is there a totem" can't be asked in Lua. Instead:
+--   * PLAYER_TOTEM_UPDATE says which slot changed (that slot number is plain), so its node joins
+--     the row; it leaves when its sweep ends (OnCooldownDone) or the slot reads as empty.
+--   * The sweep runs from GetTotemDuration's duration object, which cooldowns take secret.
+--   * The node's look is gated by SetAlphaFromBoolean on the secret "have totem" and "zero
+--     duration" values, so the game itself hides it when the slot is empty, even if the row
+--     still holds its place for a moment.
+-- Where totem data is plain (other clients), it is read directly.
 ---------------------------------------------------------------------------
 
 local NODE_SIZE = 26     -- the ring; the native totem button's ring is 30
@@ -859,7 +865,7 @@ local NODE_SPACING = 24  -- centre to centre; the rings overlap a touch, like th
 local NODE_GAP = 5       -- above the bar under them
 
 local totemNodes, totemHolder, totemEvents
-local totemShown = {}
+local LayoutTotems
 
 local function TotemSlots()
     return (GetNumTotemSlots and GetNumTotemSlots()) or MAX_TOTEMS or 4
@@ -870,17 +876,23 @@ local function BuildTotemNode(slot)
     node:SetSize(NODE_SIZE, NODE_SIZE)
     node.slot = slot
     node:Hide()
+    -- Two nested gates: drawn only when there is a totem and its time isn't zero.
+    node.haveGate = CreateFrame("Frame", nil, node)
+    node.haveGate:SetAllPoints()
+    node.timeGate = CreateFrame("Frame", nil, node.haveGate)
+    node.timeGate:SetAllPoints()
+    local look = node.timeGate
 
-    node.icon = node:CreateTexture(nil, "BACKGROUND")
+    node.icon = look:CreateTexture(nil, "BACKGROUND")
     node.icon:SetSize(NODE_ICON, NODE_ICON)
     node.icon:SetPoint("CENTER")
-    local mask = node:CreateMaskTexture()
+    local mask = look:CreateMaskTexture()
     mask:SetAtlas("CircleMask")
     mask:SetAllPoints(node.icon)
     node.icon:AddMaskTexture(mask)
 
     -- The radial countdown, drawn through the same circle so it stays round (as TotemButtonMixin).
-    node.cooldown = CreateFrame("Cooldown", nil, node, "CooldownFrameTemplate")
+    node.cooldown = CreateFrame("Cooldown", nil, look, "CooldownFrameTemplate")
     node.cooldown:SetAllPoints(node.icon)
     node.cooldown:SetReverse(true)
     node.cooldown:SetHideCountdownNumbers(true)
@@ -892,8 +904,12 @@ local function BuildTotemNode(slot)
             { x = swipe.rightTexCoord, y = swipe.bottomTexCoord })
     end
     node.cooldown:SetSwipeColor(0, 0, 0, 0.65)
+    node.cooldown:SetScript("OnCooldownDone", function()
+        node.active = false
+        LayoutTotems()
+    end)
 
-    local ringLayer = CreateFrame("Frame", nil, node)
+    local ringLayer = CreateFrame("Frame", nil, look)
     ringLayer:SetAllPoints()
     ringLayer:SetFrameLevel(node.cooldown:GetFrameLevel() + 1)
     local ring = ringLayer:CreateTexture(nil, "OVERLAY")
@@ -912,7 +928,7 @@ local function BuildTotemNode(slot)
 end
 
 -- Centred on the row: one node in the middle, two either side of it, and so on.
-local function LayoutTotems()
+LayoutTotems = function()
     local display = Display()
     if not (display and totemHolder) then return end
     if totemHolder:GetParent() ~= display then totemHolder:SetParent(display) end
@@ -921,9 +937,12 @@ local function LayoutTotems()
     totemHolder:ClearAllPoints()
     totemHolder:SetPoint("BOTTOM", base, "TOP", 0, NODE_GAP)
     totemHolder:SetSize(NODE_SIZE, NODE_SIZE)
+    local on = DisplayCfg("totems") == true
     local shown = {}
     for slot = 1, #totemNodes do
-        if totemNodes[slot]:IsShown() then table.insert(shown, totemNodes[slot]) end
+        local node = totemNodes[slot]
+        node:SetShown(on and node.active == true)
+        if node:IsShown() then table.insert(shown, node) end
     end
     for index, node in ipairs(shown) do
         node:ClearAllPoints()
@@ -931,33 +950,50 @@ local function LayoutTotems()
     end
 end
 
-local function SetTotemCooldown(node, startTime, duration)
-    local durationObject = GetTotemDuration and node.cooldown.SetCooldownFromDurationObject
-        and GetTotemDuration(node.slot)
-    if durationObject then
+-- Fills a node from its slot. Returns whether the slot holds a totem when that can be read,
+-- or nil when the game keeps it secret.
+local function ReadSlot(node)
+    local have, _, startTime, duration, icon = GetTotemInfo(node.slot)
+    node.icon:SetTexture(icon)
+    local durationObject = GetTotemDuration and GetTotemDuration(node.slot)
+    if durationObject and node.cooldown.SetCooldownFromDurationObject then
         node.cooldown:SetCooldownFromDurationObject(durationObject)
-    else
+    elseif not (BOLT.IsSecret(startTime) or BOLT.IsSecret(duration)) then
         node.cooldown:SetCooldown(startTime, duration)
     end
+
+    if not (BOLT.IsSecret(have) or BOLT.IsSecret(duration)) then
+        node.haveGate:SetAlpha(1)
+        node.timeGate:SetAlpha(1)
+        -- A totem with no time on it is gone (Blizzard's buttons hide on duration 0 too).
+        return have and (duration or 0) > 0 or false
+    end
+    node.haveGate:SetAlphaFromBoolean(have, 1, 0)
+    local zeroKnown, isZero = false, nil
+    if durationObject then zeroKnown, isZero = pcall(durationObject.IsZero, durationObject) end
+    if zeroKnown then
+        node.timeGate:SetAlphaFromBoolean(isZero, 0, 1)
+        -- A plain zero (no secret in the duration) means the slot is empty.
+        if not durationObject:HasSecretValues() and isZero == true then return false end
+    else
+        node.timeGate:SetAlpha(1)
+    end
+    return nil
 end
 
-local function UpdateTotems()
+local function OnTotemEvent(_, event, slot)
     if not totemNodes then return end
-    local on = DisplayCfg("totems") == true
-    for slot = 1, #totemNodes do
-        local node = totemNodes[slot]
-        local have, _, startTime, duration, icon = GetTotemInfo(slot)
-        if not BOLT.IsSecret(have) then
-            -- A totem with no duration left is gone (Blizzard's buttons hide on duration 0 too).
-            totemShown[slot] = have and (BOLT.IsSecret(duration) or (duration or 0) > 0) or false
+    if event == "PLAYER_TOTEM_UPDATE" then
+        local node = not BOLT.IsSecret(slot) and totemNodes[slot]
+        if node then
+            local known = ReadSlot(node)
+            -- A change on a secret slot is taken as a summon; its sweep ending takes it off again.
+            if known == nil then node.active = true else node.active = known end
         end
-        if on and totemShown[slot] then
-            node.icon:SetTexture(icon)
-            SetTotemCooldown(node, startTime, duration)
-            node:Show()
-        else
-            node.cooldown:Clear()
-            node:Hide()
+    else
+        for _, node in ipairs(totemNodes) do
+            local known = ReadSlot(node)
+            if known ~= nil then node.active = known end
         end
     end
     LayoutTotems()
@@ -972,7 +1008,7 @@ function FrameVisibility:UpdateTotems()
         totemNodes = {}
         for slot = 1, TotemSlots() do totemNodes[slot] = BuildTotemNode(slot) end
         totemEvents = CreateFrame("Frame")
-        totemEvents:SetScript("OnEvent", UpdateTotems)
+        totemEvents:SetScript("OnEvent", OnTotemEvent)
     end
     -- The row moves up or down as the pet bar comes and goes.
     if petBar and not petBar.totemHooked then
@@ -986,7 +1022,7 @@ function FrameVisibility:UpdateTotems()
     else
         totemEvents:UnregisterAllEvents()
     end
-    UpdateTotems()
+    OnTotemEvent(nil, "REFRESH")
 end
 
 ---------------------------------------------------------------------------
