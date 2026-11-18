@@ -845,6 +845,151 @@ function FrameVisibility:UpdateBarClickers()
 end
 
 ---------------------------------------------------------------------------
+-- Totem nodes: the hunter's hawk (and any other totem-slot summon) as small round nodes centred
+-- above the pet bar, or above the health bar without one: the spell's icon in the game's own
+-- totem ring, with a radial sweep counting down its time. Hover one for its tooltip.
+-- Read like Blizzard's TotemFrame: GetTotemInfo per slot on PLAYER_TOTEM_UPDATE. Its values can
+-- be secret (SecretWhenTotemSlotSecret); cooldowns and textures take secrets as they are, and a
+-- slot whose "have totem" can't be read keeps its last state.
+---------------------------------------------------------------------------
+
+local NODE_SIZE = 26     -- the ring; the native totem button's ring is 30
+local NODE_ICON = 19     -- the icon inside it (native 22)
+local NODE_SPACING = 24  -- centre to centre; the rings overlap a touch, like the native frame
+local NODE_GAP = 5       -- above the bar under them
+
+local totemNodes, totemHolder, totemEvents
+local totemShown = {}
+
+local function TotemSlots()
+    return (GetNumTotemSlots and GetNumTotemSlots()) or MAX_TOTEMS or 4
+end
+
+local function BuildTotemNode(slot)
+    local node = CreateFrame("Frame", nil, totemHolder)
+    node:SetSize(NODE_SIZE, NODE_SIZE)
+    node.slot = slot
+    node:Hide()
+
+    node.icon = node:CreateTexture(nil, "BACKGROUND")
+    node.icon:SetSize(NODE_ICON, NODE_ICON)
+    node.icon:SetPoint("CENTER")
+    local mask = node:CreateMaskTexture()
+    mask:SetAtlas("CircleMask")
+    mask:SetAllPoints(node.icon)
+    node.icon:AddMaskTexture(mask)
+
+    -- The radial countdown, drawn through the same circle so it stays round (as TotemButtonMixin).
+    node.cooldown = CreateFrame("Cooldown", nil, node, "CooldownFrameTemplate")
+    node.cooldown:SetAllPoints(node.icon)
+    node.cooldown:SetReverse(true)
+    node.cooldown:SetHideCountdownNumbers(true)
+    node.cooldown:SetDrawEdge(false)
+    local swipe = C_Texture.GetAtlasInfo("CircleMask")
+    if swipe then
+        node.cooldown:SetSwipeTexture(swipe.file or swipe.filename)
+        node.cooldown:SetTexCoordRange({ x = swipe.leftTexCoord, y = swipe.topTexCoord },
+            { x = swipe.rightTexCoord, y = swipe.bottomTexCoord })
+    end
+    node.cooldown:SetSwipeColor(0, 0, 0, 0.65)
+
+    local ringLayer = CreateFrame("Frame", nil, node)
+    ringLayer:SetAllPoints()
+    ringLayer:SetFrameLevel(node.cooldown:GetFrameLevel() + 1)
+    local ring = ringLayer:CreateTexture(nil, "OVERLAY")
+    ring:SetAtlas(BOLT.NativeArt.ResolveAtlas("UI-HUD-UnitFrame-TotemFrame") or "UI-HUD-UnitFrame-TotemFrame")
+    ring:SetSize(NODE_SIZE, NODE_SIZE)
+    ring:SetPoint("CENTER", 1, -1) -- the native ring sits a hair off centre in its button
+
+    node:EnableMouse(true)
+    if node.SetMouseClickEnabled then node:SetMouseClickEnabled(false) end
+    node:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetTotem(self.slot)
+    end)
+    node:SetScript("OnLeave", GameTooltip_Hide)
+    return node
+end
+
+-- Centred on the row: one node in the middle, two either side of it, and so on.
+local function LayoutTotems()
+    local display = Display()
+    if not (display and totemHolder) then return end
+    if totemHolder:GetParent() ~= display then totemHolder:SetParent(display) end
+    local container = display.HealthBarsContainer or display
+    local base = petBar and petBar:IsShown() and petBar or container
+    totemHolder:ClearAllPoints()
+    totemHolder:SetPoint("BOTTOM", base, "TOP", 0, NODE_GAP)
+    totemHolder:SetSize(NODE_SIZE, NODE_SIZE)
+    local shown = {}
+    for slot = 1, #totemNodes do
+        if totemNodes[slot]:IsShown() then table.insert(shown, totemNodes[slot]) end
+    end
+    for index, node in ipairs(shown) do
+        node:ClearAllPoints()
+        node:SetPoint("CENTER", totemHolder, "CENTER", (index - (#shown + 1) / 2) * NODE_SPACING, 0)
+    end
+end
+
+local function SetTotemCooldown(node, startTime, duration)
+    local durationObject = GetTotemDuration and node.cooldown.SetCooldownFromDurationObject
+        and GetTotemDuration(node.slot)
+    if durationObject then
+        node.cooldown:SetCooldownFromDurationObject(durationObject)
+    else
+        node.cooldown:SetCooldown(startTime, duration)
+    end
+end
+
+local function UpdateTotems()
+    if not totemNodes then return end
+    local on = DisplayCfg("totems") == true
+    for slot = 1, #totemNodes do
+        local node = totemNodes[slot]
+        local have, _, startTime, duration, icon = GetTotemInfo(slot)
+        if not BOLT.IsSecret(have) then
+            -- A totem with no duration left is gone (Blizzard's buttons hide on duration 0 too).
+            totemShown[slot] = have and (BOLT.IsSecret(duration) or (duration or 0) > 0) or false
+        end
+        if on and totemShown[slot] then
+            node.icon:SetTexture(icon)
+            SetTotemCooldown(node, startTime, duration)
+            node:Show()
+        else
+            node.cooldown:Clear()
+            node:Hide()
+        end
+    end
+    LayoutTotems()
+end
+
+function FrameVisibility:UpdateTotems()
+    local on = DisplayCfg("totems") == true
+    if not totemNodes then
+        if not on then return end
+        totemHolder = CreateFrame("Frame", nil, UIParent)
+        totemHolder:SetFrameLevel(10)
+        totemNodes = {}
+        for slot = 1, TotemSlots() do totemNodes[slot] = BuildTotemNode(slot) end
+        totemEvents = CreateFrame("Frame")
+        totemEvents:SetScript("OnEvent", UpdateTotems)
+    end
+    -- The row moves up or down as the pet bar comes and goes.
+    if petBar and not petBar.totemHooked then
+        petBar.totemHooked = true
+        petBar:HookScript("OnShow", LayoutTotems)
+        petBar:HookScript("OnHide", LayoutTotems)
+    end
+    if on then
+        totemEvents:RegisterEvent("PLAYER_TOTEM_UPDATE")
+        totemEvents:RegisterEvent("PLAYER_ENTERING_WORLD")
+    else
+        totemEvents:UnregisterAllEvents()
+    end
+    UpdateTotems()
+end
+
+---------------------------------------------------------------------------
 -- Pet damage share: when combat ends, "38%" fades in to the right of the pet health bar for a few
 -- seconds: how much of your damage (yours + your pets') the pets dealt in that fight.
 -- The combat log is closed to addons on both clients, so this reads Blizzard's damage meter
@@ -1113,6 +1258,10 @@ function FrameVisibility:RegisterEditMode()
             desc = "The pet health bar takes your pet's mood as its colour: green when happy, amber when content, red when it's unhappy and needs feeding.",
             hidden = function() return displayOff() or not DisplayCfg("petHealth") or not PetHappiness end,
         }),
+        EditMode:Checkbox("Totem timers", { "frameVisibility", "display", "totems" }, {
+            desc = "Your hawk and other totem summons as small round nodes centred above the pet bar: the spell's icon in the game's totem ring, with a sweep counting down its time. Hover one for its tooltip.",
+            hidden = displayOff,
+        }),
         EditMode:Checkbox("Target health bar", { "frameVisibility", "display", "targetBar" }, {
             desc = "Your target's health under your power bar, in the same style as the pet bar: red when hostile, yellow neutral, green friendly, class colour for players. Click it like a unit frame and hover it for its numbers.",
             hidden = displayOff,
@@ -1141,6 +1290,7 @@ function FrameVisibility:OnLayoutChanged()
     RefreshDisplay()
     self:UpdateMenuCatcher()
     self:UpdateUnitBars()
+    self:UpdateTotems()
     self:UpdatePetDamage()
     self:UpdateAmmoCount()
 end
@@ -1150,6 +1300,7 @@ function FrameVisibility:OnSettingChanged(key, path)
         RefreshDisplay()
         self:UpdateMenuCatcher()
         self:UpdateUnitBars()
+        self:UpdateTotems()
         self:UpdatePetDamage()
         self:UpdateAmmoCount()
     else
@@ -1180,6 +1331,7 @@ function FrameVisibility:OnEnable()
     RefreshDisplay()
     self:UpdateMenuCatcher()
     self:UpdateUnitBars()
+    self:UpdateTotems()
     self:UpdatePetDamage()
     self:UpdateAmmoCount()
 end

@@ -52,6 +52,7 @@ BOLT.defaults = {
                 ammoCount = true,        -- arrows/bullets left, shown briefly after each shot
                 targetBar = true,        -- target health bar under its power bar (left two thirds)
                 targetOfTargetBar = true, -- target of target on the same row (right third)
+                totems = true,           -- hawk / totem timers as round nodes above the pet bar
             },
         },
         autoHide = {
