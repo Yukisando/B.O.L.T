@@ -202,6 +202,7 @@ BOLT.defaultModuleStates = {
     soundMuter = false,
     nameplatesEnhancement = true,
     partyFramesCenterGrowth = true,
+    partyClassColors = true,
     keyShare = true,
 }
 

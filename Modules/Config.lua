@@ -257,6 +257,10 @@ local PAGES = {
                 module = "partyFramesCenterGrowth",
                 description = "Keeps raid-style party frames centered as members join or leave. Requires Raid-Style Party Frames in Edit Mode.",
             },
+            {
+                module = "partyClassColors",
+                description = "Party members' names take their class colour, so you can tell classes apart at a glance (a warrior's name is brown, a mage's light blue). Works on both party frame styles.",
+            },
         },
     },
     {

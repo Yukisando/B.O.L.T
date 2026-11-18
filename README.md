@@ -80,6 +80,10 @@ Everything that changes how the game's UI looks lives on the **Interface** setti
 - **Dynamic Join/Leave Nudging**: Repositions the party anchor as members join or leave so the layout remains centered for party sizes 1-5
 - **Party-Only Scope**: Only affects party raid-style frames; raid group frames are untouched
 
+#### Party Class Colors
+
+- **Class-Coloured Names**: Party members' names take their class colour (a warrior's name is brown, a mage's light blue), on both the classic and raid-style party frames
+
 ### Quality of Life
 
 #### Game Menu Enhancements
