@@ -6,6 +6,11 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-32 (2026-11-20)
+
+- feat: pet mood in the Quick Feed tooltip
+- Quick Feed: hovering the pet bar now shows your pet's mood (Happy, Content, Unhappy) on the right of the food line, in the bar's mood colour
+
 ## v8-31 (2026-11-20)
 
 - feat: quick-feed your hunter pet from the pet bar, plus swing, totem, party and campfire updates
