@@ -6,6 +6,11 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-34 (2026-11-20)
+
+- docs: new README, ready for WoW: Forever and Retail
+- README: rewritten so it's clear what you get: which game versions are supported, a section for what's new on WoW: Forever, a three-step getting started and every feature in short
+
 ## v8-33 (2026-11-20)
 
 - fix: a minimap tucked past the screen edge stays there after a reload
