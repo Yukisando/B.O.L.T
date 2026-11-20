@@ -6,6 +6,19 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-31 (2026-11-20)
+
+- feat: quick-feed your hunter pet from the pet bar, plus swing, totem, party and campfire updates
+- Quick Feed (Personal Resource Display, hunters): while your pet is content or unhappy, the pet bar pulses softly and left-clicking it feeds your pet the cheapest food it eats from your bags, without opening them; Shift + left-click feeds it any time; hover for the food it will use; out of combat only, turn it off in Edit Mode under the pet health bar
+- Edit Mode: B.O.L.T's extra settings for Blizzard frames now sit beside the Edit Mode window instead of under the frame's settings, so long lists like the Personal Resource Display's stay fully on screen
+- Campfire: hovering a campfire shows the interact cursor with "Right-click to sit" beside it, and a quick right-click sits you down by the fire; turn it off in the camp bar's Edit Mode options
+- Totem Timers (new, Personal Resource Display): your hunter's hawk and other totem summons show as small round nodes centred above the pet bar, in the game's own totem ring, with a radial sweep counting down their time; hover a node for its tooltip
+- Totem Timers: the hawk node shows on WoW: Forever, which hides totem details from addons; the node follows the game's own totem updates and countdown instead
+- Party Class Colors (new): party members' names take their class colour on both the classic and raid-style party frames
+- Swing Timer (was Ranged Attack Timer): on WoW: Forever it reads the game's own swing timer, so it times your main hand, off hand and ranged attacks, for every class
+- Swing Timer: on the Personal Resource Display, main hand and ranged sweep across the health bar and the off hand across the power bar; floating, the off hand is a thin bar under the main one
+- Swing Timer: Blizzard's own swing timer bars are turned off while B.O.L.T's is on, so you don't see both
+
 ## v8-30 (2026-11-17)
 
 - feat: clickable pet bar, target and target-of-target bars, ranged timer on the health bar
