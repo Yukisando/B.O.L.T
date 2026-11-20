@@ -1,278 +1,170 @@
 # B.O.L.T
 
-**Brittle and Occasionally Lethal Tweaks** - Quality of life improvements for World of Warcraft that make your gameplay experience smoother without changing core mechanics.
+**Brittle and Occasionally Lethal Tweaks**: small quality-of-life upgrades for World of Warcraft. BOLT tidies up Blizzard's own UI with Blizzard's own art and adds a handful of handy tools, without changing how the game plays.
 
-Supports **Midnight (12.1.5)** and **WoW: Forever**. On Forever, modules built on modern-only systems (Skyriding, Key Share, Smart Teleport, Achievement Tracker) are hidden automatically, and the Interface modules use Forever's own bronze art.
+| Game version | Status |
+|---|---|
+| **WoW: Forever** | ✅ Fully supported, with extra Forever-only features and Forever's bronze UI art |
+| **Retail (Midnight 12.1.5)** | ✅ Fully supported |
 
-All modules can be toggled independently. New installs start with every module disabled — turn on what you want from the settings panel (`/bolt`) or via the quick toggles in the minimap tracking dropdown.
+One download works on both. BOLT detects which game it runs in: features that need modern systems (Skyriding, Mythic+ keys, achievements...) hide themselves on Forever, and Forever-only features hide on Retail.
 
-**Edit Mode**: BOLT's own frames (camp bar, floating swing timer) move in Edit Mode like Blizzard's. Your whole UI setup is saved with each Edit Mode layout and shared by all your characters: positions, every Edit Mode option, and whether the UI modules (Unit Frames, Minimap, Auto-hide UI, Tooltips, Nameplates, Party Frames Center Growth, Swing Timer, Campfire) are on. Switching layout switches that setup too, and a new layout starts as a copy of the one you were on. Select a Blizzard frame (Player, Target, Personal Resource Display, Minimap, action bars, micro menu, bags, experience bar, buffs, quest tracker, cast bar, focus, pet and party frames) and a "B.O.L.T" block under its settings says what BOLT can do to that frame, such as "Fades with" (its fade group) or "Flat style (no round portrait)". Picking one turns its module on when needed. Those options live in Edit Mode: the settings page turns modules on and off and has an "Open Edit Mode" button.
+<!-- Screenshot: overview of a full UI with BOLT (square minimap, Personal Resource Display with pet bar, faded bars) -->
 
-**Fade groups** (Auto-hide UI): put frames (each action bar, micro menu, bags, XP bar, buffs, unit frames, quest tracker, minimap...) in up to four groups. Each group has its own conditions: mouse over, combat, a target (any, attackable, not attackable), in a group, in an instance, not while mounted, and its opacity while faded. A group fades in and out as one. Edit the groups on the settings page or from any of their frames in Edit Mode.
+---
 
-## Modules
+## ⭐ New on WoW: Forever
+
+These features only exist on WoW: Forever, built around its classic-style systems:
+
+- **Quick Feed (hunters)**: the pet health bar takes your pet's mood colour (green, amber, red) and softly pulses when your pet is hungry. Click it to feed the cheapest food your pet eats, without opening your bags. Shift-click feeds it any time. Hover it to see the food and your pet's mood.
+- **Full Swing Timer**: main hand, off hand and ranged swings, for every class, read from the game's own swing timer.
+- **Campfire Rest**: a camp bar counting down to Camp Benefits, right-click a campfire to sit, an alert when the benefits land, and a drawer with every camp object you can place or craft.
+- **DoT Overlay**: a striped shield on enemy nameplates shows how much damage your DoTs (and your pet's) will still deal. It turns gold when they alone will finish the mob.
+- **Wand & Pet Attack Key**: one key targets the enemy under the mouse, sends your pet in and starts your wand.
+- **Hawk and Totem Timers**: your hunter's hawk as a round countdown node above the pet bar.
+- **Ammo Count**: after each shot, how many arrows or bullets you have left.
+- **Day/Night Dial**: Forever's day/night dial sits inside the square minimap.
+- **Bronze Art**: every restyled frame uses Forever's own bronze UI art, so it looks like it shipped with the game.
+- **Wowhead Links** point to Wowhead's Forever database.
+
+<!-- Screenshot: Quick Feed pulse + tooltip on the pet bar -->
+<!-- Screenshot: Campfire camp bar and drawer -->
+
+---
+
+## Getting started
+
+1. Install from [CurseForge](https://www.curseforge.com/wow/addons/bolt) (or put the `BOLT` folder in `World of Warcraft\_forever_\Interface\AddOns\` or `\_retail_\Interface\AddOns\`).
+2. Type `/bolt` in game. **Every feature starts off**: tick the ones you want.
+3. Open **Edit Mode** (ESC > Edit Mode) and click a Blizzard frame (minimap, action bars, player frame...). A **B.O.L.T** panel next to the Edit Mode window lists what BOLT can do to that frame.
+
+Your BOLT setup is saved with each Edit Mode layout and shared by all your characters: switch layout and your BOLT setup switches with it.
+
+---
+
+## What's inside
+
+Features marked **Forever** only appear on WoW: Forever; **Retail** ones only on Retail. Everything else works on both.
 
 ### Interface
 
-Everything that changes how the game's UI looks lives on the **Interface** settings page. These modules restyle Blizzard's own frames with Blizzard's own art (Forever's bronze art on WoW: Forever), so the result looks like it shipped with the game.
+Blizzard's own frames, restyled with Blizzard's own art.
 
-#### Unit Frames & Cast Bars
+#### Square Minimap
 
-- **Portrait-less Unit Frames**: Player, target, focus, target of target, pet and party frames lose their round portrait; Blizzard's frame stretches over the space and the bars widen and fill flush to the borders
-- **Native Art**: Level shown in Blizzard's level circle, elite/rare dragons wrap the end of the target frame
-- **Cast Bars**: The spell name sits on the bar instead of in a strip underneath
-- **Per-Frame Choice**: Pick which frames to restyle; turning one off takes a `/reload`
+<!-- Screenshot: square minimap with title bar and button bar -->
 
-#### Minimap
+- A square map in Blizzard's minimap frame, with the zone name and clock in a title bar.
+- Tracking, calendar, mail and the other minimap buttons in one tidy bar (bottom, top, left or right).
+- Addon buttons go into one drawer that opens on click.
+- Coordinates in the corner, a resting Zzz, the day/night dial (**Forever**).
+- Optional mouse-wheel zoom.
+- **Snug in the corner**: drag the map right against the screen edge, or even partly off screen. It stays there after a reload.
+- Pauses itself while SexyMap, BasicMinimap or ElvUI is loaded.
 
-- **Square Minimap**: The map is square, framed with Blizzard's minimap art (bronze on WoW: Forever, Blizzard's dark plates on Midnight)
-- **Title Bar**: Zone name and clock in one bar above the map
-- **One Button Bar**: Tracking, calendar, mail and crafting orders, expansion summary, instance difficulty, Blizzard's addon list (shown as a small settings cog) and the addon drawer (a gold count) sit in a single bar, without their own frames: a row at the bottom (default) or under the title bar, or a column on the left or right
-- **In the Map**: Coordinates in the bottom-right corner and, on WoW: Forever, the day/night dial in the top-right corner, both half faded until you hover the map. While you're resting, the player frame's little Zzz plays inside the dial (in the corner on Midnight)
-- **Addon Button Drawer**: Buttons that addons hang on the minimap go into one drawer button that shows how many there are; click it to open them, it closes by itself when the mouse leaves
-- **Mouse-Wheel Zoom**: Optional; hides the +/- buttons and zooms back out after 20 seconds
-- **Works With Auto-hide UI**: The bars and drawer button fade with the "Minimap buttons" group
-- **Screen Edge**: Drag the minimap right into the corner in Edit Mode: by default only the visible map has to stay on screen, so the empty space around it can go past the edge. "Screen edge" at the top of the Minimap's B.O.L.T block switches back to Blizzard's limit or lets it move freely; `/bolt edge` shows what it's doing. Works with or without the square minimap
-- Paused while SexyMap, BasicMinimap or ElvUI is loaded. Turning the module off takes a `/reload`
+#### Personal Resource Display
 
-#### Player & Target Frames
+<!-- Screenshot: Personal Resource Display with pet bar, target bars and swing sweep -->
 
-- **Hide Them Your Way**: Hide the Player Frame and/or the Target Frame, then pick when each comes back: in combat, with a target (any target, attackable only or not attackable only), or on mouse hover
-- **Personal Resource Display**: Turn on Blizzard's health and power bars under your character. When Edit Mode shows it only in combat, it can also show with a target (any, attackable only or not attackable only), fade to an opacity of your choice instead of hiding, and open your menu on right-click (Shift + right-click for your target's)
-- **Pet Health Bar**: A half-height bar on top of the Personal Resource Display's health bar shows your pet's health, with the same gold-bordered art, width and spacing as its other bars. Shows while you have a pet out. Click it like the Pet Frame: left-click targets your pet, right-click opens its menu. Hovering it shows its percentage and health like the display's own bars, and brings a faded display back in full
-- **Target Bars**: Your target's health under the Personal Resource Display's power bar, in the same style and height as the pet bar, with your target's target sharing the row in its last third when it has one that isn't you (otherwise the target takes the whole row). Red for hostile, yellow neutral, green friendly, class colour for players. Click them like unit frames (left-click selects, right-click opens the menu) and hover them for percentage and health
-- **Totem Timers**: Your hunter's hawk (and any other totem summon) as small round nodes centred above the pet bar: the spell's icon in the game's own totem ring, with a radial sweep counting down its time. Two or more sit side by side, centred. Hover one for its tooltip
-- **Pet Damage Share**: When a fight ends, a percentage fades in next to the pet health bar for a few seconds: how much of your damage your pets dealt (you 20 + pet 20 = 50%). Read from Blizzard's damage meter
-- **Ammo Count**: Each shot that uses an arrow or bullet briefly shows how many you have left, on the other side of the pet health bar: white, orange under 300, red under 150
-- **Your Own Immersive Mode**: Hide both frames and turn on the Personal Resource Display. (This replaces the old Immersive Mode toggle; if you had it on, your setup carries over)
-- **In Edit Mode**: Select the Player Frame, Target Frame or Personal Resource Display; BOLT's options sit in a "B.O.L.T" block under Blizzard's settings. Every frame shows while you edit
+Blizzard's health and power bars under your character, made into a complete mini HUD:
+
+- **Pet health bar** above your health bar, coloured by your pet's mood on Forever, with **Quick Feed** (**Forever**). Click it like the Pet Frame.
+- **Target bars**: your target's health, plus your target's target on the same row. Clickable like unit frames.
+- **Hawk and totem timers** as round nodes above the pet bar.
+- **Pet damage share** after each fight, **ammo count** after each shot (**Forever**).
+- Show it in combat only, also with a target, or faded to an opacity of your choice.
+- **Hide the Player and Target frames** and bring each back in combat, with a target or on hover, for a clean, immersive screen.
 
 #### Swing Timer
 
-- **Every Swing on WoW: Forever**: Fills between your auto attacks: main hand, off hand and ranged, read from the game's own swing timer (which it turns off so you don't see both), so you can fit casts and moves between them
-- **Built In**: A faint light sweep across the Personal Resource Display's health bar for your main hand and ranged attacks, and across its power bar for your off hand, so it adds no clutter. Becomes floating bars when the Personal Resource Display is off (or "Attach" is unticked); move them and set their width in Edit Mode
-- On Midnight the game reports no swings, so only Auto Shot is timed there (hunters)
+- A faint sweep across the Personal Resource Display's bars between your auto attacks, so you can fit casts in between. Floating bars if you prefer.
+- **Forever**: main hand, off hand and ranged, every class. **Retail**: Auto Shot only (the game reports no other swings).
+
+#### Unit Frames and Cast Bars
+
+- Player, target, focus, target of target, pet and party frames without the round portrait: the bars widen to fill the space.
+- Cast bars with the spell name inside the bar.
+- Party members' names in their class colour.
+- Raid-style party frames stay centred as people join and leave.
 
 #### Nameplates
 
-- **Mana User Highlighting**: Enemy nameplate health bars are colored for mana users (healers/casters), optionally only in dungeons, raids and scenarios, with a color of your choice
-- **Target Emphasis**: Your target's nameplate is larger and the others fade slightly (the game's own nameplate settings, restored to their defaults when turned off)
-- **Friendly Target Plate**: A friend you target gets their nameplate with health; every other friendly nameplate stays hidden. Not in instances, where the game doesn't let addons hide friendly nameplates
-- **Interrupt Cue**: An enemy cast bar gets an outline and your interrupt's icon when the cast can be interrupted *and* your interrupt is off cooldown, so you know at a glance whether to kick. Works with Midnight's combat restrictions (the game itself decides whether to show the cue)
-- **Range Hint**: Enemies out of your reach get a slightly darker health bar, measured with your interrupt (or a basic attack for classes and specs without one)
-- **DoT Overlay** (WoW: Forever): A striped shield, like Blizzard's absorb shields, sits over the right end of an enemy's health bar, as wide as the damage your DoTs and your pet's DoTs will still deal. When it covers all the health left, it turns gold: those DoTs alone will kill it. Optionally a DoT only counts once its first tick has landed. Both colors can be changed. `/bolt dots` lists what it counts on your target. The combat log is closed to addons, so BOLT reads each DoT from its spell description, matches the hits on the mob to it, and learns your real tick sizes from Blizzard's damage meter after each fight, so it gets more accurate as you play
-- **Combat Persistent**: Colors survive entering combat and threat updates via a secure post-hook on Blizzard's health color system
+- **Interrupt cue**: an enemy cast bar lights up with your interrupt's icon when you can kick it right now.
+- **Range hint**: enemies out of your reach get a darker health bar.
+- **Target emphasis**: your target's plate grows, the others fade a little.
+- **Healer and caster highlight**: enemy mana users in a colour of your choice.
+- **Friendly target plate**: only the friend you target shows a nameplate.
+- **DoT Overlay** (**Forever**): see above. `/bolt dots` lists what it counts.
 
 #### Auto-hide UI
 
-- **Fade Until Needed**: The main action bar with the micro menu and bags (one strip: hovering any of them shows all three), the other action bars, experience bar, buffs, debuffs, unit frames, quest tracker, minimap and minimap buttons fade out
-- **Smart Reveal**: They fade in when you hover them, are in combat or have a target (any, attackable only, not attackable only, or never), and stay hidden while mounted or on a flight path unless you're in combat
-- **Edit Mode Friendly**: Everything shows in Edit Mode; action bars also show while you drag a spell or item
-- **Adjustable Opacity**: Choose how visible hidden parts stay
+<!-- Screenshot: Edit Mode with a B.O.L.T panel showing "Fades with" -->
 
-#### Objective Tracker Memory
+- Put frames (action bars, micro menu, bags, XP bar, buffs, unit frames, quest tracker, minimap, chat) in up to four **fade groups**.
+- Each group fades back in by its own rules: mouse over, combat, a target, in a group, in an instance, and not while mounted.
+- Set it from any frame in Edit Mode.
 
-- **Stays How You Left It**: collapse "All Objectives" and it stays collapsed after a reload or relog, on every character (always on)
+#### Small fixes
 
-#### Party Frames Center Growth
-
-- **Centered Raid-Style Party Growth**: Keeps raid-style party frames centered instead of visually drifting from a fixed corner as the group fills
-- **Dynamic Join/Leave Nudging**: Repositions the party anchor as members join or leave so the layout remains centered for party sizes 1-5
-- **Party-Only Scope**: Only affects party raid-style frames; raid group frames are untouched
-
-#### Party Class Colors
-
-- **Class-Coloured Names**: Party members' names take their class colour (a warrior's name is brown, a mage's light blue), on both the classic and raid-style party frames
-
-### Quality of Life
-
-#### Game Menu Enhancements
-
-- **Leave Group Button**: Adds a "Leave Group/Raid/Delve" button below the ESC menu when you're in any group
-- **Reload UI Button**: Small refresh button in the top-right corner of the ESC menu for quick UI reloads
-- **Group Tools**: Ready Check, Countdown Timer, and Raid Marker buttons on the bottom-right side of the Game Menu
-  - Ready Check: Start a ready check for your group (leader/assistant only)
-  - Countdown: Start a 5-second pull timer (leader/assistant only)
-  - Raid Marker: Set or clear your own raid marker (configurable icon, right-click to clear) — visible even when you're not in a group, as long as Group Tools are enabled
-- **Loot Spec Button**: Quick loot specialization switching from the Game Menu
-  - Left-click: Cycle through current spec plus all available loot specs for your class
-  - Right-click: Pick the exact loot specialization from a menu
-  - Gold border: A loot spec override is active instead of following your current specialization
-- **Battle Text Toggles**: Quick toggles for damage and healing numbers in scrolling combat text
-- **Volume Control Button**: Master volume and music control with visual feedback
-  - Shows current volume percentage (or "M" when muted) directly on the button
-  - Left-click: Toggle mute/unmute master volume
-  - Right-click: Toggle music on/off
-  - Mouse wheel: Adjust master volume in 5% increments
-  - A "Toggle Master Volume" keybinding is also available under B.O.L.T in Key Bindings
-
-#### Campfire Rest (WoW: Forever)
-
-- **Camp Bar**: While you have the Campfire Nearby buff, a slim bar fades in beside the minimap: what to do now, a bar counting down the minute to Camp Benefits (then their time left), and a Sit button. Right-click it to hide it until the next fire
-- **Right-Click to Sit**: Hover a campfire and the cursor turns into the interact cursor with "Right-click to sit" beside it; a quick right-click sits you down by the fire (a held right-click still turns the camera)
-- **Sit by the Fire**: Click Sit; the bar tells you if you're too far once you sit, and remembers where the fire warmed you so it can sit you down again there (option)
-- **Ready Alert**: A sound, a glow and a taskbar flash when Camp Benefits lands, so you can look away during the minute of sitting (option)
-- **Camp Drawer**: Click the bar for the camp benefits you got (one row per camp object) and your camp gear: every camp object you carry or can craft, built in for all professions and tiers, each with its own Place and Craft buttons, cooldowns and missing reagents
-- **In Edit Mode** ("Camp Bar"): left (default), right, above or under the minimap, or drag it anywhere; set its size and options
-- `/bolt camp` prints what the bar sees, for bug reports
-
-#### Auto Rep Switch
-
-- **Automatic Watched Faction**: Automatically switches the "watched" reputation bar to whichever faction you just gained reputation with
-- **All Factions Supported**: Works across all reputation sources including the modern Renown system
-- **Instance Safe**: Uses Midnight's `FACTION_STANDING_CHANGED` event instead of parsing chat, so it also works inside instances
-
-#### Smart Teleport Suggestions
-
-- **World Map Drawer**: When you open the World Map, a small icon drawer appears showing every teleport destination you can currently reach
-- **Broad Coverage**: Covers capital cities, expansion hubs, class-specific portals (Mage, Druid, Death Knight, Monk), engineering wormholes, Hero's Path portal spells earned from Keystone Hero achievements, and your Hearthstone
-- **Spell & Item Detection**: Checks both spells and bag items, so engineering gadgets and trinkets are included automatically
-- **One-Click Cast**: Click any icon to cast the corresponding teleport spell or use the item
-
-#### Saved Instances
-
-- **Instance Lockout Overview**: Lists all current expansion dungeons and raids alongside your lockout status
-- **Slash Command**: Type `/boltsaved` to print unsaved instances to chat
-- **Color-Coded Output**: Green for unsaved, orange for in-progress, grey for completed
+- The quest tracker remembers whether you collapsed it.
 
 ### Gameplay
 
-#### Wand & Pet Attack Key (WoW: Forever)
+- **Wand & Pet Attack Key** (**Forever**): one key for wand, pet attack and pet Assist mode.
+- **My Damage**: a small, quiet panel with only your numbers: your rank in the group, your dps, and your spells and pets.
+- **Cheetah Warning** (hunters): a gentle reminder when you enter combat with Aspect of the Cheetah or the Pack on.
+- **Double-Click Fishing**: double right-click the world to cast Fishing.
+- **Skyriding** (**Retail**): strafe keys turn while skyriding, with optional pitch control.
 
-- **One Key for Wand and Pet**: Targets the enemy under the mouse (or keeps your target), sends your pet to attack it and starts wand Shoot. It also puts your pet in Assist mode (setting, on by default) so it keeps attacking what you attack. Without a pet out it just shoots. Set the key in BOLT settings or Key Bindings ("Shoot Wand + Pet Attack" under B.O.L.T)
+### Quality of Life
 
-#### Double-Click Fishing
-
-- **Quick Cast**: Double right-click on the world to cast Fishing, with a fishing rod equipped; works without moving the mouse between the clicks. Ignored in combat, while mounted, over a character, with loot open or while already fishing.
-
-#### My Damage
-
-- **Just Your Numbers**: a small, quiet panel with your rank in the group (#2 of 5, gold when you're first), your dps, and your own spells and pets, best first, each with a thin bar. Current fight, then the last one once combat ends
-- **Replaces Blizzard's Window**: Blizzard's damage meter window is hidden (setting); the meter itself must stay on in the game options, since the panel reads it. Move the panel, set its width and how many spells it lists in Edit Mode
-
-#### Cheetah Warning (hunters)
-
-- **Combat Hint**: a quiet gold line and a soft chime when combat starts while Aspect of the Cheetah or of the Pack is on you, then a silent reminder every few seconds until you change aspect or combat ends
-
-#### Skyriding
-
-- **Enhanced Movement**: Strafe keys (A/D) become horizontal turning while Skyriding
-- **Pitch Control**: Optional W/S mapping for pitch up/down (3D control), with an invert option
-- **Mouse-Button Mode**: Optionally only apply the controls while holding the left mouse button (default on; the button state can't change mid-combat)
-- **Combat Safe**: A secure state driver switches the key overrides on `[advflyable,flying]`, so they turn off the moment you land — even in combat. Steady Flight is ignored
-- **Emergency Reset**: `/bolt reset` or `/boltreset` clears the overrides if anything ever feels stuck
+- **Game Menu buttons**: Leave Group, Reload UI, ready check, pull countdown, raid marker, volume and mute, combat text toggles, and loot spec switching (**Retail**).
+- **Campfire Rest** (**Forever**): see above.
+- **Auto Rep Switch**: the reputation bar follows the faction you just gained rep with.
+- **Saved Instances**: your dungeon and raid lockouts. `/boltsaved`
+- **Smart Teleport** (**Retail**): every teleport you own for the zone you're viewing, under the World Map.
 
 ### Social
 
-#### Chat
-
-Blizzard's own chat window, made quiet, with everything chat in one place (a replacement for chat addons like Chattynator; with Chattynator on, the window is left alone):
-
-- **Clean Window**: no borders, tab backgrounds or scroll bar; the tabs and a soft dark background show only while the mouse is over the chat (a tab with new messages still shows)
-- **Messages Only When You Look**: the chat text shows only while the mouse is over it or you type; new messages reach you through the popups instead (setting)
-- **No Button Clutter**: the menu, channels, voice and social buttons are hidden (setting)
-- **Input Box Only While Typing**: Blizzard's IM style, one click away
-- **History**: the last 100 lines of each tab come back, slightly dimmed, after a reload or login
-- **Copy Chat**: right-click a tab (or /copychat) to get its text as plain text to select and copy
-- **Fade Group**: in Edit Mode, put the chat window in a fade group with the rest of your UI; it stays shown while you type
-- **Screen Edge**: like the minimap, only the text has to stay on screen: the tabs, input box and empty space can go past any edge so the chat sits snug in a corner (or set it free, or back to Blizzard's), in its Edit Mode dialog
-- **Input Box Above or Below**: put the input box on top of the window (Edit Mode or settings), handy with the chat at the bottom of the screen
-- **Sound on New Messages**: a sound when a message arrives in the chats you pick, with a choice of sounds and a preview; your own messages are ignored and rapid messages don't stack
-- **Popups**: whispers and party chat also show as small Blizzard-style popups (sender in class color, the message in its chat color) so you don't miss them; more lines from the same person stay in one popup; click-through by default; turned off, hover keeps one up, left-click replies in that chat, right-click whispers the sender (or closes a whisper). In Edit Mode: move the box, stack up or down, how many show at once, how long they stay and their width
-- **Info Popups**: thin one-line strips in the same box for skill ups ("Bows 138 (+1)"), your pet learning an ability, level ups, money gained or spent, reputation, experience and new spells. Each one is its own setting; money, experience, reputation and skill ups add up into one strip while it is on screen
-
-#### Auto Party Chat
-
-- **Group Channel by Default**: Joining a group switches the chat box to Party, Raid or Instance chat to match the group
-- **Back to Say**: Leaving the group puts the chat box back on Say
-- **Leaves Your Choices Alone**: Only switches away from Say or a group channel; Guild, whispers and custom channels stay as you set them
-
-#### Wowhead Link
-
-- **Quick Wowhead URL**: Press the configured key (default: Ctrl+C, only if that key is free) while hovering an item, toy, spell, aura, mount, currency, NPC, quest or achievement to generate its Wowhead URL
-- **Forever Aware**: On WoW: Forever the link points to Wowhead's Forever database
-- **Copy Popup**: Displays the URL in a small dialog with the text pre-selected so a second Ctrl+C copies it to the clipboard
-
-### Tracking
-
-#### Achievement Progress Tracker
-
-- **Progress Messages**: Prints a chat message whenever an action you perform advances progress on any achievement (e.g. /love a critter, completing a quest, defeating a boss)
-- **Category Filter**: Choose which top-level achievement categories to track (defaults to Exploration; tick them all to track everything)
-- **Incremental Scanning**: Scans achievement criteria in small time-budgeted chunks to avoid frame drops, with a minimap spinner while the scan is running
-- **Completion Detection**: Recognises when an achievement is fully completed and prunes it from further scanning
-- **Throttled Updates**: Rapid criterion changes are debounced so you don't get flooded with messages
-
-### Extras
-
-#### Playground (Fun Features)
-
-- **Favorite Toy Button**: Quick access to your favorite toy from the ESC menu, with a searchable toy picker and an optional "close game menu on cast" setting
-- **Speedometer / FPS**: Display your movement speed (as % of run speed) and/or FPS in a configurable screen corner; fades out while standing still
-- **Copy Target Mount**: Summon the same mount your target is riding — via `/copymount` (`/cm`) or the "Copy Target Mount" keybinding
-
-#### Key Share
-
-- **Auto Key Link**: Responds to `!keys` in party, raid, or guild chat by posting your current Mythic+ keystone link in the same channel
-- **Keystone Roulette**: After you post your key in response to `!keys`, opens a 2-second window to collect keystone links from other players who respond, then randomly announces a winner — useful for deciding which key to run (can be disabled)
-
-#### Sound Muter
-
-- **Popup-Managed Muting**: Open a management popup from the config panel to add or remove muted sound IDs
-- **Immediate Apply/Remove**: Added sound IDs are muted immediately while the module is enabled, and removing an ID unmutes it again
-- **Persistent List**: Your muted sound ID list is saved in the addon settings so it survives reloads and relogs
-
-#### Character Snapshot
-
-- **JSON Time Capsule**: One-click export of your character's identity, money, /played, collection counts, achievement points and the full Statistics tab as pretty-printed JSON
-- **Copy-Friendly Popup**: Opens a read-only text box from the config panel with the JSON pre-selected so Ctrl+C just works
-- **Refresh On Demand**: Refresh the popup to re-pull the latest values (e.g. after gaining gold, dying, or logging more /played)
+- **Chat**: Blizzard's chat made quiet. No borders or button clutter, text only while you look at it, chat history kept after a reload, copy chat, a sound on new messages, and small popups for whispers, party chat, skill ups, money, rep and XP.
+- **Auto Party Chat**: the chat box switches to Party, Raid or Instance when you join a group, and back to Say when you leave.
+- **Wowhead Link**: hover almost anything and press Ctrl+C for its Wowhead link.
 
 ### Roleplay
 
-#### Transmog Presets
+- **Transmog Presets**: save looks once and use them on any character.
+- **Everyday Emotes**: one key each for Hello, Goodbye, Thanks and Sit, and an automatic thank-you to players who buff you.
+- **Total RP 3**: a key to switch In Character / Out of Character, with an optional UI layout for each.
 
-- **Account-Wide Looks**: Save the appearance you're wearing as a named preset any character on the account can use (`/bolt transmog`)
-- **Stage at a Transmogrifier**: Pick a preset and click Stage; it's loaded into the transmog window as pending changes so you see the cost, then confirm with Blizzard's Apply button
-- **Collection Check**: Shows each slot's appearance name and flags ones this character hasn't collected
+### Extras
 
-#### Total RP 3 Integration
+- **Playground**: a favourite toy button, a speedometer and FPS display, copy your target's mount (`/cm`).
+- **Sound Muter**: mute any game sound by its ID.
+- **Character Snapshot**: export your character's stats as JSON.
+- **Achievement Tracker** and **Key Share** (**Retail**): achievement progress messages in chat, and `!keys` replies with a keystone roulette.
 
-Requires [Total RP 3](https://www.curseforge.com/wow/addons/total-rp-3) to be installed.
+---
 
-- **IC/OOC Toggle Keybinding**: Bind "Toggle RP Status" (under B.O.L.T in Key Bindings) to flip your Total RP 3 status between In Character and Out of Character with one key
-- **Toolbar Visibility**: Optionally show the TRP toolbar while In Character and hide it while Out of Character
-- **Edit Mode Profile Switching**: Optionally switch to a chosen Edit Mode (UI layout) profile when going In Character, and a different one when going Out of Character — e.g. a minimal immersive layout for RP and your normal layout otherwise
+## Settings and commands
 
-#### Everyday Emotes
+- `/bolt` (or `/b`) opens the settings, also at ESC > Options > AddOns > B.O.L.T.
+- Frame options live in **Edit Mode**: click a frame and use its B.O.L.T panel.
+- Quick on/off toggles in the minimap tracking menu.
 
-- **One Key per Emote**: Hello, Goodbye, Thanks and Sit each get a keybind slot in the Roleplay settings (also under B.O.L.T in Key Bindings). Emotes are aimed at your target when you have one. Total RP 3 not needed
-- **Thank Your Buffers** (on by default): when another player buffs you, you /thank them 2 seconds later. Out of combat and outside instances (dungeons, raids, battlegrounds), once a minute per player
+| Command | What it does |
+|---|---|
+| `/bolt` | Open settings |
+| `/bolt help` | List all commands |
+| `/bolt status` | Which features are on |
+| `/bolt transmog` | Transmog Presets |
+| `/bolt edge` | What the minimap's screen-edge setting is doing |
+| `/bolt dots` | What the DoT Overlay counts on your target (Forever) |
+| `/bolt camp` | What the camp bar sees, for bug reports (Forever) |
+| `/bolt reset` | Clear stuck Skyriding keys (Retail) |
+| `/boltsaved` | Your current lockouts |
+| `/cm` | Summon your target's mount |
 
-## Installation
+---
 
-1. Download the addon from [CurseForge](https://www.curseforge.com/wow/addons/bolt) or the GitHub releases
-2. Place the `BOLT` folder in the `Interface\AddOns\` directory of the game version you play (e.g. `World of Warcraft\_retail_\Interface\AddOns\`)
-3. Restart WoW or type `/reload`
-
-## Configuration
-
-Access settings through:
-
-- **Interface Menu**: ESC > Options > AddOns > B.O.L.T (with Interface, Gameplay, Social, Tracking, Extras, and Roleplay categories)
-- **Console Command**: `/bolt` or `/b`
-- **Minimap Tracking Menu**: Quick enable/disable toggles for every module in the minimap tracking dropdown
-- **Game Menu**: Right-click the gear button above the ESC menu
-
-Each module can be enabled/disabled independently; a disabled module's options collapse in the settings.
-
-## Console Commands
-
-- `/bolt` or `/b` - Open settings panel
-- `/bolt help` - List commands
-- `/bolt status` - Show which modules are enabled
-- `/bolt toggle <module>` - Toggle a module (`/bolt toggle debug` toggles debug output)
-- `/bolt transmog` - Open Transmog Presets
-- `/bolt reset`, `/boltreset` or `/boltnuke` - Clear Skyriding key overrides
-- `/boltsaved` - Print current-expansion lockouts (Saved Instances module)
-- `/copymount` or `/cm` - Summon the same mount as your target (Playground module)
+Bugs and ideas: [GitHub issues](https://github.com/Yukisando/B.O.L.T/issues).
