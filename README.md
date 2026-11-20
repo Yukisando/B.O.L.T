@@ -9,7 +9,7 @@
 
 One download works on both. BOLT detects which game it runs in: features that need modern systems (Skyriding, Mythic+ keys, achievements...) hide themselves on Forever, and Forever-only features hide on Retail.
 
-<!-- Screenshot: overview of a full UI with BOLT (square minimap, Personal Resource Display with pet bar, faded bars) -->
+![A clean screen with BOLT: faded bars, Personal Resource Display with pet bar, My Damage and the square minimap](.github/screenshots/overview.jpg)
 
 ---
 
@@ -28,7 +28,7 @@ These features only exist on WoW: Forever, built around its classic-style system
 - **Bronze Art**: every restyled frame uses Forever's own bronze UI art, so it looks like it shipped with the game.
 - **Wowhead Links** point to Wowhead's Forever database.
 
-<!-- Screenshot: Quick Feed pulse + tooltip on the pet bar -->
+<img src=".github/screenshots/quick-feed.jpg" alt="Quick Feed: hovering the pet bar shows the food it will use and your pet's mood" width="420">
 <!-- Screenshot: Campfire camp bar and drawer -->
 
 ---
@@ -40,6 +40,8 @@ These features only exist on WoW: Forever, built around its classic-style system
 3. Open **Edit Mode** (ESC > Edit Mode) and click a Blizzard frame (minimap, action bars, player frame...). A **B.O.L.T** panel next to the Edit Mode window lists what BOLT can do to that frame.
 
 Your BOLT setup is saved with each Edit Mode layout and shared by all your characters: switch layout and your BOLT setup switches with it.
+
+<img src=".github/screenshots/edit-mode.jpg" alt="Edit Mode: the Minimap's B.O.L.T panel with screen edge, square minimap, buttons and fade options" width="560">
 
 ---
 
@@ -99,7 +101,6 @@ Blizzard's health and power bars under your character, made into a complete mini
 
 #### Auto-hide UI
 
-<!-- Screenshot: Edit Mode with a B.O.L.T panel showing "Fades with" -->
 
 - Put frames (action bars, micro menu, bags, XP bar, buffs, unit frames, quest tracker, minimap, chat) in up to four **fade groups**.
 - Each group fades back in by its own rules: mouse over, combat, a target, in a group, in an instance, and not while mounted.
@@ -151,6 +152,8 @@ Blizzard's health and power bars under your character, made into a complete mini
 - `/bolt` (or `/b`) opens the settings, also at ESC > Options > AddOns > B.O.L.T.
 - Frame options live in **Edit Mode**: click a frame and use its B.O.L.T panel.
 - Quick on/off toggles in the minimap tracking menu.
+
+<img src=".github/screenshots/settings.jpg" alt="The B.O.L.T settings page in the game's AddOns options" width="640">
 
 | Command | What it does |
 |---|---|
