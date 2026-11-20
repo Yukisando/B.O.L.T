@@ -34,6 +34,28 @@ function extensionMixin:Update(systemID, subSystemID)
 	-- show and update layout
 	self:Show()
 	self:Layout()
+	self:Dock()
+end
+
+-- BOLT (2026-11-20): dock beside the Edit Mode window, not under the system's settings
+-- dialog. Under the dialog, a tall panel (Personal Resource Display) ran off the bottom of
+-- the screen. Goes on whichever side of the Edit Mode window has more room, top-aligned,
+-- and stays clamped to the screen.
+function extensionMixin:Dock()
+	local manager = EditModeManagerFrame
+	self:ClearAllPoints()
+	if not (manager and manager:IsShown() and manager:GetLeft()) then
+		self:SetPoint('TOP', EditModeSystemSettingsDialog, 'BOTTOM', 0, 0)
+		return
+	end
+	local ratio = manager:GetEffectiveScale() / UIParent:GetEffectiveScale()
+	local roomLeft = manager:GetLeft() * ratio
+	local roomRight = UIParent:GetWidth() - manager:GetRight() * ratio
+	if roomRight >= roomLeft then
+		self:SetPoint('TOPLEFT', manager, 'TOPRIGHT', 4, 0)
+	else
+		self:SetPoint('TOPRIGHT', manager, 'TOPLEFT', -4, 0)
+	end
 end
 
 function extensionMixin:RefreshWidgets()
@@ -116,6 +138,7 @@ function internal:CreateExtension()
 	extension:SetPoint('TOP', EditModeSystemSettingsDialog, 'BOTTOM', 0, 0)
 	extension:SetFrameStrata('DIALOG')
 	extension:SetFrameLevel(300)
+	extension:SetClampedToScreen(true)
 	extension:EnableMouse(true)
 	extension:Hide()
 	extension.widthPadding = 40

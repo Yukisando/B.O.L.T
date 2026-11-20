@@ -48,6 +48,7 @@ BOLT.defaults = {
                 rightClickMenus = false, -- right-click it for your menu, Shift + right-click for the target's
                 petHealth = true,        -- half-height pet health bar on top of its health bar
                 petHappiness = true,     -- thin mood line above the pet health bar (hunter pets)
+                petFeed = true,          -- click the pet bar to feed (cheapest food it eats), pulse while hungry
                 petDamage = true,        -- pets' share of your damage, shown briefly after combat
                 ammoCount = true,        -- arrows/bullets left, shown briefly after each shot
                 targetBar = true,        -- target health bar under its power bar (left two thirds)

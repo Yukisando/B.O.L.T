@@ -435,6 +435,7 @@ local CLICKER_NAMES = {
 local bars = {}
 local petBar -- bars.pet, kept by name for the pet damage and ammo texts that sit beside it
 local barEvents, totTicker, barsAnchoredTo
+local UpdateHungerPulse, ShowFeedTooltip -- pet feeding, further down
 
 local function Readable(value, fallback)
     if value and not BOLT.IsSecret(value) and value > 0 then return value end
@@ -617,6 +618,7 @@ local function UpdateBar(key)
         bar:SetStatusBarColor(BarColor(key))
         bar:Show()
     end
+    if key == "pet" then UpdateHungerPulse(bar) end
     UpdateBarText(bar)
 end
 
@@ -681,6 +683,22 @@ local function BuildBar(key)
     bar.rightText = textLayer:CreateFontString(nil, "OVERLAY", "TextStatusBarText")
     bar.rightText:SetPoint("RIGHT", bar, "RIGHT", -2, 0)
     bar.rightText:Hide()
+
+    -- Hungry reminder: a soft glow breathing over the fill (see Pet feeding).
+    local pulse = textLayer:CreateTexture(nil, "ARTWORK")
+    pulse:SetTexture(WHITE)
+    pulse:SetBlendMode("ADD")
+    pulse:SetAllPoints(bar)
+    pulse:Hide()
+    local breathe = pulse:CreateAnimationGroup()
+    breathe:SetLooping("BOUNCE")
+    local fade = breathe:CreateAnimation("Alpha")
+    fade:SetFromAlpha(0)
+    fade:SetToAlpha(0.4)
+    fade:SetDuration(0.9)
+    fade:SetSmoothing("IN_OUT")
+    pulse.anim = breathe
+    bar.pulse = pulse
     return bar
 end
 
@@ -809,10 +827,12 @@ local function BuildClicker(key)
     clicker:SetScript("OnEnter", function()
         hoveredKey = HoverKey(key)
         SetBarHovered(hoveredKey, true)
+        if key == "pet" then ShowFeedTooltip(clicker) end
     end)
     local function leave()
         if hoveredKey then SetBarHovered(hoveredKey, false) end
         hoveredKey = nil
+        if key == "pet" and GameTooltip:IsOwned(clicker) then GameTooltip:Hide() end
     end
     clicker:SetScript("OnLeave", leave)
     clicker:SetScript("OnHide", leave)
@@ -842,6 +862,167 @@ function FrameVisibility:UpdateBarClickers()
         end
     end
     self:SyncBarClickers()
+    self:UpdatePetFeeding()
+end
+
+---------------------------------------------------------------------------
+-- Pet feeding (hunter pets with a mood). Out of combat, while the pet is content or unhappy,
+-- left-clicking the pet bar feeds it; Shift + left-click feeds it whatever its mood. The bar
+-- breathes softly while the pet is hungry, out of combat, and not already eating.
+-- The food: the cheapest (vendor price) item in your bags that the pet eats, asked of the game
+-- with C_PetInfo.CanPetEatItem (WoW: Forever), skipping food more than 30 levels below the pet,
+-- which it refuses. The click is a "/cast Feed Pet" + "/use item:<id>" macro on the pet bar's
+-- secure button, so no bag opens. Its attributes can only change out of combat: a secure state
+-- driver puts left-click back to "target the pet" when combat starts, and the macro comes back
+-- once it ends. Feed Pet can't be cast in combat anyway.
+---------------------------------------------------------------------------
+
+local FEED_PET = 6991         -- Feed Pet
+local FEED_PET_EFFECT = 1539  -- the "eating" aura on the pet
+local FOOD_LEVEL_RANGE = 30
+local CanPetEatItem = C_PetInfo and C_PetInfo.CanPetEatItem
+local ItemInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+local feedEvents, feedDriver
+local feedFood -- { itemID, name, count } or nil
+
+local function SpellName(spellID)
+    if C_Spell and C_Spell.GetSpellName then return C_Spell.GetSpellName(spellID) end
+    return GetSpellInfo and (GetSpellInfo(spellID))
+end
+
+local function FeedingOn()
+    return DisplayCfg("petHealth") and DisplayCfg("petFeed") and CanPetEatItem and PetHappiness
+        and IsPlayerSpell and IsPlayerSpell(FEED_PET) and true or false
+end
+
+local function PetMood()
+    if not (HasPetUI and select(2, HasPetUI()) and UnitExists("pet")) then return nil end
+    return Plain(PetHappiness())
+end
+
+local function PetIsEating()
+    local name = SpellName(FEED_PET_EFFECT)
+    if not (name and C_UnitAuras and C_UnitAuras.GetAuraDataBySpellName) then return false end
+    local ok, aura = pcall(C_UnitAuras.GetAuraDataBySpellName, "pet", name, "HELPFUL")
+    return ok and aura ~= nil and not BOLT.IsSecret(aura)
+end
+
+local function FindFood()
+    local petLevel = Plain(UnitLevel("pet")) or 0
+    local best, bestPrice, counts = nil, nil, {}
+    for bag = 0, NUM_BAG_SLOTS or 4 do
+        for slot = 1, C_Container.GetContainerNumSlots(bag) do
+            local info = C_Container.GetContainerItemInfo(bag, slot)
+            local itemID = info and info.itemID
+            if itemID and counts[itemID] == nil then
+                counts[itemID] = false
+                local ok, eats = pcall(CanPetEatItem, itemID)
+                local name, _, _, itemLevel, _, _, _, _, _, _, price = ItemInfo(itemID)
+                if ok and eats and name and (itemLevel or 0) >= petLevel - FOOD_LEVEL_RANGE then
+                    counts[itemID] = 0
+                    price = price or 0
+                    if not bestPrice or price < bestPrice then best, bestPrice = itemID, price end
+                end
+            end
+            if itemID and counts[itemID] then counts[itemID] = counts[itemID] + (info.stackCount or 1) end
+        end
+    end
+    if not best then return nil end
+    return { itemID = best, name = (ItemInfo(best)), count = counts[best] }
+end
+
+function UpdateHungerPulse(bar, combatStarting)
+    local pulse = bar and bar.pulse
+    if not pulse then return end
+    local mood = not combatStarting and FeedingOn() and bar:IsShown() and not InCombatLockdown() and PetMood()
+    if mood and mood < 3 and not PetIsEating() then
+        pulse:SetVertexColor(unpack(MOODS[mood]))
+        pulse:Show()
+        if not pulse.anim:IsPlaying() then pulse.anim:Play() end
+    else
+        pulse.anim:Stop()
+        pulse:Hide()
+    end
+end
+
+function ShowFeedTooltip(owner)
+    local mood = FeedingOn() and not InCombatLockdown() and PetMood()
+    if not mood then return end
+    GameTooltip:SetOwner(owner, "ANCHOR_TOP")
+    if feedFood then
+        GameTooltip:SetText((mood < 3 and "Click" or "Shift-click") .. " to feed your pet", 1, 0.82, 0)
+        GameTooltip:AddLine(string.format("%s (%d)", feedFood.name, feedFood.count), 1, 1, 1)
+    else
+        GameTooltip:SetText("No food your pet eats in your bags", 1, 0.82, 0)
+    end
+    GameTooltip:Show()
+end
+
+-- Runs in the secure environment when combat starts and ends.
+local FEED_COMBAT_SNIPPET = [[
+    local clicker = self:GetFrameRef("clicker")
+    if not clicker then return end
+    if newstate == "in" then
+        clicker:SetAttribute("type1", nil)
+        clicker:SetAttribute("shift-type1", nil)
+    else
+        clicker:SetAttribute("type1", self:GetAttribute("feed-type1"))
+        clicker:SetAttribute("shift-type1", self:GetAttribute("feed-shift-type1"))
+    end
+]]
+
+local function ApplyFeedAttributes(clicker)
+    local mood = FeedingOn() and PetMood()
+    feedFood = mood and FindFood() or nil
+    local spell = SpellName(FEED_PET)
+    local macro = feedFood and spell and string.format("/cast %s\n/use item:%d", spell, feedFood.itemID)
+    -- "type1" (no modifier) wins over the bar's "*type1" target; nil falls back to it.
+    local plainType = macro and mood < 3 and not PetIsEating() and "macro" or nil
+    local shiftType = macro and "macro" or nil
+    clicker:SetAttribute("*macrotext1", macro)
+    clicker:SetAttribute("type1", plainType)
+    clicker:SetAttribute("shift-type1", shiftType)
+    if feedDriver then
+        feedDriver:SetAttribute("feed-type1", plainType)
+        feedDriver:SetAttribute("feed-shift-type1", shiftType)
+    end
+end
+
+-- PLAYER_REGEN_DISABLED fires just before lockdown starts, while the state driver is switching the
+-- click back to targeting: only the pulse changes then.
+function FrameVisibility:RefreshPetFeeding(event)
+    local combatStarting = event == "PLAYER_REGEN_DISABLED"
+    UpdateHungerPulse(bars.pet, combatStarting)
+    local clicker = self.clickers and self.clickers.pet
+    if clicker and not combatStarting and not InCombatLockdown() then ApplyFeedAttributes(clicker) end
+end
+
+function FrameVisibility:UpdatePetFeeding()
+    local clicker = self.clickers and self.clickers.pet
+    if not (clicker and CanPetEatItem and PetHappiness) or InCombatLockdown() then return end
+    if not feedEvents then
+        feedEvents = CreateFrame("Frame")
+        feedEvents:SetScript("OnEvent", function(_, event) self:RefreshPetFeeding(event) end)
+    end
+    feedEvents:UnregisterAllEvents()
+    if FeedingOn() then
+        if not feedDriver and RegisterStateDriver then
+            feedDriver = CreateFrame("Frame", nil, UIParent, "SecureHandlerStateTemplate")
+            SecureHandlerSetFrameRef(feedDriver, "clicker", clicker)
+            feedDriver:SetAttribute("_onstate-combat", FEED_COMBAT_SNIPPET)
+            RegisterStateDriver(feedDriver, "combat", "[combat] in; out")
+        end
+        for _, event in ipairs({ "BAG_UPDATE_DELAYED", "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED",
+                "PLAYER_ENTERING_WORLD", "SPELLS_CHANGED" }) do
+            feedEvents:RegisterEvent(event)
+        end
+        pcall(feedEvents.RegisterEvent, feedEvents, "UNIT_HAPPINESS")
+        feedEvents:RegisterUnitEvent("UNIT_PET", "player")
+        feedEvents:RegisterUnitEvent("UNIT_AURA", "pet")
+        feedEvents:RegisterUnitEvent("UNIT_LEVEL", "pet")
+        feedEvents:RegisterUnitEvent("UNIT_POWER_UPDATE", "pet")
+    end
+    self:RefreshPetFeeding()
 end
 
 ---------------------------------------------------------------------------
@@ -1293,6 +1474,10 @@ function FrameVisibility:RegisterEditMode()
         EditMode:Checkbox("  Color by pet happiness", { "frameVisibility", "display", "petHappiness" }, {
             desc = "The pet health bar takes your pet's mood as its colour: green when happy, amber when content, red when it's unhappy and needs feeding.",
             hidden = function() return displayOff() or not DisplayCfg("petHealth") or not PetHappiness end,
+        }),
+        EditMode:Checkbox("  Click to feed, pulse when hungry", { "frameVisibility", "display", "petFeed" }, {
+            desc = "Hunters: while your pet is content or unhappy, the pet bar breathes softly and left-clicking it feeds your pet the cheapest food it eats from your bags, without opening them. Shift + left-click feeds it any time. Out of combat only; in combat left-click targets your pet as usual.",
+            hidden = function() return displayOff() or not DisplayCfg("petHealth") or not (PetHappiness and C_PetInfo and C_PetInfo.CanPetEatItem) end,
         }),
         EditMode:Checkbox("Totem timers", { "frameVisibility", "display", "totems" }, {
             desc = "Your hawk and other totem summons as small round nodes centred above the pet bar: the spell's icon in the game's totem ring, with a sweep counting down its time. Hover one for its tooltip.",
