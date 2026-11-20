@@ -201,6 +201,27 @@ local EDGE_CHOICES = {
 
 local applyingEdge = false
 
+-- At login Blizzard places the cluster from the saved layout while its own clamp (the whole
+-- frame on screen) is still on, so a map tucked past the edge gets pushed back in, and loosening
+-- the clamp afterwards doesn't move it out again (2026-11-20). So once ours is on, the saved
+-- anchor goes back on, the way ApplySystemAnchor sets it. The Base setters skip Edit Mode's
+-- overrides (snap bookkeeping); outside Edit Mode only, so a drag in progress is never fought.
+local function ReapplySavedAnchor(cluster)
+    local info = cluster.systemInfo
+    local anchor = info and info.anchorInfo
+    if not anchor or info.isInDefaultPosition or not (cluster.SetPointBase and cluster.ClearAllPointsBase)
+        or (EditModeManagerFrame and EditModeManagerFrame:IsShown()) then
+        return
+    end
+    local scale = cluster:GetScale()
+    cluster:ClearAllPointsBase()
+    cluster:SetPointBase(anchor.point, anchor.relativeTo, anchor.relativePoint, anchor.offsetX / scale, anchor.offsetY / scale)
+    local second = info.anchorInfo2
+    if second then
+        cluster:SetPointBase(second.point, second.relativeTo, second.relativePoint, second.offsetX / scale, second.offsetY / scale)
+    end
+end
+
 local function ApplyMinimapEdge()
     local cluster = MinimapCluster
     if not cluster or applyingEdge then return end
@@ -216,6 +237,7 @@ local function ApplyMinimapEdge()
     elseif cluster.UpdateClampOffsets then
         cluster:UpdateClampOffsets() -- Blizzard's own insets back
     end
+    if mode ~= "BLIZZARD" then ReapplySavedAnchor(cluster) end
     applyingEdge = false
 end
 EditModeOptions.ApplyMinimapEdge = ApplyMinimapEdge
