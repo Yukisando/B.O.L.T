@@ -6,6 +6,11 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-35 (2026-11-20)
+
+- docs: screenshots in the README
+- README: screenshots of a clean BOLT screen, Quick Feed, the Edit Mode panel and the settings page
+
 ## v8-34 (2026-11-20)
 
 - docs: new README, ready for WoW: Forever and Retail
