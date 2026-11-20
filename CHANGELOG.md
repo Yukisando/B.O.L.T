@@ -6,6 +6,11 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-33 (2026-11-20)
+
+- fix: a minimap tucked past the screen edge stays there after a reload
+- Minimap: if you dragged it partly off screen in Edit Mode, it now stays there after a reload or login instead of being pushed back onto the screen
+
 ## v8-32 (2026-11-20)
 
 - feat: pet mood in the Quick Feed tooltip
