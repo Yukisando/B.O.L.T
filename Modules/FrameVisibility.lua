@@ -880,6 +880,7 @@ end
 local FEED_PET = 6991         -- Feed Pet
 local FEED_PET_EFFECT = 1539  -- the "eating" aura on the pet
 local FOOD_LEVEL_RANGE = 30
+local MOOD_NAMES = { "Unhappy", "Content", "Happy" } -- when the client has no PET_HAPPINESS1-3 strings
 local CanPetEatItem = C_PetInfo and C_PetInfo.CanPetEatItem
 local ItemInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
 local feedEvents, feedDriver
@@ -949,11 +950,15 @@ function ShowFeedTooltip(owner)
     local mood = FeedingOn() and not InCombatLockdown() and PetMood()
     if not mood then return end
     GameTooltip:SetOwner(owner, "ANCHOR_TOP")
+    -- The pet's mood sits on the right of the food line, in its bar colour.
+    local moodName = _G["PET_HAPPINESS" .. mood] or MOOD_NAMES[mood]
+    local r, g, b = unpack(MOODS[mood])
     if feedFood then
         GameTooltip:SetText((mood < 3 and "Click" or "Shift-click") .. " to feed your pet", 1, 0.82, 0)
-        GameTooltip:AddLine(string.format("%s (%d)", feedFood.name, feedFood.count), 1, 1, 1)
+        GameTooltip:AddDoubleLine(string.format("%s (%d)", feedFood.name, feedFood.count), moodName, 1, 1, 1, r, g, b)
     else
         GameTooltip:SetText("No food your pet eats in your bags", 1, 0.82, 0)
+        GameTooltip:AddDoubleLine("Mood", moodName, 0.7, 0.7, 0.7, r, g, b)
     end
     GameTooltip:Show()
 end
