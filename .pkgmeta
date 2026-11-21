@@ -8,6 +8,7 @@ ignore:
   - README.md
   - .release
   - "*.zip"
+  - scripts
 
 # Upload CHANGELOG.md as the CurseForge changelog (maintained automatically
 # by the release workflow from commit messages).
