@@ -6,6 +6,16 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-36 (2026-11-21)
+
+- feat: My Damage group view and overall total, FPS and speed on the minimap, Retail polish
+- My Damage: left-click switches between this fight and the overall total, right-click between your spells and the whole group (one row per player, in class colours)
+- My Damage: opacity slider and a Click-through option in its Edit Mode dialog, and no more X/Y boxes there
+- Minimap: the FPS counter sits faded next to the clock and your movement speed in the bottom-left corner, both switched on from the Minimap's Edit Mode dialog
+- Minimap: a little more room right of the clock, coordinates tucked closer to the corner, and no add-on count under the cog
+- Personal Resource Display: the out-of-combat opacity now also works when its Visibility is set to Always
+- Game menu buttons use the round minimap ring on Retail too (grey there), and the reload gear no longer shows a square
+
 ## v8-35 (2026-11-20)
 
 - docs: screenshots in the README
