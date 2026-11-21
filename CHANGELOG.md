@@ -6,6 +6,15 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-38 (2026-11-21)
+
+- feat: Campfire benefits panel, guild chat popups, auto-thank and My Damage fixes
+- Campfire: the camp bar, drawer, Sit button and right-click-to-sit are gone; near a campfire, a small panel in the My Damage style lists the camp benefits resting there gives you
+- Campfire: it counts down the minute of warming up while you sit, then shows the benefits' time left; click-through, hidden in combat, width and opacity in Edit Mode
+- Chat Popups: guild chat now pops up like party chat (on by default; untick Guild in the Chat Popups settings to stop it)
+- Auto-thank no longer thanks heals that leave a buff (Renew, Rejuvenation, Power Word: Shield...), only real buffs of a minute or more
+- My Damage: switching to the group view no longer throws a Lua error when the game hides a player's spec icon; the class icon shows instead
+
 ## v8-37 (2026-11-21)
 
 - fix: a chat window tucked past the screen edge stays there after a reload
