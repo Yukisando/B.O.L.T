@@ -70,7 +70,8 @@ function BOLT_EmoteThanks() DoEmote("THANK") end
 function BOLT_EmoteSit() DoEmote("SIT") end
 
 ---------------------------------------------------------------------------
--- Auto-thank: another player buffs you, you /thank them 2 seconds later.
+-- Auto-thank: another player buffs you (a buff of a minute or more, never a heal), you /thank
+-- them 2 seconds later.
 -- Skipped in combat (aura data can be secret there on Midnight, and nobody wants emote spam
 -- mid-pull), inside instances (dungeon and raid buffs are routine there), and at most once a
 -- minute per player, so a paladin rebuffing the raid gets one thanks.
@@ -83,10 +84,15 @@ end
 
 local THANK_DELAY = 2
 local THANK_COOLDOWN = 60
+-- Buffs only: heals that leave an aura (Renew, Rejuvenation, Regrowth, Power Word: Shield) last
+-- 30 seconds at most, real buffs (Fortitude, Mark of the Wild, Blessings, Thorns) minutes.
+local MIN_BUFF_DURATION = 60
 local lastThanked = {} -- caster name -> GetTime()
 
 local function ThankCaster(aura)
     if BOLT.IsSecret(aura) or not aura.isHelpful then return end
+    local duration = aura.duration
+    if BOLT.IsSecret(duration) or type(duration) ~= "number" or duration < MIN_BUFF_DURATION then return end
     local source = aura.sourceUnit
     if BOLT.IsSecret(source) or type(source) ~= "string" then return end
     if UnitIsUnit(source, "player") or not UnitIsPlayer(source) then return end
