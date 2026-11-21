@@ -55,19 +55,20 @@ Blizzard's own frames, restyled with Blizzard's own art.
 
 #### Square Minimap
 
-<!-- Screenshot: square minimap with title bar and button bar -->
+<img src=".github/screenshots/minimap.jpg" alt="Square minimap on Retail: faded FPS beside the clock, coordinates in the corner, and B.O.L.T toggles in the tracking menu" width="420">
 
 - A square map in Blizzard's minimap frame, with the zone name and clock in a title bar.
 - Tracking, calendar, mail and the other minimap buttons in one tidy bar (bottom, top, left or right).
 - Addon buttons go into one drawer that opens on click.
-- Coordinates in the corner, a resting Zzz, the day/night dial (**Forever**).
+- Coordinates in one corner, your movement speed in the other, a resting Zzz, the day/night dial (**Forever**).
+- A faded FPS counter next to the clock, if you want it.
 - Optional mouse-wheel zoom.
 - **Snug in the corner**: drag the map right against the screen edge, or even partly off screen. It stays there after a reload.
 - Pauses itself while SexyMap, BasicMinimap or ElvUI is loaded.
 
 #### Personal Resource Display
 
-<!-- Screenshot: Personal Resource Display with pet bar, target bars and swing sweep -->
+<img src=".github/screenshots/personal-resource-display.jpg" alt="The Personal Resource Display in Edit Mode on Retail, with its B.O.L.T panel" width="640">
 
 Blizzard's health and power bars under your character, made into a complete mini HUD:
 
@@ -75,7 +76,7 @@ Blizzard's health and power bars under your character, made into a complete mini
 - **Target bars**: your target's health, plus your target's target on the same row. Clickable like unit frames.
 - **Hawk and totem timers** as round nodes above the pet bar.
 - **Pet damage share** after each fight, **ammo count** after each shot (**Forever**).
-- Show it in combat only, also with a target, or faded to an opacity of your choice.
+- Show it in combat only, also with a target, or faded out of combat to an opacity of your choice (with Blizzard's Visibility on In Combat or Always).
 - **Hide the Player and Target frames** and bring each back in combat, with a target or on hover, for a clean, immersive screen.
 
 #### Swing Timer
@@ -113,14 +114,18 @@ Blizzard's health and power bars under your character, made into a complete mini
 ### Gameplay
 
 - **Wand & Pet Attack Key** (**Forever**): one key for wand, pet attack and pet Assist mode.
-- **My Damage**: a small, quiet panel with only your numbers: your rank in the group, your dps, and your spells and pets.
+- **My Damage**: a small, quiet panel with only your numbers: your rank in the group, your dps, and your spells and pets. Left-click it for this fight or the overall total, right-click for your spells or the whole group (one line per player, in class colours). Opacity and click-through are set in Edit Mode.
+
+  <img src=".github/screenshots/my-damage.jpg" alt="My Damage beside the minimap on Retail: your spells for the overall session" width="420">
 - **Cheetah Warning** (hunters): a gentle reminder when you enter combat with Aspect of the Cheetah or the Pack on.
 - **Double-Click Fishing**: double right-click the world to cast Fishing.
 - **Skyriding** (**Retail**): strafe keys turn while skyriding, with optional pitch control.
 
 ### Quality of Life
 
-- **Game Menu buttons**: Leave Group, Reload UI, ready check, pull countdown, raid marker, volume and mute, combat text toggles, and loot spec switching (**Retail**).
+- **Game Menu buttons**: Leave Group, Reload UI, ready check, pull countdown, raid marker, volume and mute, combat text toggles, and loot spec switching (**Retail**), as round minimap-style buttons around the menu.
+
+  <img src=".github/screenshots/game-menu.jpg" alt="BOLT's round buttons around the Retail game menu" width="300">
 - **Campfire Rest** (**Forever**): see above.
 - **Auto Rep Switch**: the reputation bar follows the faction you just gained rep with.
 - **Saved Instances**: your dungeon and raid lockouts. `/boltsaved`
@@ -140,7 +145,7 @@ Blizzard's health and power bars under your character, made into a complete mini
 
 ### Extras
 
-- **Playground**: a favourite toy button, a speedometer and FPS display, copy your target's mount (`/cm`).
+- **Playground**: a favourite toy button and copy your target's mount (`/cm`).
 - **Sound Muter**: mute any game sound by its ID.
 - **Character Snapshot**: export your character's stats as JSON.
 - **Achievement Tracker** and **Key Share** (**Retail**): achievement progress messages in chat, and `!keys` replies with a keystone roulette.
