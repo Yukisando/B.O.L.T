@@ -118,7 +118,7 @@ BOLT.defaults = {
         },
         chatPopups = {
             clickThrough = true, -- the mouse goes through the popups to the world
-            channels = { WHISPER = true, BN_WHISPER = true, PARTY = true, PARTY_LEADER = true },
+            channels = { WHISPER = true, BN_WHISPER = true, PARTY = true, PARTY_LEADER = true, GUILD = true },
             -- thin one-line info popups in the same box
             info = { skill = true, pet = true, level = true, money = true, rep = true, xp = true, spell = true },
         },

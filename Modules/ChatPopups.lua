@@ -1,5 +1,5 @@
 -- B.O.L.T Chat Popups Module
--- Whispers and party chat as small, quiet popups in a box you place with Edit Mode, like an
+-- Whispers, party and guild chat as small, quiet popups in a box you place with Edit Mode, like an
 -- instant messenger: hard to miss, gone after a few seconds.
 --
 --   +--------------------------------------+
