@@ -6,8 +6,12 @@
 --   [icon] Arcane Shot        84.1K   ▬▬▬▬▬▬▬▬
 --   [icon] Claw (Wolf)        51.0K   ▬▬▬▬▬
 --
+-- Right-click switches to the group: the same rows, one per player (class icon and colour)
+-- instead of one per spell. Left-click switches between this fight and the overall session.
+-- Both only while the panel takes clicks (Edit Mode: "Click-through" off, the default).
+--
 -- Data comes from Blizzard's own meter (C_DamageMeter), current fight (the last one once combat
--- ends). The game ranks players and sorts spells itself, and flags your line (isLocalPlayer is
+-- ends) or overall. The game ranks players and sorts spells itself, and flags your line (isLocalPlayer is
 -- never secret), so the rank needs no maths. In combat the amounts are secret: they are only
 -- handed to things that accept secrets (FontString text, StatusBar values), never compared.
 -- Anything that can't be read in combat fills in when combat ends.
@@ -28,8 +32,11 @@ local WIDTH = 220
 local ROW_HEIGHT = 16
 local HEADER_HEIGHT = 16
 local DEFAULT_ROWS = 6
+local DEFAULT_OPACITY = 100 -- percent, in combat
 local REFRESH = 0.5 -- seconds between refreshes while the meter updates
-local FADED_ALPHA = 0.55 -- out of combat
+local FADED_ALPHA = 0.55 -- out of combat, times the opacity
+-- Class icons from the classic sheet: both clients have it, and Forever has no spec icons.
+local CLASS_SHEET = "Interface\\TargetingFrame\\UI-Classes-Circles"
 local GOLD = { 1, 0.82, 0 }
 
 local panel, header, rankText, dpsText, hint
@@ -55,6 +62,18 @@ local function PanelWidth()
     return EditMode:Get(EDIT_KEY, "width", WIDTH)
 end
 
+local function Opacity()
+    return EditMode:Get(EDIT_KEY, "opacity", DEFAULT_OPACITY) / 100
+end
+
+local function ClickThrough()
+    return EditMode:Get(EDIT_KEY, "clickThrough", false)
+end
+
+local function SessionType()
+    return Cfg("overall") and Enum.DamageMeterSessionType.Overall or Enum.DamageMeterSessionType.Current
+end
+
 -- Readable tables only: in combat the game can hand out tables addons may not index.
 local function Readable(value)
     if IsSecret(value) or type(value) ~= "table" then return false end
@@ -75,8 +94,8 @@ end
 -- Building
 ---------------------------------------------------------------------------
 
-local function ClassColor()
-    local _, class = UnitClass("player")
+local function ClassColor(class)
+    if not class then class = select(2, UnitClass("player")) end
     local color = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
     if color then return color.r, color.g, color.b end
     return 0.6, 0.6, 0.6
@@ -99,7 +118,6 @@ local function CreateRow(index)
     row.bar:SetPoint("RIGHT", row, "RIGHT")
     row.bar:SetHeight(3)
     row.bar:SetStatusBarTexture(NativeArt.ResolveAtlas("UI-HUD-CoolDownManager-Bar") or WHITE)
-    row.bar:SetStatusBarColor(ClassColor())
     row.bar:SetAlpha(0.7)
     row.bar.bg = row.bar:CreateTexture(nil, "BACKGROUND")
     row.bar.bg:SetAllPoints()
@@ -129,10 +147,40 @@ local function Place()
     panel:SetSize(PanelWidth(), HEADER_HEIGHT + RowCount() * ROW_HEIGHT)
 end
 
+local function ApplyMouse()
+    if panel then panel:EnableMouse(not ClickThrough()) end
+end
+
+local function ShowTooltip(self)
+    if InCombatLockdown() then return end
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:SetText("My Damage", 1, 1, 1)
+    GameTooltip:AddLine(("Left-click: %s"):format(Cfg("overall") and "this fight" or "overall"), nil, nil, nil, true)
+    GameTooltip:AddLine(("Right-click: %s"):format(Cfg("group") and "your spells" or "the group"), nil, nil, nil, true)
+    GameTooltip:Show()
+end
+
+local function OnClick(self, button)
+    if button == "LeftButton" then
+        BOLT:SetConfig(not Cfg("overall"), "myDamage", "overall")
+    elseif button == "RightButton" then
+        BOLT:SetConfig(not Cfg("group"), "myDamage", "group")
+    else
+        return
+    end
+    PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
+    MyDamage:Refresh()
+    if GameTooltip:GetOwner() == self then ShowTooltip(self) end
+end
+
 local function Build()
     panel = CreateFrame("Frame", "BOLTMyDamage", UIParent)
     panel:SetClampedToScreen(true)
     panel:SetFrameStrata("LOW")
+    panel:SetScript("OnMouseUp", OnClick)
+    panel:SetScript("OnEnter", ShowTooltip)
+    panel:SetScript("OnLeave", GameTooltip_Hide)
+    ApplyMouse()
 
     header = CreateFrame("Frame", nil, panel)
     header:SetPoint("TOPLEFT")
@@ -141,6 +189,9 @@ local function Build()
 
     rankText = header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     rankText:SetPoint("LEFT", 0, 1)
+    -- What the panel shows right now ("group", "overall"), quieter than the rank.
+    header.mode = header:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    header.mode:SetPoint("LEFT", rankText, "RIGHT", 6, 0)
     dpsText = header:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     dpsText:SetPoint("RIGHT", 0, 1)
     dpsText:SetTextColor(0.85, 0.85, 0.85)
@@ -159,11 +210,12 @@ local function Build()
         name = "My Damage",
         frame = panel,
         default = { point = "BOTTOMRIGHT", x = -320, y = 220 },
+        hideCoords = true,
         onEnter = function() MyDamage:Refresh() end,
         onExit = function() MyDamage:Refresh() end,
-        apply = function() Place() MyDamage:Refresh() end,
+        apply = function() Place() ApplyMouse() MyDamage:Refresh() end,
         settings = {
-            EditMode:Slider("Spells shown", nil, {
+            EditMode:Slider("Lines shown", nil, {
                 min = 3, max = 12, step = 1, default = DEFAULT_ROWS,
                 get = function() return RowCount() end,
                 set = function(value)
@@ -180,6 +232,25 @@ local function Build()
                     Place()
                 end,
             }),
+            EditMode:Slider("Opacity", nil, {
+                min = 10, max = 100, step = 5, default = DEFAULT_OPACITY,
+                desc = "In combat. Out of combat it fades to about half of this.",
+                format = function(value) return ("%d%%"):format(value) end,
+                get = function() return EditMode:Get(EDIT_KEY, "opacity", DEFAULT_OPACITY) end,
+                set = function(value)
+                    EditMode:Set(EDIT_KEY, "opacity", value)
+                    MyDamage:Refresh()
+                end,
+            }),
+            EditMode:Checkbox("Click-through", nil, {
+                desc = "Clicks go through to the world. Off: left-click switches this fight / overall, right-click your spells / the group.",
+                default = false,
+                get = function() return ClickThrough() end,
+                set = function(value)
+                    EditMode:Set(EDIT_KEY, "clickThrough", value and true or false)
+                    ApplyMouse()
+                end,
+            }),
         },
     })
 end
@@ -190,7 +261,7 @@ end
 
 local function Session()
     local ok, session = pcall(C_DamageMeter.GetCombatSessionFromType,
-        Enum.DamageMeterSessionType.Current, Enum.DamageMeterType.DamageDone)
+        SessionType(), Enum.DamageMeterType.DamageDone)
     if ok and Readable(session) then return session end
 end
 
@@ -210,7 +281,7 @@ end
 
 local function MySpells()
     local ok, source = pcall(C_DamageMeter.GetCombatSessionSourceFromType,
-        Enum.DamageMeterSessionType.Current, Enum.DamageMeterType.DamageDone, UnitGUID("player"))
+        SessionType(), Enum.DamageMeterType.DamageDone, UnitGUID("player"))
     if ok and Readable(source) and Readable(source.combatSpells) then return source end
 end
 
@@ -233,6 +304,38 @@ local function FillRow(row, spell, maxAmount)
         row.bar:SetMinMaxValues(0, maxAmount)
         row.bar:SetValue(spell.totalAmount)
     end)
+    row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    row.bar:SetStatusBarColor(ClassColor())
+    row.name:SetTextColor(0.85, 0.85, 0.85)
+    row:Show()
+end
+
+-- One player in the group view: spec (or class) icon, name, total and a bar in class colour.
+local function FillPlayerRow(row, source, maxAmount)
+    local class = source.classFilename
+    local coords = class and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[class]
+    if source.specIconID and source.specIconID ~= 0 then
+        row.icon:SetTexture(source.specIconID)
+        row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    elseif coords then
+        row.icon:SetTexture(CLASS_SHEET)
+        row.icon:SetTexCoord(unpack(coords))
+    else
+        row.icon:SetTexture(nil)
+    end
+    if not pcall(row.name.SetText, row.name, source.name) then row.name:SetText("?") end
+    SetAmount(row.amount, source.totalAmount)
+    pcall(function()
+        row.bar:SetMinMaxValues(0, maxAmount)
+        row.bar:SetValue(source.totalAmount)
+    end)
+    local r, g, b = ClassColor(class)
+    row.bar:SetStatusBarColor(r, g, b)
+    if source.isLocalPlayer then
+        row.name:SetTextColor(1, 1, 1)
+    else
+        row.name:SetTextColor(r * 0.8 + 0.2, g * 0.8 + 0.2, b * 0.8 + 0.2)
+    end
     row:Show()
 end
 
@@ -254,18 +357,21 @@ function MyDamage:Refresh()
     local source = mine and MySpells()
 
     hint:Hide()
+    header.mode:SetText(Cfg("overall") and "overall" or "")
     if not available then
         rankText:SetText("My Damage")
         dpsText:SetText("")
         hint:SetText("Turn the damage meter on in the game options (Gameplay).")
         hint:Show()
     elseif rank then
-        if count > 1 then
+        if Cfg("group") then
+            rankText:SetText("Group")
+        elseif count > 1 then
             rankText:SetFormattedText("#%d of %d", rank, count)
         else
             rankText:SetText("Solo")
         end
-        if rank == 1 and count > 1 then
+        if rank == 1 and count > 1 and not Cfg("group") then
             rankText:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
         else
             rankText:SetTextColor(0.85, 0.85, 0.85)
@@ -281,7 +387,18 @@ function MyDamage:Refresh()
     end
 
     local shown = 0
-    if source then
+    if Cfg("group") then
+        local sources = session and session.combatSources
+        if Readable(sources) then
+            for i = 1, math.min(#sources, RowCount()) do
+                local player = sources[i]
+                if Readable(player) then
+                    shown = shown + 1
+                    FillPlayerRow(rows[shown] or CreateRow(shown), player, session.maxAmount)
+                end
+            end
+        end
+    elseif source then
         local spells, maxAmount = source.combatSpells, source.maxAmount
         local limit = math.min(#spells, RowCount())
         for i = 1, limit do
@@ -294,7 +411,8 @@ function MyDamage:Refresh()
     end
     for i = shown + 1, #rows do rows[i]:Hide() end
 
-    panel:SetAlpha((InCombatLockdown() or editing) and 1 or FADED_ALPHA)
+    local opacity = Opacity()
+    panel:SetAlpha((InCombatLockdown() or editing) and opacity or opacity * FADED_ALPHA)
     panel:Show()
 end
 

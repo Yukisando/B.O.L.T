@@ -15,6 +15,8 @@ local LEGACY_PROFILE_KEYS = {
     { "nameplatesEnhancement", "interruptWarningColor" },
     { "skyriding", "toggleMode" },
     { "playground", "allowSpecialGamemode" },
+    -- The speed and FPS readouts moved into the minimap (minimap.showSpeed / showFPS), 2026-11-21.
+    { "playground", "showSpeedometer" }, { "playground", "showFPS" }, { "playground", "statsPosition" },
     { "autoHide", "microMenu" },
     -- The minimap's per-button placements became one button bar.
     { "minimap", "zone" }, { "minimap", "clock" }, { "minimap", "difficulty" }, { "minimap", "tracking" },

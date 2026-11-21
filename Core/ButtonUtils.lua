@@ -7,7 +7,6 @@ local ButtonUtils = {}
 
 local BUTTON_SIZE = 25
 local CIRCLE_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
-local BORDER_COLOR = { 0.3, 0.28, 0.24, 1 }
 
 local function AddCircularMask(texture, btn)
     local mask = btn:CreateMaskTexture()
@@ -40,11 +39,7 @@ function ButtonUtils:CreateIconButton(name, parent, iconPath, options)
 
     local iconSize = BUTTON_SIZE * (options.iconScale or 1)
 
-    if BOLT.isForever then
-        ButtonUtils:ApplyForeverStyle(btn, iconPath, iconSize, options)
-    else
-        ButtonUtils:ApplyModernStyle(btn, iconPath, iconSize, options)
-    end
+    ButtonUtils:ApplyRingStyle(btn, iconPath, iconSize, options)
 
     local cooldown = CreateFrame("Cooldown", nil, btn, "CooldownFrameTemplate")
     cooldown:SetAllPoints(btn.icon)
@@ -63,15 +58,17 @@ function ButtonUtils:CreateIconButton(name, parent, iconPath, options)
     return btn
 end
 
--- Crop the default 8% icon border, then zoom further in for contentScale > 1.
+-- Crop the default 8% icon border, then zoom further in for contentScale > 1. (Until 2026-11-21
+-- a scale above 1 zoomed out past the icon's edge, smearing it into a square on the gear.)
 local function SetIconCrop(icon, options)
     local contentScale = options.contentScale or options.iconScale or 1
-    local crop = 0.08 + (1 - contentScale) * 0.42
+    local crop = (1 - 0.84 / contentScale) / 2
     icon:SetTexCoord(crop, 1 - crop, crop, 1 - crop)
 end
 
--- WoW: Forever: the classic round button the game itself uses around the minimap
--- (dark disc, round icon, gold tracking ring, round glow on hover).
+-- The classic round button the game itself uses around the minimap (dark disc, round icon,
+-- tracking ring, round glow on hover). The ring is gold on WoW: Forever and greyed on Retail.
+local RETAIL_RING = { 0.78, 0.78, 0.8 }
 local FOREVER_RING = "Interface\\Minimap\\MiniMap-TrackingBorder"
 local FOREVER_DISC = "Interface\\Minimap\\UI-Minimap-Background"
 local FOREVER_GLOW = "Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight"
@@ -79,7 +76,20 @@ local FOREVER_GLOW = "Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight"
 -- top-left, and the ring's opening is centred 17px right and 15.5px down from there.
 local RING_SCALE, RING_CENTER_X, RING_CENTER_Y = 53 / 31, 17 / 31, 15.5 / 31
 
-function ButtonUtils:ApplyForeverStyle(btn, iconPath, iconSize, options)
+local function SetRingColor(ring, active)
+    if active then
+        ring:SetDesaturated(false)
+        ring:SetVertexColor(1, 0.82, 0.2)
+    elseif BOLT.isForever then
+        ring:SetDesaturated(false)
+        ring:SetVertexColor(1, 1, 1)
+    else
+        ring:SetDesaturated(true)
+        ring:SetVertexColor(unpack(RETAIL_RING))
+    end
+end
+
+function ButtonUtils:ApplyRingStyle(btn, iconPath, iconSize, options)
     local disc = btn:CreateTexture(nil, "BACKGROUND")
     disc:SetTexture(FOREVER_DISC)
     disc:SetSize(iconSize * 0.8, iconSize * 0.8)
@@ -98,56 +108,16 @@ function ButtonUtils:ApplyForeverStyle(btn, iconPath, iconSize, options)
     ring:SetTexture(FOREVER_RING)
     ring:SetSize(iconSize * RING_SCALE, iconSize * RING_SCALE)
     ring:SetPoint("TOPLEFT", btn, "CENTER", -iconSize * RING_CENTER_X, iconSize * RING_CENTER_Y)
+    SetRingColor(ring, false)
     btn.border = ring
 
     btn:SetHighlightTexture(FOREVER_GLOW, "ADD")
 end
 
-function ButtonUtils:ApplyModernStyle(btn, iconPath, iconSize, options)
-    if options.showBackground then
-        local bg = btn:CreateTexture(nil, "BACKGROUND")
-        bg:SetColorTexture(0.1, 0.1, 0.1, 0.6)
-        bg:SetAllPoints(btn)
-        AddCircularMask(bg, btn)
-        btn.background = bg
-    end
-
-    local border = btn:CreateTexture(nil, "BORDER")
-    border:SetSize(iconSize + 3, iconSize + 3)
-    border:SetPoint("CENTER")
-    border:SetColorTexture(unpack(BORDER_COLOR))
-    AddCircularMask(border, btn)
-    btn.border = border
-
-    local icon = btn:CreateTexture(nil, "ARTWORK")
-    icon:SetSize(iconSize, iconSize)
-    icon:SetPoint("CENTER")
-    icon:SetTexture(iconPath)
-    SetIconCrop(icon, options)
-    btn.mask = AddCircularMask(icon, btn)
-    btn.icon = icon
-
-    local highlight = btn:CreateTexture(nil, "HIGHLIGHT")
-    highlight:SetAllPoints(btn)
-    highlight:SetColorTexture(unpack(options.highlightColor or { 1, 1, 1, 0.2 }))
-    highlight:AddMaskTexture(btn.mask)
-    btn:SetHighlightTexture(highlight)
-end
-
--- Gold border for an "on" state (e.g. a loot spec override), default border otherwise.
+-- Gold ring for an "on" state (e.g. a loot spec override), the default ring otherwise.
 function ButtonUtils:SetBorderActive(btn, active)
     if not (btn and btn.border) then return end
-    if BOLT.isForever then
-        if active then
-            btn.border:SetVertexColor(1, 0.82, 0.2)
-        else
-            btn.border:SetVertexColor(1, 1, 1)
-        end
-    elseif active then
-        btn.border:SetColorTexture(0.95, 0.76, 0.18, 1)
-    else
-        btn.border:SetColorTexture(unpack(BORDER_COLOR))
-    end
+    SetRingColor(btn.border, active)
 end
 
 -- Attach a simple tooltip; lines is a function returning title, then { text, r, g, b } rows.

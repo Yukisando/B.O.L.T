@@ -295,6 +295,13 @@ local function RegisterMinimap()
             desc = "Hides the +/- buttons; zooms back out after 20 seconds.",
             hidden = Off("minimap"),
         }))
+        table.insert(settings, EditMode:Checkbox("FPS next to the clock", { "minimap", "showFPS" }, {
+            hidden = Off("minimap"),
+        }))
+        table.insert(settings, EditMode:Checkbox("Movement speed", { "minimap", "showSpeed" }, {
+            desc = "Your speed in the map's bottom-left corner while you move (100% = running).",
+            hidden = Off("minimap"),
+        }))
     end
     if BOLT.modules.autoHide then
         for _, setting in ipairs(Fade("minimapButtons", "Its buttons fade with", false)) do

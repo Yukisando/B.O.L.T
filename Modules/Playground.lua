@@ -1,6 +1,6 @@
 -- B.O.L.T Playground Module
--- Fun features with limited practical use: favorite toy button, speedometer/FPS
--- readout and copying your target's mount.
+-- Fun features with limited practical use: favorite toy button and copying your target's mount.
+-- (The speed and FPS readouts moved to the minimap, 2026-11-21.)
 
 local ADDON_NAME, BOLT = ...
 local ButtonUtils = BOLT.ButtonUtils
@@ -10,10 +10,8 @@ local Playground = {
 }
 
 local DEFAULT_TOY_ICON = "Interface\\Icons\\INV_Misc_Toy_10"
-local BASE_RUN_SPEED = 7 -- yards per second at 100%
 
 local toyButton
-local statsFrame
 
 local function Cfg(key)
     return BOLT:GetConfig("playground", key)
@@ -151,98 +149,6 @@ function Playground:OnMenuHidden()
 end
 
 ---------------------------------------------------------------------------
--- Speedometer / FPS
----------------------------------------------------------------------------
-
-local lastX, lastY, lastTime
-local function GetPlayerSpeed()
-    -- GetUnitSpeed can return a secret value while skyriding; fall back to position deltas.
-    local speed = GetUnitSpeed("player")
-    if not BOLT.IsSecret(speed) and speed and speed > 0 then
-        lastX = nil
-        return speed
-    end
-
-    local x, y = UnitPosition("player")
-    local now = GetTime()
-    if not x or BOLT.IsSecret(x) then
-        lastX = nil
-        return 0
-    end
-
-    local result = 0
-    if lastX and now > lastTime then
-        local dx, dy = x - lastX, y - lastY
-        result = math.sqrt(dx * dx + dy * dy) / (now - lastTime)
-    end
-    lastX, lastY, lastTime = x, y, now
-    return result
-end
-
-local function MovementState()
-    if UnitOnTaxi("player") then return " (Taxi)" end
-    if IsFlying() then return " (Flying)" end
-    if IsSwimming() then return " (Swimming)" end
-    if IsMounted() then return " (Mounted)" end
-    return ""
-end
-
-function Playground:CreateStatsFrame()
-    statsFrame = CreateFrame("Frame", "BOLTSpeedometer", UIParent)
-    statsFrame:SetSize(200, 22)
-    statsFrame:SetFrameStrata("BACKGROUND")
-    statsFrame.text = statsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-
-    local sinceUpdate, idleTime = 0, 0
-    statsFrame:SetScript("OnUpdate", function(frame, elapsed)
-        sinceUpdate = sinceUpdate + elapsed
-        if sinceUpdate < 0.1 then return end
-        local delta = sinceUpdate
-        sinceUpdate = 0
-
-        local speed = GetPlayerSpeed()
-        local parts = {}
-        if Cfg("showFPS") then
-            table.insert(parts, ("%.0f FPS"):format(GetFramerate()))
-        end
-        if Cfg("showSpeedometer") then
-            table.insert(parts, ("%.0f%%%s"):format(speed / BASE_RUN_SPEED * 100, MovementState()))
-        end
-        frame.text:SetText(table.concat(parts, " | "))
-
-        -- Fade to 10% after 2 seconds standing still.
-        if speed > 0.01 then
-            idleTime = 0
-            frame:SetAlpha(1)
-        else
-            idleTime = idleTime + delta
-            if idleTime > 2 then
-                frame:SetAlpha(math.max(0.1, 1 - (idleTime - 2) / 3))
-            end
-        end
-    end)
-end
-
-function Playground:UpdateStatsPosition()
-    if not statsFrame then return end
-    local position = Cfg("statsPosition")
-    local isLeft = position == "TOPLEFT" or position == "BOTTOMLEFT"
-    local x = isLeft and 8 or -8
-    local y = position:find("^TOP") and -8 or 8
-
-    statsFrame:ClearAllPoints()
-    statsFrame:SetPoint(position, UIParent, position, x, y)
-    statsFrame.text:ClearAllPoints()
-    statsFrame.text:SetPoint(isLeft and "LEFT" or "RIGHT")
-    statsFrame.text:SetJustifyH(isLeft and "LEFT" or "RIGHT")
-end
-
-function Playground:UpdateStatsVisibility()
-    if not statsFrame then return end
-    statsFrame:SetShown(self.active and (Cfg("showFPS") or Cfg("showSpeedometer")))
-end
-
----------------------------------------------------------------------------
 -- Copy target mount
 ---------------------------------------------------------------------------
 
@@ -314,7 +220,6 @@ SlashCmdList.BOLTCOPYMOUNT = CopyMountCommand
 
 function Playground:OnInitialize()
     self:CreateToyButton()
-    self:CreateStatsFrame()
 
     self.eventFrame = CreateFrame("Frame")
     self.eventFrame:SetScript("OnEvent", function(_, event)
@@ -341,8 +246,6 @@ function Playground:OnEnable()
         function() self:OnMenuShown() end,
         function() self:OnMenuHidden() end)
 
-    self:UpdateStatsPosition()
-    self:UpdateStatsVisibility()
     self:UpdateToyButton()
 end
 
@@ -350,12 +253,9 @@ function Playground:OnDisable()
     self.eventFrame:UnregisterAllEvents()
     BOLT:UnwatchGameMenu("playground")
     self:OnMenuHidden()
-    self:UpdateStatsVisibility()
 end
 
 function Playground:OnSettingChanged()
-    self:UpdateStatsPosition()
-    self:UpdateStatsVisibility()
     self:UpdateToyButton()
     if BOLT:IsGameMenuShown() then
         self:OnMenuShown()

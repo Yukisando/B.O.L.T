@@ -88,9 +88,6 @@ BOLT.defaults = {
         playground = {
             showFavoriteToy = true,
             closeGameMenuOnCast = false,
-            showSpeedometer = true,
-            showFPS = false,
-            statsPosition = "TOPRIGHT",
             copyTargetMount = true,
         },
         wandShoot = {
@@ -98,6 +95,8 @@ BOLT.defaults = {
         },
         myDamage = {
             hideBlizzard = true, -- hide Blizzard's damage meter window while the panel is on
+            group = false,       -- right-click: your spells (false) or the whole group (true)
+            overall = false,     -- left-click: this fight (false) or the overall session (true)
         },
         skyriding = {
             enablePitchControl = true,
@@ -136,6 +135,8 @@ BOLT.defaults = {
         minimap = {
             buttons = "BOTTOM", -- side of the map for the button bar: TOP, BOTTOM, LEFT or RIGHT
             wheelZoom = true,
+            showFPS = false,  -- faded FPS next to the clock
+            showSpeed = true, -- movement speed in the map's bottom-left corner
         },
         nameplatesEnhancement = {
             manaUsers = true,

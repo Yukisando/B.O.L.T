@@ -37,12 +37,6 @@ end
 ---------------------------------------------------------------------------
 
 local MARKER_NAMES = { "Star", "Circle", "Diamond", "Triangle", "Moon", "Square", "Cross", "Skull" }
-local STATS_POSITIONS = {
-    { value = "TOPLEFT", label = "Top Left" },
-    { value = "TOPRIGHT", label = "Top Right" },
-    { value = "BOTTOMLEFT", label = "Bottom Left" },
-    { value = "BOTTOMRIGHT", label = "Bottom Right" },
-}
 
 local function LayoutOptions(settingKey)
     return function()
@@ -191,12 +185,14 @@ local PAGES = {
             },
             {
                 module = "minimap",
-                description = "A square minimap framed with Blizzard's own art. The zone name and clock sit in a title bar above it, and the minimap buttons (tracking, calendar, mail, expansion summary, instance difficulty, addon list and a drawer for addon buttons) in one bar. Coordinates sit inside the map. Turning it off takes a /reload.",
-                editMode = "select the Minimap to pick where its buttons go and turn wheel zoom on or off.",
+                description = "A square minimap framed with Blizzard's own art. The zone name and clock sit in a title bar above it, and the minimap buttons (tracking, calendar, mail, expansion summary, instance difficulty, addon list and a drawer for addon buttons) in one bar. Coordinates sit inside the map, with your movement speed in the opposite corner, and the FPS can show next to the clock. Turning it off takes a /reload.",
+                editMode = "select the Minimap to pick where its buttons go and turn wheel zoom, the FPS and the speed on or off.",
                 options = {
                     { type = "dropdown", label = "Minimap buttons:", width = 170, path = { "minimap", "buttons" },
                         options = function() return BUTTON_SIDES end },
                     { type = "checkbox", label = "Zoom with the mouse wheel (hides the +/- buttons, zooms back out after 20 seconds)", path = { "minimap", "wheelZoom" } },
+                    { type = "checkbox", label = "FPS next to the clock", path = { "minimap", "showFPS" } },
+                    { type = "checkbox", label = "Movement speed in the bottom-left corner", path = { "minimap", "showSpeed" } },
                 },
             },
             {
@@ -329,8 +325,8 @@ local PAGES = {
             },
             {
                 module = "myDamage",
-                description = "A small, quiet panel with only your damage: your rank in the group and your own spells and pets, best first, for the current fight (the last one once it ends). It reads Blizzard's damage meter, so that has to stay on in the game options; its window is hidden instead.",
-                editMode = "select My Damage to move it, and set how many spells it lists and its width.",
+                description = "A small, quiet panel with only your damage: your rank in the group and your own spells and pets, best first, for the current fight (the last one once it ends). Left-click it to switch between this fight and the overall total, right-click to switch between your spells and the whole group. It reads Blizzard's damage meter, so that has to stay on in the game options; its window is hidden instead.",
+                editMode = "select My Damage to move it, and set how many lines it lists, its width, its opacity and whether clicks go through it.",
                 keepOptions = true,
                 options = {
                     { type = "checkbox", label = "Hide Blizzard's damage meter window", path = { "myDamage", "hideBlizzard" } },
@@ -493,10 +489,6 @@ local PAGES = {
                         available = function() return BOLT.has.toys end },
                     { type = "checkbox", label = "Close the game menu when using the toy", path = { "playground", "closeGameMenuOnCast" }, requires = { "playground", "showFavoriteToy" },
                         available = function() return BOLT.has.toys end },
-                    { type = "checkbox", label = "Speedometer", path = { "playground", "showSpeedometer" } },
-                    { type = "checkbox", label = "FPS counter", path = { "playground", "showFPS" } },
-                    { type = "dropdown", label = "Position:", width = 130, path = { "playground", "statsPosition" },
-                        options = function() return STATS_POSITIONS end },
                     { type = "checkbox", label = "Copy target's mount (/cm or keybind)", path = { "playground", "copyTargetMount" },
                         available = function() return BOLT.has.mountJournal end },
                 },

@@ -1,10 +1,10 @@
 -- B.O.L.T Minimap Module
 -- A square minimap framed with Blizzard's own art (Forever's bronze c60 art on WoW: Forever):
---   title bar     zone name and clock, always above the map
+--   title bar     zone name, clock and (optional) a faded FPS readout, always above the map
 --   button bar    tracking, calendar, mail, addon list, addon drawer... as one row or column on
 --                 the side you pick (above the map pushes the title bar up)
---   in the map    coordinates bottom right, Forever's day/night dial top right, both half faded
---                 until the map is hovered
+--   in the map    coordinates bottom right, movement speed bottom left, Forever's day/night dial
+--                 top right, all half faded until the map is hovered
 -- Addon buttons (LibDBIcon and the like) go into one drawer.
 --
 -- Blizzard re-anchors its minimap pieces on its own (Edit Mode, mail arriving, the landing page
@@ -27,6 +27,11 @@ local GAP = 2           -- between the map frame and a bar, or two bars
 local ZOOM_RESET = 20   -- seconds before a zoomed-in map zooms back out
 local IDLE_ALPHA = 0.5  -- coordinates and day/night dial while the map isn't hovered
 local DIEL_SCALE = 0.65 -- Forever's day/night dial, shrunk to sit in the map's corner
+local CORNER_X, CORNER_Y = 6, 3 -- coordinates and speed, from the map's bottom corners
+local CLOCK_RIGHT = 11  -- clock text from the title bar's right edge (was 8 until 2026-11-21)
+local FPS_ALPHA = 0.45  -- the FPS reads quieter than the clock beside it
+local BASE_RUN_SPEED = 7 -- yards per second at 100%
+local SPEED_LINGER = 2  -- seconds the speed stays up after you stop
 local DRAWER_COLUMNS = 6
 local DRAWER_CELL = 34
 
@@ -47,7 +52,7 @@ local function Cluster(key)
     return MinimapCluster and MinimapCluster[key]
 end
 
-local titleBar, buttonBar, border, coords, rest, drawerButton, drawer
+local titleBar, buttonBar, border, coords, speedText, fps, rest, drawerButton, drawer
 local placing = {}       -- [frame] = true while we move it ourselves
 local placed = {}        -- [frame] = true for frames we keep in place
 local hooked = {}
@@ -192,12 +197,27 @@ local function LayoutTitle()
     if clock then
         clock:SetScale(1)
         if clock:GetFrameLevel() < level then clock:SetFrameLevel(level) end
-        Place(clock, "RIGHT", titleBar, "RIGHT", -4, 0)
         local ticker = TimeManagerClockTicker
-        if ticker then
-            clock:SetWidth(math.max(30, ticker:GetStringWidth() + 8))
-        end
+        local width = ticker and math.max(30, ticker:GetStringWidth() + 8) or clock:GetWidth()
+        if ticker then clock:SetWidth(width) end
+        -- The ticker is centred in the button, so the button sits (width - text) / 2 further in.
+        local textWidth = ticker and ticker:GetStringWidth() or (width - 8)
+        Place(clock, "RIGHT", titleBar, "RIGHT", -(CLOCK_RIGHT - (width - textWidth) / 2), 0)
     end
+
+    -- FPS just left of the clock, on the same line, faded.
+    local leftOf = (clock and clock:IsShown()) and clock or nil
+    fps:ClearAllPoints()
+    if leftOf and TimeManagerClockTicker then
+        fps:SetPoint("RIGHT", TimeManagerClockTicker, "LEFT", -6, 0)
+    else
+        fps:SetPoint("RIGHT", titleBar, "RIGHT", -CLOCK_RIGHT, 0)
+    end
+    fps:SetShown(Cfg("showFPS") and true or false)
+    if fps:IsShown() and (fps:GetText() or "") == "" then
+        fps:SetFormattedText("%.0f fps", GetFramerate())
+    end
+    if fps:IsShown() then leftOf = fps end
 
     local zone = Cluster("ZoneTextButton")
     if zone then
@@ -205,8 +225,8 @@ local function LayoutTitle()
         placing[zone] = true
         zone:ClearAllPoints()
         zone:SetPoint("LEFT", titleBar, "LEFT", 8, 0)
-        if clock and clock:IsShown() then
-            zone:SetPoint("RIGHT", clock, "LEFT", -4, 0)
+        if leftOf then
+            zone:SetPoint("RIGHT", leftOf, "LEFT", -4, 0)
         else
             zone:SetPoint("RIGHT", titleBar, "RIGHT", -8, 0)
         end
@@ -316,21 +336,73 @@ local function BuildBars()
     border:SetFrameLevel(Minimap:GetFrameLevel() + 2)
 end
 
--- Coordinates in the map's bottom-right corner, fading with the dial while the map isn't hovered.
+-- Your speed, from the game or (where it's secret, e.g. skyriding) from how far you moved.
+local lastX, lastY, lastTime
+local function GetPlayerSpeed()
+    local speed = GetUnitSpeed("player")
+    if not BOLT.IsSecret(speed) and speed and speed > 0 then
+        lastX = nil
+        return speed
+    end
+    local x, y = UnitPosition("player")
+    local now = GetTime()
+    if not x or BOLT.IsSecret(x) then
+        lastX = nil
+        return 0
+    end
+    local result = 0
+    if lastX and now > lastTime then
+        local dx, dy = x - lastX, y - lastY
+        result = math.sqrt(dx * dx + dy * dy) / (now - lastTime)
+    end
+    lastX, lastY, lastTime = x, y, now
+    return result
+end
+
+-- Coordinates in the map's bottom-right corner and speed in the bottom-left, fading with the
+-- dial while the map isn't hovered. The FPS lives in the title bar but updates from here too.
 local function BuildCoords()
+    fps = titleBar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    fps:SetJustifyH("RIGHT")
+    fps:SetAlpha(FPS_ALPHA)
+    fps:Hide()
+
     coords = CreateFrame("Frame", nil, Minimap)
     coords:SetSize(80, 14)
-    coords:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", -9, 5)
+    coords:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", -CORNER_X, CORNER_Y)
     coords:SetFrameLevel(Minimap:GetFrameLevel() + 5)
     local text = coords:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     text:SetPoint("RIGHT")
     text:SetJustifyH("RIGHT")
 
-    local since = 1
+    speedText = coords:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    -- Same line as the coordinates: their 14px frame is centred 7px above its bottom.
+    speedText:SetPoint("LEFT", Minimap, "BOTTOMLEFT", CORNER_X, CORNER_Y + 7)
+    speedText:SetJustifyH("LEFT")
+
+    local since, fpsSince, still = 1, 1, SPEED_LINGER
     coords:SetScript("OnUpdate", function(self, elapsed)
         since = since + elapsed
+        fpsSince = fpsSince + elapsed
+        if fpsSince >= 0.5 and fps:IsShown() then
+            fpsSince = 0
+            fps:SetFormattedText("%.0f fps", GetFramerate())
+        end
         if since < 0.2 then return end
+        local delta = since
         since = 0
+
+        if Cfg("showSpeed") then
+            local speed = GetPlayerSpeed()
+            if speed > 0.01 then still = 0 else still = still + delta end
+            if still < SPEED_LINGER then
+                speedText:SetFormattedText("%.0f%%", speed / BASE_RUN_SPEED * 100)
+            else
+                speedText:SetText("")
+            end
+        else
+            speedText:SetText("")
+        end
 
         local alpha = Minimap:IsMouseOver() and 1 or IDLE_ALPHA
         self:SetAlpha(alpha)
@@ -699,8 +771,10 @@ local function ConcealRoundArt()
         for _, region in ipairs({ compartment:GetRegions() }) do
             if region:IsObjectType("Texture") then NativeArt.Conceal(region) end
         end
+        -- The add-on count: parked on the hidden frame (opacity alone didn't hold on Retail).
         local text = compartment.Text or compartment:GetFontString()
         if text then
+            text:SetParent(hider)
             text:SetAlpha(0)
             hooksecurefunc(text, "SetAlpha", function(self, alpha)
                 if alpha and alpha > 0 then self:SetAlpha(0) end

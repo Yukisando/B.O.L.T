@@ -263,19 +263,43 @@ displayFader:SetScript("OnUpdate", function(self, elapsed)
     end
 end)
 
-local function UsesCombatSetting(display)
-    if not (display.GetVisibleSetting and Enum.PersonalResourceDisplayVisibleSetting) then return false end
-    if display.isInEditMode then return false end
-    if display:GetVisibleSetting() ~= Enum.PersonalResourceDisplayVisibleSetting.InCombat then return false end
-    return not (C_GameRules and C_GameRules.IsPersonalResourceDisplayEnabled
-        and not C_GameRules.IsPersonalResourceDisplayEnabled())
+-- Blizzard's Visibility setting when it is one BOLT works with ("InCombat" or "Always"), else nil.
+local function VisibleSetting(display)
+    local settings = Enum.PersonalResourceDisplayVisibleSetting
+    if not (display.GetVisibleSetting and settings) or display.isInEditMode then return nil end
+    if C_GameRules and C_GameRules.IsPersonalResourceDisplayEnabled
+        and not C_GameRules.IsPersonalResourceDisplayEnabled() then
+        return nil
+    end
+    local setting = display:GetVisibleSetting()
+    if setting == settings.InCombat then return "InCombat" end
+    if setting == settings.Always then return "Always" end
+    return nil
 end
 
--- Runs after each of Blizzard's own visibility checks.
+-- Runs after each of Blizzard's own visibility checks (Blizzard runs one whenever combat starts
+-- or ends, whatever the Visibility setting).
 local function Settle(display)
     local withTarget = DisplayCfg("showWithTarget")
     local idle = (DisplayCfg("idleAlpha") or 0) / 100
-    if not ((TARGET_KINDS[withTarget] or idle > 0) and UsesCombatSetting(display)) then
+    local setting = VisibleSetting(display)
+
+    -- "Always": Blizzard keeps it shown; out of combat (and without a fitting target) it fades
+    -- to the idle opacity. 0% keeps Blizzard's full display (added 2026-11-21: Retail layouts
+    -- tend to use Always, where the opacity used to do nothing).
+    if setting == "Always" then
+        if idle > 0 then
+            local wanted = UnitAffectingCombat("player") or TargetFits(withTarget)
+            displayFader.goal = wanted and 1 or idle
+            displayFader:Show()
+        else
+            displayFader:Hide()
+            display:SetAlpha(1)
+        end
+        return
+    end
+
+    if not ((TARGET_KINDS[withTarget] or idle > 0) and setting == "InCombat") then
         displayFader:Hide()
         display:SetAlpha(1)
         return
@@ -1465,7 +1489,7 @@ function FrameVisibility:RegisterEditMode()
         }),
         EditMode:Slider("Opacity out of combat", { "frameVisibility", "display", "idleAlpha" }, {
             min = 0, max = 100, step = 5, format = EditMode.Percent,
-            desc = "When Visibility above is In Combat: fade to this instead of hiding. Hovering shows it in full. 0% hides it.",
+            desc = "Out of combat it fades to this; hovering shows it in full. With Visibility In Combat, 0% hides it; with Always, 0% keeps it in full.",
             hidden = displayOff,
         }),
         EditMode:Checkbox("Right-click it for menus", { "frameVisibility", "display", "rightClickMenus" }, {

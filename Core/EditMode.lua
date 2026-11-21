@@ -60,7 +60,23 @@ end
 --   onEnter() / onExit()   show a preview in Edit Mode, hide it afterwards
 --   onMoved(layoutName)    the user dragged it (position already saved)
 --   apply(layoutName)      layout changed: place the frame again
+--   hideCoords             no X/Y position boxes above its dialog
 -- }
+
+-- LibEditMode puts X/Y boxes above every frame's dialog; frames that don't want them hide them.
+local coordsHooked = false
+local function HookDialogCoords()
+    local dialog = LEM and LEM.internal and LEM.internal.dialog
+    if coordsHooked or not dialog then return end
+    coordsHooked = true
+    hooksecurefunc(dialog, "Update", function(self, selection)
+        local spec
+        for _, s in pairs(specs) do
+            if selection and selection.parent == s.frame then spec = s break end
+        end
+        if self.Coords then self.Coords:SetShown(not (spec and spec.hideCoords)) end
+    end)
+end
 function EditMode:AddFrame(spec)
     if not self.available or specs[spec.key] then return end
     specs[spec.key] = spec
@@ -73,6 +89,7 @@ function EditMode:AddFrame(spec)
     if spec.settings then
         LEM:AddFrameSettings(spec.frame, spec.settings)
     end
+    HookDialogCoords()
     if self:IsActive() and spec.onEnter then
         spec.onEnter()
     end
