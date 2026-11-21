@@ -311,9 +311,9 @@ local PAGES = {
         sections = {
             {
                 module = "wandShoot",
-                description = "One key for your wand and your pet: it targets the enemy under the mouse (or keeps your current target), sends your pet to attack it and starts your wand's Shoot (hunters: Auto Shot with your bow or gun). Without a pet out it just shoots. Pressing it again doesn't stop the shooting. Works in combat.",
+                description = "One key to attack: it targets the enemy under the mouse (or keeps your current target), sends your pet to attack it and starts your wand's Shoot. Hunters start Auto Shot with their bow or gun, or a melee swing when the enemy is too close to shoot. Without a pet out it just attacks. Pressing it again doesn't stop the shooting. Works in combat.",
                 options = {
-                    { type = "keybind", label = "Wand + pet attack:", binding = "CLICK BOLTWandShootButton:LeftButton" },
+                    { type = "keybind", label = "Attack key:", binding = "CLICK BOLTWandShootButton:LeftButton" },
                     { type = "checkbox", label = "Also put the pet in Assist mode (it keeps attacking what you attack)", path = { "wandShoot", "petAssist" },
                         available = function() return Module("wandShoot"):CanAssist() end },
                 },

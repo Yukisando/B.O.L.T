@@ -1,6 +1,8 @@
--- B.O.L.T Wand & Pet Attack Key Module (WoW: Forever only)
+-- B.O.L.T Attack Key Module (WoW: Forever only); was "Wand & Pet Attack Key" until 2026-11-21.
 -- One key that targets the enemy under the mouse (or keeps your current target), sends your pet
--- in and starts wand Shoot (Auto Shot for hunters). Pet attack is always part of it since 2026-11-12 (it was an option).
+-- in and starts wand Shoot (hunters: Auto Shot, or a melee swing when the enemy is too close).
+-- Its saved settings ("wandShoot") and button name stay as they were, so keybinds carry over.
+-- Pet attack is always part of it since 2026-11-12 (it was an option).
 -- It also puts the pet in Assist mode (setting, on by default), so it keeps helping you after.
 --
 -- Addons can't cast from their own code, so the key clicks a secure macro button
@@ -10,7 +12,7 @@
 local ADDON_NAME, BOLT = ...
 
 local WandShoot = {
-    displayName = "Wand & Pet Attack Key",
+    displayName = "Attack Key",
 }
 
 local SHOOT_SPELL_ID = 5019 -- wand Shoot
@@ -28,11 +30,13 @@ local function SpellName(spellID, fallback)
     return name or fallback
 end
 
+local function IsHunter()
+    return select(2, UnitClass("player")) == "HUNTER" and IsPlayerSpell and IsPlayerSpell(AUTO_SHOT_SPELL_ID)
+end
+
 -- Hunters start Auto Shot with their bow or gun; everyone else their wand's Shoot (2026-11-21).
 local function ShootName()
-    if select(2, UnitClass("player")) == "HUNTER" and IsPlayerSpell and IsPlayerSpell(AUTO_SHOT_SPELL_ID) then
-        return SpellName(AUTO_SHOT_SPELL_ID, "Auto Shot")
-    end
+    if IsHunter() then return SpellName(AUTO_SHOT_SPELL_ID, "Auto Shot") end
     return SpellName(SHOOT_SPELL_ID, "Shoot")
 end
 
@@ -44,10 +48,12 @@ end
 function WandShoot:MacroText()
     -- "!" keeps a second press from stopping the wand. Shoot goes before /petattack: with the pet
     -- line first, only the pet attacked and the wand never started (2026-11-12).
-    local lines = {
-        "/target [@mouseover,harm,nodead]",
-        "/cast [harm,nodead] !" .. ShootName(),
-    }
+    local lines = { "/target [@mouseover,harm,nodead]" }
+    -- Hunters: macros can't check range, so the melee swing starts first and Auto Shot takes
+    -- over when the enemy is far enough; up close Auto Shot fails and the swing goes on (2026-11-21).
+    -- Wands work at any range, so other classes get no swing.
+    if IsHunter() then table.insert(lines, "/startattack [harm,nodead]") end
+    table.insert(lines, "/cast [harm,nodead] !" .. ShootName())
     if BOLT:GetConfig("wandShoot", "petAssist") and self:CanAssist() then
         table.insert(lines, "/petassist [@pet,exists]")
     end
