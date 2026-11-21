@@ -312,9 +312,13 @@ end
 -- One player in the group view: spec (or class) icon, name, total and a bar in class colour.
 local function FillPlayerRow(row, source, maxAmount)
     local class = source.classFilename
+    if IsSecret(class) then class = nil end
     local coords = class and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[class]
-    if source.specIconID and source.specIconID ~= 0 then
-        row.icon:SetTexture(source.specIconID)
+    -- The spec icon can be secret (even out of combat on Forever): never compare it then.
+    local specIcon = source.specIconID
+    if IsSecret(specIcon) then specIcon = nil end
+    if specIcon and specIcon ~= 0 then
+        row.icon:SetTexture(specIcon)
         row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     elseif coords then
         row.icon:SetTexture(CLASS_SHEET)
