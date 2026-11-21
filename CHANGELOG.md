@@ -6,6 +6,12 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-37 (2026-11-21)
+
+- fix: a chat window tucked past the screen edge stays there after a reload
+- Chat: if you dragged the chat window partly off screen in Edit Mode, it now stays there after a reload or login instead of being pushed back onto the screen
+- My Damage: one opacity for the panel in and out of combat (default 80%), and its bars are drawn at full strength
+
 ## v8-36 (2026-11-21)
 
 - feat: My Damage group view and overall total, FPS and speed on the minimap, Retail polish
