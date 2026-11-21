@@ -201,13 +201,14 @@ local EDGE_CHOICES = {
 
 local applyingEdge = false
 
--- At login Blizzard places the cluster from the saved layout while its own clamp (the whole
--- frame on screen) is still on, so a map tucked past the edge gets pushed back in, and loosening
--- the clamp afterwards doesn't move it out again (2026-11-20). So once ours is on, the saved
--- anchor goes back on, the way ApplySystemAnchor sets it. The Base setters skip Edit Mode's
--- overrides (snap bookkeeping); outside Edit Mode only, so a drag in progress is never fought.
+-- At login Blizzard places a frame (minimap cluster, chat window) from the saved layout while
+-- its own clamp (the whole frame on screen) is still on, so a frame tucked past the edge gets
+-- pushed back in, and loosening the clamp afterwards doesn't move it out again (2026-11-20). So
+-- once ours is on, the saved anchor goes back on, the way ApplySystemAnchor sets it. The Base
+-- setters skip Edit Mode's overrides (snap bookkeeping); outside Edit Mode only, so a drag in
+-- progress is never fought.
 local function ReapplySavedAnchor(cluster)
-    local info = cluster.systemInfo
+    local info = cluster and cluster.systemInfo
     local anchor = info and info.anchorInfo
     if not anchor or info.isInDefaultPosition or not (cluster.SetPointBase and cluster.ClearAllPointsBase)
         or (EditModeManagerFrame and EditModeManagerFrame:IsShown()) then
@@ -346,6 +347,8 @@ local function ApplyChatEdge()
             frame:SetClampRectInsets(0, 0, 0, 0)
         end
     end
+    -- The main window is the Edit Mode system; the other tabs dock to it.
+    if mode ~= "BLIZZARD" then ReapplySavedAnchor(ChatFrame1) end
     applyingChatEdge = false
 end
 

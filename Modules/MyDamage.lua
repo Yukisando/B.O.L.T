@@ -32,9 +32,8 @@ local WIDTH = 220
 local ROW_HEIGHT = 16
 local HEADER_HEIGHT = 16
 local DEFAULT_ROWS = 6
-local DEFAULT_OPACITY = 100 -- percent, in combat
+local DEFAULT_OPACITY = 80 -- percent; the panel's only fade (100% = fully opaque)
 local REFRESH = 0.5 -- seconds between refreshes while the meter updates
-local FADED_ALPHA = 0.55 -- out of combat, times the opacity
 -- Class icons from the classic sheet: both clients have it, and Forever has no spec icons.
 local CLASS_SHEET = "Interface\\TargetingFrame\\UI-Classes-Circles"
 local GOLD = { 1, 0.82, 0 }
@@ -118,7 +117,7 @@ local function CreateRow(index)
     row.bar:SetPoint("RIGHT", row, "RIGHT")
     row.bar:SetHeight(3)
     row.bar:SetStatusBarTexture(NativeArt.ResolveAtlas("UI-HUD-CoolDownManager-Bar") or WHITE)
-    row.bar:SetAlpha(0.7)
+    row.bar:SetAlpha(1)
     row.bar.bg = row.bar:CreateTexture(nil, "BACKGROUND")
     row.bar.bg:SetAllPoints()
     row.bar.bg:SetColorTexture(1, 1, 1, 0.06)
@@ -234,7 +233,7 @@ local function Build()
             }),
             EditMode:Slider("Opacity", nil, {
                 min = 10, max = 100, step = 5, default = DEFAULT_OPACITY,
-                desc = "In combat. Out of combat it fades to about half of this.",
+                desc = "How see-through the panel is, in and out of combat. 100% is fully opaque.",
                 format = function(value) return ("%d%%"):format(value) end,
                 get = function() return EditMode:Get(EDIT_KEY, "opacity", DEFAULT_OPACITY) end,
                 set = function(value)
@@ -412,7 +411,7 @@ function MyDamage:Refresh()
     for i = shown + 1, #rows do rows[i]:Hide() end
 
     local opacity = Opacity()
-    panel:SetAlpha((InCombatLockdown() or editing) and opacity or opacity * FADED_ALPHA)
+    panel:SetAlpha(editing and 1 or opacity)
     panel:Show()
 end
 
