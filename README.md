@@ -21,7 +21,7 @@ These features only exist on WoW: Forever, built around its classic-style system
 - **Full Swing Timer**: main hand, off hand and ranged swings, for every class, read from the game's own swing timer.
 - **Campfire Rest**: near a campfire, a small panel in the My Damage style lists the camp benefits resting there gives you, with the warm-up countdown and their time left.
 - **DoT Overlay**: a striped shield on enemy nameplates shows how much damage your DoTs (and your pet's) will still deal. It turns gold when they alone will finish the mob.
-- **Wand & Pet Attack Key**: one key targets the enemy under the mouse, sends your pet in and starts your wand.
+- **Wand & Pet Attack Key**: one key targets the enemy under the mouse, sends your pet in and starts your wand, or Auto Shot for hunters.
 - **Hawk and Totem Timers**: your hunter's hawk as a round countdown node above the pet bar.
 - **Ammo Count**: after each shot, how many arrows or bullets you have left.
 - **Day/Night Dial**: Forever's day/night dial sits inside the square minimap.
@@ -113,7 +113,7 @@ Blizzard's health and power bars under your character, made into a complete mini
 
 ### Gameplay
 
-- **Wand & Pet Attack Key** (**Forever**): one key for wand, pet attack and pet Assist mode.
+- **Wand & Pet Attack Key** (**Forever**): one key for wand (or Auto Shot), pet attack and pet Assist mode.
 - **My Damage**: a small, quiet panel with only your numbers: your rank in the group, your dps, and your spells and pets. Left-click it for this fight or the overall total, right-click for your spells or the whole group (one line per player, in class colours). Opacity and click-through are set in Edit Mode.
 
   <img src=".github/screenshots/my-damage.jpg" alt="My Damage beside the minimap on Retail: your spells for the overall session" width="420">
