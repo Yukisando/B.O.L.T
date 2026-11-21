@@ -6,6 +6,12 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-40 (2026-11-21)
+
+- feat: Attack Key (was Wand & Pet Attack Key) swings in melee range for hunters
+- Attack Key: the Wand & Pet Attack Key is now called Attack Key; your keybind and settings carry over
+- Attack Key: on a hunter it starts a melee swing when the enemy is too close for Auto Shot, and Auto Shot when it is far enough
+
 ## v8-39 (2026-11-21)
 
 - feat: the Wand & Pet Attack key starts Auto Shot for hunters
