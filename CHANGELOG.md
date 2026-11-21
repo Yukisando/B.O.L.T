@@ -6,6 +6,11 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-39 (2026-11-21)
+
+- feat: the Wand & Pet Attack key starts Auto Shot for hunters
+- Wand & Pet Attack Key: on a hunter it starts Auto Shot with your bow or gun instead of a wand's Shoot, along with sending your pet in
+
 ## v8-38 (2026-11-21)
 
 - feat: Campfire benefits panel, guild chat popups, auto-thank and My Damage fixes
