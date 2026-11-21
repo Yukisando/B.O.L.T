@@ -152,13 +152,6 @@ BOLT.defaults = {
             dotColor = { r = 0.85, g = 0.55, b = 1.0 },
             dotKillColor = { r = 1.0, g = 0.82, b = 0.0 },
         },
-        campfire = {
-            autoSit = true,   -- sit again on a spot where the fire warmed you, when it would gain something
-            showCraft = true, -- craft rows for the camp recipes you know
-            expanded = false,  -- camp bar drawer (benefits and gear) open
-            readyAlert = true, -- sound, glow and taskbar flash when Camp Benefits lands
-            -- learned = { [recipeID] = true }, camp recipes seen in open profession windows
-        },
         rangedTimer = {
             attach = true, -- sit under the Personal Resource Display when it is on
         },

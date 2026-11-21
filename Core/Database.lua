@@ -24,6 +24,9 @@ local LEGACY_PROFILE_KEYS = {
     { "minimap", "compartment" }, { "minimap", "drawer" },
     { "campfire", "recipes" }, -- became the built-in recipe table plus campfire.learned
     { "campfire", "collapsed" },
+    -- The camp bar became a small benefits panel (2026-11-21): no sit, craft or alert options.
+    { "campfire", "learned" }, { "campfire", "autoSit" }, { "campfire", "showCraft" },
+    { "campfire", "expanded" }, { "campfire", "readyAlert" }, { "campfire", "rightClickSit" },
     { "screenEdges", "minimap" }, -- became minimapEdge, defaulting to MAP (2026-11-09) -- the camp panel became a bar with a drawer (campfire.expanded)
 }
 
@@ -160,12 +163,9 @@ local LAYOUT_SECTIONS = {
     screenEdges = true,
     nameplatesEnhancement = true,
     rangedTimer = true,
-    campfire = true,
 }
 -- Keys inside those sections that are character data, not UI.
-local CHARACTER_KEYS = {
-    campfire = { learned = true },
-}
+local CHARACTER_KEYS = {}
 
 local function IsLayoutPath(section, key)
     if not LAYOUT_SECTIONS[section] then return false end

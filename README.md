@@ -19,7 +19,7 @@ These features only exist on WoW: Forever, built around its classic-style system
 
 - **Quick Feed (hunters)**: the pet health bar takes your pet's mood colour (green, amber, red) and softly pulses when your pet is hungry. Click it to feed the cheapest food your pet eats, without opening your bags. Shift-click feeds it any time. Hover it to see the food and your pet's mood.
 - **Full Swing Timer**: main hand, off hand and ranged swings, for every class, read from the game's own swing timer.
-- **Campfire Rest**: a camp bar counting down to Camp Benefits, right-click a campfire to sit, an alert when the benefits land, and a drawer with every camp object you can place or craft.
+- **Campfire Rest**: near a campfire, a small panel in the My Damage style lists the camp benefits resting there gives you, with the warm-up countdown and their time left.
 - **DoT Overlay**: a striped shield on enemy nameplates shows how much damage your DoTs (and your pet's) will still deal. It turns gold when they alone will finish the mob.
 - **Wand & Pet Attack Key**: one key targets the enemy under the mouse, sends your pet in and starts your wand.
 - **Hawk and Totem Timers**: your hunter's hawk as a round countdown node above the pet bar.
@@ -29,7 +29,7 @@ These features only exist on WoW: Forever, built around its classic-style system
 - **Wowhead Links** point to Wowhead's Forever database.
 
 <img src=".github/screenshots/quick-feed.jpg" alt="Quick Feed: hovering the pet bar shows the food it will use and your pet's mood" width="420">
-<!-- Screenshot: Campfire camp bar and drawer -->
+<!-- Screenshot: Campfire camp panel -->
 
 ---
 
@@ -168,7 +168,7 @@ Blizzard's health and power bars under your character, made into a complete mini
 | `/bolt transmog` | Transmog Presets |
 | `/bolt edge` | What the minimap's screen-edge setting is doing |
 | `/bolt dots` | What the DoT Overlay counts on your target (Forever) |
-| `/bolt camp` | What the camp bar sees, for bug reports (Forever) |
+| `/bolt camp` | What the camp panel sees, for bug reports (Forever) |
 | `/bolt reset` | Clear stuck Skyriding keys (Retail) |
 | `/boltsaved` | Your current lockouts |
 | `/cm` | Summon your target's mount |

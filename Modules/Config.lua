@@ -285,13 +285,8 @@ local PAGES = {
             },
             {
                 module = "campfire",
-                description = "When the Campfire Nearby buff is on you, a slim camp bar fades in beside the minimap: what to do now, a bar counting down the minute to Camp Benefits (then their time left), and a Sit button. Click the bar to open the camp benefits you got and your camp gear, each object with its own Place and Craft buttons. Right-click it to hide it until the next fire. It steps aside in combat, while mounted or swimming.",
-                editMode = "select the Camp Bar to place it beside the minimap or anywhere, size it, and set auto-sit, the ready alert and the recipes list.",
-                options = {
-                    { type = "checkbox", label = "Sit down on your own when you stop where the fire warmed you (if you have no camp benefits yet, or just placed an object)", path = { "campfire", "autoSit" } },
-                    { type = "checkbox", label = "Ready alert: a sound, a glow and a taskbar flash when Camp Benefits lands", path = { "campfire", "readyAlert" } },
-                    { type = "checkbox", label = "Show the camp recipes you can craft", path = { "campfire", "showCraft" } },
-                },
+                description = "While you're near a campfire, a small panel in the My Damage style lists the camp benefits resting there gives you, with the warm-up countdown while you sit and the time left once you have them. Click-through, and hidden in combat.",
+                editMode = "select Camp to move it and set its width and opacity.",
             },
             {
                 module = "cameraZoom",
@@ -1105,7 +1100,7 @@ function Config:BuildMainPanel()
     version:SetPoint("TOPLEFT", heading, "BOTTOMLEFT", 0, -8)
 
     local help = AddLabel(panel, "Pick a category on the left to configure each module. Type /bolt help for chat commands."
-        .. "\n\nEdit Mode: B.O.L.T's frames (camp bar, swing timer) move like Blizzard's, and selecting a Blizzard frame shows a B.O.L.T block with what B.O.L.T can do to it. Options for those live only there; these pages turn the modules on and off."
+        .. "\n\nEdit Mode: B.O.L.T's frames (camp panel, swing timer) move like Blizzard's, and selecting a Blizzard frame shows a B.O.L.T block with what B.O.L.T can do to it. Options for those live only there; these pages turn the modules on and off."
         .. (BOLT.isForever and "\n\nRunning on WoW: Forever - modules for modern-only systems are hidden." or ""))
     help:SetPoint("TOPLEFT", version, "BOTTOMLEFT", 0, -16)
     help:SetWidth(560)

@@ -32,7 +32,7 @@ local function PrintHelp()
         { "/bolt toggle debug", "Toggle debug mode" },
         { "/bolt debug config", "Show configuration debug info" },
         { "/bolt transmog", "Open Transmog Presets" },
-        { "/bolt camp", "Show what the camp bar sees (WoW: Forever)" },
+        { "/bolt camp", "Show what the camp panel sees (WoW: Forever)" },
         { "/bolt edge", "Show how far the minimap may go past the screen edge" },
         { "/bolt range", "Show what the nameplate range dot checks on your target" },
         { "/bolt fish", "Show why the last right-click did or didn't ready Double-Click Fishing" },
