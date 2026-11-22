@@ -6,6 +6,13 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-41 (2026-11-22)
+
+- feat: Cooldown Sans font for the whole game
+- New Cooldown Sans Font option (Interface settings, on by default): every text in the game, chat, tooltips, unit frames, nameplates and damage numbers, in ColdSnap's own easy-to-read rounded typeface
+- Chat popups no longer error when the previous popup came from an instance with a hidden sender name
+- Chat popups size themselves to their text, so lines no longer spill out of the box
+
 ## v8-40 (2026-11-21)
 
 - feat: Attack Key (was Wand & Pet Attack Key) swings in melee range for hunters
