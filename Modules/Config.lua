@@ -169,7 +169,19 @@ local PAGES = {
         sections = {
             {
                 module = "cooldownFont",
-                description = "Every text in the game in Cooldown Sans, ColdSnap's own rounded typeface made to be easy to read: menus, chat, tooltips, unit frames, nameplates, names above characters and the damage numbers. Damage numbers and some text follow a switch only after a /reload.",
+                description = "The game's text in Cooldown Sans, ColdSnap's own rounded typeface made to be easy to read. Pick where: the interface, chat, nameplates, names above characters, damage numbers, the combat text above you. Other addons keep their own fonts. Names and damage numbers follow a change after logging out to the character list and back in.",
+                options = {
+                    { type = "multiselect", label = "Use it for:", width = 300, emptyText = "Nothing",
+                        isSelected = function(value) return Module("cooldownFont"):IsPartEnabled(value) end,
+                        toggle = function(value, selected) Module("cooldownFont"):SetPartEnabled(value, selected) end,
+                        options = function()
+                            local list = {}
+                            for _, part in ipairs(Module("cooldownFont").PARTS) do
+                                table.insert(list, { value = part.key, label = part.label })
+                            end
+                            return list
+                        end },
+                },
             },
             {
                 module = "unitFrames",

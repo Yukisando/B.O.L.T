@@ -36,6 +36,7 @@ local function PrintHelp()
         { "/bolt edge", "Show how far the minimap may go past the screen edge" },
         { "/bolt range", "Show what the nameplate range dot checks on your target" },
         { "/bolt fish", "Show why the last right-click did or didn't ready Double-Click Fishing" },
+        { "/bolt font", "Show which font the damage numbers were told to use" },
         { "/bolt dots", "Show what the nameplate DoT overlay reads on your target (WoW: Forever)" },
         { "/bolt reset", "Clear any stuck Skyriding key overrides" },
         { "/bolt reload", "Reload the UI" },
@@ -141,6 +142,15 @@ commands.dots = function()
         mod:PrintDotDebug()
     else
         BOLT:Print("Nameplates module is not loaded.")
+    end
+end
+
+commands.font = function()
+    local mod = BOLT.modules.cooldownFont
+    if mod then
+        mod:PrintDebug()
+    else
+        BOLT:Print("Cooldown Sans Font is not available on this client.")
     end
 end
 

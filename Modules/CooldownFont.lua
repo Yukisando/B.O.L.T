@@ -1,9 +1,13 @@
 -- B.O.L.T Cooldown Sans
--- Puts ColdSnap's own typeface, Cooldown Sans, on the whole game: every font object (UI text,
--- chat, tooltips, nameplates, unit frames) and the floating damage numbers in the world.
--- The fonts are static instances of the variable font (Medium for text, Bold for damage numbers),
+-- Puts ColdSnap's own typeface, Cooldown Sans, on the game, part by part (PARTS): interface
+-- text, chat, nameplates, names above characters, damage numbers and the combat text above you.
+-- The fonts are static instances of the variable font (Medium for text, Bold for numbers),
 -- since the client can't pick an axis of a variable font. Latin, Greek and Cyrillic only, so
 -- the module skips itself on Korean and Chinese clients.
+-- Only text set in Blizzard's own Latin fonts changes: addons' fonts stay, since some are icon or
+-- symbol fonts whose glyphs Cooldown Sans doesn't have (they showed as squares).
+-- The choice of parts is account-wide, like the module's on/off: both are needed on ADDON_LOADED,
+-- before the character's profile is set up.
 
 local ADDON_NAME, BOLT = ...
 
@@ -15,18 +19,60 @@ local FONT = "Interface\\AddOns\\BOLT\\Fonts\\Cooldown-Medium.ttf"
 local FONT_BOLD = "Interface\\AddOns\\BOLT\\Fonts\\Cooldown-Bold.ttf"
 local UNSUPPORTED_LOCALES = { koKR = true, zhCN = true, zhTW = true }
 
-local originals = {}       -- font object or chat frame -> { file, size, flags }
-local appliedAtLoad = false -- the world fonts below are only read while the game loads
+-- relog: drawn by the client from a font it loads as you enter the world.
+CooldownFont.PARTS = {
+    { key = "ui", label = "Interface (menus, tooltips, unit frames, quests, bags)" },
+    { key = "chat", label = "Chat and chat bubbles" },
+    { key = "nameplates", label = "Nameplates" },
+    { key = "names", label = "Names above characters", relog = true },
+    { key = "damage", label = "Damage numbers on enemies", relog = true },
+    { key = "combatText", label = "Combat text above you (\"Mana Low\", incoming damage)" },
+}
 
-local function ReplaceFont(object)
-    if not (object and object.GetFont) then return end
+local BLIZZARD_FONTS = {
+    FRIZQT__ = true, FRIZQT___CYR = true, ARIALN = true, K_PAGETEXT = true,
+    MORPHEUS = true, MORPHEUS_CYR = true, SKURRI = true, SKURRI_CYR = true,
+}
+
+-- Floating combat text is one fixed-size font that Blizzard scales with SetTextHeight. SetFont
+-- at its 64 px left the scaled letters far apart; it gets a 120 px base instead (as ElvUI does).
+-- The other world fonts are scaled the same way and stay as they are.
+local COMBAT_TEXT_SIZE = 120
+
+local originals = {}   -- font object or chat frame -> { file, size, flags, part }
+local moduleOn = false
+local loadedWorld = {} -- [part] = on, for the relog parts, as the world loaded
+
+local function IsPartOn(key)
+    local parts = BOLTDB and BOLTDB.cooldownFontParts
+    return not (parts and parts[key] == false)
+end
+
+local function IsBlizzardFont(file)
+    local name = type(file) == "string" and file:upper():match("([^\\/]+)%.TTF$")
+    return name ~= nil and BLIZZARD_FONTS[name] == true
+end
+
+local function PartOfFont(name)
+    if type(name) ~= "string" then return "ui" end
+    if name:find("NamePlate", 1, true) then return "nameplates" end
+    if name:find("^CombatText") then return "combatText" end
+    if name:find("World", 1, true) then return nil end
+    if name:find("Chat", 1, true) or name:find("Bubble", 1, true) then return "chat" end
+    return "ui"
+end
+
+local function ReplaceFont(object, part)
+    if not (object and object.GetFont) or originals[object] then return end
     local file, size, flags = object:GetFont()
-    if not (file and size and size > 0) then return end
-    if not originals[object] then
-        if file == FONT then return end
-        originals[object] = { file, size, flags }
+    if not (file and size and size > 0 and IsBlizzardFont(file)) then return end
+    local original = { file, size, flags, part }
+    originals[object] = original
+    if part == "combatText" then
+        object:SetFont(FONT_BOLD, COMBAT_TEXT_SIZE, original[3] or "")
+    else
+        object:SetFont(FONT, original[2], original[3] or "")
     end
-    object:SetFont(FONT, size, flags or "")
 end
 
 local function ChatFrames()
@@ -41,32 +87,58 @@ local function ChatFrames()
     return frames
 end
 
-local function ApplyFonts()
-    -- GetFonts lists every named Font object, Blizzard's and addons' alike.
-    for _, entry in ipairs(GetFonts and GetFonts() or {}) do
-        ReplaceFont(type(entry) == "string" and _G[entry] or entry)
-    end
-    for _, frame in ipairs(ChatFrames()) do
-        ReplaceFont(frame)
+-- Puts back the fonts of parts that are off (all of them with the module off).
+local function RestoreFonts()
+    for object, font in pairs(originals) do
+        if not (moduleOn and IsPartOn(font[4])) then
+            object:SetFont(font[1], font[2], font[3] or "")
+            originals[object] = nil
+        end
     end
 end
 
-local function RestoreFonts()
-    for object, font in pairs(originals) do
-        object:SetFont(font[1], font[2], font[3] or "")
+local function ApplyFonts()
+    RestoreFonts()
+    if not moduleOn then return end
+    -- GetFonts lists every named Font object, Blizzard's and addons' alike.
+    for _, entry in ipairs(GetFonts and GetFonts() or {}) do
+        local name = type(entry) == "string" and entry or nil
+        local part = PartOfFont(name)
+        if part and IsPartOn(part) then
+            ReplaceFont(name and _G[name] or entry, part)
+        end
     end
-    wipe(originals)
+    if IsPartOn("chat") then
+        for _, frame in ipairs(ChatFrames()) do
+            ReplaceFont(frame, "chat")
+        end
+    end
 end
 
 -- Damage numbers and the names above characters are drawn by the client from these globals,
--- read while the world loads: set them before that, on ADDON_LOADED, or they wait for a /reload.
+-- read as the world loads: a change shows after logging out to the character list and back in,
+-- never after a /reload. They are set as early as possible, when this file loads (the saved
+-- choice isn't known yet, so the default "on" goes first), then from the saved choice on
+-- ADDON_LOADED and again on PLAYER_LOGIN in case another addon set them in between.
 -- Only globals the client reads are touched: Lua-read ones such as STANDARD_TEXT_FONT would
 -- taint Blizzard code (nameplates get their font from font objects anyway).
-local function ApplyWorldFonts()
-    DAMAGE_TEXT_FONT = FONT_BOLD
-    UNIT_NAME_FONT = FONT
-    if UNIT_NAME_FONT_ROMAN then UNIT_NAME_FONT_ROMAN = FONT end
-    if UNIT_NAME_FONT_CYRILLIC then UNIT_NAME_FONT_CYRILLIC = FONT end
+local WORLD_FONTS = {
+    { key = "DAMAGE_TEXT_FONT", part = "damage", font = FONT_BOLD },
+    { key = "UNIT_NAME_FONT", part = "names", font = FONT },
+    { key = "UNIT_NAME_FONT_ROMAN", part = "names", font = FONT },
+    { key = "UNIT_NAME_FONT_CYRILLIC", part = "names", font = FONT },
+}
+local blizzardWorldFonts = {}
+
+local function SetWorldFonts()
+    for _, world in ipairs(WORLD_FONTS) do
+        local key = world.key
+        if _G[key] ~= nil then
+            if blizzardWorldFonts[key] == nil then blizzardWorldFonts[key] = _G[key] end
+            local on = moduleOn and IsPartOn(world.part)
+            _G[key] = on and world.font or blizzardWorldFonts[key]
+        end
+    end
 end
 
 local function WantedAtLoad()
@@ -76,8 +148,16 @@ local function WantedAtLoad()
     return state == true
 end
 
+StaticPopupDialogs.BOLT_FONT_RELOG = {
+    text = "B.O.L.T: names above characters and damage numbers change font after you log out to the character list and log back in.",
+    button1 = OKAY or "Okay",
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+}
+
 StaticPopupDialogs.BOLT_FONT_RELOAD = {
-    text = "B.O.L.T: damage numbers and some text change font after a reload.",
+    text = "B.O.L.T: some text keeps Cooldown Sans until you reload the UI.",
     button1 = RELOADUI or "Reload UI",
     button2 = LATER or "Later",
     OnAccept = function() ReloadUI() end,
@@ -86,10 +166,47 @@ StaticPopupDialogs.BOLT_FONT_RELOAD = {
     hideOnEscape = true,
 }
 
-local function OfferReload(enabled)
-    if enabled ~= appliedAtLoad then
-        StaticPopup_Show("BOLT_FONT_RELOAD")
+-- After a change: the relog parts differ from what the world loaded with, or a part went off
+-- (frames that copied the font when they were made only let go of it on a reload).
+local function Refresh(turnedOff)
+    SetWorldFonts()
+    ApplyFonts()
+    for _, part in ipairs(CooldownFont.PARTS) do
+        if part.relog and (moduleOn and IsPartOn(part.key)) ~= loadedWorld[part.key] then
+            StaticPopup_Show("BOLT_FONT_RELOG")
+            return
+        end
     end
+    if turnedOff then StaticPopup_Show("BOLT_FONT_RELOAD") end
+end
+
+function CooldownFont:IsPartEnabled(key)
+    return IsPartOn(key)
+end
+
+function CooldownFont:SetPartEnabled(key, enabled)
+    BOLTDB.cooldownFontParts = BOLTDB.cooldownFontParts or {}
+    BOLTDB.cooldownFontParts[key] = enabled and true or false
+    if self.active then Refresh(not enabled) end
+end
+
+-- /bolt font: what the client was told to use for the damage numbers and names.
+function CooldownFont:PrintDebug()
+    local function Known(path)
+        local asset = C_UIFileAsset
+        if not asset then return "?" end
+        local loose = asset.IsLooseFile and asset.IsLooseFile(path)
+        local known = asset.IsKnownFile and asset.IsKnownFile(path)
+        return ("loose=%s known=%s"):format(tostring(loose), tostring(known))
+    end
+    BOLT:Print("Cooldown Sans: on = " .. tostring(moduleOn))
+    for _, part in ipairs(self.PARTS) do
+        local loaded = part.relog and (", as the world loaded: " .. tostring(loadedWorld[part.key] == true)) or ""
+        print(("  %s: %s%s"):format(part.key, tostring(IsPartOn(part.key)), loaded))
+    end
+    print("  DAMAGE_TEXT_FONT = " .. tostring(DAMAGE_TEXT_FONT))
+    print("  UNIT_NAME_FONT = " .. tostring(UNIT_NAME_FONT))
+    print("  Bold file: " .. Known(FONT_BOLD) .. ", Medium file: " .. Known(FONT))
 end
 
 function CooldownFont:IsSupported()
@@ -97,31 +214,38 @@ function CooldownFont:IsSupported()
 end
 
 function CooldownFont:OnEnable()
-    ApplyFonts()
-    OfferReload(true)
+    moduleOn = true
+    Refresh(false)
 end
 
 function CooldownFont:OnDisable()
-    RestoreFonts()
-    OfferReload(false)
+    moduleOn = false
+    Refresh(true)
 end
 
 BOLT:RegisterModule("cooldownFont", CooldownFont)
 
 if not CooldownFont:IsSupported() then return end
 
+moduleOn = BOLT.defaultModuleStates.cooldownFont == true
+SetWorldFonts()
+
 -- Saved variables arrive with BOLT's ADDON_LOADED; later addons (load-on-demand Blizzard ones
 -- included) may bring new font objects, which get the font as they load.
 local loader = CreateFrame("Frame")
 loader:RegisterEvent("ADDON_LOADED")
-loader:SetScript("OnEvent", function(_, _, addonName)
-    if addonName == ADDON_NAME then
-        appliedAtLoad = WantedAtLoad()
-        if appliedAtLoad then
-            ApplyWorldFonts()
-            ApplyFonts()
+loader:RegisterEvent("PLAYER_LOGIN")
+loader:SetScript("OnEvent", function(_, event, addonName)
+    if event == "PLAYER_LOGIN" then
+        SetWorldFonts()
+        for _, part in ipairs(CooldownFont.PARTS) do
+            if part.relog then loadedWorld[part.key] = moduleOn and IsPartOn(part.key) end
         end
-    elseif CooldownFont.active or (appliedAtLoad and not BOLT._started) then
+    elseif addonName == ADDON_NAME then
+        moduleOn = WantedAtLoad()
+        SetWorldFonts()
+        ApplyFonts()
+    elseif moduleOn then
         ApplyFonts()
     end
 end)

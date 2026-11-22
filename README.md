@@ -55,7 +55,7 @@ Blizzard's own frames, restyled with Blizzard's own art.
 
 #### Cooldown Sans font
 
-Every text in the game in Cooldown Sans, ColdSnap's own rounded typeface made to be easy to read: menus, chat, tooltips, unit frames, nameplates, names above characters and the damage numbers. On by default; turn it off under Interface in the settings (damage numbers follow after a /reload). Not used on Korean and Chinese clients.
+The game's text in Cooldown Sans, ColdSnap's own rounded typeface made to be easy to read. On by default, and you pick where it goes under Interface in the settings: the interface (menus, tooltips, unit frames, quests), chat and chat bubbles, nameplates, names above characters, damage numbers on enemies, and the combat text above you. Names and damage numbers follow a change after logging out to the character list and back in. Other addons keep their own fonts. Not used on Korean and Chinese clients.
 
 #### Square Minimap
 
