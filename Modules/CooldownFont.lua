@@ -17,6 +17,9 @@ local CooldownFont = {
 
 local FONT = "Interface\\AddOns\\BOLT\\Fonts\\Cooldown-Medium.ttf"
 local FONT_BOLD = "Interface\\AddOns\\BOLT\\Fonts\\Cooldown-Bold.ttf"
+-- Bold with every letter's side space cut to 12 units: the client draws damage numbers without
+-- kerning, and the text font's spacing left wide gaps between the digits.
+local FONT_DAMAGE = "Interface\\AddOns\\BOLT\\Fonts\\Cooldown-Damage.ttf"
 local UNSUPPORTED_LOCALES = { koKR = true, zhCN = true, zhTW = true }
 
 -- relog: drawn by the client from a font it loads as you enter the world.
@@ -123,7 +126,7 @@ end
 -- Only globals the client reads are touched: Lua-read ones such as STANDARD_TEXT_FONT would
 -- taint Blizzard code (nameplates get their font from font objects anyway).
 local WORLD_FONTS = {
-    { key = "DAMAGE_TEXT_FONT", part = "damage", font = FONT_BOLD },
+    { key = "DAMAGE_TEXT_FONT", part = "damage", font = FONT_DAMAGE },
     { key = "UNIT_NAME_FONT", part = "names", font = FONT },
     { key = "UNIT_NAME_FONT_ROMAN", part = "names", font = FONT },
     { key = "UNIT_NAME_FONT_CYRILLIC", part = "names", font = FONT },
@@ -206,7 +209,7 @@ function CooldownFont:PrintDebug()
     end
     print("  DAMAGE_TEXT_FONT = " .. tostring(DAMAGE_TEXT_FONT))
     print("  UNIT_NAME_FONT = " .. tostring(UNIT_NAME_FONT))
-    print("  Bold file: " .. Known(FONT_BOLD) .. ", Medium file: " .. Known(FONT))
+    print("  Damage file: " .. Known(FONT_DAMAGE) .. ", Medium file: " .. Known(FONT))
 end
 
 function CooldownFont:IsSupported()

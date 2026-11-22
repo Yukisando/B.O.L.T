@@ -52,7 +52,7 @@ end
 -- A multi-select dropdown over a section's on/off settings: entries = { { key, label }, ... }.
 local function ToggleList(section, label, allText, entries)
     return {
-        type = "multiselect", label = label, width = 300, emptyText = allText,
+        type = "multiselect", label = label, width = 300, allText = allText,
         isSelected = function(key) return GetSetting({ section, key }) and true or false end,
         toggle = function(key, selected) SetSetting({ section, key }, selected) end,
         options = function()
@@ -171,7 +171,7 @@ local PAGES = {
                 module = "cooldownFont",
                 description = "The game's text in Cooldown Sans, ColdSnap's own rounded typeface made to be easy to read. Pick where: the interface, chat, nameplates, names above characters, damage numbers, the combat text above you. Other addons keep their own fonts. Names and damage numbers follow a change after logging out to the character list and back in.",
                 options = {
-                    { type = "multiselect", label = "Use it for:", width = 300, emptyText = "Nothing",
+                    { type = "multiselect", label = "Use it for:", width = 300, allText = "Everywhere",
                         isSelected = function(value) return Module("cooldownFont"):IsPartEnabled(value) end,
                         toggle = function(value, selected) Module("cooldownFont"):SetPartEnabled(value, selected) end,
                         options = function()
@@ -434,7 +434,7 @@ local PAGES = {
                     { type = "checkbox", label = "Click-through: the mouse goes through the popups (off: hover keeps one up, left-click replies in that chat, right-click whispers the sender, or closes a whisper)",
                         path = { "chatPopups", "clickThrough" }, indent = 24,
                         enabledIf = function() return BOLT:IsModuleEnabled("chatPopups") end },
-                    { type = "multiselect", label = "Info popups:", width = 300, indent = 24, emptyText = "None",
+                    { type = "multiselect", label = "Info popups:", width = 300, indent = 24, allText = "All",
                         enabledIf = function() return BOLT:IsModuleEnabled("chatPopups") end,
                         isSelected = function(value) return Module("chatPopups"):IsInfoEnabled(value) end,
                         toggle = function(value, selected) Module("chatPopups"):SetInfoEnabled(value, selected) end,
@@ -472,7 +472,7 @@ local PAGES = {
                 description = "Announces progress whenever something you do advances an achievement (e.g. /love a critter, finishing a quest).",
                 options = {
                     { type = "multiselect", label = "Categories:", width = 300,
-                        emptyText = "All categories",
+                        allText = "All categories",
                         isSelected = function(value) return Module("achievementTracker"):IsCategoryTracked(value) end,
                         toggle = function(value, selected) Module("achievementTracker"):SetCategoryTracked(value, selected) end,
                         options = function()
@@ -697,7 +697,7 @@ function Widgets.multiselect(parent, option)
                 all = false
             end
         end
-        if all and option.emptyText then return option.emptyText end
+        if all and option.allText then return option.allText end
         if #selected == 0 then return "None" end
         if #selected > 3 then
             return ("%s, %s + %d more"):format(selected[1], selected[2], #selected - 2)
