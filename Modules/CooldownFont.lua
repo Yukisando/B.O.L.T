@@ -16,6 +16,8 @@ local CooldownFont = {
 }
 
 local FONT = "Interface\\AddOns\\BOLT\\Fonts\\Cooldown-Medium.ttf"
+-- Bold, for the combat text above you. No kerning table: the client applied its pairs wrongly at
+-- the 120 px base size and left wide gaps inside words ("M  ongoose Bi t e").
 local FONT_BOLD = "Interface\\AddOns\\BOLT\\Fonts\\Cooldown-Bold.ttf"
 -- Bold with every letter's side space cut to 12 units: the client draws damage numbers without
 -- kerning, and the text font's spacing left wide gaps between the digits.
@@ -65,6 +67,15 @@ local function PartOfFont(name)
     return "ui"
 end
 
+-- The font size picked for a chat window (its tab menu), saved by the game per window.
+local function SavedChatSize(object)
+    local id = object.GetID and object:GetID()
+    if not (id and id > 0 and GetChatWindowInfo and object.GetMaxLines) then return nil end
+    local ok, _, size = pcall(GetChatWindowInfo, id)
+    if ok and type(size) == "number" and size > 0 then return size end
+    return nil
+end
+
 local function ReplaceFont(object, part)
     if not (object and object.GetFont) or originals[object] then return end
     local file, size, flags = object:GetFont()
@@ -74,7 +85,7 @@ local function ReplaceFont(object, part)
     if part == "combatText" then
         object:SetFont(FONT_BOLD, COMBAT_TEXT_SIZE, original[3] or "")
     else
-        object:SetFont(FONT, original[2], original[3] or "")
+        object:SetFont(FONT, SavedChatSize(object) or original[2], original[3] or "")
     end
 end
 
@@ -94,8 +105,21 @@ end
 local function RestoreFonts()
     for object, font in pairs(originals) do
         if not (moduleOn and IsPartOn(font[4])) then
-            object:SetFont(font[1], font[2], font[3] or "")
+            object:SetFont(font[1], SavedChatSize(object) or font[2], font[3] or "")
             originals[object] = nil
+        end
+    end
+end
+
+-- Chat windows get their saved size from the game a while after we first set their font, and
+-- changing a font object can reset the windows that inherit it: the saved size is put back on
+-- each window that has our font (it used to come back at 14 after a relog).
+local function KeepChatSizes()
+    for _, frame in ipairs(ChatFrames()) do
+        local size = SavedChatSize(frame)
+        if size then
+            local file, current, flags = frame:GetFont()
+            if file == FONT and math.abs((current or 0) - size) > 0.01 then frame:SetFont(file, size, flags or "") end
         end
     end
 end
@@ -116,6 +140,7 @@ local function ApplyFonts()
             ReplaceFont(frame, "chat")
         end
     end
+    KeepChatSizes()
 end
 
 -- Damage numbers and the names above characters are drawn by the client from these globals,
@@ -238,8 +263,15 @@ SetWorldFonts()
 local loader = CreateFrame("Frame")
 loader:RegisterEvent("ADDON_LOADED")
 loader:RegisterEvent("PLAYER_LOGIN")
+loader:RegisterEvent("PLAYER_ENTERING_WORLD")
+loader:RegisterEvent("UPDATE_CHAT_WINDOWS")
 loader:SetScript("OnEvent", function(_, event, addonName)
-    if event == "PLAYER_LOGIN" then
+    if event == "PLAYER_ENTERING_WORLD" or event == "UPDATE_CHAT_WINDOWS" then
+        if moduleOn then
+            KeepChatSizes()
+            C_Timer.After(1, KeepChatSizes)
+        end
+    elseif event == "PLAYER_LOGIN" then
         SetWorldFonts()
         for _, part in ipairs(CooldownFont.PARTS) do
             if part.relog then loadedWorld[part.key] = moduleOn and IsPartOn(part.key) end

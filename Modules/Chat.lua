@@ -4,7 +4,8 @@
 --
 --   * Clean window: the window's border art, the tab backgrounds and the scroll bar go; tabs
 --     show only while the mouse is over the chat (a tab with new messages still shows), and a
---     soft dark background fades in under the text on hover.
+--     soft dark background fades in on hover, in the minimap's bronze frame that runs around the
+--     text and up around each tab.
 --   * Text on hover only: the messages themselves show only while the mouse is over the chat
 --     or you type (new messages pop up through ChatPopups instead).
 --   * Chat buttons (menu, channels, voice, social) hidden. Emotes and languages are still typed.
@@ -34,6 +35,15 @@ local TAB_ART = { "Left", "Middle", "Right" }
 local EDIT_ART = { "Left", "Mid", "Right" }
 local LOOSE_BUTTONS = { "QuickJoinToastButton", "ChatFrameToggleVoiceDeafenButton",
     "ChatFrameToggleVoiceMuteButton", "TextToSpeechButtonFrame" }
+
+-- The bronze frame the minimap and chat popups use (see NativeArt.CreateBox), drawn around the
+-- text and the tabs while the chat shows. `out` puts the art's border line just outside the panel.
+local BOX = BOLT.isForever
+    and { atlas = "ui-hud-minimap-header-button", corner = 7, midX = 76, midY = 11, out = 3 }
+    or { atlas = "ui-hud-minimap-button", corner = 6, midX = 10, midY = 9, out = 4 }
+local TAB_PAD_X = 10       -- tab frame, from the tab's text sideways
+local TAB_PAD_Y = 6        -- and above it
+local TAB_OVERLAP = 1      -- how far a tab's sides reach into the panel's top line
 
 local HOVER_ALPHA = 0.35   -- the dark background under the text while the mouse is over it
 local BG_FADE = 0.25       -- seconds
@@ -113,6 +123,7 @@ end
 
 local cleanOn, buttonsHidden = false, false
 local styled = {}      -- [chatFrame] = our background texture
+local frames = {}      -- [chatFrame] = our bronze frame around text and tabs
 local tabHooked = {}
 local tabAlpha = {}    -- [tab] = the alpha our fade gives it
 local settingTab = false
@@ -147,6 +158,108 @@ local function TabShownAlpha(tab)
     return 1
 end
 
+-- The frame goes around the text area, and each tab gets the same frame on top of it, open at
+-- the bottom: the panel's top edge is left out under the tabs, so the outline runs from the
+-- panel up around each tab and back down, like one piece.
+local function TabsOf(chatFrame)
+    local tabs = {}
+    local docked = chatFrame.isDocked and GENERAL_CHAT_DOCK and GENERAL_CHAT_DOCK.DOCKED_CHAT_FRAMES
+    for _, frame in ipairs(docked or { chatFrame }) do
+        local tab = Tab(frame)
+        if tab and tab:IsShown() then table.insert(tabs, tab) end
+    end
+    return tabs
+end
+
+local function TabBox(panel, index)
+    local box = panel.tabs[index]
+    if box then return box end
+    box = CreateFrame("Frame", nil, panel)
+    box.pieces = NativeArt.CreateBox(box, BOX, false, "BORDER")
+    -- No bottom edge: the tab opens into the panel.
+    for i = 6, 8 do box.pieces[i]:Hide() end
+    box.fill = box:CreateTexture(nil, "BACKGROUND")
+    box.fill:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+    box.fill:SetVertexColor(0, 0, 0, HOVER_ALPHA)
+    box.fill:SetPoint("TOPLEFT", BOX.corner / 2, -BOX.corner / 2)
+    box.fill:SetPoint("BOTTOMRIGHT", -BOX.corner / 2, BOX.corner - TAB_OVERLAP)
+    panel.tabs[index] = box
+    return box
+end
+
+local function EdgeSegment(panel, index)
+    local segment = panel.edges[index]
+    if segment then return segment end
+    local top = panel.pieces[2]
+    segment = panel:CreateTexture(nil, "BORDER")
+    segment:SetTexture(top:GetTexture())
+    segment:SetTexCoord(top:GetTexCoord())
+    if segment.SetSnapToPixelGrid then
+        segment:SetSnapToPixelGrid(false)
+        segment:SetTexelSnappingBias(0)
+    end
+    panel.edges[index] = segment
+    return segment
+end
+
+local function PlacePanel(chatFrame)
+    local panel = frames[chatFrame]
+    if not panel then return end
+    local area = _G[chatFrame:GetName() .. "Background"] or chatFrame.Background or chatFrame
+    local areaLeft, areaTop = area:GetLeft(), area:GetTop()
+    local c, out = BOX.corner, BOX.out
+    panel:ClearAllPoints()
+    panel:SetPoint("TOPLEFT", area, "TOPLEFT", -out, out)
+    panel:SetPoint("BOTTOMRIGHT", area, "BOTTOMRIGHT", out, -out)
+
+    -- Openings in the panel's top edge, in panel coordinates (from its left side).
+    local openings = {}
+    local used = 0
+    if areaLeft and areaTop then
+        local tabs = TabsOf(chatFrame)
+        table.sort(tabs, function(x, y) return (x:GetLeft() or 0) < (y:GetLeft() or 0) end)
+        for _, tab in ipairs(tabs) do
+            local text = tab.Text or _G[tab:GetName() .. "Text"]
+            local left, right = text and text:GetLeft(), text and text:GetRight()
+            local top = text and text:GetTop()
+            if left and right and top then
+                used = used + 1
+                local box = TabBox(panel, used)
+                local x0 = left - areaLeft - TAB_PAD_X
+                local x1 = right - areaLeft + TAB_PAD_X
+                box:ClearAllPoints()
+                box:SetPoint("TOPLEFT", area, "TOPLEFT", x0, top - areaTop + TAB_PAD_Y)
+                -- The sides end on the panel's top line.
+                box:SetPoint("BOTTOMRIGHT", area, "TOPLEFT", x1, TAB_OVERLAP - c)
+                box:Show()
+                table.insert(openings, { x0 + out + c / 2, x1 + out - c / 2 })
+            end
+        end
+    end
+    for i = used + 1, #panel.tabs do panel.tabs[i]:Hide() end
+
+    -- The top edge, drawn in pieces between the openings.
+    local width = panel:GetWidth() or 0
+    local from, count = c, 0
+    local function Segment(to)
+        if to - from >= 1 then
+            count = count + 1
+            local segment = EdgeSegment(panel, count)
+            segment:ClearAllPoints()
+            segment:SetPoint("TOPLEFT", panel, "TOPLEFT", from, 0)
+            segment:SetPoint("BOTTOMRIGHT", panel, "TOPLEFT", to, -c)
+            segment:Show()
+        end
+    end
+    for _, opening in ipairs(openings) do
+        Segment(math.min(opening[1], width - c))
+        from = math.max(from, opening[2])
+    end
+    Segment(width - c)
+    for i = count + 1, #panel.edges do panel.edges[i]:Hide() end
+    panel.pieces[2]:Hide()
+end
+
 local function StyleFrame(chatFrame)
     local name = chatFrame:GetName()
     for _, key in ipairs(BORDERS) do NativeArt.Conceal(_G[name .. key]) end
@@ -161,8 +274,19 @@ local function StyleFrame(chatFrame)
         bg:SetVertexColor(0, 0, 0)
         bg:SetAlpha(0)
         styled[chatFrame] = bg
+        -- Below the tabs and text, so they draw over the frame's top edge.
+        local border = CreateFrame("Frame", nil, chatFrame)
+        border:SetFrameLevel(math.max(0, chatFrame:GetFrameLevel() - 1))
+        border.pieces = NativeArt.CreateBox(border, BOX, false, "BORDER")
+        if border.pieces then
+            border.tabs, border.edges = {}, {}
+            border:SetAlpha(0)
+            frames[chatFrame] = border
+        end
     end
     bg:Show()
+    if frames[chatFrame] then frames[chatFrame]:Show() end
+    PlacePanel(chatFrame)
 
     local tab = Tab(chatFrame)
     if tab then
@@ -187,6 +311,7 @@ local function UnstyleFrame(chatFrame)
     for _, key in ipairs(BORDERS) do NativeArt.Reveal(_G[name .. key]) end
     NativeArt.Reveal(_G[name .. "Background"])
     if styled[chatFrame] then styled[chatFrame]:Hide() end
+    if frames[chatFrame] then frames[chatFrame]:Hide() end
     local tab = Tab(chatFrame)
     if tab then
         for _, key in ipairs(TAB_ART) do NativeArt.Reveal(tab[key]) end
@@ -260,7 +385,19 @@ driver:SetScript("OnUpdate", function(_, elapsed)
             local shown = chatFrame.hasBeenFaded
                 or (chatFrame.isDocked and dockHovered) or Hovered(chatFrame)
                 or (typing and chatFrame == SELECTED_CHAT_FRAME)
-            bg:SetAlpha(Step(bg:GetAlpha(), shown and HOVER_ALPHA or 0, HOVER_ALPHA, elapsed))
+            local before = bg:GetAlpha()
+            -- Tabs move, appear and change width: the frame follows while it shows.
+            local panel = frames[chatFrame]
+            if panel and (shown or before > 0) and chatFrame:IsVisible() then
+                panel.timer = (panel.timer or 0) + elapsed
+                if before == 0 or panel.timer > 0.2 then
+                    panel.timer = 0
+                    PlacePanel(chatFrame)
+                end
+            end
+            bg:SetAlpha(Step(before, shown and HOVER_ALPHA or 0, HOVER_ALPHA, elapsed))
+            local border = frames[chatFrame]
+            if border then border:SetAlpha(bg:GetAlpha() / HOVER_ALPHA) end
 
             -- Only the text: the window itself stays as it is, so fade groups keep working.
             local container = chatFrame.FontStringContainer
