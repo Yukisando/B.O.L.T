@@ -6,6 +6,13 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-44 (2026-11-22)
+
+- feat: chat window in a native bronze frame that wraps around its tabs
+- The chat's hover background now sits in the minimap's bronze frame, with each tab framed to match
+- Chat windows keep the font size you picked after a relog
+- No more wide gaps inside words in the combat text above you (Cooldown Sans)
+
 ## v8-43 (2026-11-22)
 
 - fix: tighter Cooldown Sans damage numbers, no more squares on action buttons
