@@ -6,6 +6,11 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-45 (2026-11-22)
+
+- fix: no more gaps between letters in the combat text above you
+- Combat text ("Mana Low", spell names) now uses the same tight Cooldown Sans as the damage numbers
+
 ## v8-44 (2026-11-22)
 
 - feat: chat window in a native bronze frame that wraps around its tabs
