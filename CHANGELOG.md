@@ -6,6 +6,13 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-43 (2026-11-22)
+
+- fix: tighter Cooldown Sans damage numbers, no more squares on action buttons
+- Damage numbers in Cooldown Sans use a tighter version of the font, without the wide gaps between digits
+- The range dot on action buttons (and a few other simple symbols) no longer shows as a square with Cooldown Sans
+- Settings lists show "Everywhere" or "All" when every entry is ticked, instead of "Nothing" or "None"
+
 ## v8-42 (2026-11-22)
 
 - feat: pick where Cooldown Sans is used
