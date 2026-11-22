@@ -6,6 +6,15 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-42 (2026-11-22)
+
+- feat: pick where Cooldown Sans is used
+- Cooldown Sans Font: choose where it goes (interface, chat, nameplates, names above characters, damage numbers, combat text above you)
+- Cooldown Sans no longer replaces other addons' fonts, so their symbols stop showing as squares
+- The combat text above you ("Mana Low", incoming damage) no longer has big gaps between letters
+- Damage numbers and names above characters switch after logging out to the character list and back in
+- New /bolt font command shows which font the damage numbers and names were told to use
+
 ## v8-41 (2026-11-22)
 
 - feat: Cooldown Sans font for the whole game
