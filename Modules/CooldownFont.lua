@@ -1,7 +1,8 @@
 -- B.O.L.T Cooldown Sans
 -- Puts ColdSnap's own typeface, Cooldown Sans, on the game, part by part (PARTS): interface
 -- text, chat, nameplates, names above characters, damage numbers and the combat text above you.
--- The fonts are static instances of the variable font (Medium for text, Bold for numbers),
+-- The fonts are static instances of the variable font (Medium for text, a tight Bold for numbers
+-- and combat text),
 -- since the client can't pick an axis of a variable font. Latin, Greek and Cyrillic only, so
 -- the module skips itself on Korean and Chinese clients.
 -- Only text set in Blizzard's own Latin fonts changes: addons' fonts stay, since some are icon or
@@ -16,11 +17,9 @@ local CooldownFont = {
 }
 
 local FONT = "Interface\\AddOns\\BOLT\\Fonts\\Cooldown-Medium.ttf"
--- Bold, for the combat text above you. No kerning table: the client applied its pairs wrongly at
--- the 120 px base size and left wide gaps inside words ("M  ongoose Bi t e").
-local FONT_BOLD = "Interface\\AddOns\\BOLT\\Fonts\\Cooldown-Bold.ttf"
--- Bold with every letter's side space cut to 12 units: the client draws damage numbers without
--- kerning, and the text font's spacing left wide gaps between the digits.
+-- Bold with every letter's side space cut to 12 units and no kerning: text the client scales
+-- (damage numbers, the combat text above you) showed wide gaps between letters with the normal
+-- Bold ("M  ongoose Bi t e"), even with its kerning removed.
 local FONT_DAMAGE = "Interface\\AddOns\\BOLT\\Fonts\\Cooldown-Damage.ttf"
 local UNSUPPORTED_LOCALES = { koKR = true, zhCN = true, zhTW = true }
 
@@ -83,7 +82,7 @@ local function ReplaceFont(object, part)
     local original = { file, size, flags, part }
     originals[object] = original
     if part == "combatText" then
-        object:SetFont(FONT_BOLD, COMBAT_TEXT_SIZE, original[3] or "")
+        object:SetFont(FONT_DAMAGE, COMBAT_TEXT_SIZE, original[3] or "")
     else
         object:SetFont(FONT, SavedChatSize(object) or original[2], original[3] or "")
     end
