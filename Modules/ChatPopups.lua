@@ -235,9 +235,18 @@ local function SizeToast(toast)
         toast:SetHeight(INFO_HEIGHT)
         return
     end
-    local textHeight = toast.text:GetStringHeight() or 12
-    if IsSecret(textHeight) then textHeight = 12 end
-    toast:SetHeight(math.floor(PAD * 2 + 14 + 3 + textHeight + 0.5))
+    -- Measured, not assumed: the font may not be the game's (Cooldown Sans has taller lines).
+    local nameHeight = toast.name:GetStringHeight() or 14
+    if IsSecret(nameHeight) or nameHeight < 1 then nameHeight = 14 end
+    local fontSize = select(2, toast.text:GetFont()) or 12
+    local lineHeight = fontSize + (toast.text:GetSpacing() or 0)
+    local textHeight = toast.text:GetStringHeight() or lineHeight
+    if IsSecret(textHeight) then textHeight = lineHeight end
+    local lines = toast.text:GetNumLines()
+    if lines and not IsSecret(lines) then
+        textHeight = math.max(textHeight, lines * lineHeight * 1.15)
+    end
+    toast:SetHeight(math.floor(PAD * 2 + nameHeight + 3 + textHeight + 0.5))
 end
 
 Layout = function()
@@ -264,14 +273,17 @@ local function Push(chatType, channel, sender, guid, message, preview)
     local newest = toasts[1]
     local canMerge = not preview and sender and not IsSecret(sender) and not IsSecret(message)
         and type(message) == "string"
+    -- newest.lines exists only when its sender was readable: check it first, a secret
+    -- sender can't be compared.
     if canMerge and newest and not newest.preview and newest.chatType == chatType
-        and newest.sender == sender and newest.lines then
+        and newest.lines and newest.sender == sender then
         table.insert(newest.lines, message)
         while #newest.lines > MAX_LINES do table.remove(newest.lines, 1) end
         newest.text:SetText(table.concat(newest.lines, "\n"))
         newest.expires = GetTime() + Duration()
         newest:SetAlpha(1)
         Layout()
+        C_Timer.After(0, Layout) -- text sizes can lag a frame behind SetText
         return
     end
 
@@ -304,6 +316,7 @@ local function Push(chatType, channel, sender, guid, message, preview)
     table.insert(toasts, 1, toast)
     while #toasts > MaxCount() do Release(toasts[#toasts]) end
     Layout()
+    C_Timer.After(0, Layout) -- text sizes can lag a frame behind SetText
 end
 
 ---------------------------------------------------------------------------

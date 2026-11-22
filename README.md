@@ -53,6 +53,10 @@ Features marked **Forever** only appear on WoW: Forever; **Retail** ones only on
 
 Blizzard's own frames, restyled with Blizzard's own art.
 
+#### Cooldown Sans font
+
+Every text in the game in Cooldown Sans, ColdSnap's own rounded typeface made to be easy to read: menus, chat, tooltips, unit frames, nameplates, names above characters and the damage numbers. On by default; turn it off under Interface in the settings (damage numbers follow after a /reload). Not used on Korean and Chinese clients.
+
 #### Square Minimap
 
 <img src=".github/screenshots/minimap.jpg" alt="Square minimap on Retail: faded FPS beside the clock, coordinates in the corner, and B.O.L.T toggles in the tracking menu" width="420">

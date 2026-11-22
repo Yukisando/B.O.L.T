@@ -171,6 +171,7 @@ BOLT.defaults = {
 -- Modules with an on/off toggle and their state on a fresh install. Existing players keep
 -- what they saved.
 BOLT.defaultModuleStates = {
+    cooldownFont = true,
     gameMenu = true,
     unitFrames = true,
     tooltip = true,

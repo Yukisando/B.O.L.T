@@ -168,6 +168,10 @@ local PAGES = {
         title = "Interface",
         sections = {
             {
+                module = "cooldownFont",
+                description = "Every text in the game in Cooldown Sans, ColdSnap's own rounded typeface made to be easy to read: menus, chat, tooltips, unit frames, nameplates, names above characters and the damage numbers. Damage numbers and some text follow a switch only after a /reload.",
+            },
+            {
                 module = "unitFrames",
                 title = "Unit Frames & Cast Bars",
                 description = "Restyles the game UI with Blizzard's own art. Unit frames lose their round portrait: the frame stretches over its space and the bars widen. Cast bars show the spell name on the bar. Turning something off takes a /reload.",

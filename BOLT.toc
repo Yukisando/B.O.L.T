@@ -39,6 +39,7 @@ Modules\DotTracking\Language_zhCN.lua
 Modules\DotTracking\Language_ruRU.lua
 Modules\DotTracking\DotTracking.lua
 
+Modules\CooldownFont.lua
 Modules\GameMenu.lua
 Modules\UnitFrames.lua
 Modules\FrameVisibility.lua
