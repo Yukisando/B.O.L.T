@@ -41,9 +41,11 @@ local LOOSE_BUTTONS = { "QuickJoinToastButton", "ChatFrameToggleVoiceDeafenButto
 local BOX = BOLT.isForever
     and { atlas = "ui-hud-minimap-header-button", corner = 7, midX = 76, midY = 11, out = 3 }
     or { atlas = "ui-hud-minimap-button", corner = 6, midX = 10, midY = 9, out = 4 }
-local TAB_PAD_X = 10       -- tab frame, from the tab's text sideways
-local TAB_PAD_Y = 6        -- and above it
-local TAB_OVERLAP = 1      -- how far a tab's sides reach into the panel's top line
+local LINE = BOX.out       -- where the art's line sits in each piece, from its outer side
+local TAB_PAD_X = 10       -- tab outline, from the tab's text sideways
+local TAB_PAD_Y = 5        -- and at least this much above it
+local TAB_FILL = 0.6       -- the tab's dark background, darker than the panel so its label reads
+local TAB_MIN_ALPHA = 0.9  -- unselected tab labels stay this visible while the chat shows
 
 local HOVER_ALPHA = 0.35   -- the dark background under the text while the mouse is over it
 local BG_FADE = 0.25       -- seconds
@@ -149,18 +151,20 @@ local function SetTabAlpha(tab, alpha)
     settingTab = false
 end
 
--- How visible a tab is while the chat is hovered: the selected one fully, the others a bit less.
+-- How visible a tab is while the chat is hovered: the selected one fully, the others barely less,
+-- so every label reads in its box.
 local function TabShownAlpha(tab)
     if ChatFrameUtil and ChatFrameUtil.GetTabAlphas then
         local ok, over = pcall(ChatFrameUtil.GetTabAlphas, tab)
-        if ok and type(over) == "number" then return over end
+        if ok and type(over) == "number" then return math.max(over, TAB_MIN_ALPHA) end
     end
     return 1
 end
 
 -- The frame goes around the text area, and each tab gets the same frame on top of it, open at
--- the bottom: the panel's top edge is left out under the tabs, so the outline runs from the
--- panel up around each tab and back down, like one piece.
+-- the bottom. Where a tab's side meets the panel's top line, a corner piece of the same art
+-- curves the line into it, and the top line is left out under the tab, so the outline runs as
+-- one smooth piece from the panel up around each tab and back down.
 local function TabsOf(chatFrame)
     local tabs = {}
     local docked = chatFrame.isDocked and GENERAL_CHAT_DOCK and GENERAL_CHAT_DOCK.DOCKED_CHAT_FRAMES
@@ -171,6 +175,17 @@ local function TabsOf(chatFrame)
     return tabs
 end
 
+local function CopyPiece(owner, piece)
+    local texture = owner:CreateTexture(nil, "BORDER")
+    texture:SetTexture(piece:GetTexture())
+    texture:SetTexCoord(piece:GetTexCoord())
+    if texture.SetSnapToPixelGrid then
+        texture:SetSnapToPixelGrid(false)
+        texture:SetTexelSnappingBias(0)
+    end
+    return texture
+end
+
 local function TabBox(panel, index)
     local box = panel.tabs[index]
     if box then return box end
@@ -178,11 +193,15 @@ local function TabBox(panel, index)
     box.pieces = NativeArt.CreateBox(box, BOX, false, "BORDER")
     -- No bottom edge: the tab opens into the panel.
     for i = 6, 8 do box.pieces[i]:Hide() end
+    -- The curves from the panel's top line up into the tab's sides: a box's bottom-right corner
+    -- (line from the left, turning up) on the left, its bottom-left corner on the right.
+    box.curveLeft = CopyPiece(box, panel.pieces[8])
+    box.curveRight = CopyPiece(box, panel.pieces[6])
     box.fill = box:CreateTexture(nil, "BACKGROUND")
     box.fill:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-    box.fill:SetVertexColor(0, 0, 0, HOVER_ALPHA)
+    box.fill:SetVertexColor(0, 0, 0, TAB_FILL)
     box.fill:SetPoint("TOPLEFT", BOX.corner / 2, -BOX.corner / 2)
-    box.fill:SetPoint("BOTTOMRIGHT", -BOX.corner / 2, BOX.corner - TAB_OVERLAP)
+    box.fill:SetPoint("BOTTOMRIGHT", -BOX.corner / 2, LINE)
     panel.tabs[index] = box
     return box
 end
@@ -190,14 +209,7 @@ end
 local function EdgeSegment(panel, index)
     local segment = panel.edges[index]
     if segment then return segment end
-    local top = panel.pieces[2]
-    segment = panel:CreateTexture(nil, "BORDER")
-    segment:SetTexture(top:GetTexture())
-    segment:SetTexCoord(top:GetTexCoord())
-    if segment.SetSnapToPixelGrid then
-        segment:SetSnapToPixelGrid(false)
-        segment:SetTexelSnappingBias(0)
-    end
+    segment = CopyPiece(panel, panel.pieces[2])
     panel.edges[index] = segment
     return segment
 end
@@ -206,43 +218,72 @@ local function PlacePanel(chatFrame)
     local panel = frames[chatFrame]
     if not panel then return end
     local area = _G[chatFrame:GetName() .. "Background"] or chatFrame.Background or chatFrame
-    local areaLeft, areaTop = area:GetLeft(), area:GetTop()
-    local c, out = BOX.corner, BOX.out
+    local areaLeft, areaTop, areaWidth = area:GetLeft(), area:GetTop(), area:GetWidth()
+    local c, out, d = BOX.corner, BOX.out, LINE
     panel:ClearAllPoints()
     panel:SetPoint("TOPLEFT", area, "TOPLEFT", -out, out)
     panel:SetPoint("BOTTOMRIGHT", area, "BOTTOMRIGHT", out, -out)
 
-    -- Openings in the panel's top edge, in panel coordinates (from its left side).
-    local openings = {}
-    local used = 0
-    if areaLeft and areaTop then
+    -- Below, in the area's coordinates: x from its left, y up from its top. `lineY` is the
+    -- panel's top line; a tab's `x0`/`x1` are its side lines.
+    local lineY = out - d
+    local shapes = {}
+    if areaLeft and areaTop and areaWidth then
         local tabs = TabsOf(chatFrame)
         table.sort(tabs, function(x, y) return (x:GetLeft() or 0) < (y:GetLeft() or 0) end)
         for _, tab in ipairs(tabs) do
             local text = tab.Text or _G[tab:GetName() .. "Text"]
             local left, right = text and text:GetLeft(), text and text:GetRight()
-            local top = text and text:GetTop()
-            if left and right and top then
-                used = used + 1
-                local box = TabBox(panel, used)
-                local x0 = left - areaLeft - TAB_PAD_X
-                local x1 = right - areaLeft + TAB_PAD_X
-                box:ClearAllPoints()
-                box:SetPoint("TOPLEFT", area, "TOPLEFT", x0, top - areaTop + TAB_PAD_Y)
-                -- The sides end on the panel's top line.
-                box:SetPoint("BOTTOMRIGHT", area, "TOPLEFT", x1, TAB_OVERLAP - c)
-                box:Show()
-                table.insert(openings, { x0 + out + c / 2, x1 + out - c / 2 })
+            local top, bottom = text and text:GetTop(), text and text:GetBottom()
+            if left and right and top and bottom then
+                table.insert(shapes, {
+                    x0 = left - areaLeft - TAB_PAD_X, x1 = right - areaLeft + TAB_PAD_X,
+                    top = top - areaTop, bottom = bottom - areaTop,
+                })
+            end
+        end
+        -- Room for the curves: away from the panel's own corners, and between neighbours.
+        local minX = 2 * c - out - d
+        local maxX = areaWidth + out - 2 * c + d
+        local gap = 2 * (c - d)
+        for i, shape in ipairs(shapes) do
+            shape.x0 = math.max(shape.x0, minX)
+            shape.x1 = math.min(shape.x1, maxX)
+            local prev = shapes[i - 1]
+            if prev and shape.x0 - prev.x1 < gap then
+                local mid = (prev.x1 + shape.x0) / 2
+                prev.x1, shape.x0 = mid - gap / 2, mid + gap / 2
             end
         end
     end
-    for i = used + 1, #panel.tabs do panel.tabs[i]:Hide() end
+
+    local openings = {}
+    for i, shape in ipairs(shapes) do
+        local box = TabBox(panel, i)
+        -- As much room above the label as below it, so it sits in the middle of its box.
+        local pad = math.max(TAB_PAD_Y, shape.bottom - lineY)
+        local boxBottom = lineY - d
+        local boxTop = math.max(shape.top + pad, boxBottom + 2 * c)
+        box:ClearAllPoints()
+        box:SetPoint("TOPLEFT", area, "TOPLEFT", shape.x0 - d, boxTop)
+        box:SetPoint("BOTTOMRIGHT", area, "TOPLEFT", shape.x1 + d, boxBottom)
+        box.curveLeft:ClearAllPoints()
+        box.curveLeft:SetPoint("TOPLEFT", area, "TOPLEFT", shape.x0 + d - c, boxBottom + c)
+        box.curveLeft:SetPoint("BOTTOMRIGHT", area, "TOPLEFT", shape.x0 + d, boxBottom)
+        box.curveRight:ClearAllPoints()
+        box.curveRight:SetPoint("TOPLEFT", area, "TOPLEFT", shape.x1 - d, boxBottom + c)
+        box.curveRight:SetPoint("BOTTOMRIGHT", area, "TOPLEFT", shape.x1 - d + c, boxBottom)
+        box:Show()
+        -- The gap this tab leaves in the panel's top line, from the panel's left side.
+        table.insert(openings, { shape.x0 + d - c + out, shape.x1 - d + c + out })
+    end
+    for i = #shapes + 1, #panel.tabs do panel.tabs[i]:Hide() end
 
     -- The top edge, drawn in pieces between the openings.
     local width = panel:GetWidth() or 0
     local from, count = c, 0
     local function Segment(to)
-        if to - from >= 1 then
+        if to - from >= 0.5 then
             count = count + 1
             local segment = EdgeSegment(panel, count)
             segment:ClearAllPoints()
