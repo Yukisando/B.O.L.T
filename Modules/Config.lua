@@ -337,7 +337,7 @@ local PAGES = {
             {
                 module = "myDamage",
                 description = "A small, quiet panel with only your damage: your rank in the group and your own spells and pets, best first, for the current fight (the last one once it ends). Left-click it to switch between this fight and the overall total, right-click to switch between your spells and the whole group. It reads Blizzard's damage meter, so that has to stay on in the game options; its window is hidden instead.",
-                editMode = "select My Damage to move it, and set how many lines it lists, its width, its opacity and whether clicks go through it.",
+                editMode = "select My Damage to move it, and set how many lines it lists, its width, its opacity, whether clicks go through it and whether Blizzard's meter window hides.",
                 keepOptions = true,
                 options = {
                     { type = "checkbox", label = "Hide Blizzard's damage meter window", path = { "myDamage", "hideBlizzard" } },
@@ -368,7 +368,7 @@ local PAGES = {
             {
                 module = "chat",
                 description = "Blizzard's chat, made quiet: everything in one place for the chat window, the sound on new messages and the popups. With Chattynator turned on, the chat window is left alone (turn it off in the addon list to use this).",
-                editMode = "select the chat window and pick its group under \"Fades with\" to fade it with the rest of your UI (it stays shown while you type); select Chat Popups to move the popups.",
+                editMode = "select the chat window for its window options, the sound and popups switches, and its group under \"Fades with\" (it stays shown while you type); select Chat Popups to move the popups, size them and make them click-through.",
                 keepOptions = true,
                 options = {
                     { type = "header", label = "Chat window" },

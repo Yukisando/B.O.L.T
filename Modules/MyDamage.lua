@@ -209,7 +209,6 @@ local function Build()
         name = "My Damage",
         frame = panel,
         default = { point = "BOTTOMRIGHT", x = -320, y = 220 },
-        hideCoords = true,
         onEnter = function() MyDamage:Refresh() end,
         onExit = function() MyDamage:Refresh() end,
         apply = function() Place() ApplyMouse() MyDamage:Refresh() end,
@@ -240,6 +239,9 @@ local function Build()
                     EditMode:Set(EDIT_KEY, "opacity", value)
                     MyDamage:Refresh()
                 end,
+            }),
+            EditMode:Checkbox("Hide Blizzard's damage meter window", { "myDamage", "hideBlizzard" }, {
+                desc = "The meter keeps running (My Damage reads it); only its window is hidden.",
             }),
             EditMode:Checkbox("Click-through", nil, {
                 desc = "Clicks go through to the world. Off: left-click switches this fight / overall, right-click your spells / the group.",

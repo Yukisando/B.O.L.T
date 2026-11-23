@@ -469,6 +469,9 @@ local function Build()
                 get = Width,
                 set = function(value) EditMode:Set(EDIT_KEY, "width", value) Place() end,
             }),
+            EditMode:Checkbox("Click-through", { "chatPopups", "clickThrough" }, {
+                desc = "The mouse goes through the popups. Off: hovering keeps one up, left-click replies in that chat, right-click whispers the sender (or closes a whisper).",
+            }),
         },
     })
 end

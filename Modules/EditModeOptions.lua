@@ -362,9 +362,43 @@ local function RegisterChat()
             end,
         }),
     }
-    table.insert(settings, EditMode:Checkbox("Input box on top", { "chat", "inputTop" }, {
-        desc = "Puts the input box above the chat window (over the tabs) instead of below it, so the window can sit at the bottom of the screen.",
-    }))
+    local function NotClean() return not BOLT:GetConfig("chat", "clean") end
+    local function CVar(name) return (C_CVar and C_CVar.GetCVar or GetCVar)(name) end
+    local function SetCVarValue(name, value) pcall(C_CVar and C_CVar.SetCVar or SetCVar, name, value) end
+    for _, setting in ipairs(List(
+        EditMode:Checkbox("Clean window", { "chat", "clean" }, {
+            desc = "No borders, tab backgrounds or scroll bar: the tabs and a soft background in a bronze frame show only while the mouse is over the chat.",
+        }),
+        EditMode:Checkbox("  Messages only on hover", { "chat", "hoverOnly" }, {
+            desc = "The messages show only while the mouse is over the chat or you type; new ones pop up through Chat Popups instead.",
+            hidden = NotClean,
+        }),
+        EditMode:Checkbox("Hide the chat buttons", { "chat", "hideButtons" }, {
+            desc = "Menu, channels, voice and social buttons. Emotes and languages can still be typed.",
+        }),
+        EditMode:Checkbox("Input box only while typing", nil, {
+            desc = "Blizzard's \"IM style\": the input box shows only while you type.",
+            default = false, keepOnReset = true,
+            get = function() return CVar("chatStyle") == "im" end,
+            set = function(value) SetCVarValue("chatStyle", value and "im" or "classic") end,
+        }),
+        EditMode:Checkbox("Input box on top", { "chat", "inputTop" }, {
+            desc = "Puts the input box above the chat window (over the tabs) instead of below it, so the window can sit at the bottom of the screen.",
+        }),
+        EditMode:Checkbox("Keep the last lines after a reload", { "chat", "history" }, {
+            desc = "Each tab gets its last lines back after a reload or login.",
+        }),
+        EditMode:Checkbox("Hide Battle.net notifications", { "chat", "hideBnetToasts" }, {
+            desc = "Friend online or offline, broadcasts and friend requests.",
+        }),
+        EditMode:Checkbox("\"Copy chat\" in the tab menu", { "chat", "copyMenu" }, {
+            desc = "Right-click a tab to copy its text (also /copychat).",
+        }),
+        ModuleToggle("chatNotifier", "Sound on new messages",
+            "Plays a sound when a message arrives in the chats picked on the B.O.L.T settings page (Social), where the sound is chosen too."),
+        ModuleToggle("chatPopups", "New messages as popups",
+            "Shows new messages as small popups too. Select Chat Popups to move them; the chats they show are picked on the B.O.L.T settings page (Social).")
+    )) do table.insert(settings, setting) end
     for _, setting in ipairs(Fade("chat")) do table.insert(settings, setting) end
     EditMode:AddSystemSettings("ChatFrame", nil, nil, settings)
 
@@ -420,6 +454,8 @@ local function RegisterUnitFrames()
         Flat("party"),
         ModuleToggle("partyFramesCenterGrowth", "Keep raid-style party frames centered",
             "They stay centered as members join or leave. Needs Raid-Style Party Frames above."),
+        ModuleToggle("partyClassColors", "Names in class colours",
+            "Party members' names take their class colour, on both party frame styles."),
         unpack(Fade("partyFrames"))
     ))
     if BOLT.modules.unitFrames then
