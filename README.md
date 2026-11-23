@@ -19,7 +19,7 @@ These features only exist on WoW: Forever, built around its classic-style system
 
 - **Quick Feed (hunters)**: the pet health bar takes your pet's mood colour (green, amber, red) and softly pulses when your pet is hungry. Click it to feed the cheapest food your pet eats, without opening your bags. Shift-click feeds it any time. Hover it to see the food and your pet's mood.
 - **Full Swing Timer**: main hand, off hand and ranged swings, for every class, read from the game's own swing timer.
-- **Campfire Rest**: near a campfire, a small panel in the My Damage style lists the camp benefits resting there gives you, with the warm-up countdown and their time left.
+- **Campfire Rest**: near a campfire, a small panel in the My Damage style lists the camp benefits resting there gives you, with a Sit button and one bar for the warm-up, then their time left.
 - **DoT Overlay**: a striped shield on enemy nameplates shows how much damage your DoTs (and your pet's) will still deal. It turns gold when they alone will finish the mob.
 - **Attack Key**: one key targets the enemy under the mouse, sends your pet in and starts your wand. Hunters get Auto Shot, or a melee swing when the enemy is too close.
 - **Hawk and Totem Timers**: your hunter's hawk as a round countdown node above the pet bar.

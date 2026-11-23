@@ -2,7 +2,8 @@
 -- A small, quiet panel in the My Damage style that lists what resting at the camp gives you.
 -- It shows while the "Campfire Nearby" buff is on you (the fire reaches ~100 yards):
 --
---   Camp                     52 min
+--   Camp                52 min  Sit
+--   ==================================   one bar: warming up, then the benefits' time left
 --   [icon] Fish Bowl         +8% all stats
 --   [icon] Camp Chair        +2% critical strike
 --
@@ -10,7 +11,8 @@
 --   * Camp Benefits is on you: its tooltip ("Object: effect" lines), with the time left.
 --   * Welcoming Campfire is on you (sitting, the minute of warming up): the countdown.
 --   * Otherwise: camp objects the Campfire Nearby tooltip names, if it names any, else a hint.
--- Click-through, no buttons. It steps aside in combat. Move it in Edit Mode.
+-- Click-through except a small Sit button (hidden while you warm up). It steps aside in combat.
+-- Move it in Edit Mode.
 -- `/bolt camp` prints what the module sees, for bug reports.
 
 local ADDON_NAME, BOLT = ...
@@ -32,6 +34,8 @@ local FALLBACK_ICON = "Interface\\Icons\\Spell_Fire_Fire"
 local WIDTH = 220
 local ROW_HEIGHT = 16
 local HEADER_HEIGHT = 16
+local BAR_HEIGHT = 4
+local BAR_GAP = 3     -- below the bar, before the first row
 local MAX_ROWS = 10
 local DEFAULT_OPACITY = 80
 local REFRESH = 0.5
@@ -132,6 +136,8 @@ local function ReadBenefits(aura)
         local name, effect = line:match("^(.-):%s*(.+)$")
         if line:find("remaining") or line:find("^Gained") then
             -- header and time left: the panel shows its own
+        elseif name and (name:find("ID$") or effect:match("^%d+$")) then
+            -- "Spell ID: 1229741", added to tooltips by the client or an ID addon
         elseif name then
             local object = BY_NAME[Normalize(name)]
             table.insert(list, { name = name, effect = object and object.effect or effect:gsub("%.$", ""), object = object })
@@ -177,7 +183,7 @@ end
 -- The panel (built like My Damage)
 ---------------------------------------------------------------------------
 
-local panel, header, titleText, modeText, timeText, hint
+local panel, header, titleText, modeText, timeText, hint, progress, sitButton
 local rows = {}
 
 local function PanelWidth() return EditMode:Get(EDIT_KEY, "width", WIDTH) end
@@ -186,7 +192,7 @@ local function Opacity() return EditMode:Get(EDIT_KEY, "opacity", DEFAULT_OPACIT
 local function CreateRow(index)
     local row = CreateFrame("Frame", nil, panel)
     row:SetHeight(ROW_HEIGHT)
-    row:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, -HEADER_HEIGHT - (index - 1) * ROW_HEIGHT)
+    row:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, -HEADER_HEIGHT - BAR_HEIGHT - BAR_GAP - (index - 1) * ROW_HEIGHT)
     row:SetPoint("RIGHT", panel, "RIGHT")
 
     row.icon = row:CreateTexture(nil, "ARTWORK")
@@ -194,23 +200,14 @@ local function CreateRow(index)
     row.icon:SetPoint("LEFT", 0, 0)
     row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
-    row.bar = CreateFrame("StatusBar", nil, row)
-    row.bar:SetPoint("BOTTOMLEFT", row.icon, "BOTTOMRIGHT", 4, 0)
-    row.bar:SetPoint("RIGHT", row, "RIGHT")
-    row.bar:SetHeight(3)
-    row.bar:SetStatusBarTexture(NativeArt.ResolveAtlas("UI-HUD-CoolDownManager-Bar") or WHITE)
-    row.bar.bg = row.bar:CreateTexture(nil, "BACKGROUND")
-    row.bar.bg:SetAllPoints()
-    row.bar.bg:SetColorTexture(1, 1, 1, 0.06)
-
     row.effect = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.effect:SetPoint("BOTTOMRIGHT", row.bar, "TOPRIGHT", 0, 1)
+    row.effect:SetPoint("RIGHT", row, "RIGHT", 0, 0)
     row.effect:SetJustifyH("RIGHT")
     row.effect:SetWordWrap(false)
     row.effect:SetTextColor(GREEN[1], GREEN[2], GREEN[3])
 
     row.name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.name:SetPoint("BOTTOMLEFT", row.bar, "TOPLEFT", 0, 1)
+    row.name:SetPoint("LEFT", row.icon, "RIGHT", 4, 0)
     row.name:SetPoint("RIGHT", row.effect, "LEFT", -6, 0)
     row.name:SetJustifyH("LEFT")
     row.name:SetWordWrap(false)
@@ -248,11 +245,43 @@ local function Build()
     modeText = header:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     modeText:SetPoint("LEFT", titleText, "RIGHT", 6, 0)
     timeText = header:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    timeText:SetPoint("RIGHT", 0, 1)
     timeText:SetTextColor(0.85, 0.85, 0.85)
 
+    -- A light text button, the panel's only clickable part.
+    sitButton = CreateFrame("Button", nil, header)
+    sitButton:SetHeight(HEADER_HEIGHT)
+    sitButton:SetPoint("RIGHT", 0, 1)
+    sitButton:SetNormalFontObject("GameFontNormalSmall")
+    sitButton:SetHighlightFontObject("GameFontHighlightSmall")
+    sitButton:SetText("Sit")
+    sitButton:SetWidth(sitButton:GetFontString():GetStringWidth() + 8)
+    local glow = sitButton:CreateTexture(nil, "HIGHLIGHT")
+    glow:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+    glow:SetBlendMode("ADD")
+    glow:SetAlpha(0.4)
+    glow:SetAllPoints()
+    sitButton:SetScript("OnClick", function() DoEmote("SIT") end)
+    sitButton:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText("Sit by the fire", 1, 1, 1)
+        GameTooltip:AddLine("Sit close to the flames for a minute to get the camp's benefits; "
+            .. "sit again after new objects are placed to add theirs.", nil, nil, nil, true)
+        GameTooltip:Show()
+    end)
+    sitButton:SetScript("OnLeave", GameTooltip_Hide)
+
+    -- One bar for the whole camp: the minute of warming up, then the benefits' time left.
+    progress = CreateFrame("StatusBar", nil, panel)
+    progress:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, 0)
+    progress:SetPoint("TOPRIGHT", header, "BOTTOMRIGHT", 0, 0)
+    progress:SetHeight(BAR_HEIGHT)
+    progress:SetStatusBarTexture(NativeArt.ResolveAtlas("UI-HUD-CoolDownManager-Bar") or WHITE)
+    progress.bg = progress:CreateTexture(nil, "BACKGROUND")
+    progress.bg:SetAllPoints()
+    progress.bg:SetColorTexture(1, 1, 1, 0.06)
+
     hint = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    hint:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -2)
+    hint:SetPoint("TOPLEFT", progress, "BOTTOMLEFT", 0, -BAR_GAP)
     hint:SetPoint("RIGHT", panel, "RIGHT")
     hint:SetJustifyH("LEFT")
     hint:Hide()
@@ -273,7 +302,6 @@ local function Build()
         name = "Camp",
         frame = panel,
         default = { point = "BOTTOMRIGHT", x = -320, y = 345 },
-        hideCoords = true,
         onEnter = function() Campfire:Refresh() end,
         onExit = function() Campfire:Refresh() end,
         apply = function() Place() Campfire:Refresh() end,
@@ -300,14 +328,11 @@ local function Build()
     })
 end
 
-local function FillRow(index, entry, value, max, color)
+local function FillRow(index, entry)
     local row = rows[index] or CreateRow(index)
     row.icon:SetTexture(ObjectIcon(entry.object))
     row.name:SetText(entry.name or "")
     row.effect:SetText(entry.effect or "")
-    row.bar:SetMinMaxValues(0, max)
-    row.bar:SetValue(value)
-    row.bar:SetStatusBarColor(color[1], color[2], color[3])
     row:Show()
 end
 
@@ -357,10 +382,24 @@ function Campfire:Refresh()
     end
 
     local shown = math.min(#list, MAX_ROWS)
-    for i = 1, shown do FillRow(i, list[i], value, max, color) end
+    for i = 1, shown do FillRow(i, list[i]) end
     for i = shown + 1, #rows do rows[i]:Hide() end
 
-    panel:SetHeight(HEADER_HEIGHT + math.max(shown, 1) * ROW_HEIGHT)
+    progress:SetMinMaxValues(0, max)
+    progress:SetValue(value)
+    progress:SetStatusBarColor(color[1], color[2], color[3])
+    progress:SetAlpha((warming or benefits) and 1 or 0.4)
+
+    -- Sitting starts the warm-up, so the button goes while it runs.
+    sitButton:SetShown(not warming)
+    timeText:ClearAllPoints()
+    if sitButton:IsShown() then
+        timeText:SetPoint("RIGHT", sitButton, "LEFT", -4, 0)
+    else
+        timeText:SetPoint("RIGHT", header, "RIGHT", 0, 1)
+    end
+
+    panel:SetHeight(HEADER_HEIGHT + BAR_HEIGHT + BAR_GAP + math.max(shown, 1) * ROW_HEIGHT)
     panel:SetAlpha(editing and 1 or Opacity())
     panel:Show()
 end
