@@ -6,6 +6,16 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-46 (2026-11-23)
+
+- feat: smoother chat frame, chat options in Edit Mode, Sit button at camp
+- The chat's bronze frame now curves smoothly into each tab, and tab labels sit centred in a darker box so they're easy to read
+- Unselected chat tabs no longer fade out while the chat shows
+- Edit Mode: BOLT's frames no longer show X/Y position boxes; drag them to move
+- Edit Mode: the chat window lists all its options (clean window, messages on hover, buttons, input box, history, Battle.net notifications, copy chat, sound and popups)
+- Edit Mode: Chat Popups can be made click-through, My Damage can hide Blizzard's meter window, Party frames can turn class-coloured names on
+- Camp panel: a Sit button, and one bar for the warm-up, then the benefits' time left
+
 ## v8-45 (2026-11-22)
 
 - fix: no more gaps between letters in the combat text above you
