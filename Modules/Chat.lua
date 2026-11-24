@@ -2,10 +2,11 @@
 -- Blizzard's own chat window, made quiet: text on the screen and little else until you reach
 -- for it.
 --
---   * Clean window: the window's border art, the tab backgrounds and the scroll bar go; tabs
+--   * Clean window: the window's border art, all of the tabs' own art and the scroll bar go; tabs
 --     show only while the mouse is over the chat (a tab with new messages still shows), and a
 --     soft dark background fades in on hover, in the minimap's bronze frame that runs around the
---     text and up around each tab.
+--     text (with room on every side) and up around each tab. The scroll-to-bottom arrows sit
+--     inside that frame's corner.
 --   * Text on hover only: the messages themselves show only while the mouse is over the chat
 --     or you type (new messages pop up through ChatPopups instead).
 --   * Chat buttons (menu, channels, voice, social) hidden. Emotes and languages are still typed.
@@ -31,7 +32,6 @@ local Chat = {
 
 local BORDERS = { "TopLeftTexture", "BottomLeftTexture", "TopRightTexture", "BottomRightTexture",
     "LeftTexture", "RightTexture", "BottomTexture", "TopTexture" }
-local TAB_ART = { "Left", "Middle", "Right" }
 local EDIT_ART = { "Left", "Mid", "Right" }
 local LOOSE_BUTTONS = { "QuickJoinToastButton", "ChatFrameToggleVoiceDeafenButton",
     "ChatFrameToggleVoiceMuteButton", "TextToSpeechButtonFrame" }
@@ -46,8 +46,13 @@ local TAB_PAD_X = 10       -- tab outline, from the tab's text sideways
 local TAB_PAD_Y = 5        -- and at least this much above it
 local TAB_FILL = 0.6       -- the tab's dark background, darker than the panel so its label reads
 local TAB_MIN_ALPHA = 0.9  -- unselected tab labels stay this visible while the chat shows
+-- Room between the text and the frame's line, so no line of text ever touches it.
+local PAD_X = 8
+local PAD_TOP = 6
+local PAD_BOTTOM = 5
+local LABEL_GAP = 3        -- tab labels stay at least this far above the frame's top line
 
-local HOVER_ALPHA = 0.35   -- the dark background under the text while the mouse is over it
+local HOVER_ALPHA = 0.45   -- the dark background under the text while the mouse is over it
 local BG_FADE = 0.25       -- seconds
 local HISTORY_LINES = 100  -- per tab
 local HISTORY_DIM = 0.6    -- restored lines, color multiplier
@@ -214,33 +219,78 @@ local function EdgeSegment(panel, index)
     return segment
 end
 
+local STRATA = { BACKGROUND = 1, LOW = 2, MEDIUM = 3, HIGH = 4, DIALOG = 5, FULLSCREEN = 6,
+    FULLSCREEN_DIALOG = 7, TOOLTIP = 8 }
+
+-- The frame and its tab boxes draw under the text and under every tab label.
+local function PutUnder(panel, chatFrame, tabs)
+    local strata, level = chatFrame:GetFrameStrata(), chatFrame:GetFrameLevel()
+    for _, tab in ipairs(tabs) do
+        local s, l = tab:GetFrameStrata(), tab:GetFrameLevel()
+        if (STRATA[s] or 2) < (STRATA[strata] or 2) then
+            strata, level = s, l
+        elseif s == strata then
+            level = math.min(level, l)
+        end
+    end
+    if panel:GetFrameStrata() ~= strata then panel:SetFrameStrata(strata) end
+    local want = math.max(0, level - 1)
+    if panel:GetFrameLevel() ~= want then panel:SetFrameLevel(want) end
+end
+
 local function PlacePanel(chatFrame)
     local panel = frames[chatFrame]
     if not panel then return end
-    local area = _G[chatFrame:GetName() .. "Background"] or chatFrame.Background or chatFrame
-    local areaLeft, areaTop, areaWidth = area:GetLeft(), area:GetTop(), area:GetWidth()
+    local chatLeft, chatTop, chatWidth = chatFrame:GetLeft(), chatFrame:GetTop(), chatFrame:GetWidth()
     local c, out, d = BOX.corner, BOX.out, LINE
-    panel:ClearAllPoints()
-    panel:SetPoint("TOPLEFT", area, "TOPLEFT", -out, out)
-    panel:SetPoint("BOTTOMRIGHT", area, "BOTTOMRIGHT", out, -out)
+    local tabs = TabsOf(chatFrame)
+    PutUnder(panel, chatFrame, tabs)
 
-    -- Below, in the area's coordinates: x from its left, y up from its top. `lineY` is the
-    -- panel's top line; a tab's `x0`/`x1` are its side lines.
-    local lineY = out - d
-    local shapes = {}
-    if areaLeft and areaTop and areaWidth then
-        local tabs = TabsOf(chatFrame)
+    -- Where each tab's label sits, from the screen.
+    local labels = {}
+    local padTop = PAD_TOP
+    if chatLeft and chatTop and chatWidth then
         table.sort(tabs, function(x, y) return (x:GetLeft() or 0) < (y:GetLeft() or 0) end)
         for _, tab in ipairs(tabs) do
             local text = tab.Text or _G[tab:GetName() .. "Text"]
             local left, right = text and text:GetLeft(), text and text:GetRight()
             local top, bottom = text and text:GetTop(), text and text:GetBottom()
             if left and right and top and bottom then
-                table.insert(shapes, {
-                    x0 = left - areaLeft - TAB_PAD_X, x1 = right - areaLeft + TAB_PAD_X,
-                    top = top - areaTop, bottom = bottom - areaTop,
-                })
+                table.insert(labels, { left = left, right = right, top = top, bottom = bottom })
+                -- The frame's top line never runs through a label.
+                padTop = math.min(padTop, bottom - chatTop - LABEL_GAP)
             end
+        end
+    end
+    padTop = math.max(1, padTop)
+
+    -- `area` is the rectangle the frame's line runs along: the chat's text with room around
+    -- it. ax/ay put its top-left corner from the chat frame's top-left.
+    local ax, ay = -PAD_X, padTop
+    panel:ClearAllPoints()
+    panel:SetPoint("TOPLEFT", chatFrame, "TOPLEFT", ax - out, ay + out)
+    panel:SetPoint("BOTTOMRIGHT", chatFrame, "BOTTOMRIGHT", PAD_X + out, -PAD_BOTTOM - out)
+    local bg = styled[chatFrame]
+    if bg then
+        bg:ClearAllPoints()
+        bg:SetPoint("TOPLEFT", chatFrame, "TOPLEFT", ax + 2, ay - 2)
+        bg:SetPoint("BOTTOMRIGHT", chatFrame, "BOTTOMRIGHT", PAD_X - 2, -PAD_BOTTOM + 2)
+    end
+    local function At(region, point, x, y)
+        region:SetPoint(point, chatFrame, "TOPLEFT", ax + x, ay + y)
+    end
+
+    -- Below, in the area's coordinates: x from its left, y up from its top. `lineY` is the
+    -- panel's top line; a tab's `x0`/`x1` are its side lines.
+    local lineY = out - d
+    local shapes = {}
+    if chatLeft and chatTop and chatWidth then
+        local areaLeft, areaTop, areaWidth = chatLeft + ax, chatTop + ay, chatWidth + 2 * PAD_X
+        for _, label in ipairs(labels) do
+            table.insert(shapes, {
+                x0 = label.left - areaLeft - TAB_PAD_X, x1 = label.right - areaLeft + TAB_PAD_X,
+                top = label.top - areaTop, bottom = label.bottom - areaTop,
+            })
         end
         -- Room for the curves: away from the panel's own corners, and between neighbours.
         local minX = 2 * c - out - d
@@ -265,14 +315,14 @@ local function PlacePanel(chatFrame)
         local boxBottom = lineY - d
         local boxTop = math.max(shape.top + pad, boxBottom + 2 * c)
         box:ClearAllPoints()
-        box:SetPoint("TOPLEFT", area, "TOPLEFT", shape.x0 - d, boxTop)
-        box:SetPoint("BOTTOMRIGHT", area, "TOPLEFT", shape.x1 + d, boxBottom)
+        At(box, "TOPLEFT", shape.x0 - d, boxTop)
+        At(box, "BOTTOMRIGHT", shape.x1 + d, boxBottom)
         box.curveLeft:ClearAllPoints()
-        box.curveLeft:SetPoint("TOPLEFT", area, "TOPLEFT", shape.x0 + d - c, boxBottom + c)
-        box.curveLeft:SetPoint("BOTTOMRIGHT", area, "TOPLEFT", shape.x0 + d, boxBottom)
+        At(box.curveLeft, "TOPLEFT", shape.x0 + d - c, boxBottom + c)
+        At(box.curveLeft, "BOTTOMRIGHT", shape.x0 + d, boxBottom)
         box.curveRight:ClearAllPoints()
-        box.curveRight:SetPoint("TOPLEFT", area, "TOPLEFT", shape.x1 - d, boxBottom + c)
-        box.curveRight:SetPoint("BOTTOMRIGHT", area, "TOPLEFT", shape.x1 - d + c, boxBottom)
+        At(box.curveRight, "TOPLEFT", shape.x1 - d, boxBottom + c)
+        At(box.curveRight, "BOTTOMRIGHT", shape.x1 - d + c, boxBottom)
         box:Show()
         -- The gap this tab leaves in the panel's top line, from the panel's left side.
         table.insert(openings, { shape.x0 + d - c + out, shape.x1 - d + c + out })
@@ -301,6 +351,67 @@ local function PlacePanel(chatFrame)
     panel.pieces[2]:Hide()
 end
 
+-- Every texture of a tab is Blizzard's tab art (background, selected and hover pieces): all of
+-- it goes, so only the label shows, in our box. The new-message glow and the whisper icon stay.
+local tabArt = {} -- [tab] = the textures we hid
+
+local function ConcealTabArt(tab)
+    if tabArt[tab] then return end
+    local keep = { [tab.glow or false] = true, [tab.conversationIcon or false] = true }
+    local glow = tab:GetName() and _G[tab:GetName() .. "Glow"]
+    if glow then keep[glow] = true end
+    local list = {}
+    for _, region in ipairs({ tab:GetRegions() }) do
+        if region:IsObjectType("Texture") and not keep[region] then
+            NativeArt.Conceal(region)
+            table.insert(list, region)
+        end
+    end
+    tabArt[tab] = list
+end
+
+local function RevealTabArt(tab)
+    for _, texture in ipairs(tabArt[tab] or {}) do NativeArt.Reveal(texture) end
+    tabArt[tab] = nil
+end
+
+-- The "scroll to the newest line" arrows sit in the frame's bottom-right corner, inside its line.
+-- Blizzard re-anchors them now and then; the hook puts them back.
+local scrollPoints = {} -- [button] = Blizzard's anchors, to put back
+local scrollHooked = {}
+local placingScroll = false
+
+local function PlaceScrollButton(chatFrame)
+    local button = chatFrame.ScrollToBottomButton
+    if not button then return end
+    if not scrollPoints[button] then
+        local points = {}
+        for i = 1, button:GetNumPoints() do points[i] = { button:GetPoint(i) } end
+        scrollPoints[button] = points
+    end
+    if not scrollHooked[button] then
+        scrollHooked[button] = true
+        hooksecurefunc(button, "SetPoint", function()
+            if not placingScroll and scrollPoints[button] then PlaceScrollButton(chatFrame) end
+        end)
+    end
+    placingScroll = true
+    button:ClearAllPoints()
+    button:SetPoint("BOTTOMRIGHT", chatFrame, "BOTTOMRIGHT", PAD_X - 6, 0)
+    placingScroll = false
+end
+
+local function RestoreScrollButton(chatFrame)
+    local button = chatFrame.ScrollToBottomButton
+    local points = button and scrollPoints[button]
+    if not points then return end
+    scrollPoints[button] = nil
+    placingScroll = true
+    button:ClearAllPoints()
+    for _, point in ipairs(points) do button:SetPoint(unpack(point)) end
+    placingScroll = false
+end
+
 local function StyleFrame(chatFrame)
     local name = chatFrame:GetName()
     for _, key in ipairs(BORDERS) do NativeArt.Conceal(_G[name .. key]) end
@@ -308,16 +419,14 @@ local function StyleFrame(chatFrame)
 
     local bg = styled[chatFrame]
     if not bg then
-        local blizzard = _G[name .. "Background"] or chatFrame.Background
         bg = chatFrame:CreateTexture(nil, "BACKGROUND", nil, -8)
         bg:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-        if blizzard then bg:SetAllPoints(blizzard) else bg:SetAllPoints() end
+        bg:SetAllPoints(chatFrame)
         bg:SetVertexColor(0, 0, 0)
         bg:SetAlpha(0)
         styled[chatFrame] = bg
-        -- Below the tabs and text, so they draw over the frame's top edge.
+        -- Below the tabs and text (PutUnder keeps it there), so they draw over the frame.
         local border = CreateFrame("Frame", nil, chatFrame)
-        border:SetFrameLevel(math.max(0, chatFrame:GetFrameLevel() - 1))
         border.pieces = NativeArt.CreateBox(border, BOX, false, "BORDER")
         if border.pieces then
             border.tabs, border.edges = {}, {}
@@ -331,7 +440,7 @@ local function StyleFrame(chatFrame)
 
     local tab = Tab(chatFrame)
     if tab then
-        for _, key in ipairs(TAB_ART) do NativeArt.Conceal(tab[key]) end
+        ConcealTabArt(tab)
         if not tabHooked[tab] then
             tabHooked[tab] = true
             hooksecurefunc(tab, "SetAlpha", OnTabAlpha)
@@ -345,6 +454,7 @@ local function StyleFrame(chatFrame)
     end
 
     if chatFrame.ScrollBar then Park(chatFrame.ScrollBar) end
+    PlaceScrollButton(chatFrame)
 end
 
 local function UnstyleFrame(chatFrame)
@@ -355,7 +465,7 @@ local function UnstyleFrame(chatFrame)
     if frames[chatFrame] then frames[chatFrame]:Hide() end
     local tab = Tab(chatFrame)
     if tab then
-        for _, key in ipairs(TAB_ART) do NativeArt.Reveal(tab[key]) end
+        RevealTabArt(tab)
         tabAlpha[tab] = nil
         if FCFTab_UpdateAlpha then pcall(FCFTab_UpdateAlpha, chatFrame) end
     end
@@ -364,6 +474,7 @@ local function UnstyleFrame(chatFrame)
         for _, key in ipairs(EDIT_ART) do NativeArt.Reveal(_G[editBox:GetName() .. key]) end
     end
     if chatFrame.ScrollBar then Unpark(chatFrame.ScrollBar) end
+    RestoreScrollButton(chatFrame)
 end
 
 local function SetButtonsHidden(hide)
@@ -384,7 +495,7 @@ end
 
 -- The mouse is over a chat window, counting the strip above it where the tabs sit.
 local function Hovered(chatFrame)
-    if chatFrame:IsVisible() and chatFrame:IsMouseOver(28, -2, -2, 2) then return true end
+    if chatFrame:IsVisible() and chatFrame:IsMouseOver(28 + PAD_TOP, -PAD_BOTTOM, -PAD_X, PAD_X) then return true end
     local tab = Tab(chatFrame)
     return tab and tab:IsVisible() and tab:IsMouseOver() or false
 end
