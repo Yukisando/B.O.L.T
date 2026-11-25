@@ -42,20 +42,20 @@ local BOX = BOLT.isForever
     and { atlas = "ui-hud-minimap-header-button", corner = 7, midX = 76, midY = 11, out = 3 }
     or { atlas = "ui-hud-minimap-button", corner = 6, midX = 10, midY = 9, out = 4 }
 local LINE = BOX.out       -- where the art's line sits in each piece, from its outer side
-local TAB_PAD_X = 10       -- tab outline, from the tab's text sideways
-local TAB_PAD_Y = 5        -- and at least this much above it
+local TAB_PAD_X = 16       -- tab outline's line, from the tab's text sideways
+local TAB_PAD_Y = 8        -- and above and below it
 local TAB_FILL = 0.6       -- the tab's dark background, darker than the panel so its label reads
 local TAB_MIN_ALPHA = 0.9  -- unselected tab labels stay this visible while the chat shows
 -- Room between the text and the frame's line, so no line of text ever touches it.
 local PAD_X = 8
 local PAD_TOP = 6
 local PAD_BOTTOM = 5
-local LABEL_GAP = 3        -- tab labels stay at least this far above the frame's top line
+local LABEL_GAP = TAB_PAD_Y -- tab labels stay this far above the frame's top line
 
 local HOVER_ALPHA = 0.45   -- the dark background under the text while the mouse is over it
 local BG_FADE = 0.25       -- seconds
 local HISTORY_LINES = 100  -- per tab
-local HISTORY_DIM = 0.6    -- restored lines, color multiplier
+local HISTORY_DIM = 0.85   -- restored lines, color multiplier
 
 local function Cfg(key) return BOLT:GetConfig("chat", key) end
 
@@ -222,19 +222,27 @@ end
 local STRATA = { BACKGROUND = 1, LOW = 2, MEDIUM = 3, HIGH = 4, DIALOG = 5, FULLSCREEN = 6,
     FULLSCREEN_DIALOG = 7, TOOLTIP = 8 }
 
--- The frame and its tab boxes draw under the text and under every tab label.
+local STRATA_NAMES = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN",
+    "FULLSCREEN_DIALOG", "TOOLTIP" }
+
+-- The frame, its background and its tab boxes draw under the text and every tab label: a whole
+-- strata below the lowest of them (frame levels alone weren't enough: the text still ended up
+-- under the frame). Already in BACKGROUND, it goes just under them there.
 local function PutUnder(panel, chatFrame, tabs)
-    local strata, level = chatFrame:GetFrameStrata(), chatFrame:GetFrameLevel()
+    local rank, level = STRATA[chatFrame:GetFrameStrata()] or 2, chatFrame:GetFrameLevel()
+    local container = chatFrame.FontStringContainer
+    if container then level = math.min(level, container:GetFrameLevel()) end
     for _, tab in ipairs(tabs) do
-        local s, l = tab:GetFrameStrata(), tab:GetFrameLevel()
-        if (STRATA[s] or 2) < (STRATA[strata] or 2) then
-            strata, level = s, l
-        elseif s == strata then
+        local r, l = STRATA[tab:GetFrameStrata()] or 2, tab:GetFrameLevel()
+        if r < rank then
+            rank, level = r, l
+        elseif r == rank then
             level = math.min(level, l)
         end
     end
+    local strata, want = STRATA_NAMES[math.max(1, rank - 1)], 1
+    if rank == 1 then want = math.max(0, level - 1) end
     if panel:GetFrameStrata() ~= strata then panel:SetFrameStrata(strata) end
-    local want = math.max(0, level - 1)
     if panel:GetFrameLevel() ~= want then panel:SetFrameLevel(want) end
 end
 
@@ -311,9 +319,10 @@ local function PlacePanel(chatFrame)
     for i, shape in ipairs(shapes) do
         local box = TabBox(panel, i)
         -- As much room above the label as below it, so it sits in the middle of its box.
+        -- The art's line sits `d` inside the box's edge, so the box reaches that much further.
         local pad = math.max(TAB_PAD_Y, shape.bottom - lineY)
         local boxBottom = lineY - d
-        local boxTop = math.max(shape.top + pad, boxBottom + 2 * c)
+        local boxTop = math.max(shape.top + pad + d, boxBottom + 2 * c)
         box:ClearAllPoints()
         At(box, "TOPLEFT", shape.x0 - d, boxTop)
         At(box, "BOTTOMRIGHT", shape.x1 + d, boxBottom)
@@ -419,13 +428,8 @@ local function StyleFrame(chatFrame)
 
     local bg = styled[chatFrame]
     if not bg then
-        bg = chatFrame:CreateTexture(nil, "BACKGROUND", nil, -8)
-        bg:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-        bg:SetAllPoints(chatFrame)
-        bg:SetVertexColor(0, 0, 0)
-        bg:SetAlpha(0)
-        styled[chatFrame] = bg
-        -- Below the tabs and text (PutUnder keeps it there), so they draw over the frame.
+        -- The dark background and the bronze frame live on their own frame, a strata below the
+        -- chat and its tabs (PutUnder), so nothing of ours can ever draw over the text.
         local border = CreateFrame("Frame", nil, chatFrame)
         border.pieces = NativeArt.CreateBox(border, BOX, false, "BORDER")
         if border.pieces then
@@ -433,6 +437,12 @@ local function StyleFrame(chatFrame)
             border:SetAlpha(0)
             frames[chatFrame] = border
         end
+        bg = (border.pieces and border or chatFrame):CreateTexture(nil, "BACKGROUND", nil, -8)
+        bg:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+        bg:SetAllPoints(chatFrame)
+        bg:SetVertexColor(0, 0, 0)
+        bg:SetAlpha(0)
+        styled[chatFrame] = bg
     end
     bg:Show()
     if frames[chatFrame] then frames[chatFrame]:Show() end
