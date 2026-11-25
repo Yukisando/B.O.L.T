@@ -202,13 +202,20 @@ local function TabBox(panel, index)
     -- (line from the left, turning up) on the left, its bottom-left corner on the right.
     box.curveLeft = CopyPiece(box, panel.pieces[8])
     box.curveRight = CopyPiece(box, panel.pieces[6])
-    box.fill = box:CreateTexture(nil, "BACKGROUND")
-    box.fill:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-    box.fill:SetVertexColor(0, 0, 0, TAB_FILL)
-    box.fill:SetPoint("TOPLEFT", BOX.corner / 2, -BOX.corner / 2)
-    box.fill:SetPoint("BOTTOMRIGHT", -BOX.corner / 2, LINE)
     panel.tabs[index] = box
     return box
+end
+
+-- A tab's dark background, on the tab (behind its label) but placed over our box.
+local tabFills = {} -- [tab] = texture
+
+local function TabFill(tab)
+    local fill = tabFills[tab]
+    if fill then return fill end
+    fill = tab:CreateTexture(nil, "BACKGROUND", nil, -8)
+    fill:SetColorTexture(0, 0, 0, TAB_FILL)
+    tabFills[tab] = fill
+    return fill
 end
 
 local function EdgeSegment(panel, index)
@@ -264,7 +271,7 @@ local function PlacePanel(chatFrame)
             local left, right = text and text:GetLeft(), text and text:GetRight()
             local top, bottom = text and text:GetTop(), text and text:GetBottom()
             if left and right and top and bottom then
-                table.insert(labels, { left = left, right = right, top = top, bottom = bottom })
+                table.insert(labels, { tab = tab, left = left, right = right, top = top, bottom = bottom })
                 -- The frame's top line never runs through a label.
                 padTop = math.min(padTop, bottom - chatTop - LABEL_GAP)
             end
@@ -297,7 +304,7 @@ local function PlacePanel(chatFrame)
         for _, label in ipairs(labels) do
             table.insert(shapes, {
                 x0 = label.left - areaLeft - TAB_PAD_X, x1 = label.right - areaLeft + TAB_PAD_X,
-                top = label.top - areaTop, bottom = label.bottom - areaTop,
+                top = label.top - areaTop, bottom = label.bottom - areaTop, tab = label.tab,
             })
         end
         -- Room for the curves: away from the panel's own corners, and between neighbours.
@@ -333,6 +340,12 @@ local function PlacePanel(chatFrame)
         At(box.curveRight, "TOPLEFT", shape.x1 - d, boxBottom + c)
         At(box.curveRight, "BOTTOMRIGHT", shape.x1 - d + c, boxBottom)
         box:Show()
+        -- The dark fill belongs to the tab itself, so its own label always draws over it.
+        local fill = TabFill(shape.tab)
+        fill:ClearAllPoints()
+        fill:SetPoint("TOPLEFT", box, "TOPLEFT", BOX.corner / 2, -BOX.corner / 2)
+        fill:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT", -BOX.corner / 2, LINE)
+        fill:Show()
         -- The gap this tab leaves in the panel's top line, from the panel's left side.
         table.insert(openings, { shape.x0 + d - c + out, shape.x1 - d + c + out })
     end
@@ -366,7 +379,8 @@ local tabArt = {} -- [tab] = the textures we hid
 
 local function ConcealTabArt(tab)
     if tabArt[tab] then return end
-    local keep = { [tab.glow or false] = true, [tab.conversationIcon or false] = true }
+    local keep = { [tab.glow or false] = true, [tab.conversationIcon or false] = true,
+        [tabFills[tab] or false] = true }
     local glow = tab:GetName() and _G[tab:GetName() .. "Glow"]
     if glow then keep[glow] = true end
     local list = {}
@@ -476,6 +490,7 @@ local function UnstyleFrame(chatFrame)
     local tab = Tab(chatFrame)
     if tab then
         RevealTabArt(tab)
+        if tabFills[tab] then tabFills[tab]:Hide() end
         tabAlpha[tab] = nil
         if FCFTab_UpdateAlpha then pcall(FCFTab_UpdateAlpha, chatFrame) end
     end
