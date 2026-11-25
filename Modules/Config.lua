@@ -380,6 +380,11 @@ local PAGES = {
                         get = function() return (C_CVar and C_CVar.GetCVar or GetCVar)("chatStyle") == "im" end,
                         set = function(value) pcall(C_CVar and C_CVar.SetCVar or SetCVar, "chatStyle", value and "im" or "classic") end },
                     { type = "checkbox", label = "Input box on top (above the tabs) instead of below the window", path = { "chat", "inputTop" } },
+                    { type = "slider", label = "Text size (every window):", width = 160, min = 8, max = 24, step = 1,
+                        get = function() return Module("chat"):GetTextSize() end,
+                        set = function(value) Module("chat"):SetTextSize(value) end },
+                    { type = "slider", label = "Room between lines:", width = 160, path = { "chat", "lineSpacing" }, min = 0, max = 8, step = 1,
+                        format = function(value) return ("%d px"):format(value) end },
                     { type = "checkbox", label = "Keep the last lines of each tab after a reload or login", path = { "chat", "history" } },
                     { type = "checkbox", label = "Hide Battle.net notifications (friend online or offline, broadcasts, friend requests)", path = { "chat", "hideBnetToasts" } },
                     { type = "checkbox", label = "\"Copy chat\" in a tab's right-click menu (also /copychat)", path = { "chat", "copyMenu" } },
@@ -635,7 +640,10 @@ local function MenuButton(parent, option, buildMenu, getText)
 end
 
 -- Blizzard's own settings slider (with steppers and a value label on the right).
+-- option.get/option.set bind it to something other than a saved setting.
 function Widgets.slider(parent, option)
+    local get = option.get or function() return GetSetting(option.path) end
+    local set = option.set or function(value) SetSetting(option.path, value) end
     local holder = CreateFrame("Frame", nil, parent)
     holder:SetSize(1, 22)
     local label = AddLabel(holder, option.label)
@@ -646,19 +654,17 @@ function Widgets.slider(parent, option)
     slider:SetWidth(option.width or 200)
     slider:SetPoint("LEFT", label, "RIGHT", 12, 0)
     local rightLabel = MinimalSliderWithSteppersMixin.Label.Right
-    slider:Init(GetSetting(option.path) or option.min, option.min, option.max, (option.max - option.min) / step, {
+    slider:Init(get() or option.min, option.min, option.max, (option.max - option.min) / step, {
         [rightLabel] = CreateMinimalSliderFormatter(rightLabel, option.format),
     })
     slider:RegisterCallback(MinimalSliderWithSteppersMixin.Event.OnValueChanged, function(_, value)
         value = math.floor(value / step + 0.5) * step
-        if value ~= GetSetting(option.path) then
-            SetSetting(option.path, value)
-        end
+        if value ~= get() then set(value) end
     end, holder)
     holder:SetWidth(label:GetStringWidth() + 12 + slider:GetWidth() + 40)
 
     holder.SetEnabled = function(_, enabled) slider:SetEnabled(enabled) end
-    holder.Refresh = function() slider:SetValue(GetSetting(option.path) or option.min) end
+    holder.Refresh = function() slider:SetValue(get() or option.min) end
     holder.anchorRight = slider
     return holder
 end

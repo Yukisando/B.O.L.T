@@ -385,6 +385,16 @@ local function RegisterChat()
         EditMode:Checkbox("Input box on top", { "chat", "inputTop" }, {
             desc = "Puts the input box above the chat window (over the tabs) instead of below it, so the window can sit at the bottom of the screen.",
         }),
+        EditMode:Slider("Text size", nil, {
+            min = 8, max = 24, step = 1, default = 14, keepOnReset = true,
+            desc = "The chat text size on every window, down to 8 (the tab menu stops at 12). The game saves it, like the tab menu's Font Size.",
+            get = function() return BOLT:GetModule("chat"):GetTextSize() end,
+            set = function(value) BOLT:GetModule("chat"):SetTextSize(value) end,
+        }),
+        EditMode:Slider("Room between lines", { "chat", "lineSpacing" }, {
+            min = 0, max = 8, step = 1,
+            desc = "A little space between chat lines so they read less like one block.",
+        }),
         EditMode:Checkbox("Keep the last lines after a reload", { "chat", "history" }, {
             desc = "Each tab gets its last lines back after a reload or login.",
         }),

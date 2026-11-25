@@ -6,8 +6,9 @@
 --     show only while the mouse is over the chat (a tab with new messages still shows), and a
 --     soft dark background fades in on hover inside the minimap's bronze frame, with room around
 --     the text on every side (the combat log's filter bar goes inside it too). Each tab is a small
---     box of the same art standing on that frame; the selected one opens into it. The
+--     outline of the same art standing on that frame, with no background of its own. The
 --     scroll-to-bottom arrows sit inside the frame's corner.
+--   * Text size (down to 8, below the tab menu's 12) and room between lines, for every window.
 --   * Text on hover only: the messages themselves show only while the mouse is over the chat
 --     or you type (new messages pop up through ChatPopups instead).
 --   * Chat buttons (menu, channels, voice, social) hidden. Emotes and languages are still typed.
@@ -57,11 +58,10 @@ local TAB_GAP = 6          -- at least this much between two tab boxes (their fa
 local TAB_PAD_Y_MIN = 6    -- above the label: as much as below it, within these bounds
 local TAB_PAD_Y_MAX = 10
 local TAB_MIN_BELOW = 4    -- a label stays at least this far above the frame's top line
-local TAB_FILL = 0.55      -- the tabs' dark background
-local TAB_FILL_SELECTED = 0.85
 local TAB_MIN_ALPHA = 0.9  -- unselected tab labels stay this visible while the chat shows
 
-local HOVER_ALPHA = 0.45   -- the dark background under the text while the mouse is over it
+local HOVER_ALPHA = 0.6    -- the dark background under the text while the mouse is over it
+local MIN_TEXT_SIZE, MAX_TEXT_SIZE = 8, 24 -- the text size slider (the tab menu stops at 12)
 local BG_FADE = 0.25       -- seconds
 local HISTORY_LINES = 100  -- per tab
 local HISTORY_DIM = 0.85   -- restored lines, color multiplier
@@ -140,9 +140,9 @@ end
 --   * the panel: our own frame, a whole strata under the chat and its tabs, holding the dark
 --     background and the bronze frame. It goes around the text with room on every side, and
 --     around the combat log's filter bar when that window shows it.
---   * the tab boxes: textures on each tab itself, anchored to its label, so the label always
---     draws over them and they follow the tab wherever Blizzard moves it. A box stands on the
---     panel's top line; the selected tab's dark fill covers that line, so it opens into the panel.
+--   * the tab boxes: outlines drawn as textures on each tab itself, anchored to its label, so
+--     the label always draws over them and they follow the tab wherever Blizzard moves it. A box
+--     stands on the panel's top line, the label centered in it.
 --   * the input box, when it's on top: just above the highest tab box. Its art is hidden, so it
 --     takes clicks only while you type in it; idle, it would be an invisible wall over the tabs.
 -- Positions come from the screen, and are measured again while the chat shows: tabs move,
@@ -160,7 +160,6 @@ local ours = setmetatable({}, { __mode = "k" }) -- textures we put on Blizzard's
 local function Tab(chatFrame) return _G[chatFrame:GetName() .. "Tab"] end
 local function TabText(tab) return tab.Text or _G[tab:GetName() .. "Text"] end
 local function EditBoxOf(chatFrame) return chatFrame.editBox or _G[chatFrame:GetName() .. "EditBox"] end
-local function ChatOfTab(tab) return _G[((tab:GetName() or ""):gsub("Tab$", ""))] end
 
 local function SavePoints(region)
     local points = {}
@@ -212,15 +211,6 @@ local function TabsOf(chatFrame)
     return tabs
 end
 
-local function IsSelectedTab(tab)
-    local chatFrame = ChatOfTab(tab)
-    if chatFrame and chatFrame.isDocked and GENERAL_CHAT_DOCK and FCFDock_GetSelectedWindow then
-        local ok, selected = pcall(FCFDock_GetSelectedWindow, GENERAL_CHAT_DOCK)
-        if ok and selected then return selected == chatFrame end
-    end
-    return true
-end
-
 -- Every texture of a tab is Blizzard's tab art (background, selected and hover pieces): all of
 -- it goes, so only the label shows, in our box. The new-message glow and the whisper icon stay.
 local tabArt = {} -- [tab] = the textures we hid
@@ -249,7 +239,7 @@ end
 -- Tab boxes
 ---------------------------------------------------------------------------
 
-local tabBoxes = {} -- [tab] = { rect, fill, pieces }
+local tabBoxes = {} -- [tab] = { rect, pieces }
 
 local function TabBox(tab)
     local box = tabBoxes[tab]
@@ -258,8 +248,6 @@ local function TabBox(tab)
     -- An invisible rectangle the art is anchored to; Layout sizes it around the label.
     box.rect = tab:CreateTexture(nil, "BACKGROUND", nil, -8)
     box.rect:SetColorTexture(0, 0, 0, 0)
-    box.fill = tab:CreateTexture(nil, "BACKGROUND", nil, -7)
-    box.fill:SetColorTexture(0, 0, 0, 1)
     box.pieces = NativeArt.CreateBox(tab, BOX, false, "BORDER", 0, box.rect) or {}
     local c = BOX.corner
     if #box.pieces == 8 then
@@ -269,7 +257,7 @@ local function TabBox(tab)
         box.pieces[5]:SetPoint("BOTTOMRIGHT", box.rect, "BOTTOMRIGHT", 0, 0)
         for i = 6, 8 do box.pieces[i]:Hide() end
     end
-    ours[box.rect], ours[box.fill] = true, true
+    ours[box.rect] = true
     for _, piece in ipairs(box.pieces) do ours[piece] = true end
     tabBoxes[tab] = box
     return box
@@ -279,7 +267,6 @@ local function ShowTabBox(tab, show)
     local box = tabBoxes[tab]
     if not box then return end
     box.rect:SetShown(show)
-    box.fill:SetShown(show)
     for i, piece in ipairs(box.pieces) do piece:SetShown(show and (#box.pieces ~= 8 or i < 6)) end
 end
 
@@ -323,12 +310,6 @@ local function SizeTabBox(tab, below, left, right)
     else
         box.rect:SetPoint("CENTER", text, "CENTER", dx, dy)
     end
-    local selected = IsSelectedTab(tab)
-    box.fill:ClearAllPoints()
-    box.fill:SetPoint("TOPLEFT", box.rect, "TOPLEFT", LINE, -LINE)
-    -- The selected tab's fill covers the panel's top line under it; the others stop above it.
-    box.fill:SetPoint("BOTTOMRIGHT", box.rect, "BOTTOMRIGHT", -LINE, selected and -2 or 2)
-    box.fill:SetAlpha(selected and TAB_FILL_SELECTED or TAB_FILL)
     ShowTabBox(tab, true)
     return sh + above + LINE
 end
@@ -425,6 +406,7 @@ local function Layout(chatFrame)
     panel:SetPoint("BOTTOMRIGHT", chatFrame, "BOTTOMRIGHT", PAD_X + LINE, -PAD_BOTTOM - LINE)
 
     -- Side room: the full padding, less where two neighbours would come closer than TAB_GAP.
+    -- Both sides of a box get the same, so its label stays in the middle.
     local full = TAB_PAD_X + LINE
     local sides, row = {}, {}
     for _, tab in ipairs(tabs) do
@@ -440,6 +422,10 @@ local function Layout(chatFrame)
             local pad = math.max(LINE + 2, (space - TAB_GAP) / 2)
             sides[prev.tab][2], sides[cur.tab][1] = pad, pad
         end
+    end
+    for _, side in pairs(sides) do
+        local pad = math.min(side[1], side[2])
+        side[1], side[2] = pad, pad
     end
 
     local tabTop
@@ -718,6 +704,40 @@ driver:SetScript("OnUpdate", function(_, elapsed)
 end)
 
 ---------------------------------------------------------------------------
+-- Text size and room between lines
+---------------------------------------------------------------------------
+-- The size is the game's own per-window setting (the tab menu's Font Size), saved by the game:
+-- the slider sets it on every window at once and goes below the menu's 12. The room between
+-- lines is ours (chat.lineSpacing).
+
+Chat.MIN_TEXT_SIZE, Chat.MAX_TEXT_SIZE = MIN_TEXT_SIZE, MAX_TEXT_SIZE
+
+function Chat:GetTextSize()
+    local ok, _, size = pcall(GetChatWindowInfo, 1)
+    if ok and type(size) == "number" and size > 0 then return math.floor(size + 0.5) end
+    return 14
+end
+
+function Chat:SetTextSize(size)
+    size = math.max(MIN_TEXT_SIZE, math.min(MAX_TEXT_SIZE, math.floor(size + 0.5)))
+    for i = 1, NUM_CHAT_WINDOWS or 10 do
+        local chatFrame = _G["ChatFrame" .. i]
+        if chatFrame then
+            if SetChatWindowSize then pcall(SetChatWindowSize, i, size) end
+            local file, _, flags = chatFrame:GetFont()
+            if file then chatFrame:SetFont(file, size, flags or "") end
+        end
+    end
+end
+
+local function ApplySpacing()
+    local spacing = Cfg("lineSpacing") or 0
+    for _, chatFrame in ipairs(ChatFrames()) do
+        if chatFrame.SetSpacing then pcall(chatFrame.SetSpacing, chatFrame, spacing) end
+    end
+end
+
+---------------------------------------------------------------------------
 -- Applying the settings
 ---------------------------------------------------------------------------
 
@@ -741,6 +761,7 @@ function Chat:ApplyWindow()
     cleanOn = clean
 
     if hideButtons or buttonsHidden then SetButtonsHidden(hideButtons) end
+    ApplySpacing()
 
     inputOn = allowed and Cfg("inputTop") and true or false
     for _, chatFrame in ipairs(ChatFrames()) do
@@ -789,7 +810,7 @@ end
 
 -- Temporary whisper windows and new tabs come later: style them as they open.
 local function OnNewWindow()
-    if cleanOn or buttonsHidden or Cfg("inputTop") then Chat:ApplyWindow() end
+    Chat:ApplyWindow()
 end
 
 ---------------------------------------------------------------------------
