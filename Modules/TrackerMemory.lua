@@ -19,6 +19,11 @@ local TrackerMemory = {
 local hooked = false
 local folded = false
 local expandButton, keeper
+-- The background's alpha as Blizzard last set it (Edit Mode's opacity for the tracker): folding
+-- hides it, unfolding puts back this value, not 1. Putting back 1 gave the tracker a fully dark
+-- background after it opened again (2026-11-25).
+local backgroundAlpha
+local settingBackground = false
 
 local function Tracker()
     local tracker = ObjectiveTrackerFrame
@@ -32,8 +37,14 @@ local function SetPartsAlpha(tracker, alpha)
     for _, module in ipairs(tracker.modules or {}) do
         if module:GetAlpha() ~= alpha then module:SetAlpha(alpha) end
     end
-    if tracker.NineSlice and tracker.NineSlice:GetAlpha() ~= alpha then
-        tracker.NineSlice:SetAlpha(alpha)
+    local background = tracker.NineSlice
+    if background then
+        local want = alpha == 0 and 0 or (backgroundAlpha or 1)
+        if math.abs(background:GetAlpha() - want) > 0.001 then
+            settingBackground = true
+            background:SetAlpha(want)
+            settingBackground = false
+        end
     end
 end
 
@@ -57,6 +68,20 @@ local function Setup(tracker)
     if hooked then return end
     hooked = true
     local button = tracker.Header.MinimizeButton
+
+    local background = tracker.NineSlice
+    if background then
+        backgroundAlpha = background:GetAlpha()
+        hooksecurefunc(background, "SetAlpha", function(_, alpha)
+            if settingBackground then return end
+            backgroundAlpha = alpha
+            if folded then
+                settingBackground = true
+                background:SetAlpha(0)
+                settingBackground = false
+            end
+        end)
+    end
 
     -- Blizzard's own button: a real collapse or expand, remembered as is.
     button:HookScript("OnClick", function()

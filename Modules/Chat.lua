@@ -53,6 +53,7 @@ local MIN_PAD_TOP = 2      -- the top room shrinks down to this when the tab lab
 
 -- Tabs: room around each label inside its box.
 local TAB_PAD_X = 12
+local TAB_GAP = 6          -- at least this much between two tab boxes (their facing sides shrink)
 local TAB_PAD_Y_MIN = 6    -- above the label: as much as below it, within these bounds
 local TAB_PAD_Y_MAX = 10
 local TAB_MIN_BELOW = 4    -- a label stays at least this far above the frame's top line
@@ -282,27 +283,45 @@ local function ShowTabBox(tab, show)
     for i, piece in ipairs(box.pieces) do piece:SetShown(show and (#box.pieces ~= 8 or i < 6)) end
 end
 
--- `below`: from the bottom of the label's text to the panel's top line. Returns the box's top,
--- up from the label's text bottom.
-local function SizeTabBox(tab, below)
+-- Where the label's text is drawn, left and right, in the tab's coordinates.
+local function TextSpan(tab)
+    local text = TabText(tab)
+    if not text then return nil end
+    local sw = text:GetStringWidth() or 0
+    local justify = text:GetJustifyH()
+    if justify == "LEFT" then
+        local left = text:GetLeft()
+        return left, left and left + sw
+    elseif justify == "RIGHT" then
+        local right = text:GetRight()
+        return right and right - sw, right
+    end
+    local cx = text:GetCenter()
+    return cx and cx - sw / 2, cx and cx + sw / 2
+end
+
+-- `below`: from the bottom of the label's text to the panel's top line. `left`/`right`: from the
+-- text to the box's sides. Returns the box's top, up from the label's text bottom.
+local function SizeTabBox(tab, below, left, right)
     local text = TabText(tab)
     if not text then return end
     local box = TabBox(tab)
     local sw, sh = text:GetStringWidth() or 0, text:GetStringHeight() or 12
     local above = math.max(TAB_PAD_Y_MIN, math.min(TAB_PAD_Y_MAX, below))
-    local width = sw + 2 * (TAB_PAD_X + LINE)
+    left, right = left or TAB_PAD_X + LINE, right or TAB_PAD_X + LINE
+    local width = sw + left + right
     local height = sh + above + LINE + below
     -- The box's middle, from the middle of the text as it's drawn.
-    local dy = (above + LINE - below) / 2
+    local dx, dy = (right - left) / 2, (above + LINE - below) / 2
     local justify = text:GetJustifyH()
     box.rect:ClearAllPoints()
     box.rect:SetSize(width, math.max(height, 2 * BOX.corner))
     if justify == "LEFT" then
-        box.rect:SetPoint("CENTER", text, "LEFT", sw / 2, dy)
+        box.rect:SetPoint("CENTER", text, "LEFT", sw / 2 + dx, dy)
     elseif justify == "RIGHT" then
-        box.rect:SetPoint("CENTER", text, "RIGHT", -sw / 2, dy)
+        box.rect:SetPoint("CENTER", text, "RIGHT", -sw / 2 + dx, dy)
     else
-        box.rect:SetPoint("CENTER", text, "CENTER", 0, dy)
+        box.rect:SetPoint("CENTER", text, "CENTER", dx, dy)
     end
     local selected = IsSelectedTab(tab)
     box.fill:ClearAllPoints()
@@ -405,12 +424,30 @@ local function Layout(chatFrame)
     panel:SetPoint("TOPLEFT", chatFrame, "TOPLEFT", -PAD_X - LINE, lineY + LINE)
     panel:SetPoint("BOTTOMRIGHT", chatFrame, "BOTTOMRIGHT", PAD_X + LINE, -PAD_BOTTOM - LINE)
 
+    -- Side room: the full padding, less where two neighbours would come closer than TAB_GAP.
+    local full = TAB_PAD_X + LINE
+    local sides, row = {}, {}
+    for _, tab in ipairs(tabs) do
+        local l, r = TextSpan(tab)
+        if l and r then table.insert(row, { tab = tab, l = l, r = r }) end
+        sides[tab] = { full, full }
+    end
+    table.sort(row, function(a, b) return a.l < b.l end)
+    for i = 2, #row do
+        local prev, cur = row[i - 1], row[i]
+        local space = cur.l - prev.r
+        if space < 2 * full + TAB_GAP then
+            local pad = math.max(LINE + 2, (space - TAB_GAP) / 2)
+            sides[prev.tab][2], sides[cur.tab][1] = pad, pad
+        end
+    end
+
     local tabTop
     for _, tab in ipairs(tabs) do
         local bottom = bottoms[tab]
         if bottom then
             local below = math.max(1, bottom - lineY)
-            local up = SizeTabBox(tab, below)
+            local up = SizeTabBox(tab, below, sides[tab][1], sides[tab][2])
             if up then tabTop = math.max(tabTop or 0, bottom + up) end
         end
     end
