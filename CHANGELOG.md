@@ -6,6 +6,18 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-47 (2026-11-25)
+
+- feat: chat window rebuilt, smaller chat text, tracker background fix
+- Chat text has room inside its frame and never runs under the border or the tabs
+- Tabs are clean outlines standing on the chat frame, labels centered, no more Blizzard tab art showing through
+- The combat log's filter bar sits inside the chat frame and its tabs keep a normal size
+- The scroll-to-bottom arrows sit inside the frame's corner
+- Input box on top follows the tabs, stays on top after a reload, and no longer catches clicks above the tabs while you're not typing
+- New: chat text size down to 8 (the tab menu stops at 12) and room between lines, in Edit Mode and the settings page
+- Darker chat background on hover and brighter restored lines, easier to read
+- Fixed: the objective tracker could get a fully dark background after it opened again
+
 ## v8-46 (2026-11-23)
 
 - feat: smoother chat frame, chat options in Edit Mode, Sit button at camp
