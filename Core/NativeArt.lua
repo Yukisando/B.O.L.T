@@ -146,8 +146,11 @@ end
 --
 --   spec = { atlas = "...", corner = px, midX = column, midY = row }
 --   fill = false leaves the centre empty (a frame around something else)
+--   anchor: the region the pieces are placed over (default `frame`); lets textures made on one
+--   frame outline a rectangle somewhere else, such as a tab label
 
-function NativeArt.CreateBox(frame, spec, fill, layer, subLevel)
+function NativeArt.CreateBox(frame, spec, fill, layer, subLevel, anchor)
+    anchor = anchor or frame
     local name = NativeArt.ResolveAtlas(spec.atlas)
     local info = name and C_Texture.GetAtlasInfo(name)
     if not info then return nil end
@@ -175,8 +178,8 @@ function NativeArt.CreateBox(frame, spec, fill, layer, subLevel)
                     texture:SetTexelSnappingBias(0)
                 end
                 local x0, x1, y0, y1 = xs[col], xs[col + 1], ys[row], ys[row + 1]
-                texture:SetPoint("TOPLEFT", frame, y0[1] .. x0[1], x0[2], y0[2])
-                texture:SetPoint("BOTTOMRIGHT", frame, y1[1] .. x1[1], x1[2], y1[2])
+                texture:SetPoint("TOPLEFT", anchor, y0[1] .. x0[1], x0[2], y0[2])
+                texture:SetPoint("BOTTOMRIGHT", anchor, y1[1] .. x1[1], x1[2], y1[2])
                 table.insert(pieces, texture)
             end
         end
