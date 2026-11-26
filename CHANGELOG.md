@@ -6,6 +6,15 @@ Entries below the marker are added automatically by the release workflow from co
 
 <!-- AUTO-CHANGELOG -->
 
+## v8-48 (2026-11-26)
+
+- feat: mail address book, pin addon buttons to the minimap bar, pet mode for the Attack Key
+- New Mail Address Book: at a mailbox your bags open, and the last 5 characters you sent mail to sit beside the Send Mail tab; click one to fill the To field, right-click to take it off
+- The recent mail list is shared by all your characters
+- Minimap: drag an addon button from the drawer onto the button bar to pin it at the far end, drag it off to put it back
+- Pinned buttons keep all their own clicks and are the same on every character
+- Attack Key: new Pet mode choice, Assist, Defensive, or leave the pet's mode alone (your old Assist setting carries over)
+
 ## v8-47 (2026-11-25)
 
 - feat: chat window rebuilt, smaller chat text, tracker background fix
