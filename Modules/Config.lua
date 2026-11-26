@@ -330,8 +330,10 @@ local PAGES = {
                 description = "One key to attack: it targets the enemy under the mouse (or keeps your current target), sends your pet to attack it and starts your wand's Shoot. Hunters start Auto Shot with their bow or gun, or a melee swing when the enemy is too close to shoot. Without a pet out it just attacks. Pressing it again doesn't stop the shooting. Works in combat.",
                 options = {
                     { type = "keybind", label = "Attack key:", binding = "CLICK BOLTWandShootButton:LeftButton" },
-                    { type = "checkbox", label = "Also put the pet in Assist mode (it keeps attacking what you attack)", path = { "wandShoot", "petAssist" },
-                        available = function() return Module("wandShoot"):CanAssist() end },
+                    { type = "dropdown", label = "Pet mode:", width = 230,
+                        get = function() return Module("wandShoot"):GetPetMode() end,
+                        set = function(value) Module("wandShoot"):SetPetMode(value) end,
+                        options = function() return Module("wandShoot"):PetModeOptions() end },
                 },
             },
             {

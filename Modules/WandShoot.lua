@@ -3,7 +3,7 @@
 -- in and starts wand Shoot (hunters: Auto Shot, or a melee swing when the enemy is too close).
 -- Its saved settings ("wandShoot") and button name stay as they were, so keybinds carry over.
 -- Pet attack is always part of it since 2026-11-12 (it was an option).
--- It also puts the pet in Assist mode (setting, on by default), so it keeps helping you after.
+-- It also sets the pet to Assist or Defensive (setting, Assist by default), or leaves it alone.
 --
 -- Addons can't cast from their own code, so the key clicks a secure macro button
 -- (binding "CLICK BOLTWandShootButton:LeftButton"), which works in and out of combat. The macro
@@ -45,6 +45,32 @@ function WandShoot:CanAssist()
     return C_PetInfo ~= nil and C_PetInfo.PetAssistMode ~= nil
 end
 
+-- What the key sets the pet's stance to: "assist", "defensive" or "none" (2026-11-26).
+-- Replaces the old petAssist on/off, which still decides the choice until one is picked.
+function WandShoot:GetPetMode()
+    local mode = BOLT:GetConfig("wandShoot", "petMode")
+    if mode == nil then
+        mode = BOLT:GetConfig("wandShoot", "petAssist") == false and "none" or "assist"
+    end
+    if mode == "assist" and not self:CanAssist() then mode = "defensive" end
+    return mode
+end
+
+function WandShoot:SetPetMode(mode)
+    BOLT:SetConfig(mode, "wandShoot", "petMode")
+    self:Apply()
+end
+
+function WandShoot:PetModeOptions()
+    local list = {}
+    if self:CanAssist() then
+        table.insert(list, { value = "assist", label = "Assist (attacks what you attack)" })
+    end
+    table.insert(list, { value = "defensive", label = "Defensive (fights back when attacked)" })
+    table.insert(list, { value = "none", label = "Leave it as it is" })
+    return list
+end
+
 function WandShoot:MacroText()
     -- "!" keeps a second press from stopping the wand. Shoot goes before /petattack: with the pet
     -- line first, only the pet attacked and the wand never started (2026-11-12).
@@ -54,8 +80,11 @@ function WandShoot:MacroText()
     -- Wands work at any range, so other classes get no swing.
     if IsHunter() then table.insert(lines, "/startattack [harm,nodead]") end
     table.insert(lines, "/cast [harm,nodead] !" .. ShootName())
-    if BOLT:GetConfig("wandShoot", "petAssist") and self:CanAssist() then
+    local petMode = self:GetPetMode()
+    if petMode == "assist" then
         table.insert(lines, "/petassist [@pet,exists]")
+    elseif petMode == "defensive" then
+        table.insert(lines, "/petdefensive [@pet,exists]")
     end
     table.insert(lines, "/petattack [harm,nodead]")
     return table.concat(lines, "\n")

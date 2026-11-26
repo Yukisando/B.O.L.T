@@ -91,7 +91,7 @@ BOLT.defaults = {
             copyTargetMount = true,
         },
         wandShoot = {
-            petAssist = true, -- the key also puts the pet in Assist mode
+            petAssist = true, -- old on/off; petMode ("assist", "defensive", "none") replaces it once picked
         },
         myDamage = {
             hideBlizzard = true, -- hide Blizzard's damage meter window while the panel is on

@@ -113,7 +113,7 @@ Blizzard's health and power bars under your character, made into a complete mini
 
 ### Gameplay
 
-- **Attack Key** (**Forever**): one key for wand or Auto Shot (melee swing up close), pet attack and pet Assist mode.
+- **Attack Key** (**Forever**): one key for wand or Auto Shot (melee swing up close), pet attack, and the pet set to Assist or Defensive (your pick).
 - **My Damage**: a small, quiet panel with only your numbers: your rank in the group, your dps, and your spells and pets. Left-click it for this fight or the overall total, right-click for your spells or the whole group (one line per player, in class colours). Opacity and click-through are set in Edit Mode.
 
   <img src="https://raw.githubusercontent.com/Yukisando/B.O.L.T/main/.github/screenshots/my-damage.jpg" alt="My Damage beside the minimap on Retail: your spells for the overall session" width="420">
