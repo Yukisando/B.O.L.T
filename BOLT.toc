@@ -57,6 +57,7 @@ Modules\CheetahWarning.lua
 Modules\MyDamage.lua
 Modules\AutoRepSwitch.lua
 Modules\AutoSell.lua
+Modules\MailBook.lua
 Modules\Campfire.lua
 Modules\SmartTeleportSuggestions.lua
 Modules\SavedInstances.lua

@@ -59,7 +59,7 @@ Blizzard's own frames, restyled with Blizzard's own art.
 
 - A square map in Blizzard's minimap frame, with the zone name and clock in a title bar.
 - Tracking, calendar, mail and the other minimap buttons in one tidy bar (bottom, top, left or right).
-- Addon buttons go into one drawer that opens on click.
+- Addon buttons go into one drawer that opens on click. Drag one onto the button bar to pin it at the far end.
 - Coordinates in one corner, your movement speed in the other, a resting Zzz, the day/night dial (**Forever**).
 - A faded FPS counter next to the clock, if you want it.
 - Optional mouse-wheel zoom.
@@ -128,6 +128,7 @@ Blizzard's health and power bars under your character, made into a complete mini
   <img src="https://raw.githubusercontent.com/Yukisando/B.O.L.T/main/.github/screenshots/game-menu.jpg" alt="BOLT's round buttons around the Retail game menu" width="300">
 - **Campfire Rest** (**Forever**): see above.
 - **Auto Rep Switch**: the reputation bar follows the faction you just gained rep with.
+- **Mail Address Book**: at a mailbox your bags open, and the last 5 characters you mailed are one click away.
 - **Saved Instances**: your dungeon and raid lockouts. `/boltsaved`
 - **Smart Teleport** (**Retail**): every teleport you own for the zone you're viewing, under the World Map.
 

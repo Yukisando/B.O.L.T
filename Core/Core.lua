@@ -90,6 +90,9 @@ BOLT.defaults = {
             closeGameMenuOnCast = false,
             copyTargetMount = true,
         },
+        mailBook = {
+            openBags = true, -- open the bags at the mailbox
+        },
         wandShoot = {
             petAssist = true, -- old on/off; petMode ("assist", "defensive", "none") replaces it once picked
         },
@@ -189,6 +192,7 @@ BOLT.defaultModuleStates = {
     myDamage = true,
     autoRepSwitch = false,
     autoSell = false,
+    mailBook = true,
     campfire = false,
     smartTeleport = false,
     chatNotifier = false,
@@ -209,6 +213,7 @@ BOLT.trackingMenuModules = {
     autoHide = true,
     gameMenu = true,
     autoSell = true,
+    mailBook = true,
     campfire = true,
     autoRepSwitch = true,
     skyriding = true,

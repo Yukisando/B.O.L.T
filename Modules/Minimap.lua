@@ -5,7 +5,9 @@
 --                 the side you pick (above the map pushes the title bar up)
 --   in the map    coordinates bottom right, movement speed bottom left, Forever's day/night dial
 --                 top right, all half faded until the map is hovered
--- Addon buttons (LibDBIcon and the like) go into one drawer.
+-- Addon buttons (LibDBIcon and the like) go into one drawer. Drag one onto the button bar to pin
+-- it at the bar's far end; drag it off the bar to put it back (2026-11-26). Dragging is free on
+-- these buttons: their clicks and modifiers all stay the addon's.
 --
 -- Blizzard re-anchors its minimap pieces on its own (Edit Mode, mail arriving, the landing page
 -- changing), so every placed frame keeps a SetPoint hook that puts it back. None of these
@@ -34,6 +36,7 @@ local BASE_RUN_SPEED = 7 -- yards per second at 100%
 local SPEED_LINGER = 2  -- seconds the speed stays up after you stop
 local DRAWER_COLUMNS = 6
 local DRAWER_CELL = 34
+local PIN = 20          -- an addon button pinned to the button bar
 
 -- Panels are one Blizzard atlas cut in nine (see NativeArt.CreateBox). `out` is how far the
 -- map frame reaches outside the map, so the art's border line sits on the map's edge.
@@ -152,6 +155,8 @@ local function AnchorBar(bar, side, after)
     end
 end
 
+local PinnedButtons, SyncParents -- addon buttons pinned to the bar's far end (drawer section)
+
 local function LayoutButtons()
     local side = Cfg("buttons") or "BOTTOM"
     local horizontal = side == "TOP" or side == "BOTTOM"
@@ -159,6 +164,29 @@ local function LayoutButtons()
 
     local offset, index = SPACING, 0
     local level = buttonBar:GetFrameLevel() + 2
+
+    -- Pinned addon buttons fill from the far end (right, or bottom on a column), first pin outermost.
+    SyncParents()
+    local farOffset = SPACING
+    for _, frame in ipairs(PinnedButtons()) do
+        index = index + 1
+        local width, height = frame:GetSize()
+        local scale = (width > 0 and height > 0) and PIN / math.max(width, height) or 1
+        local slot = GetSlot(index)
+        slot:ClearAllPoints()
+        if horizontal then
+            slot:SetSize(PIN, BAR)
+            slot:SetPoint("RIGHT", buttonBar, "RIGHT", -farOffset, 0)
+        else
+            slot:SetSize(BAR, PIN)
+            slot:SetPoint("BOTTOM", buttonBar, "BOTTOM", 0, farOffset)
+        end
+        farOffset = farOffset + PIN + SPACING
+        frame:SetScale(scale)
+        if frame:GetFrameLevel() < level then frame:SetFrameLevel(level) end
+        Place(frame, "CENTER", slot, "CENTER", 0, 0)
+    end
+
     for _, item in ipairs(BUTTONS) do
         local frame = item.frame()
         if frame and IsShown(item, frame) then
@@ -508,10 +536,53 @@ local function IsAddonButton(child)
     return (lower:find("minimap", 1, true) or lower:find("button", 1, true)) and child:GetWidth() >= 20
 end
 
+local dragging           -- the addon button being dragged, if any
+
+-- Pinned buttons by name, account-wide, first = outermost on the bar.
+local function Pins()
+    BOLTDB.minimapPins = BOLTDB.minimapPins or {}
+    return BOLTDB.minimapPins
+end
+
+local function IsPinned(button)
+    local name = button:GetName()
+    for _, pinned in ipairs(Pins()) do
+        if pinned == name then return true end
+    end
+    return false
+end
+
+-- The pinned buttons that are collected and shown, in pin order.
+function PinnedButtons()
+    local list = {}
+    for _, name in ipairs(Pins()) do
+        local button = _G[name]
+        if button and isCollected[button] and button ~= dragging and button:IsShown() then
+            table.insert(list, button)
+        end
+    end
+    return list
+end
+
+-- Pinned buttons live on the button bar, the rest in the drawer at their own size.
+function SyncParents()
+    for _, button in ipairs(collected) do
+        if button ~= dragging then
+            if IsPinned(button) then
+                if button:GetParent() ~= buttonBar then button:SetParent(buttonBar) end
+            elseif button:GetParent() ~= drawer then
+                button:SetParent(drawer)
+                button:SetScale(1)
+            end
+        end
+    end
+end
+
 local function LayoutDrawer()
+    SyncParents()
     local shown = 0
     for _, button in ipairs(collected) do
-        if button:IsShown() then
+        if button:IsShown() and button ~= dragging and not IsPinned(button) then
             local column, row = shown % DRAWER_COLUMNS, math.floor(shown / DRAWER_COLUMNS)
             placing[button] = true
             button:ClearAllPoints()
@@ -530,6 +601,91 @@ local function LayoutDrawer()
     if shown == 0 then drawer:Hide() end
 end
 
+local function Relayout()
+    LayoutDrawer()
+    RequestLayout()
+end
+
+-- Where a drop lands among the other pins: before the first pin that sits nearer the bar's start
+-- than the cursor (pins fill from the far end).
+local function DropIndex(list, cursorX, cursorY)
+    local side = Cfg("buttons") or "BOTTOM"
+    local horizontal = side == "TOP" or side == "BOTTOM"
+    for i, name in ipairs(list) do
+        local button = _G[name]
+        if button and button:IsShown() and button:GetParent() == buttonBar then
+            local x, y = button:GetCenter()
+            local scale = button:GetEffectiveScale()
+            if x and ((horizontal and x * scale < cursorX) or (not horizontal and y * scale > cursorY)) then
+                return i
+            end
+        end
+    end
+    return #list + 1
+end
+
+local dragDriver = CreateFrame("Frame")
+dragDriver:Hide()
+dragDriver:SetScript("OnUpdate", function()
+    if not dragging then return dragDriver:Hide() end
+    local x, y = GetCursorPosition()
+    local scale = dragging:GetEffectiveScale()
+    placing[dragging] = true
+    dragging:ClearAllPoints()
+    dragging:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x / scale, y / scale)
+    placing[dragging] = nil
+    if buttonBar.dropGlow then buttonBar.dropGlow:SetShown(buttonBar:IsMouseOver()) end
+end)
+
+local function StartDrag(self)
+    if not SquareMinimap.active then return end
+    dragging = self
+    self.boltStrata = self:GetFrameStrata()
+    GameTooltip:Hide()
+    self:SetParent(UIParent)
+    self:SetFrameStrata("TOOLTIP")
+    dragDriver:Show()
+    if not buttonBar.dropGlow then
+        local glow = buttonBar:CreateTexture(nil, "OVERLAY")
+        glow:SetPoint("TOPLEFT", 3, -3)
+        glow:SetPoint("BOTTOMRIGHT", -3, 3)
+        glow:SetColorTexture(1, 0.82, 0, 0.18)
+        buttonBar.dropGlow = glow
+    end
+    buttonBar.dropGlow:Hide()
+    LayoutDrawer()
+end
+
+local function StopDrag(self)
+    if dragging ~= self then return end
+    dragDriver:Hide()
+    buttonBar.dropGlow:Hide()
+    if self.boltStrata then self:SetFrameStrata(self.boltStrata) end
+
+    local name = self:GetName()
+    local list = Pins()
+    for i = #list, 1, -1 do
+        if list[i] == name then table.remove(list, i) end
+    end
+    -- On the bar: pinned where it was dropped. Anywhere else: back in (or still in) the drawer.
+    dragging = nil
+    if buttonBar:IsShown() and buttonBar:IsMouseOver() then
+        local x, y = GetCursorPosition()
+        table.insert(list, DropIndex(list, x, y), name)
+    end
+    Relayout()
+end
+
+-- Our drag stays on the button even when its addon sets its own (LibDBIcon does on lock/unlock).
+local settingDrag = {}
+local function TakeDrag(button)
+    settingDrag[button] = true
+    button:RegisterForDrag("LeftButton")
+    button:SetScript("OnDragStart", StartDrag)
+    button:SetScript("OnDragStop", StopDrag)
+    settingDrag[button] = nil
+end
+
 local function CollectButtons()
     if not drawer then return end
     local added = false
@@ -539,13 +695,16 @@ local function CollectButtons()
                 isCollected[child] = true
                 table.insert(collected, child)
                 child:SetParent(drawer)
-                child:SetScript("OnDragStart", nil)
-                child:SetScript("OnDragStop", nil)
-                hooksecurefunc(child, "SetPoint", function(self)
-                    if not placing[self] and SquareMinimap.active then C_Timer.After(0, LayoutDrawer) end
+                TakeDrag(child)
+                hooksecurefunc(child, "SetScript", function(self, script)
+                    if settingDrag[self] then return end
+                    if script == "OnDragStart" or script == "OnDragStop" then TakeDrag(self) end
                 end)
-                child:HookScript("OnShow", function() C_Timer.After(0, LayoutDrawer) end)
-                child:HookScript("OnHide", function() C_Timer.After(0, LayoutDrawer) end)
+                hooksecurefunc(child, "SetPoint", function(self)
+                    if not placing[self] and SquareMinimap.active then C_Timer.After(0, Relayout) end
+                end)
+                child:HookScript("OnShow", function() C_Timer.After(0, Relayout) end)
+                child:HookScript("OnHide", function() C_Timer.After(0, Relayout) end)
                 added = true
             end
         end
@@ -553,7 +712,7 @@ local function CollectButtons()
     if added then
         table.sort(collected, function(a, b) return a:GetName() < b:GetName() end)
     end
-    LayoutDrawer()
+    Relayout()
 end
 
 -- Open toward the middle of the screen so the drawer never runs off its edge.
@@ -577,7 +736,7 @@ local function BuildDrawer()
     drawer:Hide()
     -- Close once the mouse has been away from both the drawer and its button for a moment.
     drawer:SetScript("OnUpdate", function(self, elapsed)
-        if self:IsMouseOver() or drawerButton:IsMouseOver() then
+        if dragging or self:IsMouseOver() or drawerButton:IsMouseOver() then
             self.away = 0
         else
             self.away = (self.away or 0) + elapsed
@@ -614,6 +773,7 @@ local function BuildDrawer()
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         GameTooltip:SetText(("Addon buttons (%d)"):format(self.count), 1, 1, 1)
         GameTooltip:AddLine("Click to show the buttons addons put on the minimap.", nil, nil, nil, true)
+        GameTooltip:AddLine("Drag one onto this bar to pin it at the far end; drag it off the bar to put it back.", 0.7, 0.7, 0.7, true)
         GameTooltip:Show()
     end)
     drawerButton:SetScript("OnLeave", GameTooltip_Hide)

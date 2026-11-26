@@ -201,7 +201,7 @@ local PAGES = {
             },
             {
                 module = "minimap",
-                description = "A square minimap framed with Blizzard's own art. The zone name and clock sit in a title bar above it, and the minimap buttons (tracking, calendar, mail, expansion summary, instance difficulty, addon list and a drawer for addon buttons) in one bar. Coordinates sit inside the map, with your movement speed in the opposite corner, and the FPS can show next to the clock. Turning it off takes a /reload.",
+                description = "A square minimap framed with Blizzard's own art. The zone name and clock sit in a title bar above it, and the minimap buttons (tracking, calendar, mail, expansion summary, instance difficulty, addon list and a drawer for addon buttons) in one bar. Drag an addon button from the drawer onto the bar to pin it at the far end; drag it off to put it back. Coordinates sit inside the map, with your movement speed in the opposite corner, and the FPS can show next to the clock. Turning it off takes a /reload.",
                 editMode = "select the Minimap to pick where its buttons go and turn wheel zoom, the FPS and the speed on or off.",
                 options = {
                     { type = "dropdown", label = "Minimap buttons:", width = 170, path = { "minimap", "buttons" },
@@ -297,6 +297,15 @@ local PAGES = {
                 options = {
                     { type = "button", label = "Clear Sell List", width = 140,
                         onClick = function() Module("autoSell"):ClearList() end },
+                },
+            },
+            {
+                module = "mailBook",
+                description = "At a mailbox, opens your bags and lists the last 5 characters you sent mail to beside the Send Mail tab: click a name to put it in the To field, right-click to take it off. The list is shared by all your characters.",
+                options = {
+                    { type = "checkbox", label = "Open my bags at the mailbox", path = { "mailBook", "openBags" } },
+                    { type = "button", label = "Clear Recent List", width = 140,
+                        onClick = function() Module("mailBook"):ClearList() end },
                 },
             },
             {
